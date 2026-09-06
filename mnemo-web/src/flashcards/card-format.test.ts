@@ -150,3 +150,29 @@ describe("plainCardText", () => {
     expect(plainCardText("Because:\n- ==one==\n- __two__")).toBe("Because:\none\ntwo")
   })
 })
+
+describe("markers inside words", () => {
+  it("leaves a product written without spaces alone", () => {
+    expect(plainCardText("2*3*4 = 24")).toBe("2*3*4 = 24")
+  })
+
+  it("leaves an underscore inside an identifier alone", () => {
+    expect(plainCardText("snake__case__name")).toBe("snake__case__name")
+  })
+
+  it("leaves a doubled marker pressed into a word alone", () => {
+    expect(plainCardText("a**b**c and x==y==z")).toBe("a**b**c and x==y==z")
+  })
+
+  it("still pairs a marker flanked by punctuation", () => {
+    expect(plainCardText("(**bold**), **bold**, and **bold**.")).toBe("(bold), bold, and bold.")
+  })
+
+  it("still pairs a marker at either end of the text", () => {
+    expect(plainCardText("**bold** then *soft*")).toBe("bold then soft")
+  })
+
+  it("drops a carriage return from an imported bullet", () => {
+    expect(plainCardText("- one\r\n- two\r")).toBe("one\ntwo")
+  })
+})

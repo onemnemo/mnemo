@@ -27,9 +27,12 @@ const MARKERS: [string, CardMark][] = [
   ["`", "code"],
 ]
 
-const BULLET = /^[ \t]*- (.*)$/
+// The optional carriage return keeps an imported card's line endings out of the item.
+const BULLET = /^[ \t]*- (.*?)\r?$/
 
 const WHITESPACE = /\s/
+
+const WORD = /[\p{L}\p{N}]/u
 
 /**
  * One character of the source, or one whole formula.
@@ -95,12 +98,21 @@ function tokenize(units: Unit[]): Token[] {
       const [marker, mark] = found
       const before = units[at - 1]
       const after = units[at + marker.length]
+      // A marker pressed into a word on its outside is part of the word: `2*3*4` is a
+      // product and `__init__` is a name, and neither was written with the format bar,
+      // which always wraps a selection that has whitespace or punctuation around it.
       tokens.push({
         t: "delim",
         marker,
         mark,
-        opens: after !== undefined && !WHITESPACE.test(after.char),
-        closes: before !== undefined && !WHITESPACE.test(before.char),
+        opens:
+          after !== undefined &&
+          !WHITESPACE.test(after.char) &&
+          !(before !== undefined && WORD.test(before.char)),
+        closes:
+          before !== undefined &&
+          !WHITESPACE.test(before.char) &&
+          !(after !== undefined && WORD.test(after.char)),
       })
       at += marker.length
       continue
