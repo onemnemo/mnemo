@@ -47,7 +47,6 @@ public sealed class SettingsToolService
         ["Editor.Width"] = new("Editor", true, "Wide", v => v?.ToString() ?? "Wide"),
         // The master switch; the aliases above route the plain words here.
         ["Proofing.Enabled"] = new("Proofing", true, true, CoerceBool),
-        ["Editor.SpellCheck"] = new("Proofing", true, true, CoerceBool),
         ["AI.EnableAssistant"] = new("AI", true, false, CoerceBool),
         // Not writable: a model must never be able to grant itself agent mode. Still
         // readable, so it can report the current state back to the user.

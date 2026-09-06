@@ -279,9 +279,9 @@ describe('who owns the underlines', () => {
     return container.querySelector('.notes-doc')?.getAttribute('spellcheck') ?? null;
   }
 
-  it('leaves the browser checking while ours has nothing to say', () => {
+  it('leaves browser underlines off while ours has nothing to say', () => {
     renderWithStatus(proofingStatusOf(['es-ES']));
-    expect(spellCheck()).toBe('true');
+    expect(spellCheck()).toBe('false');
   });
 
   it('stands the browser down while ours is marking', () => {
