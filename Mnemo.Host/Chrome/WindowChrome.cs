@@ -49,7 +49,16 @@ internal static class WindowChrome
             // Harmless on a runtime too old to know the flag. The bridge stays as the
             // fallback, and on a runtime that does honour this it never fires, because
             // a drag region swallows the pointer before the page sees it.
-            window.SetBrowserControlInitParameters("--enable-features=msWebView2EnableDraggableRegions");
+            //
+            // The renderer only ever talks to its own loopback port: the page's CSP is
+            // 'self' and external links go to the OS. WebView2 still waits on Windows
+            // proxy auto-discovery before its first request may connect, which held the
+            // first paint for about two seconds on a machine with WPAD enabled, so the
+            // engine is told there is no proxy at all. If a future feature loads remote
+            // content inside the WebView, this flag breaks it behind a corporate proxy,
+            // and it has to be lifted then.
+            window.SetBrowserControlInitParameters(
+                "--enable-features=msWebView2EnableDraggableRegions --no-proxy-server");
 
             // The drag regions decide who runs the gesture; this decides whether
             // Windows considers the result a window worth snapping.
