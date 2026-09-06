@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
@@ -22,14 +23,21 @@ public sealed class FlashcardFactService : IFlashcardFactService
     private readonly ICardRepository _cards;
     private readonly FlashcardCardMaterializer _materializer;
     private readonly FlashcardClock _clock;
+    private readonly ITrashService _trash;
 
+    /// <param name="trash">
+    /// Where a card that lost its layout goes. The collection and the ledger are written by two
+    /// different connections, so the sweep runs after the save has committed rather than inside
+    /// it, and an interruption in between leaves the card live rather than gone.
+    /// </param>
     public FlashcardFactService(
         IFlashcardStore store,
         IFactRepository facts,
         ICardTypeRepository types,
         ICardRepository cards,
         FlashcardCardMaterializer materializer,
-        FlashcardClock clock)
+        FlashcardClock clock,
+        ITrashService trash)
     {
         _store = store;
         _facts = facts;
@@ -37,6 +45,7 @@ public sealed class FlashcardFactService : IFlashcardFactService
         _cards = cards;
         _materializer = materializer;
         _clock = clock;
+        _trash = trash;
     }
 
     public Task<IReadOnlyList<FlashcardCardType>> ListCardTypesAsync(CancellationToken cancellationToken = default) =>
@@ -52,8 +61,9 @@ public sealed class FlashcardFactService : IFlashcardFactService
     {
         ArgumentNullException.ThrowIfNull(type);
         var now = _clock.Now;
+        var orphaned = new List<string>();
 
-        return await _store.WriteAsync(async (conn, tx, ct) =>
+        var saved = await _store.WriteAsync(async (conn, tx, ct) =>
         {
             var previous = await _types.GetAsync(conn, type.Id, ct).ConfigureAwait(false);
             if (previous is not null && previous.IsBuiltIn && !type.IsBuiltIn)
@@ -75,14 +85,73 @@ public sealed class FlashcardFactService : IFlashcardFactService
             {
                 foreach (var fact in await _facts.ListByTypeAsync(conn, saved.Id, ct).ConfigureAwait(false))
                 {
-                    await _materializer
+                    var applied = await _materializer
                         .ApplyAsync(conn, tx, saved, fact, fact.DeckId, importedCards: null, now, ct)
                         .ConfigureAwait(false);
+                    if (applied.Orphaned is { Count: > 0 } lost)
+                        orphaned.AddRange(lost);
                 }
             }
 
             return saved;
         }, cancellationToken).ConfigureAwait(false);
+
+        await SweepToTrashAsync(orphaned, cancellationToken).ConfigureAwait(false);
+        return saved;
+    }
+
+    public async Task<FlashcardCardTypePreflight> PreviewCardTypeSaveAsync(
+        FlashcardCardType type, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+
+        return await _store.ReadAsync(async (conn, ct) =>
+        {
+            var stored = await _types.GetAsync(conn, type.Id, ct).ConfigureAwait(false);
+            if (stored is null)
+                return new FlashcardCardTypePreflight(0, 0);
+
+            // The same shaping a save does, so the count answers for the type that would land
+            // rather than for the request body.
+            var proposed = FlashcardCardTypeEdit.CarryRenames(stored, type) with
+            {
+                IsBuiltIn = stored.IsBuiltIn,
+                Generator = stored.Generator,
+                GenerateFrom = stored.GenerateFrom,
+            };
+
+            var cards = 0;
+            var facts = 0;
+            foreach (var fact in await _facts.ListByTypeAsync(conn, stored.Id, ct).ConfigureAwait(false))
+            {
+                var lost = await CountLostCardsAsync(conn, proposed, fact, ct).ConfigureAwait(false);
+                if (lost == 0)
+                    continue;
+                cards += lost;
+                facts++;
+            }
+
+            return new FlashcardCardTypePreflight(cards, facts);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// How many of one fact's cards the proposed type leaves without a layout. Counted over what
+    /// the material owns rather than over what it generates today, which is the only side that
+    /// sees a card whose layout has already gone.
+    /// </summary>
+    private async Task<int> CountLostCardsAsync(
+        SqliteConnection conn, FlashcardCardType proposed, FlashcardFact fact, CancellationToken ct)
+    {
+        var generated = FlashcardGeneration.Generate(proposed, fact);
+
+        // Material that would make nothing keeps every card it has: the save leaves it alone.
+        if (generated.Count == 0)
+            return 0;
+
+        var keys = new HashSet<string>(generated.Select(card => card.Key), StringComparer.Ordinal);
+        var owned = await _facts.GetCardKeysAsync(conn, fact.Id, ct).ConfigureAwait(false);
+        return owned.Count(key => !key.IsHeld && !keys.Contains(key.LayoutKey));
     }
 
     public Task<bool> DeleteCardTypeAsync(string typeId, CancellationToken cancellationToken = default) =>
@@ -122,17 +191,22 @@ public sealed class FlashcardFactService : IFlashcardFactService
             return [];
 
         var now = _clock.Now;
-        return await _store.WriteAsync(async (conn, tx, ct) =>
+        var orphaned = new List<string>();
+
+        var written = await _store.WriteAsync(async (conn, tx, ct) =>
         {
             // A package imports under a handful of types across thousands of notes, so the type is
             // read once rather than once per draft.
             var types = new Dictionary<string, FlashcardCardType>(StringComparer.Ordinal);
             var saved = new List<FlashcardFactSaved>(drafts.Count);
             foreach (var draft in drafts)
-                saved.Add(await SaveOneAsync(conn, tx, draft, types, now, ct).ConfigureAwait(false));
+                saved.Add(await SaveOneAsync(conn, tx, draft, types, orphaned, now, ct).ConfigureAwait(false));
 
             return (IReadOnlyList<FlashcardFactSaved>)saved;
         }, cancellationToken).ConfigureAwait(false);
+
+        await SweepToTrashAsync(orphaned, cancellationToken).ConfigureAwait(false);
+        return written;
     }
 
     private async Task<FlashcardFactSaved> SaveOneAsync(
@@ -140,6 +214,7 @@ public sealed class FlashcardFactService : IFlashcardFactService
         SqliteTransaction tx,
         FlashcardFactDraft draft,
         Dictionary<string, FlashcardCardType> types,
+        List<string> orphaned,
         DateTimeOffset now,
         CancellationToken ct)
     {
@@ -174,10 +249,18 @@ public sealed class FlashcardFactService : IFlashcardFactService
             .ApplyAsync(conn, tx, type, fact, existing?.DeckId, draft.Cards, now, ct)
             .ConfigureAwait(false);
 
+        // The cards that lost their layout are still live rows until the sweep runs, so they are
+        // left out here rather than reported back as cards the material still has.
+        var lost = result.Orphaned is { Count: > 0 } ? new HashSet<string>(result.Orphaned, StringComparer.Ordinal) : null;
+        if (lost is not null)
+            orphaned.AddRange(result.Orphaned);
+
         var keys = await _facts.GetCardKeysAsync(conn, fact.Id, ct).ConfigureAwait(false);
         var cards = new List<Flashcard>(keys.Count);
         foreach (var key in keys)
         {
+            if (lost is not null && lost.Contains(key.CardId))
+                continue;
             if (await _cards.GetAsync(conn, key.CardId, ct).ConfigureAwait(false) is { } card)
                 cards.Add(card);
         }
@@ -214,6 +297,23 @@ public sealed class FlashcardFactService : IFlashcardFactService
                 .EnqueueAsync(conn, tx, FlashcardAssetReferences.AssetOwner, files, _clock.Now, ct)
                 .ConfigureAwait(false);
         }, cancellationToken);
+
+    /// <summary>
+    /// Moves cards nothing generates any more into the trash, so an edit to one piece of material
+    /// or to a type never destroys a card outright. Each card keeps its schedule and its reviews
+    /// and comes back whole if it is restored.
+    /// </summary>
+    private async Task SweepToTrashAsync(IReadOnlyList<string> cardIds, CancellationToken cancellationToken)
+    {
+        if (cardIds.Count == 0)
+            return;
+
+        var requests = new List<TrashDeleteRequest>(cardIds.Count);
+        foreach (var cardId in cardIds)
+            requests.Add(new TrashDeleteRequest(FlashcardCardTrashSource.TrashKind, cardId));
+
+        await _trash.DeleteAsync(requests, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <summary>The files an edit removed from the material's fields, kept until now so a save
     /// that fails or is never made never costs anyone a picture.</summary>

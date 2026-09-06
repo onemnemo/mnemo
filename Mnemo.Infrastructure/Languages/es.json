@@ -1485,6 +1485,7 @@
     "RestoreContainerHeld": "Lo que lo contenía todavía está en la papelera. Restaura eso primero.",
     "RestoreNeedsDestination": "Elige un mazo al que devolver esto.",
     "RestoreMissing": "Esto ya no está ahí para restaurarlo.",
+    "RestoreNoLongerGenerated": "El tipo de tarjeta del que salió esta tarjeta ya no la crea. Vuelve a añadir esa tarjeta al tipo y luego restaura esta.",
     "PurgeBlockedFormat": "{0} elementos más de la papelera viven dentro de este. Restáuralos o elimínalos para siempre primero.",
     "PurgeBlockedByFormat": "{0} también está en la papelera y vive dentro de este. Restáuralo o elimínalo para siempre primero."
   },

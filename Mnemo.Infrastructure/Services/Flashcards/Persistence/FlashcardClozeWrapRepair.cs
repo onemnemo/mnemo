@@ -25,11 +25,11 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 /// so an upgrade does not report every cloze card in a collection as just edited.
 /// </para>
 /// <para>
-/// Nothing is deleted. Where the widened pattern no longer produces a card the material used to
-/// have, this leaves the material alone entirely rather than rebuilding it, because the rebuild
-/// would take that card and its whole review history with it. Losing history is a decision for
-/// somebody editing their own material, with the editor telling them the count, and not for an
-/// upgrade that runs before anyone has opened the app. Such material reconciles itself at the next
+/// Nothing is taken out of the collection. Where the widened pattern no longer produces a card the
+/// material used to have, this leaves the material alone entirely rather than rebuilding it,
+/// because the rebuild would file that card away in the trash. Doing that to somebody's cards is a
+/// decision for them, taken in the editor with the count in front of them, and not for an upgrade
+/// that runs before anyone has opened the app. Such material reconciles itself at the next
 /// ordinary save.
 /// </para>
 /// </remarks>

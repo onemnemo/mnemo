@@ -134,7 +134,11 @@ public sealed class FlashcardFactServiceTests
         Assert.Equal(1, second.Removed);
         Assert.Equal(keptId, second.Cards.Single().Id);
         Assert.Null(await harness.Store.ReadAsync((conn, ct) => harness.Cards.GetAsync(conn, goneId, ct)));
-        Assert.Null(await harness.Store.ReadAsync((conn, ct) => harness.Schedules.GetAsync(conn, goneId, ct)));
+
+        // Out of the collection, into the trash, with the schedule it had. Nothing an edit does to
+        // material destroys a card outright.
+        Assert.NotNull(await harness.Store.ReadAsync((conn, ct) => harness.Schedules.GetAsync(conn, goneId, ct)));
+        Assert.Equal(goneId, Assert.Single(await harness.HeldAsync()).ItemId);
     }
 
     [Fact]
@@ -318,11 +322,14 @@ public sealed class FlashcardFactServiceTests
             Layouts = [.. type.Layouts.Where(l => l.Id != FlashcardCardType.RecallLayoutId)],
         });
 
-        // Removing a layout deletes its cards and schedules across all material using the type.
+        // Removing a layout takes its cards out of every piece of material using the type, and the
+        // trash holds each of them with the schedule it had.
+        var held = (await harness.HeldAsync()).Select(entry => entry.ItemId).ToList();
         foreach (var gone in new[] { firstRecall, secondRecall })
         {
             Assert.Null(await harness.Store.ReadAsync((conn, ct) => harness.Cards.GetAsync(conn, gone.Id, ct)));
-            Assert.Null(await harness.Store.ReadAsync((conn, ct) => harness.Schedules.GetAsync(conn, gone.Id, ct)));
+            Assert.NotNull(await harness.Store.ReadAsync((conn, ct) => harness.Schedules.GetAsync(conn, gone.Id, ct)));
+            Assert.Contains(gone.Id, held);
         }
 
         foreach (var kept in new[] { first, second })

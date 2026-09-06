@@ -1485,6 +1485,7 @@
     "RestoreContainerHeld": "Det dette lå inni er fortsatt i papirkurven. Gjenopprett det først.",
     "RestoreNeedsDestination": "Velg en kortstokk dette skal tilbake til.",
     "RestoreMissing": "Dette finnes ikke lenger å gjenopprette.",
+    "RestoreNoLongerGenerated": "Korttypen dette kortet kom fra lager det ikke lenger. Legg kortet tilbake på typen, og gjenopprett dette etterpå.",
     "PurgeBlockedFormat": "{0} andre elementer i papirkurven ligger inni dette. Gjenopprett eller slett dem for godt først.",
     "PurgeBlockedByFormat": "{0} er også i papirkurven og ligger inni dette. Gjenopprett eller slett det for godt først."
   },

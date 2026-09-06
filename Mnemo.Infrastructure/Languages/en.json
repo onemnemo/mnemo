@@ -1485,6 +1485,7 @@
     "RestoreContainerHeld": "What this was inside is still in the trash. Restore that first.",
     "RestoreNeedsDestination": "Pick a deck for this to go back to.",
     "RestoreMissing": "This is no longer there to restore.",
+    "RestoreNoLongerGenerated": "The card type this card came from no longer makes it. Put that card back on the type, then restore this.",
     "PurgeBlockedFormat": "{0} other items in the trash live inside this. Restore or delete those for good first.",
     "PurgeBlockedByFormat": "{0} is in the trash too and lives inside this. Restore or delete that for good first."
   },
