@@ -1763,6 +1763,19 @@
   cursor: default;
 }
 
+/* Where a dropped file will land. Drawn on the body, like the block reorder's own
+ * line, because the top-level blocks carry paint containment and would clip a
+ * line drawn into the gap between two of them. Its geometry is set by the plugin
+ * that shows it; everything that does not change per drag is here. The tier is
+ * the reorder line's, above every note surface and outside the shell's scale. */
+.notes-drop-line {
+  position: fixed;
+  z-index: 998;
+  pointer-events: none;
+  border-radius: 9999px;
+  background: var(--accent);
+}
+
 /* Find and replace match highlights. Painted as decorations, so they never
  * enter the document; the current match reads brighter than the rest. Their
  * own token pair (below in tokens.css), never --sel-*: that family means a

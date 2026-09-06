@@ -13,7 +13,12 @@
  *
  * A drop onto an image block's own card never reaches this plugin: the card claims it and
  * fills its block, and hands any further files back through {@link uploadAndInsert} so they
- * land below it as blocks of their own.
+ * land below it as blocks of their own. The card's claim stops at the drop, though, so the
+ * indicator below has to stand aside for it by hand.
+ *
+ * A drag in flight draws the boundary it would land on, the same line the block reorder
+ * paints. The blocks themselves arrive once the upload answers, which is the one part of
+ * the gesture that still shows nothing while it runs.
  */
 
 import { Plugin, TextSelection } from 'prosemirror-state';
@@ -21,13 +26,32 @@ import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorServices } from '../registry/types';
 import { asOwnUndoStep } from '../history';
+import { createDropLine, dropLineBox, dropRowIndex } from './file-drop-line';
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp']);
+
+/** The card an empty image block draws, which claims a file drop of its own. */
+const IMAGE_CARD = '.notes-image-card';
 
 /** The image files a transfer carries, in order; anything else it holds is left alone. */
 export function imageFiles(data: DataTransfer | null): File[] {
   if (!data) return [];
   return Array.from(data.files).filter((file) => IMAGE_TYPES.has(file.type));
+}
+
+/**
+ * Whether a drag still in flight is carrying pictures.
+ *
+ * Not {@link imageFiles}: a transfer withholds the files themselves until the
+ * drop, so what is readable mid-drag is the item list, and some sources report
+ * no type on those either. An untyped file item counts, or the indicator would
+ * go missing on exactly the drags that are about to work.
+ */
+export function dragCarriesImages(data: DataTransfer | null): boolean {
+  if (!data) return false;
+  const files = Array.from(data.items).filter((item) => item.kind === 'file');
+  if (files.length > 0) return files.some((item) => item.type === '' || IMAGE_TYPES.has(item.type));
+  return Array.from(data.types).includes('Files');
 }
 
 /** The gap after the top-level block containing `pos`, where a new block can sit. */
@@ -79,7 +103,23 @@ export function uploadAndInsert(
  * editor's normal content handling.
  */
 export function imageClipboardPlugin(services: EditorServices): Plugin {
+  const line = createDropLine();
+
+  /** Where the drop under the pointer would land, or null if it would land nowhere. */
+  const boundaryAt = (view: EditorView, event: DragEvent): number | null => {
+    const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
+    if (!at) return null;
+    return dropRowIndex(view.state.doc, at.pos);
+  };
+
   return new Plugin({
+    view() {
+      return {
+        destroy() {
+          line.destroy();
+        },
+      };
+    },
     props: {
       handlePaste(view, event) {
         const files = imageFiles(event.clipboardData);
@@ -89,12 +129,42 @@ export function imageClipboardPlugin(services: EditorServices): Plugin {
         return true;
       },
       handleDrop(view, event) {
+        line.hide();
         const files = imageFiles(event.dataTransfer);
         if (files.length === 0) return false;
         event.preventDefault();
         const drop = view.posAtCoords({ left: event.clientX, top: event.clientY });
         uploadAndInsert(view, services, files, drop?.pos ?? view.state.selection.head);
         return true;
+      },
+      handleDOMEvents: {
+        // Drawn rather than claimed: the window's own drop guard is what keeps
+        // the engine from navigating on a file, and this only says where the
+        // release will put it. Always returns false, so nothing downstream loses
+        // an event to the indicator.
+        dragover(view, event) {
+          if (!view.editable || !dragCarriesImages(event.dataTransfer)) return false;
+          // An empty image block's card takes a drop into itself, and says so on
+          // its own border; a second indicator would point somewhere else.
+          const target = event.target;
+          if (target instanceof Element && target.closest(IMAGE_CARD)) {
+            line.hide();
+            return false;
+          }
+          const row = boundaryAt(view, event);
+          const box = row === null ? null : dropLineBox(view.dom, row);
+          if (box) line.show(box);
+          else line.hide();
+          return false;
+        },
+        dragleave(view, event) {
+          // Crossing between two blocks fires a leave for the one behind; only a
+          // pointer that has left the document entirely puts the line away.
+          const to = event.relatedTarget;
+          if (to instanceof Node && view.dom.contains(to)) return false;
+          line.hide();
+          return false;
+        },
       },
     },
   });
