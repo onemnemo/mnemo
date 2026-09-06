@@ -26,6 +26,10 @@ beforeAll(async () => {
 const mocks = vi.hoisted(() => ({
   saveCardType: vi.fn(async (_body: unknown) => ({ id: "vocab" })),
   deleteCardType: vi.fn(async (_typeId: string) => {}),
+  previewCardTypeSave: vi.fn(async (_typeId: string, _body: unknown) => ({
+    removedCardCount: 4,
+    affectedFactCount: 3,
+  })),
   refresh: vi.fn(),
   confirm: vi.fn(async (_options: ConfirmOptions) => false),
   warn: vi.fn(),
@@ -95,6 +99,7 @@ vi.mock("../facts/api", () => ({
   useRefreshAfterFactWrite: () => mocks.refresh,
   saveCardType: mocks.saveCardType,
   deleteCardType: mocks.deleteCardType,
+  previewCardTypeSave: mocks.previewCardTypeSave,
 }))
 
 // Include parameters in translated output so assertions can inspect names and counts.
@@ -117,6 +122,13 @@ vi.mock("@/stores/toast", () => ({
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
+// Radix measures and scrolls its dropdown and captures the pointer, none of which the pinned
+// jsdom implements. Scoped to this file.
+Element.prototype.scrollIntoView = () => {}
+Element.prototype.hasPointerCapture = () => false
+Element.prototype.setPointerCapture = () => {}
+Element.prototype.releasePointerCapture = () => {}
+
 let container: HTMLElement
 let root: Root
 
@@ -125,6 +137,7 @@ beforeEach(() => {
   // Clear mock implementations so consent cannot leak between tests.
   mocks.confirm.mockResolvedValue(false)
   mocks.deleteCardType.mockResolvedValue(undefined)
+  mocks.previewCardTypeSave.mockResolvedValue({ removedCardCount: 4, affectedFactCount: 3 })
   container = document.createElement("div")
   document.body.appendChild(container)
   root = createRoot(container)
@@ -249,6 +262,23 @@ function removeCardButtons(): HTMLButtonElement[] {
   return [...document.querySelectorAll<HTMLButtonElement>('button[aria-label="CardTypesRemoveCard"]')]
 }
 
+/** Points one card's condition at a field, through the dropdown the row actually renders. */
+function requireField(cardIndex: number, fieldName: string): void {
+  const trigger = [...document.querySelectorAll<HTMLElement>('[aria-label="CardTypesRequiresLabel"]')][cardIndex]
+  expect(trigger, "no condition dropdown on that card").not.toBeUndefined()
+  act(() => {
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+  })
+
+  const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
+    (el) => el.textContent === fieldName,
+  )
+  expect(option, `no ${fieldName} choice in the dropdown`).not.toBeUndefined()
+  act(() => {
+    option!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+  })
+}
+
 function selectRow(index: number): void {
   const row = [...document.querySelectorAll('div[role="option"]')][index]
   act(() => {
@@ -270,10 +300,12 @@ describe("CardTypeOverlay card removal guard", () => {
     await settle()
 
     expect(mocks.confirm).toHaveBeenCalledTimes(1)
-    // Use stored layout names and the live material count in the confirmation.
+    // Stored layout names, and the count of cards the server says the save would take rather than
+    // how much material happens to use the type.
+    expect(mocks.previewCardTypeSave).toHaveBeenCalledTimes(1)
     expect(mocks.confirm.mock.calls[0][0]).toMatchObject({
       title: "CardTypesRemoveCardsTitle",
-      message: "CardTypesRemoveCardsMessage(0=Recall, 1=Vocabulary, 2=3)",
+      message: "CardTypesRemoveCardsMessage(0=Recall, 1=Vocabulary, 2=4)",
       confirmLabel: "CardTypesRemoveCardsConfirm",
       destructive: true,
     })
@@ -334,7 +366,79 @@ describe("CardTypeOverlay card removal guard", () => {
 
     // The sweep only reaches live material.
     expect(mocks.confirm).not.toHaveBeenCalled()
+    expect(mocks.previewCardTypeSave).not.toHaveBeenCalled()
     expect(mocks.saveCardType).toHaveBeenCalledTimes(1)
+  })
+
+  it("saves without asking when the server says the edit takes no card", async () => {
+    mocks.previewCardTypeSave.mockResolvedValue({ removedCardCount: 0, affectedFactCount: 0 })
+    open()
+    await settle()
+
+    act(() => removeCardButtons()[1].click())
+    await settle()
+    act(() => saveButton()?.click())
+    await settle()
+
+    expect(mocks.confirm).not.toHaveBeenCalled()
+    expect(mocks.saveCardType).toHaveBeenCalledTimes(1)
+  })
+
+  it("writes nothing when the count cannot be read", async () => {
+    mocks.previewCardTypeSave.mockRejectedValue(new Error("the collection is locked"))
+    open()
+    await settle()
+
+    act(() => removeCardButtons()[1].click())
+    await settle()
+    act(() => saveButton()?.click())
+    await settle()
+
+    expect(mocks.confirm).not.toHaveBeenCalled()
+    expect(mocks.saveCardType).not.toHaveBeenCalled()
+    expect(mocks.warn).toHaveBeenCalledWith("CardTypesSaveErrorTitle", {
+      description: "the collection is locked",
+    })
+  })
+})
+
+/**
+ * A card whose condition moves onto a field costs exactly what removing it does, for every piece
+ * of material leaving that field empty, and it keeps its layout id so no diff of the draft sees it.
+ */
+describe("CardTypeOverlay required field guard", () => {
+  it("asks before a save that starts requiring a field", async () => {
+    open()
+    await settle()
+
+    requireField(1, "Word")
+    await settle()
+    act(() => saveButton()?.click())
+    await settle()
+
+    expect(mocks.confirm).toHaveBeenCalledTimes(1)
+    expect(mocks.confirm.mock.calls[0][0]).toMatchObject({
+      title: "CardTypesRequiresChangeTitle",
+      message: "CardTypesRequiresChangeMessage(0=Recall, 1=Vocabulary, 2=4)",
+      confirmLabel: "CardTypesRequiresChangeConfirm",
+      destructive: true,
+    })
+    expect(mocks.saveCardType).not.toHaveBeenCalled()
+  })
+
+  it("sends the condition once it is confirmed", async () => {
+    mocks.confirm.mockResolvedValue(true)
+    open()
+    await settle()
+
+    requireField(1, "Word")
+    await settle()
+    act(() => saveButton()?.click())
+    await settle()
+
+    expect(mocks.saveCardType).toHaveBeenCalledTimes(1)
+    const sent = mocks.saveCardType.mock.calls[0][0] as { layouts: { id: string; requires: string | null }[] }
+    expect(sent.layouts.find((layout) => layout.id === "recall")?.requires).toBe("word")
   })
 })
 

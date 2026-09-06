@@ -12,10 +12,12 @@ import {
   moveField,
   newDraft,
   patchField,
+  patchLayout,
   problems,
   removeField,
   removeLayout,
   removedLayouts,
+  requiredFieldChanges,
   toSaveDto,
   uniqueName,
   type CardTypeDraft,
@@ -150,6 +152,29 @@ describe("card type drafts", () => {
     // carries some is not losing the cards they describe.
     const generated = draftFromSummary(summary({ generator: "cloze", generateFrom: "word", layouts: [] }))
     expect(removedLayouts(stored.type, generated)).toEqual([])
+  })
+
+  it("names the cards an edit has newly made conditional", () => {
+    const stored = summary({
+      layouts: [
+        { id: "recognition", name: "Recognition", front: "{{Word}}", back: "{{Meaning}}", requires: null },
+        { id: "recall", name: "Recall", front: "{{Meaning}}", back: "{{Word}}", requires: "meaning" },
+      ],
+    })
+    const draft = draftFromSummary(stored)
+
+    const required = patchLayout(draft, "recognition", { requires: "meaning" })
+    expect(requiredFieldChanges(stored.type, required).map((layout) => layout.name)).toEqual(["Recognition"])
+
+    // Moving a condition from one field to another is the same loss on a different field.
+    const moved = patchLayout(draft, "recall", { requires: "word" })
+    expect(requiredFieldChanges(stored.type, moved).map((layout) => layout.name)).toEqual(["Recall"])
+
+    // Dropping a condition can only make more cards, and a layout the draft no longer lists is
+    // the removal gate's to report.
+    expect(requiredFieldChanges(stored.type, patchLayout(draft, "recall", { requires: null }))).toEqual([])
+    expect(requiredFieldChanges(stored.type, removeLayout(draft, "recall"))).toEqual([])
+    expect(requiredFieldChanges(stored.type, draft)).toEqual([])
   })
 
   it("asks nothing of a generated type's cards, because it has none to lay out", () => {
