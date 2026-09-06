@@ -1,4 +1,4 @@
-import { splitMath } from "./math"
+import { splitMath, stripMath } from "./math"
 
 // The grammar the card editor's format bar writes, and nothing else: `**bold**`, `*italic*`,
 // `__underline__`, `` `code` ``, `==highlight==`, and a line opening with `- ` as a bullet.
@@ -213,4 +213,27 @@ export function parseCardText(source: string): CardBlock[] {
   flush()
 
   return blocks
+}
+
+function plainInline(nodes: CardInline[]): string {
+  return nodes
+    .map((node) => {
+      if (node.kind === "text") return node.value
+      if (node.kind === "math") return stripMath(node.display ? `$$${node.value}$$` : `$${node.value}$`)
+      return plainInline(node.children)
+    })
+    .join("")
+}
+
+/**
+ * The card's text with the markers read out and dropped, for a table row that shows one line
+ * of it and has no room to render anything. A formula reads out flat the way `stripMath`
+ * flattens it, and a bullet list is its items one per line.
+ */
+export function plainCardText(source: string): string {
+  return parseCardText(source)
+    .map((block) =>
+      block.kind === "list" ? block.items.map(plainInline).join("\n") : plainInline(block.content),
+    )
+    .join("\n")
 }

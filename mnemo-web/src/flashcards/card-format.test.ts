@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { parseCardText, type CardInline } from "./card-format"
+import { parseCardText, plainCardText, type CardInline } from "./card-format"
 
 /** The blocks flattened to a readable shape, so an expectation reads like the card does. */
 function shape(source: string): unknown {
@@ -132,5 +132,21 @@ describe("parseCardText blocks", () => {
     for (const input of ["", "*", "***", "`` ", "==", "__", "$", "$$", "- ", "\n\n\n", "**$**"]) {
       expect(() => parseCardText(input)).not.toThrow()
     }
+  })
+})
+
+describe("plainCardText", () => {
+  it("drops the markers and keeps the words", () => {
+    expect(plainCardText("**ATP** is the *energy* currency of `cells`")).toBe(
+      "ATP is the energy currency of cells",
+    )
+  })
+
+  it("reads a formula out flat and leaves arithmetic alone", () => {
+    expect(plainCardText("**$\\frac{a}{b}$** and 5 * 3")).toBe("a/b and 5 * 3")
+  })
+
+  it("lists its bullets one per line", () => {
+    expect(plainCardText("Because:\n- ==one==\n- __two__")).toBe("Because:\none\ntwo")
   })
 })
