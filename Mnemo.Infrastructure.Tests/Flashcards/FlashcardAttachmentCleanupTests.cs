@@ -63,7 +63,7 @@ public sealed class FlashcardAttachmentCleanupTests
         // A fact with no card left is invisible and unreachable: nothing lists it, nothing can
         // edit it, and it would otherwise sit in the database forever holding its file down.
         await using var h = await OpenAsync();
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
+        var factSvc = h.FactService;
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var path = ManagedPath("shared.png");
@@ -86,7 +86,7 @@ public sealed class FlashcardAttachmentCleanupTests
         // A cloze deletion with two markers makes two cards off one fact; deleting one is not
         // deleting the material, so the file the surviving sibling still shows must stay.
         await using var h = await OpenAsync();
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
+        var factSvc = h.FactService;
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
 
         var path = ManagedPath("shared.png");
@@ -111,7 +111,7 @@ public sealed class FlashcardAttachmentCleanupTests
     public async Task Deleting_material_queues_its_media_files()
     {
         await using var h = await OpenAsync();
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
+        var factSvc = h.FactService;
 
         var path = ManagedPath("front.png");
         var saved = await factSvc.SaveFactAsync(Draft(FlashcardCardType.BasicId, new()
@@ -130,7 +130,7 @@ public sealed class FlashcardAttachmentCleanupTests
     public async Task Saving_material_again_queues_the_dropped_attachment_and_keeps_the_one_still_there()
     {
         await using var h = await OpenAsync();
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
+        var factSvc = h.FactService;
 
         var kept = ManagedPath("kept.png");
         var dropped = ManagedPath("dropped.png");
@@ -159,7 +159,7 @@ public sealed class FlashcardAttachmentCleanupTests
     {
         await using var h = await OpenAsync();
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
+        var factSvc = h.FactService;
         var lib = new FlashcardLibraryService(
             h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
@@ -188,7 +188,7 @@ public sealed class FlashcardAttachmentCleanupTests
         await using var h = await OpenAsync();
         await h.SeedDeckAsync("deck-2");
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
+        var factSvc = h.FactService;
         var lib = new FlashcardLibraryService(
             h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 
@@ -229,7 +229,7 @@ public sealed class FlashcardAttachmentCleanupTests
         await using var h = await OpenAsync();
         await h.SeedDeckAsync("deck-2");
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
-        var factSvc = new FlashcardFactService(h.Store, h.Facts, h.CardTypes, h.Cards, h.Materializer, h.Clock);
+        var factSvc = h.FactService;
         var lib = new FlashcardLibraryService(
             h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
 

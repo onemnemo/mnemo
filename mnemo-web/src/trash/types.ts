@@ -38,7 +38,13 @@ export interface TrashCountDto {
 }
 
 /** What happened to one entry a restore touched. */
-export type TrashRestoreOutcome = "restored" | "missing" | "rooted" | "destination_required" | "container_held"
+export type TrashRestoreOutcome =
+  | "restored"
+  | "missing"
+  | "rooted"
+  | "destination_required"
+  | "container_held"
+  | "no_longer_generated"
 
 export interface TrashRestoreResultDto {
   entryId: string
@@ -53,7 +59,10 @@ export interface TrashRestoreResultDto {
 export interface TrashRestoreResponseDto {
   results: TrashRestoreResultDto[]
   restoredCount: number
-  /** Entries still held: they need a destination, or their container is held too. */
+  /**
+   * Entries still held: they need a destination, their container is held too, or nothing in the
+   * collection makes them any more.
+   */
   pendingCount: number
 }
 

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Trash;
@@ -16,6 +18,112 @@ namespace Mnemo.Infrastructure.Services.Trash;
 /// </remarks>
 internal static class TrashCapture
 {
+    /// <summary>Takes several items of one kind through the batched source and ledger contracts.</summary>
+    public static async Task<IReadOnlyList<TrashEntry>> TakeManyAsync(
+        TrashContext context,
+        string kind,
+        IReadOnlyCollection<string> itemIds,
+        string batchId,
+        CancellationToken cancellationToken)
+    {
+        var source = context.Sources.Resolve(kind);
+        var ids = itemIds.Distinct(StringComparer.Ordinal).ToList();
+        var existing = await context.Store.FindByItemsAsync(kind, ids, cancellationToken).ConfigureAwait(false);
+        var taken = new Dictionary<string, TrashEntry>(StringComparer.Ordinal);
+        var pending = new List<string>();
+
+        foreach (var itemId in ids)
+        {
+            if (!existing.TryGetValue(itemId, out var row))
+            {
+                pending.Add(itemId);
+                continue;
+            }
+
+            if (row.State == TrashEntryState.Held)
+            {
+                taken[itemId] = row;
+                continue;
+            }
+
+            if (row.State == TrashEntryState.Purging)
+                continue;
+
+            var recovered = await RecoverPreparedAsync(context, source, row, cancellationToken).ConfigureAwait(false);
+            if (recovered is not null)
+                taken[itemId] = recovered;
+            else
+                pending.Add(itemId);
+        }
+
+        var prepared = await source.PrepareManyAsync(pending, cancellationToken).ConfigureAwait(false);
+        var entries = prepared.ToDictionary(
+            pair => pair.Key,
+            pair => NewEntry(context, kind, pair.Key, batchId, pair.Value),
+            StringComparer.Ordinal);
+        try
+        {
+            await context.Store.InsertManyAsync(entries.Values, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            try
+            {
+                await context.Store.RemoveManyAsync(
+                    entries.Values.Select(entry => entry.Id).ToList(),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception cleanupFailure)
+            {
+                context.Logger.Error("Trash", $"Batch preparation for {source.Kind} could not be rolled back.", cleanupFailure);
+                context.Maintenance.RequestReconciliation();
+            }
+
+            throw;
+        }
+
+        IReadOnlyDictionary<string, TrashSnapshot> captured;
+        try
+        {
+            captured = await source.CaptureManyAsync(
+                entries.ToDictionary(pair => pair.Key, pair => pair.Value.Id, StringComparer.Ordinal),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            var recovered = await ResolveFailedBatchAsync(context, source, entries, ex, cancellationToken)
+                .ConfigureAwait(false);
+            if (recovered.Count != entries.Count)
+                throw;
+            captured = recovered;
+        }
+
+        var promoted = captured.ToDictionary(
+            pair => entries[pair.Key].Id,
+            pair => pair.Value,
+            StringComparer.Ordinal);
+        await context.Store.PromoteManyAsync(promoted, cancellationToken).ConfigureAwait(false);
+
+        var missing = entries.Keys.Where(itemId => !captured.ContainsKey(itemId))
+            .Select(itemId => entries[itemId].Id)
+            .ToList();
+        await context.Store.RemoveManyAsync(missing, cancellationToken).ConfigureAwait(false);
+
+        foreach (var (itemId, snapshot) in captured)
+        {
+            var entry = entries[itemId];
+            taken[itemId] = entry with
+            {
+                State = TrashEntryState.Held,
+                Title = snapshot.Title,
+                Origin = snapshot.Origin,
+                ContainedCount = snapshot.ContainedCount
+            };
+        }
+
+        return ids.Where(taken.ContainsKey).Select(itemId => taken[itemId]).ToList();
+    }
+
     /// <summary>
     /// Takes the requested item, or returns null when it produced no entry.
     /// </summary>
@@ -130,6 +238,40 @@ internal static class TrashCapture
 
         await context.Store.RemoveAsync(existing.Id, cancellationToken).ConfigureAwait(false);
         return null;
+    }
+
+    private static async Task<IReadOnlyDictionary<string, TrashSnapshot>> ResolveFailedBatchAsync(
+        TrashContext context,
+        ITrashSource source,
+        IReadOnlyDictionary<string, TrashEntry> entries,
+        Exception failure,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyCollection<string> held;
+        try
+        {
+            held = await source.HeldEntryIdsAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception probeFailure)
+        {
+            context.Logger.Error("Trash", $"Batch capture for {source.Kind} left prepared entries unresolved.", failure);
+            context.Maintenance.RequestReconciliation();
+            throw new TrashSourceUnavailableException(source.Kind, probeFailure);
+        }
+
+        var heldSet = held.ToHashSet(StringComparer.Ordinal);
+        var promoted = entries.Values.Where(entry => heldSet.Contains(entry.Id)).ToDictionary(
+            entry => entry.Id,
+            entry => new TrashSnapshot(entry.Title, entry.Origin, entry.ContainedCount),
+            StringComparer.Ordinal);
+        await context.Store.PromoteManyAsync(promoted, cancellationToken).ConfigureAwait(false);
+        await context.Store.RemoveManyAsync(
+            entries.Values.Where(entry => !heldSet.Contains(entry.Id)).Select(entry => entry.Id).ToList(),
+            cancellationToken).ConfigureAwait(false);
+        return entries.Where(pair => heldSet.Contains(pair.Value.Id)).ToDictionary(
+            pair => pair.Key,
+            pair => new TrashSnapshot(pair.Value.Title, pair.Value.Origin, pair.Value.ContainedCount),
+            StringComparer.Ordinal);
     }
 
     private static TrashEntry NewEntry(

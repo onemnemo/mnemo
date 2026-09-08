@@ -10,7 +10,15 @@ using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 namespace Mnemo.Infrastructure.Services.Flashcards.Generation;
 
 /// <summary>What saving a fact did to the cards it makes.</summary>
-public readonly record struct FlashcardMaterializeResult(int Added, int Updated, int Removed);
+/// <param name="Orphaned">
+/// Cards that no longer have a layout behind them. They are still live rows when this is handed
+/// back; the caller moves them to the trash once its own transaction has committed.
+/// </param>
+public readonly record struct FlashcardMaterializeResult(int Added, int Updated, IReadOnlyList<string> Orphaned)
+{
+    /// <summary>How many cards lost their layout.</summary>
+    public int Removed => Orphaned?.Count ?? 0;
+}
 
 /// <summary>
 /// Brings a fact's cards in line with what it currently generates: new layouts and new deletions
@@ -18,8 +26,9 @@ public readonly record struct FlashcardMaterializeResult(int Added, int Updated,
 /// </summary>
 /// <remarks>
 /// A card is matched to its layout by key, never by position or by content, so renaming a field
-/// or rewriting a sentence does not cost anyone their progress. Removing a cloze deletion does
-/// take the card it made, along with its schedule, because there is nothing left for it to ask.
+/// or rewriting a sentence does not cost anyone their progress. Nothing here deletes a card:
+/// removing a cloze deletion, or a layout, names the card it made as orphaned and leaves the row
+/// alone, so the caller can put it in the trash with its schedule and its history intact.
 /// </remarks>
 public sealed class FlashcardCardMaterializer
 {
@@ -117,11 +126,8 @@ public sealed class FlashcardCardMaterializer
         }
 
         // Whatever is left in the map no longer has a layout behind it. Held cards were never in
-        // it, so a delete cannot reach one of them here.
-        var orphaned = existing.Values.ToArray();
-        await _cards.DeleteManyAsync(conn, tx, orphaned, cancellationToken).ConfigureAwait(false);
-
-        return new FlashcardMaterializeResult(added, updated, orphaned.Length);
+        // it, so one of them cannot be named here a second time.
+        return new FlashcardMaterializeResult(added, updated, existing.Values.ToArray());
     }
 
     private async Task UpdateAsync(

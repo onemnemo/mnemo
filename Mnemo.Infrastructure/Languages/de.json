@@ -1485,6 +1485,7 @@
     "RestoreContainerHeld": "Das, worin sich dies befand, ist noch im Papierkorb. Stelle das zuerst wieder her.",
     "RestoreNeedsDestination": "Wähle einen Stapel, zu dem dies zurückkehren soll.",
     "RestoreMissing": "Das ist nicht mehr vorhanden und kann nicht wiederhergestellt werden.",
+    "RestoreNoLongerGenerated": "Das Material oder der Kartentyp erzeugt diese Karte nicht mehr. Stelle die fehlende Lücke, Maske oder Kartenvorlage wieder her und stelle dann die Karte wieder her.",
     "PurgeBlockedFormat": "{0} weitere Elemente im Papierkorb liegen darin. Stelle sie zuerst wieder her oder lösche sie endgültig.",
     "PurgeBlockedByFormat": "{0} ist ebenfalls im Papierkorb und liegt darin. Stelle es zuerst wieder her oder lösche es endgültig."
   },

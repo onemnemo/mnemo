@@ -205,6 +205,9 @@ function reportRestore(result: TrashRestoreResultDto, t: ReturnType<typeof useT>
     case "destination_required":
       toast.warning(t("Trash", "RestoreNeedsDestination"))
       return
+    case "no_longer_generated":
+      toast.warning(t("Trash", "RestoreNoLongerGenerated"))
+      return
     case "missing":
       toast.warning(t("Trash", "RestoreMissing"))
   }

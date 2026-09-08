@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Trash;
@@ -65,6 +66,17 @@ public sealed class TrashService : ITrashService, IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            var uniqueKinds = items.Select(item => item.Kind).Distinct(StringComparer.Ordinal).ToList();
+            if (items.Count > 1 && uniqueKinds.Count == 1 && _context.Sources.Resolve(uniqueKinds[0]).SupportsBulkCapture)
+            {
+                var itemIds = items.Select(item => item.ItemId).ToList();
+                entries.AddRange(await TrashCapture
+                    .TakeManyAsync(_context, uniqueKinds[0], itemIds, batchId, cancellationToken)
+                    .ConfigureAwait(false));
+                skipped = items.Count - entries.Count;
+                return new TrashAction(batchId, entries, skipped);
+            }
+
             foreach (var item in items)
             {
                 var entry = await TrashCapture.TakeAsync(_context, item, batchId, cancellationToken).ConfigureAwait(false);

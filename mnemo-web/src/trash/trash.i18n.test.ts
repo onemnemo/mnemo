@@ -66,6 +66,7 @@ const OUTCOME_KEYS = [
   "RestoredToRootFormat",
   "RestoreContainerHeld",
   "RestoreNeedsDestination",
+  "RestoreNoLongerGenerated",
   "RestoreMissing",
   "PurgeBlockedFormat",
   "PurgeBlockedByFormat",

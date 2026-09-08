@@ -51,6 +51,22 @@ public static class FactEndpoints
         endpoints.MapPut("/api/card-types/{id}", (string id, SaveCardTypeDto body, IFlashcardFactService facts, CancellationToken cancellationToken) =>
             SaveCardTypeAsync(body, id, facts, cancellationToken));
 
+        // What the save would cost, without making it. The editor asks before it raises a
+        // confirmation, because only the collection knows how much of the material a newly
+        // required field leaves empty.
+        endpoints.MapPost("/api/card-types/{id}/preflight", async (
+            string id, SaveCardTypeDto body, IFlashcardFactService facts, CancellationToken cancellationToken) =>
+        {
+            var existing = await facts.GetCardTypeAsync(id, cancellationToken).ConfigureAwait(false);
+            if (existing is null)
+                return Results.NotFound(new ErrorDto("unknown_card_type", $"No card type '{id}'."));
+
+            var preflight = await facts
+                .PreviewCardTypeSaveAsync(BuildCardType(body, id, existing), cancellationToken)
+                .ConfigureAwait(false);
+            return Results.Ok(CardTypePreflightDto.FromModel(preflight));
+        });
+
         endpoints.MapDelete("/api/card-types/{id}", async (string id, IFlashcardFactService facts, CancellationToken cancellationToken) =>
         {
             try
@@ -81,24 +97,7 @@ public static class FactEndpoints
 
         var typeId = string.IsNullOrWhiteSpace(id) ? Guid.NewGuid().ToString("N") : id.Trim();
         var existing = await facts.GetCardTypeAsync(typeId, cancellationToken).ConfigureAwait(false);
-
-        var fields = (body.Fields ?? Array.Empty<CardTypeFieldDto>()).Select(f => f.ToModel()).ToList();
-        var sortFieldId = string.IsNullOrWhiteSpace(body.SortFieldId)
-            ? fields.FirstOrDefault()?.Id ?? string.Empty
-            : body.SortFieldId.Trim();
-
-        var type = new FlashcardCardType(
-            Id: typeId,
-            Name: name,
-            // The service refuses to un-built-in a built in type; a client cannot claim to be one.
-            IsBuiltIn: existing?.IsBuiltIn ?? false,
-            Fields: fields,
-            SortFieldId: sortFieldId,
-            Layouts: (body.Layouts ?? Array.Empty<CardTypeLayoutDto>()).Select(l => l.ToModel()).ToList(),
-            // Changing a generator would change how many cards every fact using this type makes, so
-            // it is whatever the stored type says and is never taken from the request.
-            Generator: existing?.Generator,
-            GenerateFrom: existing?.GenerateFrom);
+        var type = BuildCardType(body, typeId, existing);
 
         try
         {
@@ -109,6 +108,29 @@ public static class FactEndpoints
         {
             return Results.BadRequest(new ErrorDto("invalid_card_type", ex.Message));
         }
+    }
+
+    /// <summary>
+    /// The card type a request body describes. What is on the stored type and not in the body is
+    /// kept: a client cannot claim to be built in, and a generator change would rewrite how many
+    /// cards every fact using the type makes, so neither is ever read from the request.
+    /// </summary>
+    private static FlashcardCardType BuildCardType(SaveCardTypeDto body, string typeId, FlashcardCardType? existing)
+    {
+        var fields = (body.Fields ?? Array.Empty<CardTypeFieldDto>()).Select(f => f.ToModel()).ToList();
+        var sortFieldId = string.IsNullOrWhiteSpace(body.SortFieldId)
+            ? fields.FirstOrDefault()?.Id ?? string.Empty
+            : body.SortFieldId.Trim();
+
+        return new FlashcardCardType(
+            Id: typeId,
+            Name: body.Name?.Trim() ?? string.Empty,
+            IsBuiltIn: existing?.IsBuiltIn ?? false,
+            Fields: fields,
+            SortFieldId: sortFieldId,
+            Layouts: (body.Layouts ?? Array.Empty<CardTypeLayoutDto>()).Select(l => l.ToModel()).ToList(),
+            Generator: existing?.Generator,
+            GenerateFrom: existing?.GenerateFrom);
     }
 
     private static void MapFacts(IEndpointRouteBuilder endpoints)

@@ -234,6 +234,28 @@ export function removedLayouts(stored: CardTypeDto, draft: CardTypeDraft): CardT
 }
 
 /**
+ * Returns stored layouts the draft has newly made conditional, or moved onto another field, using
+ * their saved names for confirmation.
+ *
+ * A layout that keeps its id keeps its place in every diff of layout ids, so nothing else notices
+ * this edit, and it costs exactly as much: every piece of material leaving the newly required
+ * field empty stops making that card.
+ */
+export function requiredFieldChanges(stored: CardTypeDto, draft: CardTypeDraft): CardTypeLayoutDto[] {
+  // Generated types save no layouts; their cards are derived from fields.
+  if (draft.generator) return []
+
+  const edited = new Map(draft.layouts.map((layout) => [layout.id, layout]))
+  return stored.layouts.filter((layout) => {
+    const after = edited.get(layout.id)
+    // A layout the draft dropped is the removal gate's business, not this one's.
+    if (!after || after.requires === layout.requires) return false
+    // Dropping the condition can only make more cards, never fewer.
+    return after.requires !== null
+  })
+}
+
+/**
  * Everything that would stop this type from working, checked here so the dialog can say which one
  * it is rather than letting the save come back as a refusal with no field to point at.
  */

@@ -19,11 +19,29 @@ public interface ITrashSource
     /// <summary>The ledger kind this source owns. Two sources may not claim the same kind.</summary>
     string Kind { get; }
 
+    /// <summary>Whether this source implements its multi-item methods as one bounded operation.</summary>
+    bool SupportsBulkCapture => false;
+
     /// <summary>
     /// Reads the ledger snapshot for a live item without changing anything.
     /// Returns null when the item is not live.
     /// </summary>
     Task<TrashSnapshot?> PrepareAsync(string itemId, CancellationToken cancellationToken = default);
+
+    /// <summary>Prepares several items. Missing or non-live items are omitted.</summary>
+    async Task<IReadOnlyDictionary<string, TrashSnapshot>> PrepareManyAsync(
+        IReadOnlyCollection<string> itemIds,
+        CancellationToken cancellationToken = default)
+    {
+        var prepared = new Dictionary<string, TrashSnapshot>(StringComparer.Ordinal);
+        foreach (var itemId in itemIds)
+        {
+            if (await PrepareAsync(itemId, cancellationToken).ConfigureAwait(false) is { } snapshot)
+                prepared[itemId] = snapshot;
+        }
+
+        return prepared;
+    }
 
     /// <summary>
     /// Marks the item and its live cascade with <paramref name="entryId"/> in one module
@@ -35,6 +53,24 @@ public interface ITrashSource
     /// takes a row already stamped by another entry.
     /// </remarks>
     Task<TrashSnapshot?> CaptureAsync(string itemId, string entryId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Captures several items under their individual entry ids. Items that stopped being live are
+    /// omitted. The default preserves the single-item protocol; high-volume sources can override it.
+    /// </summary>
+    async Task<IReadOnlyDictionary<string, TrashSnapshot>> CaptureManyAsync(
+        IReadOnlyDictionary<string, string> entryIdsByItem,
+        CancellationToken cancellationToken = default)
+    {
+        var captured = new Dictionary<string, TrashSnapshot>(StringComparer.Ordinal);
+        foreach (var (itemId, entryId) in entryIdsByItem)
+        {
+            if (await CaptureAsync(itemId, entryId, cancellationToken).ConfigureAwait(false) is { } snapshot)
+                captured[itemId] = snapshot;
+        }
+
+        return captured;
+    }
 
     /// <summary>
     /// Clears the marks belonging to <paramref name="entryId"/> and no others, restoring the

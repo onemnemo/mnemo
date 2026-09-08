@@ -75,6 +75,47 @@ public sealed class TrashDeleteTests
     }
 
     [Fact]
+    public async Task A_bulk_source_takes_one_batch_path_for_many_items()
+    {
+        await using var harness = new TrashTestHarness();
+        harness.Notes.SupportsBulkCapture = true;
+        harness.Notes.AddLive("n1", "Kanji").AddLive("n2", "Grammar");
+
+        var action = await harness.Service.DeleteAsync(
+        [
+            new TrashDeleteRequest(TrashTestHarness.NoteKind, "n1"),
+            new TrashDeleteRequest(TrashTestHarness.NoteKind, "n2"),
+        ]);
+
+        Assert.Equal(2, action.Entries.Count);
+        Assert.All(action.Entries, entry => Assert.Equal(action.BatchId, entry.BatchId));
+        Assert.Equal(1, harness.Notes.PrepareManyCalls);
+        Assert.Equal(1, harness.Notes.CaptureManyCalls);
+        Assert.Equal(2, await harness.Service.CountAsync());
+    }
+
+    [Fact]
+    public async Task A_partial_bulk_failure_keeps_committed_items_recoverable()
+    {
+        await using var harness = new TrashTestHarness();
+        harness.Notes.SupportsBulkCapture = true;
+        harness.Notes.CaptureCommits = true;
+        harness.Notes.CaptureFailure = new InvalidOperationException("connection dropped after one item");
+        harness.Notes.AddLive("n1", "Kanji").AddLive("n2", "Grammar");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Service.DeleteAsync(
+        [
+            new TrashDeleteRequest(TrashTestHarness.NoteKind, "n1"),
+            new TrashDeleteRequest(TrashTestHarness.NoteKind, "n2"),
+        ]));
+
+        Assert.Single(await harness.HeldAsync());
+        Assert.False(harness.Notes.IsLive("n1"));
+        Assert.True(harness.Notes.IsLive("n2"));
+        Assert.Null(await harness.Store.FindByItemAsync(TrashTestHarness.NoteKind, "n2"));
+    }
+
+    [Fact]
     public async Task An_item_that_is_not_live_is_skipped()
     {
         await using var harness = new TrashTestHarness();

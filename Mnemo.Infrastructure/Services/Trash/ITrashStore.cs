@@ -18,20 +18,37 @@ public interface ITrashStore
     /// <summary>The entry holding this item, in any state, or null when nothing holds it.</summary>
     Task<TrashEntry?> FindByItemAsync(string kind, string itemId, CancellationToken cancellationToken = default);
 
+    /// <summary>Existing entries for the requested items, keyed by item id.</summary>
+    Task<IReadOnlyDictionary<string, TrashEntry>> FindByItemsAsync(
+        string kind,
+        IReadOnlyCollection<string> itemIds,
+        CancellationToken cancellationToken = default);
+
     /// <summary>One entry by id, in any state.</summary>
     Task<TrashEntry?> GetAsync(string entryId, CancellationToken cancellationToken = default);
 
     /// <summary>Writes a new row. Fails when the item already has an entry.</summary>
     Task InsertAsync(TrashEntry entry, CancellationToken cancellationToken = default);
 
+    /// <summary>Writes prepared rows in bounded statements.</summary>
+    Task InsertManyAsync(IReadOnlyCollection<TrashEntry> entries, CancellationToken cancellationToken = default);
+
     /// <summary>Moves a prepared row to held and stamps the snapshot the source reported.</summary>
     Task PromoteAsync(string entryId, TrashSnapshot snapshot, CancellationToken cancellationToken = default);
+
+    /// <summary>Promotes prepared rows with the snapshots captured by their source.</summary>
+    Task PromoteManyAsync(
+        IReadOnlyDictionary<string, TrashSnapshot> snapshotsByEntry,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Moves a row between states without touching its snapshot.</summary>
     Task SetStateAsync(string entryId, TrashEntryState state, CancellationToken cancellationToken = default);
 
     /// <summary>Deletes one ledger row.</summary>
     Task RemoveAsync(string entryId, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes several ledger rows in bounded statements.</summary>
+    Task RemoveManyAsync(IReadOnlyCollection<string> entryIds, CancellationToken cancellationToken = default);
 
     /// <summary>One page of held entries, newest first. Ask for one more than you need to learn whether a next page exists.</summary>
     Task<IReadOnlyList<TrashEntry>> ListHeldAsync(

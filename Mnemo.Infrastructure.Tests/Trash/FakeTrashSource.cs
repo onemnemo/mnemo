@@ -28,6 +28,15 @@ internal sealed class FakeTrashSource : ITrashSource
     /// <inheritdoc />
     public string Kind { get; }
 
+    /// <inheritdoc />
+    public bool SupportsBulkCapture { get; set; }
+
+    /// <summary>How many multi-item preparations the coordinator requested.</summary>
+    public int PrepareManyCalls { get; private set; }
+
+    /// <summary>How many multi-item captures the coordinator requested.</summary>
+    public int CaptureManyCalls { get; private set; }
+
     /// <summary>Items the source destroyed, in the order it destroyed them.</summary>
     public List<string> Purged { get; } = [];
 
@@ -99,6 +108,22 @@ internal sealed class FakeTrashSource : ITrashSource
         Task.FromResult(_live.TryGetValue(itemId, out var item) ? item.ToSnapshot() : null);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<string, TrashSnapshot>> PrepareManyAsync(
+        IReadOnlyCollection<string> itemIds,
+        CancellationToken cancellationToken = default)
+    {
+        PrepareManyCalls++;
+        var prepared = new Dictionary<string, TrashSnapshot>(StringComparer.Ordinal);
+        foreach (var itemId in itemIds)
+        {
+            if (await PrepareAsync(itemId, cancellationToken) is { } snapshot)
+                prepared[itemId] = snapshot;
+        }
+
+        return prepared;
+    }
+
+    /// <inheritdoc />
     public Task<TrashSnapshot?> CaptureAsync(string itemId, string entryId, CancellationToken cancellationToken = default)
     {
         // Capturing twice under one entry id reports the same snapshot rather than taking more.
@@ -122,6 +147,22 @@ internal sealed class FakeTrashSource : ITrashSource
         _live.Remove(itemId);
         _held[entryId] = item;
         return Task.FromResult<TrashSnapshot?>(item.ToSnapshot());
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<string, TrashSnapshot>> CaptureManyAsync(
+        IReadOnlyDictionary<string, string> entryIdsByItem,
+        CancellationToken cancellationToken = default)
+    {
+        CaptureManyCalls++;
+        var captured = new Dictionary<string, TrashSnapshot>(StringComparer.Ordinal);
+        foreach (var (itemId, entryId) in entryIdsByItem)
+        {
+            if (await CaptureAsync(itemId, entryId, cancellationToken) is { } snapshot)
+                captured[itemId] = snapshot;
+        }
+
+        return captured;
     }
 
     /// <inheritdoc />

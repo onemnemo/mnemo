@@ -19,6 +19,9 @@ namespace Mnemo.Infrastructure.Services.Trash;
 /// </remarks>
 public sealed class TrashStore : ITrashStore
 {
+    private const int ReadChunkSize = 400;
+    private const int InsertChunkSize = 80;
+    private const int PromoteChunkSize = 150;
     private const string Columns =
         "Id, Kind, ItemId, Title, Origin, ContainedCount, BatchId, State, DeletedAt, ExpiresAt";
 
@@ -41,6 +44,34 @@ public sealed class TrashStore : ITrashStore
                 cmd.Parameters.AddWithValue("$itemId", itemId);
             },
             cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<string, TrashEntry>> FindByItemsAsync(
+        string kind,
+        IReadOnlyCollection<string> itemIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = new List<string>(itemIds);
+        var found = new Dictionary<string, TrashEntry>(StringComparer.Ordinal);
+        for (var offset = 0; offset < ids.Count; offset += ReadChunkSize)
+        {
+            var take = Math.Min(ReadChunkSize, ids.Count - offset);
+            var names = new List<string>(take);
+            var rows = await _database.QueryAsync(
+                BuildInQuery($"SELECT {Columns} FROM TrashEntries WHERE Kind = $kind AND ItemId IN (", ids, offset, take, names),
+                cmd =>
+                {
+                    cmd.Parameters.AddWithValue("$kind", kind);
+                    BindIds(cmd, ids, offset, take);
+                },
+                ReadEntry,
+                cancellationToken).ConfigureAwait(false);
+            foreach (var row in rows)
+                found[row.ItemId] = row;
+        }
+
+        return found;
+    }
 
     /// <inheritdoc />
     public Task<TrashEntry?> GetAsync(string entryId, CancellationToken cancellationToken = default) =>
@@ -73,6 +104,23 @@ public sealed class TrashStore : ITrashStore
     }
 
     /// <inheritdoc />
+    public async Task InsertManyAsync(
+        IReadOnlyCollection<TrashEntry> entries,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = new List<TrashEntry>(entries);
+        for (var offset = 0; offset < rows.Count; offset += InsertChunkSize)
+        {
+            var take = Math.Min(InsertChunkSize, rows.Count - offset);
+            var values = new List<string>(take);
+            await _database.ExecuteAsync(
+                BuildInsert(take, values),
+                cmd => BindEntries(cmd, rows, offset, take),
+                cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <inheritdoc />
     public Task PromoteAsync(string entryId, TrashSnapshot snapshot, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -88,6 +136,22 @@ public sealed class TrashStore : ITrashStore
                 cmd.Parameters.AddWithValue("$id", entryId);
             },
             cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task PromoteManyAsync(
+        IReadOnlyDictionary<string, TrashSnapshot> snapshotsByEntry,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = new List<KeyValuePair<string, TrashSnapshot>>(snapshotsByEntry);
+        for (var offset = 0; offset < rows.Count; offset += PromoteChunkSize)
+        {
+            var take = Math.Min(PromoteChunkSize, rows.Count - offset);
+            await _database.ExecuteAsync(
+                BuildPromotion(rows, offset, take),
+                cmd => BindPromotions(cmd, rows, offset, take),
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <inheritdoc />
@@ -107,6 +171,23 @@ public sealed class TrashStore : ITrashStore
             "DELETE FROM TrashEntries WHERE Id = $id;",
             cmd => cmd.Parameters.AddWithValue("$id", entryId),
             cancellationToken);
+
+    /// <inheritdoc />
+    public async Task RemoveManyAsync(
+        IReadOnlyCollection<string> entryIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = new List<string>(entryIds);
+        for (var offset = 0; offset < ids.Count; offset += ReadChunkSize)
+        {
+            var take = Math.Min(ReadChunkSize, ids.Count - offset);
+            var names = new List<string>(take);
+            await _database.ExecuteAsync(
+                BuildInQuery("DELETE FROM TrashEntries WHERE Id IN (", ids, offset, take, names),
+                cmd => BindIds(cmd, ids, offset, take),
+                cancellationToken).ConfigureAwait(false);
+        }
+    }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<TrashEntry>> ListHeldAsync(
@@ -217,6 +298,96 @@ public sealed class TrashStore : ITrashStore
     {
         var rows = await _database.QueryAsync(sql, bind, ReadEntry, cancellationToken).ConfigureAwait(false);
         return rows.Count == 0 ? null : rows[0];
+    }
+
+    private static string BuildInQuery(
+        string prefix,
+        IReadOnlyList<string> ids,
+        int offset,
+        int take,
+        List<string> names)
+    {
+        for (var i = 0; i < take; i++)
+            names.Add($"$id{i}");
+        return $"{prefix}{string.Join(", ", names)});";
+    }
+
+    private static void BindIds(SqliteCommand cmd, IReadOnlyList<string> ids, int offset, int take)
+    {
+        for (var i = 0; i < take; i++)
+            cmd.Parameters.AddWithValue($"$id{i}", ids[offset + i]);
+    }
+
+    private static string BuildInsert(int take, List<string> values)
+    {
+        for (var i = 0; i < take; i++)
+        {
+            values.Add(
+                $"($id{i}, $kind{i}, $item{i}, $title{i}, $origin{i}, $contained{i}, " +
+                $"$batch{i}, $state{i}, $deleted{i}, $expires{i})");
+        }
+
+        return $"INSERT INTO TrashEntries ({Columns}) VALUES {string.Join(", ", values)};";
+    }
+
+    private static void BindEntries(SqliteCommand cmd, IReadOnlyList<TrashEntry> rows, int offset, int take)
+    {
+        for (var i = 0; i < take; i++)
+        {
+            var row = rows[offset + i];
+            cmd.Parameters.AddWithValue($"$id{i}", row.Id);
+            cmd.Parameters.AddWithValue($"$kind{i}", row.Kind);
+            cmd.Parameters.AddWithValue($"$item{i}", row.ItemId);
+            cmd.Parameters.AddWithValue($"$title{i}", row.Title);
+            cmd.Parameters.AddWithValue($"$origin{i}", (object?)row.Origin ?? DBNull.Value);
+            cmd.Parameters.AddWithValue($"$contained{i}", row.ContainedCount);
+            cmd.Parameters.AddWithValue($"$batch{i}", row.BatchId);
+            cmd.Parameters.AddWithValue($"$state{i}", ToText(row.State));
+            cmd.Parameters.AddWithValue($"$deleted{i}", SqlTime.Write(row.DeletedAt));
+            cmd.Parameters.AddWithValue($"$expires{i}", SqlTime.Write(row.ExpiresAt));
+        }
+    }
+
+    private static string BuildPromotion(
+        IReadOnlyList<KeyValuePair<string, TrashSnapshot>> rows,
+        int offset,
+        int take)
+    {
+        var titles = new StringBuilder("CASE Id");
+        var origins = new StringBuilder("CASE Id");
+        var counts = new StringBuilder("CASE Id");
+        var ids = new List<string>(take);
+        for (var i = 0; i < take; i++)
+        {
+            titles.Append($" WHEN $id{i} THEN $title{i}");
+            origins.Append($" WHEN $id{i} THEN $origin{i}");
+            counts.Append($" WHEN $id{i} THEN $contained{i}");
+            ids.Add($"$id{i}");
+        }
+
+        titles.Append(" ELSE Title END");
+        origins.Append(" ELSE Origin END");
+        counts.Append(" ELSE ContainedCount END");
+        return "UPDATE TrashEntries SET State = $state, " +
+            $"Title = {titles}, Origin = {origins}, ContainedCount = {counts} " +
+            $"WHERE Id IN ({string.Join(", ", ids)});";
+    }
+
+    private static void BindPromotions(
+        SqliteCommand cmd,
+        IReadOnlyList<KeyValuePair<string, TrashSnapshot>> rows,
+        int offset,
+        int take)
+    {
+        cmd.Parameters.AddWithValue("$state", ToText(TrashEntryState.Held));
+        for (var i = 0; i < take; i++)
+        {
+            var (entryId, snapshot) = rows[offset + i];
+            cmd.Parameters.AddWithValue($"$id{i}", entryId);
+            cmd.Parameters.AddWithValue($"$title{i}", snapshot.Title);
+            cmd.Parameters.AddWithValue($"$origin{i}", (object?)snapshot.Origin ?? DBNull.Value);
+            cmd.Parameters.AddWithValue($"$contained{i}", snapshot.ContainedCount);
+        }
     }
 
     private static TrashEntry ReadEntry(SqliteDataReader reader) => new()

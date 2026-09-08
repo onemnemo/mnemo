@@ -1,8 +1,12 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
 namespace Mnemo.Infrastructure.Services.Flashcards.Trash;
@@ -14,7 +18,9 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Trash;
 /// </summary>
 /// <remarks>
 /// A card cannot sit at a root the way a note or a deck can, because every card belongs to a deck.
-/// Restoring one whose deck is gone therefore asks the caller for a live deck to put it in.
+/// Restoring one whose deck is gone therefore asks the caller for a live deck to put it in, and a
+/// card whose layout has left its card type in the meantime is declined outright rather than put
+/// back as something nothing regenerates.
 /// </remarks>
 public sealed class FlashcardCardTrashSource : ITrashSource
 {
@@ -37,6 +43,9 @@ public sealed class FlashcardCardTrashSource : ITrashSource
     public string Kind => TrashKind;
 
     /// <inheritdoc />
+    public bool SupportsBulkCapture => true;
+
+    /// <inheritdoc />
     public Task<TrashSnapshot?> PrepareAsync(string itemId, CancellationToken cancellationToken = default) =>
         _store.ReadAsync(async (conn, ct) =>
         {
@@ -48,6 +57,21 @@ public sealed class FlashcardCardTrashSource : ITrashSource
                 """;
             cmd.Parameters.AddWithValue("$id", itemId);
             return await ReadSnapshotAsync(cmd, ct).ConfigureAwait(false);
+        }, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<string, TrashSnapshot>> PrepareManyAsync(
+        IReadOnlyCollection<string> itemIds,
+        CancellationToken cancellationToken = default) =>
+        _store.ReadAsync(async (conn, ct) =>
+        {
+            var rows = await ReadCardsAsync(conn, null, itemIds, ct).ConfigureAwait(false);
+            return (IReadOnlyDictionary<string, TrashSnapshot>)rows
+                .Where(row => row.EntryId is null)
+                .ToDictionary(
+                row => row.ItemId,
+                row => row.Snapshot,
+                StringComparer.Ordinal);
         }, cancellationToken);
 
     /// <inheritdoc />
@@ -79,12 +103,58 @@ public sealed class FlashcardCardTrashSource : ITrashSource
         }, cancellationToken);
 
     /// <inheritdoc />
+    public Task<IReadOnlyDictionary<string, TrashSnapshot>> CaptureManyAsync(
+        IReadOnlyDictionary<string, string> entryIdsByItem,
+        CancellationToken cancellationToken = default) =>
+        _store.WriteAsync(async (writer, tx, ct) =>
+        {
+            var rows = await ReadCardsAsync(writer, tx, entryIdsByItem.Keys.ToList(), ct).ConfigureAwait(false);
+            var captured = new Dictionary<string, TrashSnapshot>(StringComparer.Ordinal);
+            var live = new List<KeyValuePair<string, string>>();
+            foreach (var row in rows)
+            {
+                var expected = entryIdsByItem[row.ItemId];
+                if (row.EntryId is null)
+                    live.Add(new KeyValuePair<string, string>(row.ItemId, expected));
+                else if (!string.Equals(row.EntryId, expected, StringComparison.Ordinal))
+                    continue;
+                captured[row.ItemId] = row.Snapshot;
+            }
+
+            for (var offset = 0; offset < live.Count; offset += 200)
+            {
+                var take = Math.Min(200, live.Count - offset);
+                await using var mark = writer.CreateCommand();
+                mark.Transaction = tx;
+                var cases = new List<string>(take);
+                var ids = new List<string>(take);
+                for (var i = 0; i < take; i++)
+                {
+                    cases.Add($"WHEN $item{i} THEN $entry{i}");
+                    ids.Add($"$item{i}");
+                    mark.Parameters.AddWithValue($"$item{i}", live[offset + i].Key);
+                    mark.Parameters.AddWithValue($"$entry{i}", live[offset + i].Value);
+                }
+
+                mark.CommandText =
+                    $"UPDATE FlashcardCards SET TrashId = CASE Id {string.Join(" ", cases)} END " +
+                    $"WHERE TrashId IS NULL AND Id IN ({string.Join(", ", ids)});";
+                await mark.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+
+            return (IReadOnlyDictionary<string, TrashSnapshot>)captured;
+        }, cancellationToken);
+
+    /// <inheritdoc />
     public Task<TrashRestore> RestoreAsync(
         string entryId,
         TrashRestoreTarget? target = null,
         CancellationToken cancellationToken = default) =>
         _store.WriteAsync(async (writer, tx, ct) =>
         {
+            if (await LayoutIsGoneAsync(writer, tx, entryId, ct).ConfigureAwait(false))
+                return new TrashRestore(TrashRestoreOutcome.NoLongerGenerated);
+
             var placement = await FlashcardTrashPlacement
                 .ResolveAsync(writer, tx, "FlashcardCards", entryId, target, ct)
                 .ConfigureAwait(false);
@@ -159,6 +229,76 @@ public sealed class FlashcardCardTrashSource : ITrashSource
         _store.WriteAsync((writer, tx, ct) =>
             FlashcardTrashSql.ClearMarksAsync(writer, tx, "FlashcardCards", entryIds, ct), cancellationToken);
 
+    /// <summary>
+    /// Whether the card this entry holds belongs to a layout its material's card type no longer
+    /// lists.
+    /// </summary>
+    /// <remarks>
+    /// Such a card would come back live with nothing behind it: no save regenerates it, and the
+    /// first save of its material or its type sweeps it straight back into the trash. Refusing
+    /// keeps it recoverable and says why, and putting the layout back on the type makes the
+    /// restore work again. A card with no material, and one belonging to a type that makes its
+    /// cards from the content of a field rather than from a list of layouts, are both left alone:
+    /// neither has a layout list to be missing from.
+    /// </remarks>
+    private async Task<bool> LayoutIsGoneAsync(
+        SqliteConnection writer, SqliteTransaction tx, string entryId, CancellationToken cancellationToken)
+    {
+        string layoutKey;
+        string typeId;
+        string factId;
+
+        await using (var read = writer.CreateCommand())
+        {
+            read.Transaction = tx;
+            read.CommandText = """
+                SELECT c.LayoutKey, f.TypeId, f.Id FROM FlashcardCards c
+                JOIN FlashcardFacts f ON f.Id = c.FactId
+                WHERE c.TrashId = $entry AND c.LayoutKey IS NOT NULL LIMIT 1;
+                """;
+            read.Parameters.AddWithValue("$entry", entryId);
+
+            await using var reader = await read.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                return false;
+
+            layoutKey = reader.GetString(0);
+            typeId = reader.GetString(1);
+            factId = reader.GetString(2);
+        }
+
+        var type = await new CardTypeRepository(_logger)
+            .GetAsync(writer, typeId, cancellationToken)
+            .ConfigureAwait(false);
+
+        // A type that is gone leaves the material reading through the fallback type, and refusing
+        // here would strand the card with nothing anyone could put back.
+        if (type is null)
+            return false;
+
+        // A generated type has no layout list to consult; its cards exist while the material still
+        // carries the deletion or the mask that made them, so the generator is asked directly.
+        if (!string.IsNullOrEmpty(type.Generator))
+        {
+            var fact = await new FactRepository(_logger)
+                .GetAsync(writer, factId, cancellationToken)
+                .ConfigureAwait(false);
+            if (fact is null)
+                return false;
+
+            return !FlashcardGeneration.Generate(type, fact)
+                .Any(card => string.Equals(card.Key, layoutKey, StringComparison.Ordinal));
+        }
+
+        foreach (var layout in type.Layouts)
+        {
+            if (string.Equals(layout.Id, layoutKey, StringComparison.Ordinal))
+                return false;
+        }
+
+        return true;
+    }
+
     private static async Task<TrashSnapshot?> ReadSnapshotAsync(
         Microsoft.Data.Sqlite.SqliteCommand cmd, CancellationToken cancellationToken)
     {
@@ -171,4 +311,47 @@ public sealed class FlashcardCardTrashSource : ITrashSource
             reader.IsDBNull(1) ? null : reader.GetString(1),
             0);
     }
+
+    private static async Task<IReadOnlyList<CardCaptureRow>> ReadCardsAsync(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        IReadOnlyCollection<string> itemIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = itemIds.ToList();
+        var rows = new List<CardCaptureRow>();
+        for (var offset = 0; offset < ids.Count; offset += FlashcardTrashSql.ChunkSize)
+        {
+            var take = Math.Min(FlashcardTrashSql.ChunkSize, ids.Count - offset);
+            await using var cmd = connection.CreateCommand();
+            cmd.Transaction = transaction;
+            var names = new List<string>(take);
+            for (var i = 0; i < take; i++)
+            {
+                names.Add($"$item{i}");
+                cmd.Parameters.AddWithValue($"$item{i}", ids[offset + i]);
+            }
+
+            cmd.CommandText = $"""
+                SELECT c.Id, c.Front, d.Name, c.TrashId FROM FlashcardCards c
+                LEFT JOIN FlashcardDecks d ON d.Id = c.DeckId AND d.TrashId IS NULL
+                WHERE c.Id IN ({string.Join(", ", names)});
+                """;
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                rows.Add(new CardCaptureRow(
+                    reader.GetString(0),
+                    new TrashSnapshot(
+                        reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                        reader.IsDBNull(2) ? null : reader.GetString(2),
+                        0),
+                    reader.IsDBNull(3) ? null : reader.GetString(3)));
+            }
+        }
+
+        return rows;
+    }
+
+    private sealed record CardCaptureRow(string ItemId, TrashSnapshot Snapshot, string? EntryId);
 }
