@@ -2,7 +2,7 @@
 // line, nothing else, deliberately: the delimiters are what every student who has met LaTeX
 // already types, and a second dialect would only need explaining.
 //
-// Kept apart from the component that renders this (MathText.tsx) so the deck table, which
+// Kept apart from the component that renders this (CardText.tsx) so the deck table, which
 // never renders KaTeX, does not pull it in just to strip a formula down to plain text.
 
 /** Alternating literal and maths, so one pass does both forms. */

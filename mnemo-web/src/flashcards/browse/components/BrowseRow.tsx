@@ -15,8 +15,7 @@ import { cn } from "@/lib/utils"
 import { usePeekStore } from "@/peek/store"
 
 import { StateTag, cardStateKind } from "../../bits"
-import { stripMath } from "../../math"
-import { dueLabel, frontPreview, oneLine } from "../../deck/cards"
+import { backPreview, dueLabel, frontPreview } from "../../deck/cards"
 import { ACTIONS_CELL, BACK_CELL, DECK_CELL, ROW_GRID } from "./rowLayout"
 
 export interface BrowseRowActions {
@@ -100,7 +99,7 @@ export function BrowseRow({
           </span>
 
           <span className={cn(BACK_CELL, "truncate text-[13px] text-ink-3")} title={card.back}>
-            {oneLine(stripMath(card.back))}
+            {backPreview(card.back)}
           </span>
 
           <span className={cn(DECK_CELL, "truncate text-[12.5px] text-ink-2")} title={deckName}>

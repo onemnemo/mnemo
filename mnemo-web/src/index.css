@@ -373,8 +373,9 @@
 }
 
 /*
- * Rendered assistant markdown (react-markdown output). Token-based prose; no
- * typography plugin. Line height matches the desktop MarkdownView (~1.6).
+ * Rendered prose: the assistant's markdown (react-markdown output) and the card
+ * surfaces, which render the format bar's own markers. Token-based; no typography
+ * plugin. Line height matches the desktop MarkdownView (~1.6).
  */
 .chat-prose {
     color: var(--text-primary);
@@ -400,6 +401,16 @@
 .chat-prose a { color: var(--links); text-decoration: underline; text-underline-offset: 2px; }
 .chat-prose strong { font-weight: 600; }
 .chat-prose em { font-style: italic; }
+.chat-prose u { text-decoration: underline; text-underline-offset: 2px; }
+/* The editorial highlight lightness and chroma, at the yellow every marker pen is.
+   Taking them from the theme is what keeps the text on top readable in dark mode,
+   where the browser's own yellow <mark> fill would blow out. */
+.chat-prose mark {
+    background: oklch(var(--hl-l) var(--hl-c) 95);
+    color: var(--hl-fg);
+    padding: 0 0.15em;
+    border-radius: var(--radius-sm);
+}
 .chat-prose code {
     font-family: var(--font-mono);
     font-size: 0.875em;

@@ -1,3 +1,4 @@
+import { frontPreview } from "@/flashcards/deck/cards"
 import { useT } from "@/i18n/useT"
 
 import { Body, Empty, Head, ItemRow, useWidgetTitle } from "../../parts"
@@ -44,7 +45,7 @@ export function LeechesWidget({ instance, manifest }: WidgetProps) {
               // Neutral. The lapse count on the right already says how bad it is; a warning colour
               // on every row would make a widget about three cards look like an emergency.
               glyph={<span className="size-[6px] rounded-full bg-ink-3/50" />}
-              title={row.front}
+              title={frontPreview(row.front)}
               meta={t(NS, "LapseCountFormat", { 0: row.lapses })}
               href={`#/flashcard-deck/${row.deckId}`}
             />

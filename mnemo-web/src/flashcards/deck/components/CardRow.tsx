@@ -14,8 +14,7 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import { StateTag, cardStateKind } from "../../bits"
-import { stripMath } from "../../math"
-import { dueLabel, frontPreview, oneLine } from "../cards"
+import { backPreview, dueLabel, frontPreview } from "../cards"
 import { BACK_CELL, ROW_GRID } from "./rowLayout"
 
 export interface CardRowActions {
@@ -97,7 +96,7 @@ export function CardRow({
           </span>
 
           <span className={cn(BACK_CELL, "truncate text-[13px] text-ink-3")} title={card.back}>
-            {oneLine(stripMath(card.back))}
+            {backPreview(card.back)}
           </span>
 
           <StateTag state={cardStateKind(card, schedule)} />

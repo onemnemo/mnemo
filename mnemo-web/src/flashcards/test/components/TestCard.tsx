@@ -6,7 +6,7 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { useSettingValue } from "@/settings/store"
 
-import { MathText } from "../../MathText"
+import { CardText } from "../../CardText"
 import { AttachmentCarousel } from "../../session/components/AttachmentCarousel"
 import { answerText, promptText } from "../../study"
 
@@ -84,9 +84,7 @@ export function TestCard({
       {/* Room kept on the right so a long first line never runs under the corner actions. */}
       <div className="flex flex-wrap items-start gap-x-6 gap-y-4 pr-16">
         <div className="chat-prose min-w-0 flex-[1_1_17rem] whitespace-pre-wrap" data-selectable>
-          <p>
-            <MathText>{promptText(card)}</MathText>
-          </p>
+          <CardText>{promptText(card)}</CardText>
         </div>
         <AttachmentCarousel key={`${card.id}-front`} attachments={card.attachments} side="front" />
       </div>
@@ -130,9 +128,7 @@ export function TestCard({
               {answerText(card)
                 .split(/\n{2,}/)
                 .map((para, i) => (
-                  <p key={i}>
-                    <MathText>{para}</MathText>
-                  </p>
+                  <CardText key={i}>{para}</CardText>
                 ))}
             </div>
             <AttachmentCarousel key={`${card.id}-back`} attachments={card.attachments} side="back" />

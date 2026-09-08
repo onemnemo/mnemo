@@ -63,6 +63,20 @@ const multilineCard: CardDto = {
   updatedAt: "2026-01-01T00:00:00Z",
 }
 
+const formattedCard: CardDto = {
+  id: "card-3",
+  deckId: "deck-1",
+  type: "classic",
+  front: "What is **ATP** for?",
+  back: "- energy currency\n- made in the mitochondria",
+  tags: [],
+  state: "active",
+  isFlagged: false,
+  attachments: [],
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
+}
+
 let host: HTMLDivElement
 let root: Root
 
@@ -126,5 +140,20 @@ describe("CardSurface", () => {
     for (const el of prose) {
       expect(getComputedStyle(el).whiteSpace).toBe("pre-wrap")
     }
+  })
+
+  it("renders the format bar's markers on both sides instead of showing them", () => {
+    render(true, formattedCard)
+
+    expect(host.querySelector("strong")?.textContent).toBe("ATP")
+    expect(host.querySelectorAll("li")).toHaveLength(2)
+    expect(text()).not.toContain("**")
+    expect(text()).not.toContain("- ")
+  })
+
+  it("shows a revealed cloze deletion in bold", () => {
+    render(true, { ...card, back: "The capital of Japan is {{c1::Tokyo}}" })
+
+    expect(host.querySelector("strong")?.textContent).toBe("Tokyo")
   })
 })
