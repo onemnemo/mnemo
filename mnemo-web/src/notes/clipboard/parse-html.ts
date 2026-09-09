@@ -14,6 +14,8 @@
 import { DOMParser as PMDOMParser, type Schema, type Slice } from 'prosemirror-model';
 
 import { sanitizeExternalHtml } from './html-sanitize';
+import { restateLists } from './restate-lists';
+import { emptyLine, INLINE_TAGS, markerDiv } from './restate-markup';
 import { isDataTable } from './table-grid';
 
 export type ExternalParse = { readonly slice: Slice } | 'too-large' | null;
@@ -25,18 +27,15 @@ export function parseExternalHtml(html: string, schema: Schema): ExternalParse {
   const outcome = sanitizeExternalHtml(html);
   if ('tooLarge' in outcome) return 'too-large';
 
+  // Tables first: a list inside a cell is flattened into that cell's line, and
+  // a table inside an item is the item's block child either way.
   restateTables(outcome.fragment);
+  restateLists(outcome.fragment);
   const slice = PMDOMParser.fromSchema(schema).parseSlice(outcome.fragment, {
     preserveWhitespace: false,
   });
   return slice.content.size === 0 ? null : { slice };
 }
-
-/** Inline tags a cell keeps as it stands; anything else in one is a wrapper. */
-const INLINE_TAGS: ReadonlySet<string> = new Set([
-  'A', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'DEL', 'CODE', 'SPAN', 'FONT', 'SUB', 'SUP',
-  'MARK', 'SMALL', 'ABBR', 'CITE', 'Q', 'TIME', 'VAR', 'KBD', 'SAMP',
-]);
 
 /**
  * Restates each data table in the fragment as the markup our schema parses.
@@ -61,10 +60,10 @@ function restateTables(fragment: DocumentFragment): void {
 }
 
 function restatedTable(rows: readonly Element[][]): HTMLElement {
-  const table = div('data-table');
+  const table = markerDiv('data-table');
   table.append(emptyLine());
   for (const cells of rows) {
-    const row = div('data-table-row');
+    const row = markerDiv('data-table-row');
     row.append(emptyLine());
     for (const cell of cells) row.append(restatedCell(cell));
     table.append(row);
@@ -74,8 +73,8 @@ function restatedTable(rows: readonly Element[][]): HTMLElement {
 
 /** A cell is one run of prose, so its own wrappers flatten into a single line. */
 function restatedCell(cell: Element): HTMLElement {
-  const out = div('data-table-cell');
-  const line = div('data-line');
+  const out = markerDiv('data-table-cell');
+  const line = emptyLine();
   appendInline(line, cell);
   out.append(line);
   return out;
@@ -99,11 +98,3 @@ function appendInline(line: HTMLElement, source: Element): void {
     }
   }
 }
-
-function div(attribute: string): HTMLElement {
-  const element = document.createElement('div');
-  element.setAttribute(attribute, '');
-  return element;
-}
-
-const emptyLine = (): HTMLElement => div('data-line');

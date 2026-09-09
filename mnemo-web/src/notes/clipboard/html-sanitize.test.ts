@@ -67,6 +67,22 @@ describe('sanitizeExternalHtml scrubbing', () => {
     expect(fragment.querySelector('a')!.hasAttribute('href')).toBe(false);
   });
 
+  it('keeps a checkbox with nothing but its type and its state', () => {
+    const fragment = clean(
+      '<ul><li><input type="checkbox" checked onclick="steal()" name="x" form="f"> done</li></ul>',
+    );
+    const box = fragment.querySelector('input');
+    expect(box).not.toBeNull();
+    expect(Array.from(box!.attributes).map((attr) => attr.name).sort()).toEqual(['checked', 'type']);
+  });
+
+  it('still drops every other form control', () => {
+    const fragment = clean('<input type="text" value="a"><input type="CHECKBOX"><button>b</button><select></select>');
+    expect(fragment.querySelectorAll('input').length).toBe(1);
+    expect(fragment.querySelector('button')).toBeNull();
+    expect(fragment.querySelector('select')).toBeNull();
+  });
+
   it('drops a foreign-namespace svg subtree whole, beacon href and all', () => {
     const fragment = clean('<p>x</p><svg><image href="http://tracker/x.png"/></svg>');
     expect(fragment.querySelector('svg')).toBeNull();

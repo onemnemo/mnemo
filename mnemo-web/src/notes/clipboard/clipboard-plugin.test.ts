@@ -348,6 +348,41 @@ describe('clipboardPlugin external paste', () => {
     expect(view.state.doc.textContent).toContain('First');
     expect(hrefsIn(view)).toEqual(['https://one.test', 'https://two.test']);
   });
+
+  it('splits a pasted list in after the sentence rather than folding it into the line', () => {
+    const view = mountFull(docOf(para('Shopping', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    // Pasted at the end of a sentence, a list belongs below it as items of its
+    // own. The generic replace would fold the first item into the sentence and
+    // nest the rest under the paragraph as its block children.
+    const clip = fakeClipboard();
+    clip.setData('text/plain', 'milk\neggs');
+    clip.setData('text/html', '<ul><li>milk</li><li>eggs<ul><li>brown</li></ul></li></ul>');
+
+    expect(firePaste(view, clip)).toBe(true);
+    const types: string[] = [];
+    view.state.doc.forEach((node) => types.push(node.type.name));
+    expect(types).toEqual(['paragraph', 'bulletItem', 'bulletItem']);
+    expect(view.state.doc.child(0).textContent).toBe('Shopping');
+    expect(view.state.doc.child(1).textContent).toBe('milk');
+    expect(view.state.doc.child(2).childCount).toBe(2);
+    expect(view.state.doc.child(2).child(1).type.name).toBe('bulletItem');
+    expect(view.state.doc.child(2).child(1).textContent).toBe('brown');
+  });
+
+  it('still folds one plain paragraph of a page into the line at the caret', () => {
+    const view = mountFull(docOf(para('Before ', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    const clip = fakeClipboard();
+    clip.setData('text/plain', 'after');
+    clip.setData('text/html', '<p><em>after</em></p>');
+
+    expect(firePaste(view, clip)).toBe(true);
+    expect(view.state.doc.childCount).toBe(1);
+    expect(view.state.doc.child(0).textContent).toBe('Before after');
+  });
 });
 
 describe('clipboardPlugin plain-text markdown paste', () => {

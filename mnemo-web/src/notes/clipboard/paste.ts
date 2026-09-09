@@ -51,7 +51,7 @@ import { withFreshIdentity } from './clear-identity';
 import { dropUnsafeLinks } from './scrub-marks';
 import { parseMarkdownToBlocks } from './markdown-blocks';
 import { parseExternalHtml } from './parse-html';
-import { inSourceLine, placePaste } from './place-paste';
+import { inSourceLine, placePaste, type PasteShape } from './place-paste';
 import {
   collectStageablePaths,
   remapImagePaths,
@@ -220,10 +220,22 @@ function placeInternal(
 
 function placeExternal(view: EditorView, slice: Slice, registry: BlockRegistry): boolean {
   try {
-    return dispatchPaste(view, placePaste(view.state, slice, 'merge', registry));
+    return dispatchPaste(view, placePaste(view.state, slice, externalShape(slice), registry));
   } catch {
     return false;
   }
+}
+
+/**
+ * How a foreign fragment lands, by the same rule the markdown reading of the
+ * same text follows: one plain paragraph folds into the line at the caret, the
+ * everyday "paste a sentence" case, and anything more takes its place as
+ * blocks. Left to the generic replace, a run's first block would fold into the
+ * caret's line and the rest would nest under that block as its children.
+ */
+function externalShape(slice: Slice): PasteShape {
+  const only = slice.content.childCount === 1 ? slice.content.firstChild : null;
+  return only?.type.name === 'paragraph' && only.childCount === 1 ? 'merge' : 'blocks';
 }
 
 /**

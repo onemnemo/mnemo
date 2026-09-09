@@ -85,6 +85,46 @@ describe('parseExternalHtml', () => {
     expect(parsed.slice.content.textBetween(0, parsed.slice.content.size, '')).toContain('one\ntwo');
   });
 
+  it('parses a foreign list into sibling items, nesting and all', () => {
+    const parsed = parseExternalHtml(
+      '<ul><li>one</li><li>two<ul><li>two point one</li></ul></li></ul><ol><li>first</li></ol>',
+      schema,
+    );
+    if (parsed === null || parsed === 'too-large') throw new Error('expected a slice');
+    const items = childrenOf(parsed.slice);
+    expect(typeNames(items)).toEqual(['bulletItem', 'bulletItem', 'numberedItem']);
+
+    const nested = items[1];
+    expect(nested.childCount).toBe(2);
+    expect(nested.child(0).type.name).toBe('line');
+    expect(nested.child(0).textContent).toBe('two');
+    expect(nested.child(1).type.name).toBe('bulletItem');
+    expect(nested.child(1).textContent).toBe('two point one');
+  });
+
+  it('parses a task list into checklist items that keep their state', () => {
+    const parsed = parseExternalHtml(
+      '<ul><li><input type="checkbox" checked> done</li><li><input type="checkbox"> open</li></ul>',
+      schema,
+    );
+    if (parsed === null || parsed === 'too-large') throw new Error('expected a slice');
+    const items = childrenOf(parsed.slice);
+    expect(typeNames(items)).toEqual(['checklistItem', 'checklistItem']);
+    expect(items.map((item) => item.attrs.checked)).toEqual([true, false]);
+    expect(items.map((item) => item.textContent.trim())).toEqual(['done', 'open']);
+  });
+
+  it('keeps the marks inside a pasted item', () => {
+    const parsed = parseExternalHtml('<ul><li>plain <strong>bold</strong></li></ul>', schema);
+    if (parsed === null || parsed === 'too-large') throw new Error('expected a slice');
+    const marks: string[] = [];
+    parsed.slice.content.descendants((node) => {
+      for (const mark of node.marks) marks.push(mark.type.name);
+      return true;
+    });
+    expect(marks).toContain('strong');
+  });
+
   it('walks through a layout table so the article inside it stays blocks', () => {
     const parsed = parseExternalHtml(
       '<table><tr><td><h1>Title</h1><p>Body.</p></td></tr></table>',

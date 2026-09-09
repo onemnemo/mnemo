@@ -48,7 +48,9 @@ const XHTML_NS = 'http://www.w3.org/1999/xhtml';
  * anyway; the rest are stripped so nothing carries a src, a handler or a nested
  * surprise into the parser. `<img>` included: an external image is dropped on
  * paste (an image arrives as a file through the image plugin, or is staged
- * later), never hotlinked.
+ * later), never hotlinked. A checkbox is the one form control that survives,
+ * stripped to its type and its state, because it is how a task list marks an
+ * item as done.
  */
 const DROP_ELEMENTS: ReadonlySet<string> = new Set([
   'SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'TITLE', 'HEAD', 'META', 'LINK', 'BASE',
@@ -83,7 +85,7 @@ function scrub(parent: ParentNode, depth: number, budget: { nodes: number }): bo
     // A foreign-namespace root (SVG, MathML) is dropped whole: its tagName is not
     // uppercased in an HTML document, so a case-blind check would miss it, and
     // nothing inside it is content the editor wants.
-    if (child.namespaceURI !== XHTML_NS || DROP_ELEMENTS.has(child.tagName.toUpperCase())) {
+    if (child.namespaceURI !== XHTML_NS || (DROP_ELEMENTS.has(child.tagName.toUpperCase()) && !isCheckbox(child))) {
       doomed.push(child);
       continue;
     }
@@ -91,12 +93,29 @@ function scrub(parent: ParentNode, depth: number, budget: { nodes: number }): bo
     // thousands, and both the parse and this scrub pay for every one.
     budget.nodes += child.attributes.length;
     if (budget.nodes > MAX_NODES) return false;
-    scrubAttributes(child);
+    if (isCheckbox(child)) scrubCheckbox(child);
+    else scrubAttributes(child);
     if (!scrub(child, depth + 1, budget)) return false;
   }
   // Removed after the walk so the live sibling chain is not mutated mid-iteration.
   for (const element of doomed) element.remove();
   return true;
+}
+
+/** A checkbox input, the state marker a task list item leads with. */
+export function isCheckbox(element: Element): boolean {
+  return (
+    element.tagName.toUpperCase() === 'INPUT' &&
+    (element.getAttribute('type') ?? '').trim().toLowerCase() === 'checkbox'
+  );
+}
+
+/** A checkbox keeps nothing but what it is and whether it is ticked. */
+function scrubCheckbox(element: Element): void {
+  const checked = element.hasAttribute('checked');
+  for (const attr of Array.from(element.attributes)) element.removeAttribute(attr.name);
+  element.setAttribute('type', 'checkbox');
+  if (checked) element.setAttribute('checked', '');
 }
 
 function scrubAttributes(element: Element): void {
