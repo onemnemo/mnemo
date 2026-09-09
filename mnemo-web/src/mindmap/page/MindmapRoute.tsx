@@ -83,6 +83,7 @@ import {
 } from "../scene/hierarchy"
 import { frameBox, projectScene, type FrameMemberBox } from "../scene/project"
 import { sceneMeasurers } from "../scene/measurers"
+import { useFontEpoch } from "../scene/useFontEpoch"
 import { useMindmapRefs } from "../scene/useRefs"
 
 /** No rules at all: every node falls through to the theme. Stable, so it does not reproject a scene. */
@@ -187,8 +188,13 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   // is laid out around the title it reads as rather than around a blank that arrives late.
   const refs = useMindmapRefs(map.data)
 
+  // Boxes are measured in the page's own faces, so the first projection waits for them and every
+  // later batch of fonts projects again. A map measured in the fallback face would overlap
+  // itself for as long as the page stayed open.
+  const fontEpoch = useFontEpoch()
+
   const scene = useMemo(() => {
-    if (!map.data || !styling) {
+    if (!map.data || !styling || fontEpoch === 0) {
       return null
     }
     return projectScene(map.data, {
@@ -197,7 +203,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       measurers: sceneMeasurers(),
       refs,
     })
-  }, [map.data, styling, refs])
+  }, [map.data, styling, refs, fontEpoch])
 
   const hierarchy = useMemo(() => (map.data ? analyzeHierarchy(map.data) : null), [map.data])
 

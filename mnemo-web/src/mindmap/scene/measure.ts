@@ -117,8 +117,11 @@ export const estimateWidth: TextMeasurer = (text, size) => text.length * size * 
  * The cache is the point. A five thousand node map measures five thousand strings on open and then
  * again on every relayout, and the strings barely change between them; without the memo the measuring
  * costs more than the layout it feeds.
+ *
+ * The cache can be handed in, for a caller that has to empty it: a width taken before the page's
+ * font arrived is the fallback face's width, and stays wrong for as long as it is remembered.
  */
-export function canvasMeasurer(family: string = FONT_FAMILY): TextMeasurer {
+export function canvasMeasurer(family: string = FONT_FAMILY, cache = new Map<string, number>()): TextMeasurer {
   let context: CanvasRenderingContext2D | null = null
   try {
     context = document.createElement("canvas").getContext("2d")
@@ -130,7 +133,6 @@ export function canvasMeasurer(family: string = FONT_FAMILY): TextMeasurer {
   }
 
   const ctx = context
-  const cache = new Map<string, number>()
   return (text, size, weight, letterSpacing) => {
     const key = `${weight}|${size}|${letterSpacing ?? ""}|${text}`
     const hit = cache.get(key)
@@ -166,9 +168,11 @@ export function canvasMeasurer(family: string = FONT_FAMILY): TextMeasurer {
  * none has no box to read, and it carries the same class the canvas draws math under so the two are
  * measuring and drawing the same thing.
  */
-export function katexMeasurer(render: (host: HTMLElement, latex: string) => void): MathMeasurer {
+export function katexMeasurer(
+  render: (host: HTMLElement, latex: string) => void,
+  cache = new Map<string, { width: number; height: number }>(),
+): MathMeasurer {
   let host: HTMLElement | null = null
-  const cache = new Map<string, { width: number; height: number }>()
 
   return (latex, size) => {
     const key = `${size}|${latex}`
@@ -228,9 +232,30 @@ export function measurersFrom(measure: TextMeasurer): Measurers {
   return { text: measure, mono: measure, math: estimateMath }
 }
 
+/** The browser's measurers, which can be made to forget what they measured. */
+export interface DomMeasurers extends Measurers {
+  /**
+   * Drops every memoized size. For when the faces on the page have changed under the caches, which
+   * is the one thing that changes a measurement without changing its input.
+   */
+  readonly forget: () => void
+}
+
 /** The real thing: a canvas per face, and KaTeX for the equations. */
-export function domMeasurers(render: (host: HTMLElement, latex: string) => void): Measurers {
-  return { text: canvasMeasurer(), mono: canvasMeasurer(MONO_FAMILY), math: katexMeasurer(render) }
+export function domMeasurers(render: (host: HTMLElement, latex: string) => void): DomMeasurers {
+  const text = new Map<string, number>()
+  const mono = new Map<string, number>()
+  const math = new Map<string, { width: number; height: number }>()
+  return {
+    text: canvasMeasurer(FONT_FAMILY, text),
+    mono: canvasMeasurer(MONO_FAMILY, mono),
+    math: katexMeasurer(render, math),
+    forget: () => {
+      text.clear()
+      mono.clear()
+      math.clear()
+    },
+  }
 }
 
 export interface WrappedText {
