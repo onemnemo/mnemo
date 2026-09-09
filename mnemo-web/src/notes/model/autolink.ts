@@ -15,28 +15,29 @@ import { isTextSpan, type InlineSpan } from './types';
 // more than the C# original does (e.g. a URL glued to a non-ASCII letter
 // with no separator).
 //
-// A `(?<![\p{L}...}])` lookbehind looks like the fix, but it isn't: under
-// the `u` flag JS tests Unicode properties against full *code points*, so a
+// A `(?<![\p{L}...}])` lookbehind looks like the fix, but it is not. Under the
+// `u` flag JS tests Unicode properties against full code points, so a
 // lookbehind combines an adjacent UTF-16 surrogate pair into one astral
-// character before testing it. .NET's regex engine never does that, it
-// tests each UTF-16 char/category in isolation, so a lone surrogate half is
-// always category Cs (never L/Mn/Nd/Pc), and a URL glued to an astral letter
-// (e.g. a bold-math "𝐹" right before "www...") *does* get linked in C#. A
-// lookbehind here would wrongly block that case.
+// character before testing it. .NET's regex engine tests each UTF-16
+// character in isolation, so a lone surrogate half is category Cs and a URL
+// glued to an astral letter still gets linked there.
 //
 // findUrlCandidates below tests the single preceding code unit as its own
 // one-character string (`flat[i - 1]`), which can never pair with anything, 
 // that reproduces .NET's per-code-unit judgment exactly, whereas a
 // full-string lookbehind cannot.
-const urlBodyPattern = /(?:https?|mailto):[^\s<>[\]]+|www\.[^\s<>[\]]+/iy;
+const urlBodyPattern =
+  /(?:https?|mailto|tel):[^\s<>[\]]+|www\.[^\s<>[\]]+|[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+/iy;
 const wordCharUnit = /[\p{L}\p{Mn}\p{Nd}\p{Pc}]/u;
 const wwwPrefix = /^www\./i;
+const emailAddress = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+const bareHost = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+(?:[/?#][^\s]*)?$/i;
 const trailingJunk = new Set(['.', ',', ';', ':', '!', '?', ')', ']', '"', "'", '”', '’']);
 
-interface UrlCandidate {
-  start: number;
-  end: number;
-  raw: string;
+export interface AutoLinkMatch {
+  readonly start: number;
+  readonly end: number;
+  readonly href: string;
 }
 
 /**
@@ -47,8 +48,8 @@ interface UrlCandidate {
  * candidate must not consume any characters, or a second, legitimately
  * boundary-satisfying URL immediately after it would be silently skipped.
  */
-function findUrlCandidates(flat: string): UrlCandidate[] {
-  const results: UrlCandidate[] = [];
+function findUrlCandidates(flat: string): { start: number; raw: string }[] {
+  const results: { start: number; raw: string }[] = [];
   let i = 0;
   while (i < flat.length) {
     const prevUnit = i > 0 ? flat[i - 1] : undefined;
@@ -56,7 +57,7 @@ function findUrlCandidates(flat: string): UrlCandidate[] {
       urlBodyPattern.lastIndex = i;
       const m = urlBodyPattern.exec(flat);
       if (m && m.index === i) {
-        results.push({ start: i, end: i + m[0].length, raw: m[0] });
+        results.push({ start: i, raw: m[0] });
         i += m[0].length;
         continue;
       }
@@ -69,13 +70,36 @@ function findUrlCandidates(flat: string): UrlCandidate[] {
 export function normalizeUrl(raw: string): string {
   if (raw.trim().length === 0) return raw;
   const trimmed = raw.trim();
-  return wwwPrefix.test(trimmed) ? `https://${trimmed}` : trimmed;
+  if (emailAddress.test(trimmed)) return `mailto:${trimmed}`;
+  return wwwPrefix.test(trimmed) || bareHost.test(trimmed) ? `https://${trimmed}` : trimmed;
 }
 
 function trimTrailingJunk(text: string): string {
   let len = text.length;
   while (len > 0 && trailingJunk.has(text[len - 1])) len--;
   return len === text.length ? text : text.slice(0, len);
+}
+
+/** URL-like ranges in `text`, with display offsets and a launchable href. */
+export function findAutoLinks(text: string): AutoLinkMatch[] {
+  const matches: AutoLinkMatch[] = [];
+  for (const { start, raw } of findUrlCandidates(text)) {
+    const visible = trimTrailingJunk(raw);
+    if (visible.length === 0) continue;
+    matches.push({ start, end: start + visible.length, href: normalizeUrl(visible) });
+  }
+  return matches;
+}
+
+/** A single pasted or selected link target, with surrounding whitespace ignored. */
+export function linkTargetFromText(text: string): string | null {
+  const value = text.trim();
+  if (value.length === 0) return null;
+  if (bareHost.test(value)) return normalizeUrl(value);
+  const matches = findAutoLinks(value);
+  return matches.length === 1 && matches[0].start === 0 && matches[0].end === value.length
+    ? matches[0].href
+    : null;
 }
 
 /** True if [start, end) is already covered, edge to edge, by the same href. */
@@ -125,21 +149,14 @@ export function applyAutoLink(spans: readonly InlineSpan[]): InlineSpan[] {
   if (flat.length === 0) return normalizeSpans(spans);
 
   const matches: { start: number; end: number; url: string }[] = [];
-  for (const { start, raw } of findUrlCandidates(flat)) {
-    const trimmed = trimTrailingJunk(raw);
-    if (trimmed.length === 0) continue;
-
-    const end = start + trimmed.length;
-    const url = normalizeUrl(trimmed);
-    if (url.length === 0) continue;
-    if (!canApplyLink(spans, start, end, url)) continue;
-
-    matches.push({ start, end, url });
+  for (const { start, end, href } of findAutoLinks(flat)) {
+    if (!canApplyLink(spans, start, end, href)) continue;
+    matches.push({ start, end, url: href });
   }
 
   if (matches.length === 0) return normalizeSpans(spans);
 
-  // Overlapping matches can't both apply; earliest match wins.
+  // Overlapping matches cannot both apply, earliest match wins.
   matches.sort((a, b) => a.start - b.start);
   const filtered: typeof matches = [];
   let lastEnd = -1;

@@ -62,6 +62,7 @@ import { formattingToolbarPlugin } from '../editor/toolbar/formatting-toolbar';
 import { equationOpenOnInsert } from '../editor/atoms';
 import { slashMenuPlugin } from '../editor/slash';
 import { linkInteractionPlugin } from '../editor/marks/link-interaction';
+import { autoLinkPlugin } from '../editor/marks/auto-link';
 import type { BlockRegistry } from '../editor/registry/build';
 import type { InlineMapper } from '../editor/mapper/inline';
 import type { Block } from '../model/types';
@@ -115,6 +116,9 @@ export type NoteEditState =
  *    keys.
  *  - `inputTriggerPlugin` runs on text input, not on a key chord, so it sits
  *    before the keymaps without competing with them.
+ *  - `autoLinkPlugin` follows the markdown triggers. Both read text input, and
+ *    a block marker such as `# ` must convert the block before a generic text
+ *    completion rule can see the same space.
  *  - `crossBlockRangePlugin` owns Backspace, Delete and typing over a text
  *    range that runs from one block into another, for the same reason the
  *    structural keymap owns the caret cases: the generic replace below it reads
@@ -191,6 +195,7 @@ export function editorPlugins(
     // that holds none, which the keymaps below have no position for.
     gapCursorPlugin(registry),
     inputTriggerPlugin(registry),
+    autoLinkPlugin(),
     // Before every keymap and before the generic replace they fall through to:
     // it claims only a text range that spans two blocks.
     crossBlockRangePlugin(),

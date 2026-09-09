@@ -62,6 +62,8 @@ import { storePasteProgress, type PasteProgressReporter } from './paste-progress
 import { readClipMeta } from './read-clipboard';
 import { isMultiCell, parseClipboardGrid } from './table-grid';
 import { cellAtPos, cellCaretPos, gridToTable, writeCells } from '../editor/table/model';
+import { applyLink } from '../editor/marks/link-commands';
+import { linkTargetFromText } from '../model/autolink';
 
 /** A ceiling on the plain-text degrade path, so an over-large paste stays bounded there too. */
 const MAX_PLAIN_TEXT_LENGTH = 2_000_000;
@@ -139,6 +141,8 @@ export function handleInternalPaste(
     }
   }
 
+  if (pasteLinkOverSelection(view, data)) return true;
+
   const html = data.getData('text/html');
   if (html.trim() !== '') {
     let placed = false;
@@ -164,6 +168,15 @@ export function handleInternalPaste(
   // is left to the editor's own default rather than claimed and dropped.
   if (data.getData('text/plain').trim() === '') return false;
   return pastePlainText(view, data, registry, support, progress);
+}
+
+/** A pasted URL over selected prose changes its destination without replacing its words. */
+function pasteLinkOverSelection(view: EditorView, data: DataTransfer): boolean {
+  const selection = view.state.selection;
+  if (!(selection instanceof TextSelection) || selection.empty || inSourceLine(view.state)) return false;
+  if (data.getData('text/html').trim() !== '') return false;
+  const href = linkTargetFromText(data.getData('text/plain'));
+  return href ? applyLink(href)(view.state, view.dispatch) : false;
 }
 
 /** Reconstruct an attacker-reachable JSON payload, never letting a bad one throw out. */

@@ -13,7 +13,14 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { createDocumentMapper } from '../mapper/document';
 import { createEditorSchema } from '../schema';
 import { defaultTextStyle, type Block, type BlockPayload, type BlockType, type TextStyle } from '../../model/types';
-import { applyLink, canEditLink, currentLinkHref, isLinkActive, removeLink } from './link-commands';
+import {
+  applyLink,
+  canEditLink,
+  currentLinkContext,
+  currentLinkHref,
+  isLinkActive,
+  removeLink,
+} from './link-commands';
 
 const { schema, registry } = createEditorSchema();
 const mapper = createDocumentMapper(schema, registry);
@@ -115,11 +122,15 @@ describe('applyLink over a selection', () => {
 });
 
 describe('applyLink at a collapsed caret', () => {
-  it('refuses a caret that is not inside a link', () => {
-    const dispatch = vi.fn();
-    const ok = applyLink('https://example.com')(caretInFirstRun(stateOf(textBlock([{ text: 'abcd' }]))), dispatch);
-    expect(ok).toBe(false);
-    expect(dispatch).not.toHaveBeenCalled();
+  it('inserts a fresh link at a plain caret', () => {
+    const doc = run(
+      caretInFirstRun(stateOf(textBlock([{ text: 'abcd' }]))),
+      applyLink('mnemo.one', 'Mnemo'),
+    );
+    expect(doc?.textContent).toBe('aMnemobcd');
+    const linked = textNodes(doc!).find((node) => hrefOf(node) !== null);
+    expect(linked?.text).toBe('Mnemo');
+    expect(hrefOf(linked!)).toBe('https://mnemo.one');
   });
 
   it('retargets the whole link the caret sits inside', () => {
@@ -164,6 +175,23 @@ describe('applyLink at a collapsed caret', () => {
   });
 });
 
+describe('applyLink display text', () => {
+  it('changes the visible text and destination together', () => {
+    const state = selectAll(
+      stateOf(textBlock([{ text: 'old title', style: { linkUrl: 'https://old.example' } }])),
+    );
+    const doc = run(state, applyLink('https://new.example', 'New title'));
+
+    expect(doc?.textContent).toBe('New title');
+    expect(textNodes(doc!).every((node) => hrefOf(node) === 'https://new.example')).toBe(true);
+  });
+
+  it('normalizes a bare email address from the form', () => {
+    const doc = run(selectAll(stateOf(textBlock([{ text: 'Email us' }]))), applyLink('hello@mnemo.one'));
+    expect(textNodes(doc!).every((node) => hrefOf(node) === 'mailto:hello@mnemo.one')).toBe(true);
+  });
+});
+
 describe('removeLink over a selection', () => {
   it('removes the mark across a linked range', () => {
     const state = selectAll(stateOf(textBlock([{ text: 'abcd', style: { linkUrl: 'https://example.com' } }])));
@@ -188,6 +216,7 @@ describe('removeLink at a collapsed caret', () => {
     const doc = run(state, removeLink());
     expect(doc).not.toBeNull();
     expect(textNodes(doc!).every((n) => hrefOf(n) === null)).toBe(true);
+    expect(textNodes(doc!).every((n) => n.marks.some((m) => m.type.name === 'noAutoLink'))).toBe(true);
   });
 
   it('refuses a caret that is not inside a link', () => {
@@ -251,12 +280,39 @@ describe('canEditLink', () => {
     expect(canEditLink(state)).toBe(true);
   });
 
-  it('refuses a caret with no link and no selection to grow into one', () => {
-    expect(canEditLink(caretInFirstRun(stateOf(textBlock([{ text: 'abcd' }]))))).toBe(false);
+  it('allows a caret in writable prose to insert one', () => {
+    expect(canEditLink(caretInFirstRun(stateOf(textBlock([{ text: 'abcd' }]))))).toBe(true);
   });
 
   it('refuses inside a code block, whose content admits no marks', () => {
     const state = caretInFirstRun(stateOf(blockOf('Code', [], { kind: 'code', language: 'text', source: 'hi' })));
     expect(canEditLink(state)).toBe(false);
+  });
+});
+
+describe('currentLinkContext', () => {
+  it('suggests a selected URL as the destination', () => {
+    const context = currentLinkContext(selectAll(stateOf(textBlock([{ text: 'https://www.mnemo.one/' }]))));
+    expect(context).toMatchObject({
+      href: 'https://www.mnemo.one/',
+      text: 'https://www.mnemo.one/',
+      hasLink: false,
+      canEditText: true,
+    });
+  });
+
+  it('expands a caret to the complete existing link', () => {
+    const context = currentLinkContext(
+      caretInFirstRun(
+        stateOf(textBlock([{ text: 'Mnemo', style: { linkUrl: 'https://mnemo.one' } }])),
+        2,
+      ),
+    );
+    expect(context).toMatchObject({
+      href: 'https://mnemo.one',
+      text: 'Mnemo',
+      hasLink: true,
+      canEditText: true,
+    });
   });
 });

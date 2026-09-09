@@ -19,6 +19,7 @@ import { TextSelection, type Command, type EditorState } from 'prosemirror-state
 import type { Mark, Node as PMNode } from 'prosemirror-model';
 import { asOwnUndoStep } from '../history';
 import { isSafeUrl } from '../schema/safe-url';
+import { linkTargetFromText, normalizeUrl } from '../../model/autolink';
 import { applicableRanges } from './commands';
 
 function linkOf(marks: readonly Mark[]): Mark | undefined {
@@ -51,6 +52,68 @@ function linkExtent(state: EditorState, pos: number, mark: Mark): { from: number
     to += after.nodeSize;
   }
   return { from, to };
+}
+
+function rangeContainsOnlyText(state: EditorState, from: number, to: number): boolean {
+  let onlyText = true;
+  state.doc.nodesBetween(from, to, (node) => {
+    if (node.isInline && !node.isText) onlyText = false;
+    return onlyText;
+  });
+  return onlyText;
+}
+
+export interface LinkEditContext {
+  readonly from: number;
+  readonly to: number;
+  readonly href: string;
+  readonly text: string;
+  readonly hasLink: boolean;
+  readonly canEditText: boolean;
+}
+
+/** The address and visible text the link form should seed from the live selection. */
+export function currentLinkContext(state: EditorState): LinkEditContext | null {
+  const type = state.schema.marks.link;
+  const selection = state.selection;
+  if (!type || !(selection instanceof TextSelection)) return null;
+
+  if (selection.$cursor) {
+    const mark = linkOf(state.storedMarks ?? selection.$cursor.marks());
+    if (mark) {
+      const range = linkExtent(state, selection.$cursor.pos, mark);
+      return {
+        ...range,
+        href: String(mark.attrs.href),
+        text: state.doc.textBetween(range.from, range.to, '', '\ufffc'),
+        hasLink: true,
+        canEditText: rangeContainsOnlyText(state, range.from, range.to),
+      };
+    }
+    if (!selection.$cursor.parent.type.allowsMarkType(type)) return null;
+    return {
+      from: selection.from,
+      to: selection.to,
+      href: '',
+      text: '',
+      hasLink: false,
+      canEditText: true,
+    };
+  }
+
+  if (applicableRanges(state.doc, selection.ranges, type).length === 0) return null;
+  const text = state.doc.textBetween(selection.from, selection.to, '\n', '\ufffc');
+  const href = currentLinkHref(state);
+  return {
+    from: selection.from,
+    to: selection.to,
+    href: href ?? linkTargetFromText(text) ?? '',
+    text,
+    hasLink: href !== null,
+    canEditText:
+      selection.$from.sameParent(selection.$to) &&
+      rangeContainsOnlyText(state, selection.from, selection.to),
+  };
 }
 
 /**
@@ -94,44 +157,59 @@ export function isLinkActive(state: EditorState): boolean {
 }
 
 /**
- * Whether there is something for the link control to act on: a selection
- * with writable inline content, or a collapsed caret already inside a link
- * (the click-to-edit case). What the toolbar button enables by.
+ * Whether the current selection can carry a link. A caret in ordinary prose
+ * can insert one, while a caret in source content cannot.
  */
 export function canEditLink(state: EditorState): boolean {
-  const type = state.schema.marks.link;
-  if (!type) return false;
-  const sel = state.selection;
-  if (!(sel instanceof TextSelection)) return false;
-  if (!sel.empty) return applicableRanges(state.doc, sel.ranges, type).length > 0;
-  return currentLinkHref(state) !== null;
+  return currentLinkContext(state) !== null;
 }
 
 /**
- * Sets the link mark to `href`, over the current non-empty selection, or, for
- * a collapsed caret, over the full extent of the link it sits inside (the
- * click-to-edit case, changing the address of a link already applied). A
- * collapsed caret that is not inside a link refuses: there is no text to
- * carry a link with no URL, and nothing to grow an extent from.
+ * Sets the link mark to `href`, optionally replacing its visible text. A
+ * collapsed caret inserts a fresh link or edits the complete link it is in.
+ * A selection spanning blocks can change its destination without flattening
+ * those blocks into one display string.
  *
  * The link mark excludes itself by the schema's default (no `excludes` was
  * given, and a mark type with none excludes its own type), so `addMark` alone
  * evicts the old href and installs the new one; no separate `removeMark` is
  * needed to retarget an existing link.
  */
-export function applyLink(href: string): Command {
+export function applyLink(href: string, displayText?: string): Command {
   return (state, dispatch) => {
     const type = state.schema.marks.link;
-    if (!type || !isSafeUrl(href)) return false;
+    const enteredHref = href.trim();
+    const normalizedHref = normalizeUrl(enteredHref);
+    if (!type || !isSafeUrl(normalizedHref)) return false;
     const sel = state.selection;
     if (!(sel instanceof TextSelection)) return false;
+    const context = currentLinkContext(state);
+    if (!context) return false;
+
+    const visibleText = displayText === undefined ? undefined : displayText || enteredHref;
+    if (context.canEditText && visibleText !== undefined) {
+      const from = context.from;
+      let to = context.to;
+      const tr = state.tr;
+      if (visibleText !== context.text) {
+        tr.insertText(visibleText, from, to);
+        to = from + visibleText.length;
+      }
+      tr.removeMark(from, to, state.schema.marks.noAutoLink);
+      tr.addMark(from, to, type.create({ href: normalizedHref }));
+      if (dispatch) dispatch(asOwnUndoStep(tr.scrollIntoView()));
+      return true;
+    }
 
     if (!sel.empty) {
       const targets = applicableRanges(state.doc, sel.ranges, type);
       if (targets.length === 0) return false;
       if (dispatch) {
         const tr = state.tr;
-        for (const { from, to } of targets) tr.addMark(from, to, type.create({ href }));
+        for (const { from, to } of targets) {
+          tr.removeMark(from, to, state.schema.marks.noAutoLink);
+          tr.addMark(from, to, type.create({ href: normalizedHref }));
+        }
         dispatch(asOwnUndoStep(tr.scrollIntoView()));
       }
       return true;
@@ -139,11 +217,18 @@ export function applyLink(href: string): Command {
 
     const $cursor = sel.$cursor;
     if (!$cursor) return false;
-    const mark = linkOf($cursor.marks());
-    if (!mark) return false;
+    const mark = linkOf(state.storedMarks ?? $cursor.marks());
     if (dispatch) {
+      if (!mark) {
+        const text = enteredHref;
+        const tr = state.tr.insertText(text, $cursor.pos);
+        tr.addMark($cursor.pos, $cursor.pos + text.length, type.create({ href: normalizedHref }));
+        dispatch(asOwnUndoStep(tr.scrollIntoView()));
+        return true;
+      }
       const { from, to } = linkExtent(state, $cursor.pos, mark);
-      dispatch(asOwnUndoStep(state.tr.addMark(from, to, type.create({ href })).scrollIntoView()));
+      const tr = state.tr.removeMark(from, to, state.schema.marks.noAutoLink);
+      dispatch(asOwnUndoStep(tr.addMark(from, to, type.create({ href: normalizedHref })).scrollIntoView()));
     }
     return true;
   };
@@ -163,18 +248,25 @@ export function removeLink(): Command {
     if (!(sel instanceof TextSelection)) return false;
 
     if (!sel.empty) {
-      let any = false;
+      const linked: { from: number; to: number }[] = [];
       for (const { $from, $to } of sel.ranges) {
-        state.doc.nodesBetween($from.pos, $to.pos, (node) => {
+        state.doc.nodesBetween($from.pos, $to.pos, (node, pos) => {
           if (!node.isInline) return true;
-          if (linkOf(node.marks)) any = true;
+          if (linkOf(node.marks)) {
+            linked.push({ from: Math.max($from.pos, pos), to: Math.min($to.pos, pos + node.nodeSize) });
+          }
           return false;
         });
       }
-      if (!any) return false;
+      if (linked.length === 0) return false;
       if (dispatch) {
-        let tr = state.tr;
-        for (const { $from, $to } of sel.ranges) tr = tr.removeMark($from.pos, $to.pos, type);
+        const tr = state.tr;
+        for (const range of linked) {
+          tr.removeMark(range.from, range.to, type);
+          if (state.schema.marks.noAutoLink) {
+            tr.addMark(range.from, range.to, state.schema.marks.noAutoLink.create());
+          }
+        }
         dispatch(asOwnUndoStep(tr.scrollIntoView()));
       }
       return true;
@@ -186,7 +278,9 @@ export function removeLink(): Command {
     if (!mark) return false;
     if (dispatch) {
       const { from, to } = linkExtent(state, $cursor.pos, mark);
-      dispatch(asOwnUndoStep(state.tr.removeMark(from, to, type).scrollIntoView()));
+      const tr = state.tr.removeMark(from, to, type);
+      if (state.schema.marks.noAutoLink) tr.addMark(from, to, state.schema.marks.noAutoLink.create());
+      dispatch(asOwnUndoStep(tr.scrollIntoView()));
     }
     return true;
   };

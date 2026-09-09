@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { EditorState, Selection } from 'prosemirror-state';
+import { EditorState, Selection, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { Fragment, Slice, type Node as PMNode } from 'prosemirror-model';
 import type { Plugin } from 'prosemirror-state';
@@ -395,6 +395,35 @@ describe('clipboardPlugin plain-text markdown paste', () => {
     expect(firePaste(view, plainText('**bold**'))).toBe(true);
     expect(view.state.doc.textContent).toBe('start bold');
     expect(markNames(view)).toContain('strong');
+  });
+
+  it('turns a pasted URL into a link', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePaste(view, plainText('https://www.mnemo.one/'))).toBe(true);
+    expect(view.state.doc.textContent).toBe('https://www.mnemo.one/');
+    expect(hrefsIn(view)).toEqual(['https://www.mnemo.one/']);
+  });
+
+  it('turns a pasted markdown link into linked display text', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(
+      firePaste(view, plainText('[https://www.mnemo.one/](https://www.mnemo.one/)')),
+    ).toBe(true);
+    expect(view.state.doc.textContent).toBe('https://www.mnemo.one/');
+    expect(hrefsIn(view)).toEqual(['https://www.mnemo.one/']);
+  });
+
+  it('uses a pasted URL as the destination of selected text', () => {
+    const view = mountFull(docOf(para('Read Mnemo', 's1')));
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 7, 12)));
+
+    expect(firePaste(view, plainText('https://www.mnemo.one/'))).toBe(true);
+    expect(view.state.doc.textContent).toBe('Read Mnemo');
+    expect(hrefsIn(view)).toEqual(['https://www.mnemo.one/']);
   });
 
   it('turns a multi-block markdown document into real blocks with minted ids', () => {

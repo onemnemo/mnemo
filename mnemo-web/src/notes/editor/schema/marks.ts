@@ -179,6 +179,7 @@ export const linkMark = defineMark<'linkUrl'>({
  * live but a subclass of every text node. As a mark it is a few lines.
  */
 export const noAutoLinkMark = flagMark('noAutoLink', 'suppressAutoLink', {
+  inclusive: false,
   parseDOM: [{ tag: 'span[data-no-autolink]' }],
   // Renders no styling, but must render *something* so a copy/paste round trip
   // through the DOM does not lose the suppression.

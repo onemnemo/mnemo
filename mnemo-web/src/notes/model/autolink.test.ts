@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { applyAutoLink, normalizeUrl } from './autolink';
+import { applyAutoLink, linkTargetFromText, normalizeUrl } from './autolink';
 import { flattenDisplay, plainSpan } from './spans';
 import { defaultTextStyle, isTextSpan, type InlineSpan } from './types';
 
@@ -14,8 +14,34 @@ describe('normalizeUrl', () => {
     expect(normalizeUrl('www.example.com')).toBe('https://www.example.com');
   });
 
+  it('prefixes a bare host entered in the link form with https://', () => {
+    expect(normalizeUrl('mnemo.one/docs')).toBe('https://mnemo.one/docs');
+  });
+
+  it('turns a bare email address into a mail link', () => {
+    expect(normalizeUrl('reader@example.com')).toBe('mailto:reader@example.com');
+  });
+
   it('trims surrounding whitespace', () => {
     expect(normalizeUrl('  https://example.com  ')).toBe('https://example.com');
+  });
+});
+
+describe('linkTargetFromText', () => {
+  it('reads one complete URL and ignores surrounding whitespace', () => {
+    expect(linkTargetFromText('  https://www.mnemo.one/  ')).toBe('https://www.mnemo.one/');
+  });
+
+  it('reads one bare email address', () => {
+    expect(linkTargetFromText('reader@example.com')).toBe('mailto:reader@example.com');
+  });
+
+  it('reads one bare host selected in the editor', () => {
+    expect(linkTargetFromText('mnemo.one')).toBe('https://mnemo.one');
+  });
+
+  it('rejects prose containing a URL', () => {
+    expect(linkTargetFromText('visit https://www.mnemo.one/')).toBeNull();
   });
 });
 
@@ -33,6 +59,12 @@ describe('applyAutoLink', () => {
     const result = applyAutoLink(spans);
     const linked = result.find((s) => s.kind === 'text' && s.text === 'www.example.com');
     expect(linked?.style.linkUrl).toBe('https://www.example.com');
+  });
+
+  it('links a bare email address', () => {
+    const result = applyAutoLink([plainSpan('write to reader@example.com today')]);
+    const linked = result.find((s) => s.kind === 'text' && s.text === 'reader@example.com');
+    expect(linked?.style.linkUrl).toBe('mailto:reader@example.com');
   });
 
   it('trims trailing punctuation and quotes out of the matched url', () => {
