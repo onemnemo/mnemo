@@ -1,6 +1,7 @@
 import { Dialog } from "radix-ui"
 import { useEffect, useState } from "react"
 
+import { describeError } from "@/api/error-copy"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { toast } from "@/stores/toast"
@@ -60,7 +61,7 @@ export function SaveTemplateDialog({ mapId, rootId, onClose }: SaveTemplateDialo
       onClose()
     } catch (error) {
       toast.warning(mm("ErrorTitle"), {
-        description: error instanceof Error ? error.message : undefined,
+        description: describeError(t, error),
       })
     }
   }

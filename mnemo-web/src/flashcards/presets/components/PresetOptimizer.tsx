@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 
+import { describeError } from "@/api/error-copy"
 import type { OptimizeWeightsDto } from "@/api/types"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
@@ -48,7 +49,7 @@ export function PresetOptimizer({ presetId }: { presetId: string | null }) {
       // An abort is the dialog closing, and there is nothing left to tell.
       if (!controller.signal.aborted) {
         toast.warning(fc("ReviewSettingsOptimizeErrorTitle"), {
-          description: error instanceof Error ? error.message : undefined,
+          description: describeError(t, error),
         })
       }
     } finally {
@@ -66,7 +67,7 @@ export function PresetOptimizer({ presetId }: { presetId: string | null }) {
       toast.success(appliedTitle)
     } catch (error) {
       toast.warning(fc("ReviewSettingsOptimizeErrorTitle"), {
-        description: error instanceof Error ? error.message : undefined,
+        description: describeError(t, error),
       })
     } finally {
       setBusy("none")

@@ -21,6 +21,7 @@ public sealed class TranslationNamespaceGuardTests
         "Chat",
         "Common",
         "EmojiPicker",
+        "Errors",
         "FlashcardMemory",
         "FlashcardStats",
         "FlashcardTests",

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Dialog } from "radix-ui"
 
+import { describeError } from "@/api/error-copy"
 import { onDirtyCheck } from "@/app/shutdown"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
@@ -191,7 +192,7 @@ export function ReviewSettings({
       // The server refuses a preset that decks still use. The row stays, because it is still
       // real - the count beside it is what explains the refusal.
       toast.warning(fc("ReviewSettingsDeleteBlockedTitle"), {
-        description: error instanceof Error ? error.message : undefined,
+        description: describeError(t, error, { preset_in_use: fc("ReviewSettingsDeleteBlockedMessage") }),
       })
       return
     }
@@ -243,7 +244,7 @@ export function ReviewSettings({
     } catch (error) {
       // Left open so the edits survive, the way a failed card save keeps the card.
       toast.warning(fc("ReviewSettingsSaveErrorTitle"), {
-        description: error instanceof Error ? error.message : undefined,
+        description: describeError(t, error),
       })
     } finally {
       setSaving(false)

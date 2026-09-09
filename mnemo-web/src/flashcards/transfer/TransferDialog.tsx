@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { Dialog } from "radix-ui"
 
 import { ApiError } from "@/api/client"
+import { describeError } from "@/api/error-copy"
 import { announceExport, exportFileName, exportSaveOptions } from "@/api/export-file"
 import type { ConflictPolicy } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
@@ -84,7 +85,7 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
   const formatsReady = formats.isSuccess
   useEffect(() => {
     if (formats.isError) {
-      toast.warning(common("ImportFailedTitle"), { description: formats.error.message })
+      toast.warning(common("ImportFailedTitle"), { description: describeError(t, formats.error) })
     }
     // Keyed on the error alone: `common` is a new function every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -168,7 +169,7 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
           if (controller.signal.aborted) return
           const failed: Partial<QueuedFile> = {
             status: "rejected",
-            notes: [{ text: error instanceof Error ? error.message : common("TransferUnreadableFile", { 0: file.name }) }],
+            notes: [{ text: describeError(t, error) ?? common("TransferUnreadableFile", { 0: file.name }) }],
           }
           queueRef.current = queueRef.current.map((queued) =>
             queued.key === key ? { ...queued, ...failed } : queued,
@@ -228,7 +229,7 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
       onClose()
     } catch (error) {
       toast.warning(common("ImportFailedTitle"), {
-        description: error instanceof Error ? error.message : undefined,
+        description: describeError(t, error),
       })
       // Only a rejected request leaves the staged files untouched; every 400 here is refused
       // before the server opens anything. Any other failure may have consumed them part-way, so
@@ -273,7 +274,7 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
       onClose()
     } catch (error) {
       toast.warning(common("ExportFailedTitle"), {
-        description: error instanceof Error ? error.message : common("TransferExportFailed"),
+        description: describeError(t, error) ?? common("TransferExportFailed"),
       })
     } finally {
       setBusy(false)

@@ -9,6 +9,7 @@
  */
 
 import { exportRequest, saveExport, saveServerExport, type ExportOutcome, type ExportSaveOptions } from "@/api/export-file"
+import { KeyedError } from "@/i18n/keyed-error"
 
 import { fetchImageDataUri } from "../assets"
 import { imageRefOf } from "../scene/content"
@@ -111,7 +112,7 @@ function draw(
       image: (assetId) => images.get(assetId) ?? null,
     })
     if (!picture) {
-      throw new Error("There is nothing on this map to export.")
+      throw new KeyedError("Mindmap", "ExportNothingToDraw")
     }
     return picture
   } finally {

@@ -1,6 +1,7 @@
 import { create } from "zustand"
 
 import { ApiError } from "@/api/client"
+import { describeError } from "@/api/error-copy"
 import type { CardDto, ReviewGrade, SessionMode, SessionScope, StudySessionDto } from "@/api/types"
 import { useI18nStore } from "@/i18n/store"
 import { createTranslate } from "@/i18n/translate"
@@ -145,7 +146,7 @@ function failed(
   }
   const t = createTranslate(useI18nStore.getState().bundle)
   toast.warning(t("Flashcards", titleKey), {
-    description: error instanceof Error ? error.message : undefined,
+    description: describeError(t, error),
     primary: { label: t("Flashcards", "Retry"), onClick: retry },
   })
 }

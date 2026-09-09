@@ -6,6 +6,8 @@
  * it. The blob URL is same origin, which is what keeps the canvas readable.
  */
 
+import { KeyedError } from "@/i18n/keyed-error"
+
 import type { SvgPicture } from "./svg"
 
 /**
@@ -31,13 +33,13 @@ export async function rasterize(picture: SvgPicture, scale = 2): Promise<Blob> {
 
     const context = canvas.getContext("2d")
     if (!context) {
-      throw new Error("This browser has no 2D canvas to draw the map onto.")
+      throw new KeyedError("Mindmap", "ExportNoCanvas")
     }
     context.drawImage(image, 0, 0, width, height)
 
     return await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("The map could not be turned into a PNG."))),
+        (blob) => (blob ? resolve(blob) : reject(new KeyedError("Mindmap", "ExportPngFailed"))),
         "image/png",
       )
     })

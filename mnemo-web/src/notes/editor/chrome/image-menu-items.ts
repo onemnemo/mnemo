@@ -15,6 +15,7 @@ import type { EditorState } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 
+import { describeError } from '@/api/error-copy';
 import { editImage } from '@/components/ui/image-editor/store';
 import { isWholeCrop, type ImageCrop } from '@/components/ui/image-editor/geometry';
 import { announceExport, exportSaveOptions, saveExport } from '@/api/export-file';
@@ -303,7 +304,7 @@ export function imageMenuItems({
         });
       } catch (error) {
         toast.warning(common('ExportFailedTitle'), {
-          description: error instanceof Error ? error.message : undefined,
+          description: describeError(t, error),
         });
       }
     },

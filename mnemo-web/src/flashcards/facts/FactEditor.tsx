@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Dialog } from "radix-ui"
 
+import { describeError } from "@/api/error-copy"
 import { onDirtyCheck } from "@/app/shutdown"
 import { IconButton } from "@/components/ui/icon-button"
 import { useT } from "@/i18n/useT"
@@ -193,7 +194,7 @@ export function FactEditor({ target, onClose }: { target: CardEditorTarget; onCl
     } catch (error) {
       // The dialog deliberately stays open so nothing typed is lost, as on the desktop.
       toast.warning(fc("CardEditorSaveErrorTitle"), {
-        description: error instanceof Error ? error.message : undefined,
+        description: describeError(t, error),
       })
       return
     } finally {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import { describeError } from "@/api/error-copy"
 import { announceExport, exportSaveOptions } from "@/api/export-file"
 import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
@@ -624,7 +625,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           // The rest are abandoned: whatever stopped this one, a file too big or a format the store
           // will not take, is likely to stop the next, and a toast per file is not a report.
           toast.warning(t("Mindmap", "ErrorTitle"), {
-            description: error instanceof Error ? error.message : undefined,
+            description: describeError(t, error),
           })
           return
         }
@@ -1161,7 +1162,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         await removeTemplate.mutateAsync(template.id)
       } catch (error) {
         toast.warning(t("Mindmap", "ErrorTitle"), {
-          description: error instanceof Error ? error.message : undefined,
+          description: describeError(t, error),
         })
       }
     },
@@ -1195,7 +1196,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         })
       } catch (error) {
         toast.warning(t("Mindmap", "ExportFailedTitle"), {
-          description: error instanceof Error ? error.message : undefined,
+          description: describeError(t, error),
         })
       }
     },

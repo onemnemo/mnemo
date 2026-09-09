@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Dialog } from "radix-ui"
 
-import { ApiError } from "@/api/client"
+import { describeError } from "@/api/error-copy"
 import type { CardTypeLayoutDto } from "@/api/types"
 import { onDirtyCheck } from "@/app/shutdown"
 import { Button } from "@/components/ui/button"
@@ -129,15 +129,10 @@ export function CardTypeManager({
     try {
       await deleteCardType(draft.serverId)
     } catch (error) {
-      // Keep refused deletions visible and translate the error code instead of displaying server
-      // English.
-      const holdsMaterial = error instanceof ApiError && error.code === "card_type_in_use"
+      // Kept visible, and worded here for the one refusal this surface understands better than
+      // the shared sentence does: material, trash included, still hangs off the type.
       toast.warning(fc("CardTypesDeleteBlockedTitle"), {
-        description: holdsMaterial
-          ? fc("CardTypesDeleteBlockedMessage")
-          : error instanceof Error
-            ? error.message
-            : undefined,
+        description: describeError(t, error, { card_type_in_use: fc("CardTypesDeleteBlockedMessage") }),
       })
       return
     }
@@ -176,7 +171,7 @@ export function CardTypeManager({
         // There is nothing honest to put in front of somebody without the count, and a save
         // nobody can describe is not one to wave through.
         toast.warning(fc("CardTypesSaveErrorTitle"), {
-          description: error instanceof Error ? error.message : undefined,
+          description: describeError(t, error),
         })
         return false
       }
@@ -247,7 +242,7 @@ export function CardTypeManager({
     } catch (error) {
       // Left open so the edits survive, the way a failed material save keeps the material.
       toast.warning(fc("CardTypesSaveErrorTitle"), {
-        description: error instanceof Error ? error.message : undefined,
+        description: describeError(t, error),
       })
     } finally {
       setSaving(false)

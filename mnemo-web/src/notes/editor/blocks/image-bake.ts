@@ -9,6 +9,7 @@
 
 import type { ImageCrop } from '@/components/ui/image-editor/geometry';
 import { exportFileName } from '@/api/export-file';
+import { KeyedError } from '@/i18n/keyed-error';
 
 /**
  * How far the longest side may run.
@@ -56,14 +57,14 @@ export async function bakeImage(url: string, crop: ImageCrop | null): Promise<Bl
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext('2d');
-  if (!context) throw new Error('This browser has no 2D canvas to draw the image onto.');
+  if (!context) throw new KeyedError('NotesEditor', 'ImageBakeNoCanvas');
   context.drawImage(image, sx, sy, sw, sh, 0, 0, width, height);
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
         if (blob) resolve(blob);
-        else reject(new Error('The image could not be turned into a PNG.'));
+        else reject(new KeyedError('NotesEditor', 'ImageBakePngFailed'));
       },
       'image/png',
     );

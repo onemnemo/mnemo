@@ -7,6 +7,7 @@ import {
   fetchExportFolders,
   type ChosenTarget,
 } from "@/api/export-file"
+import { describeError } from "@/api/error-copy"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
@@ -88,7 +89,7 @@ export function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onCl
         .catch((error: unknown) => {
           if (controller.signal.aborted) return
           setPreviewState("error")
-          if (error instanceof Error) toast.warning(nt("PdfPreviewError"), { description: error.message })
+          toast.warning(nt("PdfPreviewError"), { description: describeError(t, error) })
         })
     }, PREVIEW_DEBOUNCE_MS)
 
@@ -146,7 +147,7 @@ export function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onCl
       onClose()
     } catch (error) {
       toast.warning(nt("PdfExportFailedTitle"), {
-        description: error instanceof Error ? error.message : undefined,
+        description: describeError(t, error),
       })
     } finally {
       setBusy(false)
@@ -166,7 +167,7 @@ export function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onCl
       setStem(sanitizeFileStem(stemOf(picked.path)))
     } catch (error) {
       toast.warning(nt("PdfExportFailedTitle"), {
-        description: error instanceof Error ? error.message : undefined,
+        description: describeError(t, error),
       })
     }
   }
