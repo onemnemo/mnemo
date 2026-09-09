@@ -1,5 +1,5 @@
 /**
- * The link editing flyout: applies, retargets or removes the `link` mark.
+ * The link editing flyout: inserts, retargets, renames or removes a link.
  *
  * A body-level, viewport-positioned card, the idiom `equation-editor.ts`
  * already established for this editor's floating chrome (a text field and a
@@ -21,11 +21,9 @@
  *    existing link needs a path that does not depend on the toolbar being
  *    visible at all.
  *
- * Deliberately narrower than the desktop dialog: no "text to display" field
- * (that would rewrite the selected text, a different and riskier operation
- * than every other inline mark here, which only ever marks up what is
- * already there) and no "expand to the word under the caret" convenience.
- * Both are enhancements on top of reachability, not the bug being fixed.
+ * A single-block selection can edit both the destination and the words the
+ * reader sees. A selection spanning blocks keeps its structure and edits only
+ * the destination.
  */
 
 import type { EditorView } from 'prosemirror-view';
@@ -34,7 +32,7 @@ import { useI18nStore } from '../../../i18n/store';
 import { createTranslate } from '../../../i18n/translate';
 import { openTransientFocus, type TransientFocusScope } from '../focus';
 import type { Rect } from '../floating/position';
-import { applyLink, canEditLink, currentLinkHref, removeLink } from '../marks/link-commands';
+import { applyLink, currentLinkContext, removeLink } from '../marks/link-commands';
 
 const ROOT = 'notes-link-flyout';
 
@@ -66,60 +64,89 @@ function placeAt(dom: HTMLElement, anchor: Rect): void {
 
 interface Card {
   readonly dom: HTMLElement;
-  readonly input: HTMLInputElement;
+  readonly urlInput: HTMLInputElement;
+  readonly textInput: HTMLInputElement | null;
   readonly done: HTMLButtonElement;
   readonly remove: HTMLButtonElement | null;
   readonly error: HTMLElement;
 }
 
-function buildCard(initialHref: string, showRemove: boolean): Card {
+function field(labelText: string, input: HTMLInputElement): HTMLElement {
+  const label = document.createElement('label');
+  label.className = `${ROOT}-field`;
+  const caption = document.createElement('span');
+  caption.className = `${ROOT}-label`;
+  caption.textContent = labelText;
+  label.append(caption, input);
+  return label;
+}
+
+function textInput(value: string, placeholder: string): HTMLInputElement {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = `${ROOT}-input`;
+  input.value = value;
+  input.placeholder = placeholder;
+  input.spellcheck = false;
+  input.autocomplete = 'off';
+  return input;
+}
+
+function buildCard(context: NonNullable<ReturnType<typeof currentLinkContext>>): Card {
   const dom = document.createElement('div');
   dom.className = ROOT;
   // Never let ProseMirror treat this card's own DOM as document content.
   dom.setAttribute('contenteditable', 'false');
   dom.setAttribute('role', 'dialog');
-  dom.setAttribute('aria-label', translate(showRemove ? 'EditLinkTitle' : 'InsertLinkTitle'));
+  dom.setAttribute('aria-label', translate(context.hasLink ? 'EditLinkTitle' : 'InsertLinkTitle'));
 
-  const row = document.createElement('div');
-  row.className = `${ROOT}-row`;
+  const urlInput = textInput(context.href, translate('InsertLinkUrlPlaceholder'));
+  urlInput.inputMode = 'url';
+  dom.appendChild(field(translate('InsertLinkUrlLabel'), urlInput));
 
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = `${ROOT}-input`;
-  input.value = initialHref;
-  input.placeholder = translate('InsertLinkUrlPlaceholder');
-  // The value is a URL, not prose: none of the browser's text assists apply.
-  input.spellcheck = false;
-  input.autocomplete = 'off';
+  let displayInput: HTMLInputElement | null = null;
+  if (context.canEditText) {
+    displayInput = textInput(context.text, translate('InsertLinkDisplayPlaceholder'));
+    dom.appendChild(field(translate('InsertLinkDisplayLabel'), displayInput));
+  } else {
+    const hint = document.createElement('p');
+    hint.className = `${ROOT}-hint`;
+    hint.textContent = translate('CrossBlockLinkHint');
+    dom.appendChild(hint);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = `${ROOT}-actions`;
 
   const done = document.createElement('button');
   done.type = 'button';
   done.className = `${ROOT}-done`;
   done.textContent = doneLabel();
 
-  row.append(input, done);
-
   let remove: HTMLButtonElement | null = null;
-  if (showRemove) {
+  if (context.hasLink) {
     remove = document.createElement('button');
     remove.type = 'button';
     remove.className = `${ROOT}-remove`;
-    remove.title = translate('InsertLinkRemoveLink');
-    remove.setAttribute('aria-label', remove.title);
+    remove.setAttribute('aria-label', translate('InsertLinkRemoveLink'));
     const icon = getIconMarkup('formatting-toolbar/unlink');
     if (icon) remove.innerHTML = icon;
-    row.appendChild(remove);
+    const removeText = document.createElement('span');
+    removeText.textContent = translate('InsertLinkRemoveLink');
+    remove.appendChild(removeText);
+    actions.appendChild(remove);
   }
+  actions.appendChild(done);
 
   const error = document.createElement('div');
   error.className = `${ROOT}-error`;
   error.textContent = translate('LinkUrlRejected');
   error.hidden = true;
 
-  dom.append(row, error);
+  dom.append(actions, error);
   document.body.appendChild(dom);
 
-  return { dom, input, done, remove, error };
+  return { dom, urlInput, textInput: displayInput, done, remove, error };
 }
 
 export interface LinkPopoverHandle {
@@ -131,7 +158,7 @@ export interface LinkPopoverHandle {
    * repeated chord cannot cancel an edit in progress. Returns whether it
    * opened, the shortcut's own "did this do anything" answer.
    */
-  open(anchor: Rect): boolean;
+  open(anchor: Rect, href?: string): boolean;
   /** Opens if closed, cancels and closes (refocusing the editor) if open: the toolbar button's click. */
   toggle(anchor: Rect): void;
   /**
@@ -207,7 +234,7 @@ export function createLinkPopover(view: EditorView): LinkPopoverHandle {
 
   function commitApply(): void {
     if (!card) return;
-    const href = card.input.value.trim();
+    const href = card.urlInput.value.trim();
     if (href.length === 0) {
       // An emptied field on confirm removes an existing link, matching the
       // desktop; with nothing to remove it is the same as cancelling.
@@ -215,7 +242,7 @@ export function createLinkPopover(view: EditorView): LinkPopoverHandle {
       else settle('cancel');
       return;
     }
-    if (!applyLink(href)(view.state, view.dispatch)) {
+    if (!applyLink(href, card.textInput?.value)(view.state, view.dispatch)) {
       // Left open: the schema would refuse this href, so committing now
       // would silently drop it rather than apply it. `isSafeUrl` is the same
       // gate the mark's own `getAttrs`/`toDOM` enforce.
@@ -244,28 +271,31 @@ export function createLinkPopover(view: EditorView): LinkPopoverHandle {
     }
   }
 
-  function open(anchor: Rect): boolean {
+  function open(anchor: Rect, href?: string): boolean {
     if (card) return false;
-    if (!canEditLink(view.state)) return false;
-    const href = currentLinkHref(view.state) ?? '';
-    const showRemove = href.length > 0;
+    const liveContext = currentLinkContext(view.state);
+    if (!liveContext) return false;
+    const context = href === undefined
+      ? liveContext
+      : { ...liveContext, href, hasLink: true };
 
     // Captured before this takes DOM focus, so Escape or an outside press can
     // put the selection back even if something else moved it while open.
     focusScope = openTransientFocus(view);
-    const built = buildCard(href, showRemove);
+    const built = buildCard(context);
     card = built;
     placeAt(built.dom, anchor);
 
-    built.input.addEventListener('keydown', onKeydown);
-    built.input.addEventListener('input', () => {
+    built.urlInput.addEventListener('keydown', onKeydown);
+    built.textInput?.addEventListener('keydown', onKeydown);
+    built.urlInput.addEventListener('input', () => {
       built.error.hidden = true;
     });
     built.done.addEventListener('click', commitApply);
     built.remove?.addEventListener('click', commitRemove);
 
-    built.input.focus();
-    built.input.select();
+    built.urlInput.focus();
+    built.urlInput.select();
     return true;
   }
 

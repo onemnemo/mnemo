@@ -1,5 +1,6 @@
 /**
- * The small card under a link that says where it goes and offers to follow it.
+ * The small card under a link that says where it goes and offers its common
+ * actions.
  *
  * A link in an editable note is unreachable without one. The browser refuses to
  * follow a link inside a `contenteditable`, which is the protection the whole
@@ -42,9 +43,10 @@ export function canOpenExternally(href: string): boolean {
 }
 
 export interface LinkChipActions {
-  open(): void;
-  edit(): void;
-  remove(): void;
+  open(href: string): void;
+  edit(href: string): void;
+  copy(href: string): Promise<boolean>;
+  hoverChanged(inside: boolean): void;
 }
 
 export interface LinkChipHandle {
@@ -73,10 +75,31 @@ function actionButton(icon: string, label: string, run: () => void): HTMLButtonE
 
 export function createLinkChip(actions: LinkChipActions): LinkChipHandle {
   let dom: HTMLElement | null = null;
+  let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
   function hide(): void {
+    if (copiedTimer !== null) clearTimeout(copiedTimer);
+    copiedTimer = null;
     dom?.remove();
     dom = null;
+  }
+
+  async function copyHref(href: string, button: HTMLButtonElement): Promise<void> {
+    if (!(await actions.copy(href)) || !button.isConnected) return;
+    button.classList.add('is-copied');
+    button.title = translate('LinkCopied');
+    button.setAttribute('aria-label', button.title);
+    const check = getIconMarkup('common/check');
+    if (check) button.innerHTML = check;
+    copiedTimer = setTimeout(() => {
+      if (!button.isConnected) return;
+      button.classList.remove('is-copied');
+      button.title = translate('LinkCopy');
+      button.setAttribute('aria-label', button.title);
+      const copy = getIconMarkup('common/copy');
+      if (copy) button.innerHTML = copy;
+      copiedTimer = null;
+    }, 1400);
   }
 
   function build(href: string): HTMLElement {
@@ -86,32 +109,33 @@ export function createLinkChip(actions: LinkChipActions): LinkChipHandle {
     card.setAttribute('contenteditable', 'false');
     card.setAttribute('role', 'group');
     card.setAttribute('aria-label', translate('LinkActionsLabel'));
+    card.addEventListener('pointerenter', () => actions.hoverChanged(true));
+    card.addEventListener('pointerleave', () => actions.hoverChanged(false));
     // The card is a place to point at, not to type in; a press on it must not
     // take the caret out of the text the link is in.
     card.addEventListener('mousedown', (event) => {
       event.preventDefault();
     });
 
+    const destination = actionButton('common/globe', translate('LinkOpen'), () => actions.open(href));
+    destination.classList.add(`${ROOT}-destination`);
+    destination.disabled = !canOpenExternally(href);
     const address = document.createElement('span');
     address.className = `${ROOT}-href`;
-    // Clipped by the stylesheet rather than cut here, so the ellipsis lands on
-    // the rendered width and no address is shortened in a way it cannot be read
-    // back from. The whole of it stays available on hover.
     address.textContent = href;
-    address.title = href;
+    destination.appendChild(address);
 
-    const open = actionButton('external-link', translate('LinkOpen'), actions.open);
-    open.disabled = !canOpenExternally(href);
+    const copy = actionButton('common/copy', translate('LinkCopy'), () => {
+      void copyHref(href, copy);
+    });
 
-    const edit = actionButton('common/pencil', translate('EditLinkTitle'), actions.edit);
-    const remove = actionButton(
-      'formatting-toolbar/unlink',
-      translate('InsertLinkRemoveLink'),
-      actions.remove,
-    );
-    remove.classList.add(`${ROOT}-remove`);
+    const edit = actionButton('common/pencil', translate('EditLinkTitle'), () => actions.edit(href));
+    edit.classList.add(`${ROOT}-edit`);
+    const editText = document.createElement('span');
+    editText.textContent = translate('LinkEditAction');
+    edit.appendChild(editText);
 
-    card.append(address, open, edit, remove);
+    card.append(destination, copy, edit);
     return card;
   }
 

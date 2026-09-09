@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { applyAutoLink, linkTargetFromText, normalizeUrl } from './autolink';
+import { applyAutoLink, linkTargetFromText, normalizeLinkTarget, normalizeUrl } from './autolink';
 import { flattenDisplay, plainSpan } from './spans';
 import { defaultTextStyle, isTextSpan, type InlineSpan } from './types';
 
@@ -14,16 +14,18 @@ describe('normalizeUrl', () => {
     expect(normalizeUrl('www.example.com')).toBe('https://www.example.com');
   });
 
+  it('trims surrounding whitespace', () => {
+    expect(normalizeUrl('  https://example.com  ')).toBe('https://example.com');
+  });
+});
+
+describe('normalizeLinkTarget', () => {
   it('prefixes a bare host entered in the link form with https://', () => {
-    expect(normalizeUrl('mnemo.one/docs')).toBe('https://mnemo.one/docs');
+    expect(normalizeLinkTarget('mnemo.one/docs')).toBe('https://mnemo.one/docs');
   });
 
   it('turns a bare email address into a mail link', () => {
-    expect(normalizeUrl('reader@example.com')).toBe('mailto:reader@example.com');
-  });
-
-  it('trims surrounding whitespace', () => {
-    expect(normalizeUrl('  https://example.com  ')).toBe('https://example.com');
+    expect(normalizeLinkTarget('reader@example.com')).toBe('mailto:reader@example.com');
   });
 });
 
@@ -59,12 +61,6 @@ describe('applyAutoLink', () => {
     const result = applyAutoLink(spans);
     const linked = result.find((s) => s.kind === 'text' && s.text === 'www.example.com');
     expect(linked?.style.linkUrl).toBe('https://www.example.com');
-  });
-
-  it('links a bare email address', () => {
-    const result = applyAutoLink([plainSpan('write to reader@example.com today')]);
-    const linked = result.find((s) => s.kind === 'text' && s.text === 'reader@example.com');
-    expect(linked?.style.linkUrl).toBe('mailto:reader@example.com');
   });
 
   it('trims trailing punctuation and quotes out of the matched url', () => {

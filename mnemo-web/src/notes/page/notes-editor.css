@@ -1298,34 +1298,34 @@
   background: var(--solid-hover);
 }
 
-/* The link flyout: an address field with a Done button and, when editing an
- * existing link, a Remove button, floating off either the toolbar's Link
- * button or the caret. Same surface as the equation flyout: canvas plus the
- * popover elevation, so no literal shadow or border of its own is needed. */
+/* Link details stay in a compact form close to the selected words. */
 .notes-link-flyout {
   position: fixed;
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 260px;
-  max-width: 380px;
-  padding: 8px;
+  gap: 12px;
+  width: min(340px, calc(100vw - 16px));
+  padding: 12px;
   border-radius: 12px;
   background: var(--canvas);
   box-shadow: var(--shadow-pop);
   font-family: var(--font-sans);
 }
-.notes-link-flyout-row {
+.notes-link-flyout-field {
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
   gap: 6px;
 }
+.notes-link-flyout-label {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
 .notes-link-flyout-input {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  padding: 0 8px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   background: var(--canvas-sunken);
@@ -1341,9 +1341,23 @@
 .notes-link-flyout-input::placeholder {
   color: var(--ink-3);
 }
+.notes-link-flyout-hint {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.notes-link-flyout-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
 .notes-link-flyout-done {
-  height: 28px;
-  padding: 0 8px;
+  height: 30px;
+  margin-left: auto;
+  padding: 0 10px;
   border: none;
   border-radius: 8px;
   background: var(--solid);
@@ -1356,16 +1370,13 @@
 .notes-link-flyout-done:hover {
   background: var(--solid-hover);
 }
-/* The one destructive action in this card: the danger family the way a menu's
- * danger row uses it, resting in the colour and only washing on hover. */
 .notes-link-flyout-remove {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--line-soft);
+  gap: 7px;
+  height: 30px;
+  padding: 0 9px;
+  border: none;
   border-radius: 8px;
   background: transparent;
   color: var(--danger);
@@ -1376,24 +1387,22 @@
   background: var(--danger-wash);
 }
 .notes-link-flyout-remove svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 .notes-link-flyout-error {
   color: var(--danger);
   font-size: 11.5px;
 }
 
-/* The link chip: the address and its three verbs, hanging under the link that
- * was clicked. One row rather than the flyout's stacked card, because it is
- * read at a glance and dismissed, not filled in. */
+/* A hover card for following, copying or editing a link. */
 .notes-link-chip {
   position: fixed;
   z-index: 40;
   display: flex;
   align-items: center;
   gap: 2px;
-  max-width: 420px;
+  max-width: min(460px, calc(100vw - 16px));
   padding: 4px;
   border-radius: 10px;
   background: var(--canvas);
@@ -1402,9 +1411,9 @@
 }
 .notes-link-chip-href {
   overflow: hidden;
+  flex: 1;
   min-width: 0;
-  padding: 0 6px;
-  color: var(--ink-2);
+  color: inherit;
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1423,6 +1432,23 @@
   color: var(--ink-2);
   cursor: pointer;
 }
+.notes-link-chip-destination {
+  width: auto;
+  min-width: 0;
+  max-width: 320px;
+  padding: 0 8px;
+  gap: 7px;
+  color: var(--ink-2);
+}
+.notes-link-chip-destination svg {
+  flex: 0 0 auto;
+}
+.notes-link-chip-edit {
+  width: auto;
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--ink);
+}
 .notes-link-chip-action:hover:not(:disabled) {
   background: var(--frame-hover);
   color: var(--ink);
@@ -1434,12 +1460,8 @@
   cursor: default;
   opacity: 0.5;
 }
-.notes-link-chip-remove {
-  color: var(--danger);
-}
-.notes-link-chip-remove:hover:not(:disabled) {
-  background: var(--danger-wash);
-  color: var(--danger);
+.notes-link-chip-action.is-copied {
+  color: var(--accent);
 }
 .notes-link-chip-action svg {
   width: 15px;

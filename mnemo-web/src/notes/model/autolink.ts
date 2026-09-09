@@ -26,7 +26,8 @@ import { isTextSpan, type InlineSpan } from './types';
 // one-character string (`flat[i - 1]`), which can never pair with anything, 
 // that reproduces .NET's per-code-unit judgment exactly, whereas a
 // full-string lookbehind cannot.
-const urlBodyPattern =
+const urlBodyPattern = /(?:https?|mailto):[^\s<>[\]]+|www\.[^\s<>[\]]+/iy;
+const liveLinkBodyPattern =
   /(?:https?|mailto|tel):[^\s<>[\]]+|www\.[^\s<>[\]]+|[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+/iy;
 const wordCharUnit = /[\p{L}\p{Mn}\p{Nd}\p{Pc}]/u;
 const wwwPrefix = /^www\./i;
@@ -48,14 +49,14 @@ export interface AutoLinkMatch {
  * candidate must not consume any characters, or a second, legitimately
  * boundary-satisfying URL immediately after it would be silently skipped.
  */
-function findUrlCandidates(flat: string): { start: number; raw: string }[] {
+function findCandidates(flat: string, pattern: RegExp): { start: number; raw: string }[] {
   const results: { start: number; raw: string }[] = [];
   let i = 0;
   while (i < flat.length) {
     const prevUnit = i > 0 ? flat[i - 1] : undefined;
     if (prevUnit === undefined || !wordCharUnit.test(prevUnit)) {
-      urlBodyPattern.lastIndex = i;
-      const m = urlBodyPattern.exec(flat);
+      pattern.lastIndex = i;
+      const m = pattern.exec(flat);
       if (m && m.index === i) {
         results.push({ start: i, raw: m[0] });
         i += m[0].length;
@@ -67,7 +68,18 @@ function findUrlCandidates(flat: string): { start: number; raw: string }[] {
   return results;
 }
 
+function findUrlCandidates(flat: string): { start: number; raw: string }[] {
+  return findCandidates(flat, urlBodyPattern);
+}
+
 export function normalizeUrl(raw: string): string {
+  if (raw.trim().length === 0) return raw;
+  const trimmed = raw.trim();
+  return wwwPrefix.test(trimmed) ? `https://${trimmed}` : trimmed;
+}
+
+/** Normalizes a destination entered directly into the editor's link controls. */
+export function normalizeLinkTarget(raw: string): string {
   if (raw.trim().length === 0) return raw;
   const trimmed = raw.trim();
   if (emailAddress.test(trimmed)) return `mailto:${trimmed}`;
@@ -83,10 +95,10 @@ function trimTrailingJunk(text: string): string {
 /** URL-like ranges in `text`, with display offsets and a launchable href. */
 export function findAutoLinks(text: string): AutoLinkMatch[] {
   const matches: AutoLinkMatch[] = [];
-  for (const { start, raw } of findUrlCandidates(text)) {
+  for (const { start, raw } of findCandidates(text, liveLinkBodyPattern)) {
     const visible = trimTrailingJunk(raw);
     if (visible.length === 0) continue;
-    matches.push({ start, end: start + visible.length, href: normalizeUrl(visible) });
+    matches.push({ start, end: start + visible.length, href: normalizeLinkTarget(visible) });
   }
   return matches;
 }
@@ -95,7 +107,7 @@ export function findAutoLinks(text: string): AutoLinkMatch[] {
 export function linkTargetFromText(text: string): string | null {
   const value = text.trim();
   if (value.length === 0) return null;
-  if (bareHost.test(value)) return normalizeUrl(value);
+  if (bareHost.test(value)) return normalizeLinkTarget(value);
   const matches = findAutoLinks(value);
   return matches.length === 1 && matches[0].start === 0 && matches[0].end === value.length
     ? matches[0].href
@@ -149,9 +161,13 @@ export function applyAutoLink(spans: readonly InlineSpan[]): InlineSpan[] {
   if (flat.length === 0) return normalizeSpans(spans);
 
   const matches: { start: number; end: number; url: string }[] = [];
-  for (const { start, end, href } of findAutoLinks(flat)) {
-    if (!canApplyLink(spans, start, end, href)) continue;
-    matches.push({ start, end, url: href });
+  for (const { start, raw } of findUrlCandidates(flat)) {
+    const trimmed = trimTrailingJunk(raw);
+    if (trimmed.length === 0) continue;
+    const end = start + trimmed.length;
+    const url = normalizeUrl(trimmed);
+    if (!canApplyLink(spans, start, end, url)) continue;
+    matches.push({ start, end, url });
   }
 
   if (matches.length === 0) return normalizeSpans(spans);

@@ -10,17 +10,17 @@
  * away, whatever put it there. The read-only viewer in the side panel has had
  * the same guard from the day it was written.
  *
- * The second job is the affordance that was missing behind it. A plain click
- * places the caret and raises the link chip; a Ctrl or Cmd click is read as
- * "just open it" and goes straight to the operating system's browser. Both go
- * through {@link openExternally}, never `window.open`.
+ * The second job is the affordance that was missing behind it. Hovering or a
+ * plain click raises the link card; a Ctrl or Cmd click is read as "just open
+ * it" and goes straight to the operating system's browser. Both go through
+ * {@link openExternally}, never `window.open`.
  *
  * Only anchors carrying the link mark are answered. Page rows and page
  * references are anchors too, and each routes its own click; asking the
  * document which mark is at the position keeps this from guessing from the DOM.
  */
 
-import { Plugin } from 'prosemirror-state';
+import { Plugin, TextSelection } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { openExternally } from '@/lib/external';
 import { isSafeUrl } from '../schema/safe-url';
@@ -28,7 +28,10 @@ import { anchorInContainer, scrollContainerOf } from '../floating/scroll-contain
 import type { Rect } from '../floating/position';
 import { linkPopoverFor } from '../toolbar/link-popover-registry';
 import { canOpenExternally, createLinkChip } from './link-chip';
-import { currentLinkHref, linkAt, removeLink } from './link-commands';
+import { currentLinkHref, linkAt, linkContextAt } from './link-commands';
+
+const HOVER_OPEN_DELAY_MS = 260;
+const HOVER_CLOSE_DELAY_MS = 140;
 
 function rectOf(element: HTMLElement): Rect {
   const box = element.getBoundingClientRect();
@@ -80,25 +83,61 @@ export function linkInteractionPlugin(): Plugin {
        */
       let caretSeen = false;
       let scroller: HTMLElement | null = null;
+      let hoverOpenTimer: ReturnType<typeof setTimeout> | null = null;
+      let hoverCloseTimer: ReturnType<typeof setTimeout> | null = null;
 
       const chip = createLinkChip({
-        open: () => {
-          if (openHref) openSafely(openHref);
+        open: (href) => {
+          openSafely(href);
           close();
         },
-        edit: () => {
+        edit: (href) => {
           const anchor = anchorDom ? rectOf(anchorDom) : null;
+          if (anchorDom) {
+            try {
+              const pos = view.posAtDOM(anchorDom, 0) + 1;
+              const context = linkContextAt(view.state, pos);
+              if (!context) throw new Error('link mark not found');
+              view.dispatch(
+                view.state.tr.setSelection(
+                  TextSelection.create(view.state.doc, context.from, context.to),
+                ),
+              );
+            } catch {
+              close();
+              return;
+            }
+          }
           close();
-          if (anchor) linkPopoverFor(view)?.open(anchor);
+          if (anchor && href) linkPopoverFor(view)?.open(anchor, href);
         },
-        remove: () => {
-          close();
-          removeLink()(view.state, view.dispatch);
-          view.focus();
+        async copy(href) {
+          try {
+            await navigator.clipboard.writeText(href);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        hoverChanged: (inside) => {
+          if (inside) cancelHoverClose();
+          else scheduleHoverClose();
         },
       });
 
+      function cancelHoverOpen(): void {
+        if (hoverOpenTimer !== null) clearTimeout(hoverOpenTimer);
+        hoverOpenTimer = null;
+      }
+
+      function cancelHoverClose(): void {
+        if (hoverCloseTimer !== null) clearTimeout(hoverCloseTimer);
+        hoverCloseTimer = null;
+      }
+
       function close(): void {
+        cancelHoverOpen();
+        cancelHoverClose();
         if (!chip.isOpen()) return;
         chip.hide();
         openHref = null;
@@ -108,6 +147,12 @@ export function linkInteractionPlugin(): Plugin {
         document.removeEventListener('keydown', onEscape, true);
         window.removeEventListener('scroll', onViewportChange, true);
         window.removeEventListener('resize', onViewportChange);
+      }
+
+      function scheduleHoverClose(): void {
+        cancelHoverOpen();
+        cancelHoverClose();
+        hoverCloseTimer = setTimeout(close, HOVER_CLOSE_DELAY_MS);
       }
 
       function onOutsidePointer(event: PointerEvent): void {
@@ -155,6 +200,29 @@ export function linkInteractionPlugin(): Plugin {
         window.addEventListener('resize', onViewportChange);
       }
 
+      function scheduleHoverOpen(hit: { href: string; dom: HTMLElement }): void {
+        cancelHoverClose();
+        if (openHref === hit.href && anchorDom === hit.dom) return;
+        cancelHoverOpen();
+        hoverOpenTimer = setTimeout(() => {
+          hoverOpenTimer = null;
+          show(hit.href, hit.dom);
+        }, HOVER_OPEN_DELAY_MS);
+      }
+
+      function onPointerOver(event: PointerEvent): void {
+        const hit = linkUnder(view, event.target);
+        if (hit) scheduleHoverOpen(hit);
+      }
+
+      function onPointerOut(event: PointerEvent): void {
+        const hit = linkUnder(view, event.target);
+        if (!hit) return;
+        const next = event.relatedTarget;
+        if (next instanceof Node && hit.dom.contains(next)) return;
+        scheduleHoverClose();
+      }
+
       /**
        * The guard, and the only place an anchor inside the editor is allowed to
        * mean anything. Registered in the capture phase so it decides before the
@@ -163,6 +231,7 @@ export function linkInteractionPlugin(): Plugin {
        * being taken away here.
        */
       function onActivate(event: MouseEvent): void {
+        cancelHoverOpen();
         const target = event.target;
         if (target instanceof Element && target.closest('a[href]')) event.preventDefault();
 
@@ -183,6 +252,8 @@ export function linkInteractionPlugin(): Plugin {
       // The middle button, which Chromium reads as "open in a new tab" on an
       // anchor. There are no tabs here, and no window to lose the app into.
       view.dom.addEventListener('auxclick', onActivate, true);
+      view.dom.addEventListener('pointerover', onPointerOver, true);
+      view.dom.addEventListener('pointerout', onPointerOut, true);
 
       return {
         update(): void {
@@ -197,6 +268,8 @@ export function linkInteractionPlugin(): Plugin {
         destroy(): void {
           view.dom.removeEventListener('click', onActivate, true);
           view.dom.removeEventListener('auxclick', onActivate, true);
+          view.dom.removeEventListener('pointerover', onPointerOver, true);
+          view.dom.removeEventListener('pointerout', onPointerOut, true);
           close();
           chip.destroy();
         },

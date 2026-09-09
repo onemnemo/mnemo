@@ -415,6 +415,12 @@ describe('the link button', () => {
     return el;
   }
 
+  function flyoutTextInput(): HTMLInputElement {
+    const inputs = flyout().querySelectorAll<HTMLInputElement>('input');
+    if (inputs.length !== 2) throw new Error('no display text field in the flyout');
+    return inputs[1];
+  }
+
   it('renders as a sentinel in the toolbar, not a catalog command', () => {
     mount([textBlock('hello')]);
     expect(() => button('editor.link')).not.toThrow();
@@ -457,6 +463,15 @@ describe('the link button', () => {
     expect(document.querySelector('.notes-link-flyout')).not.toBeNull();
   });
 
+  it('prefills the destination when the selected text is already a URL', () => {
+    const view = mount([textBlock('https://www.mnemo.one/')]);
+    selectAll(view);
+    button('editor.link').click();
+
+    expect(flyoutInput().value).toBe('https://www.mnemo.one/');
+    expect(flyoutTextInput().value).toBe('https://www.mnemo.one/');
+  });
+
   it('a mousedown on the link button does not steal editor focus either', () => {
     const view = mount([textBlock('hello')]);
     selectAll(view);
@@ -492,6 +507,18 @@ describe('the link button', () => {
       return true;
     });
     expect(href).toBe('https://example.com');
+  });
+
+  it('edits the words shown for a link', () => {
+    const view = mount([textBlock('old title', { linkUrl: 'https://example.com' })]);
+    selectAll(view);
+    button('editor.link').click();
+    const input = flyoutTextInput();
+    input.value = 'New title';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+
+    expect(view.state.doc.textContent).toBe('New title');
+    expect(document.querySelector('.notes-link-flyout')).toBeNull();
   });
 
   it('rejects an unsafe scheme and leaves the flyout open', () => {
@@ -595,12 +622,18 @@ describe('the link button', () => {
     expect(document.querySelector('.notes-link-flyout')).not.toBeNull();
   });
 
-  it('the chord declines at a caret with no link and nothing selected', () => {
+  it('the chord inserts a link at a plain caret', () => {
     const view = mount([textBlock('hello')]);
     collapseCaret(view);
     settle();
-    expect(pressInDocument(view, 'l', { ctrlKey: true, shiftKey: true })).toBe(false);
-    expect(document.querySelector('.notes-link-flyout')).toBeNull();
+    expect(pressInDocument(view, 'l', { ctrlKey: true, shiftKey: true })).toBe(true);
+    flyoutInput().value = 'mnemo.one';
+    flyoutTextInput().value = 'Mnemo';
+    flyoutTextInput().dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    );
+    expect(view.state.doc.textContent).toBe('Mnemohello');
+    expect(view.dom.querySelector('a')?.getAttribute('href')).toBe('https://mnemo.one');
   });
 });
 

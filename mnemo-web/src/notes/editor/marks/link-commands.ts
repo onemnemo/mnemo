@@ -19,7 +19,7 @@ import { TextSelection, type Command, type EditorState } from 'prosemirror-state
 import type { Mark, Node as PMNode } from 'prosemirror-model';
 import { asOwnUndoStep } from '../history';
 import { isSafeUrl } from '../schema/safe-url';
-import { linkTargetFromText, normalizeUrl } from '../../model/autolink';
+import { linkTargetFromText, normalizeLinkTarget } from '../../model/autolink';
 import { applicableRanges } from './commands';
 
 function linkOf(marks: readonly Mark[]): Mark | undefined {
@@ -72,6 +72,20 @@ export interface LinkEditContext {
   readonly canEditText: boolean;
 }
 
+/** The complete link run at a document position, independent of the live selection. */
+export function linkContextAt(state: EditorState, pos: number): LinkEditContext | null {
+  const mark = linkOf(state.doc.resolve(pos).marks());
+  if (!mark) return null;
+  const range = linkExtent(state, pos, mark);
+  return {
+    ...range,
+    href: String(mark.attrs.href),
+    text: state.doc.textBetween(range.from, range.to, '', '\ufffc'),
+    hasLink: true,
+    canEditText: rangeContainsOnlyText(state, range.from, range.to),
+  };
+}
+
 /** The address and visible text the link form should seed from the live selection. */
 export function currentLinkContext(state: EditorState): LinkEditContext | null {
   const type = state.schema.marks.link;
@@ -79,17 +93,8 @@ export function currentLinkContext(state: EditorState): LinkEditContext | null {
   if (!type || !(selection instanceof TextSelection)) return null;
 
   if (selection.$cursor) {
-    const mark = linkOf(state.storedMarks ?? selection.$cursor.marks());
-    if (mark) {
-      const range = linkExtent(state, selection.$cursor.pos, mark);
-      return {
-        ...range,
-        href: String(mark.attrs.href),
-        text: state.doc.textBetween(range.from, range.to, '', '\ufffc'),
-        hasLink: true,
-        canEditText: rangeContainsOnlyText(state, range.from, range.to),
-      };
-    }
+    const context = linkContextAt(state, selection.$cursor.pos);
+    if (context) return context;
     if (!selection.$cursor.parent.type.allowsMarkType(type)) return null;
     return {
       from: selection.from,
@@ -127,7 +132,7 @@ export function currentLinkHref(state: EditorState): string | null {
   if (!state.schema.marks.link) return null;
   const sel = state.selection;
   if (sel instanceof TextSelection && sel.$cursor) {
-    const mark = linkOf(state.storedMarks ?? sel.$cursor.marks());
+    const mark = linkOf(sel.$cursor.marks());
     return typeof mark?.attrs.href === 'string' ? mark.attrs.href : null;
   }
   let href: string | null = null;
@@ -179,7 +184,7 @@ export function applyLink(href: string, displayText?: string): Command {
   return (state, dispatch) => {
     const type = state.schema.marks.link;
     const enteredHref = href.trim();
-    const normalizedHref = normalizeUrl(enteredHref);
+    const normalizedHref = normalizeLinkTarget(enteredHref);
     if (!type || !isSafeUrl(normalizedHref)) return false;
     const sel = state.selection;
     if (!(sel instanceof TextSelection)) return false;
@@ -217,7 +222,7 @@ export function applyLink(href: string, displayText?: string): Command {
 
     const $cursor = sel.$cursor;
     if (!$cursor) return false;
-    const mark = linkOf(state.storedMarks ?? $cursor.marks());
+    const mark = linkOf($cursor.marks());
     if (dispatch) {
       if (!mark) {
         const text = enteredHref;

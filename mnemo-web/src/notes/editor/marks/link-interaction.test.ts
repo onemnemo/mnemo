@@ -24,6 +24,7 @@ const { schema, registry } = createEditorSchema();
 const mapper = createDocumentMapper(schema, registry);
 
 const opened: string[] = [];
+const copied: string[] = [];
 vi.mock('@/lib/external', () => ({
   openExternally: (url: string) => {
     opened.push(url);
@@ -32,13 +33,19 @@ vi.mock('@/lib/external', () => ({
 
 beforeAll(() => {
   (document as Document & { elementFromPoint: () => Element | null }).elementFromPoint = () => null;
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: async (value: string) => void copied.push(value) },
+  });
 });
 
 beforeEach(() => {
   opened.length = 0;
+  copied.length = 0;
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   document.body.replaceChildren();
 });
 
@@ -135,6 +142,21 @@ describe('a plain click', () => {
   });
 });
 
+describe('hovering a link', () => {
+  it('raises the same action card after a short intent delay', () => {
+    vi.useFakeTimers();
+    const view = mount(linkNote('https://example.com/docs'));
+
+    anchorIn(view).dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+    expect(chip()).toBeNull();
+    vi.advanceTimersByTime(260);
+
+    expect(chip()?.querySelector('.notes-link-chip-href')?.textContent).toBe(
+      'https://example.com/docs',
+    );
+  });
+});
+
 describe('a modifier click', () => {
   it('goes straight to the browser, with no chip in the way', () => {
     const view = mount(linkNote('https://example.com/docs'));
@@ -162,7 +184,9 @@ describe('the chip\'s own rows', () => {
     const view = mount(linkNote('https://example.com/docs'));
     caretInLink(view);
     clickLink(view);
-    chipButton('LinkOpen').click();
+    const open = chipButton('LinkOpen');
+    expect(open.querySelector('svg')).not.toBeNull();
+    open.click();
     expect(opened).toEqual(['https://example.com/docs']);
     expect(chip()).toBeNull();
   });
@@ -174,15 +198,19 @@ describe('the chip\'s own rows', () => {
     expect(chipButton('LinkOpen').disabled).toBe(true);
   });
 
-  it('clears the mark in one undo step, leaving the text', () => {
+  it('copies the destination without closing the card', async () => {
     const view = mount(linkNote('https://example.com/docs'));
     caretInLink(view);
     clickLink(view);
-    chipButton('InsertLinkRemoveLink').click();
+    const copy = chipButton('LinkCopy');
+    expect(copy.querySelector('svg')).not.toBeNull();
+    copy.click();
+    await Promise.resolve();
+    await Promise.resolve();
 
-    expect(view.dom.querySelector('a[href]')).toBeNull();
-    expect(view.state.doc.textContent).toBe('see the docs today');
-    expect(chip()).toBeNull();
+    expect(copied).toEqual(['https://example.com/docs']);
+    expect(chip()).not.toBeNull();
+    expect(chipButton('LinkCopied').querySelector('svg')).not.toBeNull();
   });
 });
 
@@ -253,13 +281,15 @@ describe('inside the whole editable stack', () => {
 
   it('hands Edit to the flyout the toolbar and the chord already share', () => {
     const view = mountReal(linkNote('https://example.com/docs'));
-    caretInLink(view);
     clickLink(view);
     chipButton('EditLinkTitle').click();
 
     const flyout = document.querySelector('.notes-link-flyout');
     expect(flyout).not.toBeNull();
     expect(flyout?.querySelector('input')?.value).toBe('https://example.com/docs');
+    expect(
+      view.state.doc.textBetween(view.state.selection.from, view.state.selection.to),
+    ).toBe('the docs');
     // One layer at a time: the chip has handed over rather than stacked.
     expect(chip()).toBeNull();
     view.destroy();
