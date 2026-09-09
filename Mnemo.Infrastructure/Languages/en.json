@@ -1414,7 +1414,10 @@
     "SettingGoalTypeWeekly": "Weekly",
     "SettingMetric": "Lead with",
     "SettingMetricCards": "Cards",
-    "SettingMetricMinutes": "Minutes"
+    "SettingMetricMinutes": "Minutes",
+    "SettingTargetCards": "Cards a day",
+    "SettingTargetSessions": "Sessions a day",
+    "SettingTargetMinutes": "Minutes a day"
   },
   "WidgetLeeches": {
     "Title": "Keeps slipping",

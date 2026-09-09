@@ -1414,7 +1414,10 @@
     "SettingGoalTypeWeekly": "Ukentlig",
     "SettingMetric": "Vis først",
     "SettingMetricCards": "Kort",
-    "SettingMetricMinutes": "Minutter"
+    "SettingMetricMinutes": "Minutter",
+    "SettingTargetCards": "Kort per dag",
+    "SettingTargetSessions": "Økter per dag",
+    "SettingTargetMinutes": "Minutter per dag"
   },
   "WidgetLeeches": {
     "Title": "Glipper stadig",

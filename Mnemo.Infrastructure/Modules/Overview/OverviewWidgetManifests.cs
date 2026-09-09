@@ -195,6 +195,35 @@ public static class OverviewWidgetManifests
                     new WidgetSettingOption("cards", "SettingMetricCards"),
                     new WidgetSettingOption("minutes", "SettingMetricMinutes")
                 ]
+            },
+            new WidgetSettingSchema
+            {
+                Key = "target_cards",
+                LabelKey = "SettingTargetCards",
+                Type = WidgetSettingType.Range,
+                DefaultValue = "50",
+                Minimum = 5,
+                Maximum = 500,
+                Step = 5
+            },
+            new WidgetSettingSchema
+            {
+                Key = "target_sessions",
+                LabelKey = "SettingTargetSessions",
+                Type = WidgetSettingType.Range,
+                DefaultValue = "3",
+                Minimum = 1,
+                Maximum = 20
+            },
+            new WidgetSettingSchema
+            {
+                Key = "target_minutes",
+                LabelKey = "SettingTargetMinutes",
+                Type = WidgetSettingType.Range,
+                DefaultValue = "30",
+                Minimum = 5,
+                Maximum = 480,
+                Step = 5
             }
         ]
     };

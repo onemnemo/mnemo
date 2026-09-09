@@ -10,6 +10,9 @@
     "SettingGoalTypeWeekly": "Wöchentlich",
     "SettingMetric": "Primäre Kennzahl",
     "SettingMetricCards": "Karten",
-    "SettingMetricMinutes": "Minuten"
+    "SettingMetricMinutes": "Minuten",
+    "SettingTargetCards": "Karten pro Tag",
+    "SettingTargetSessions": "Sitzungen pro Tag",
+    "SettingTargetMinutes": "Minuten pro Tag"
   }
 }

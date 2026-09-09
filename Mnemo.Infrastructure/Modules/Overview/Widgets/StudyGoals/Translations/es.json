@@ -10,6 +10,9 @@
     "SettingGoalTypeWeekly": "Semanal",
     "SettingMetric": "Métrica principal",
     "SettingMetricCards": "Tarjetas",
-    "SettingMetricMinutes": "Minutos"
+    "SettingMetricMinutes": "Minutos",
+    "SettingTargetCards": "Tarjetas al día",
+    "SettingTargetSessions": "Sesiones al día",
+    "SettingTargetMinutes": "Minutos al día"
   }
 }

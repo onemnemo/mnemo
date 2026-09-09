@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import type { WidgetInstanceDto } from "@/api/types"
 
 import { statDailyKey, useStatDaily } from "../../api"
-import { settingString } from "../../config/encode"
+import { settingInt, settingString } from "../../config/encode"
 import { useDayStartHour } from "../../data/useDayStartHour"
 import { readInt, studyDayWindow } from "../../stats"
 import type { WidgetManifest } from "../manifest"
@@ -29,6 +29,11 @@ export interface StudyGoalsData {
 export function useStudyGoals(instance: WidgetInstanceDto, manifest: WidgetManifest): StudyGoalsData {
   const weekly = settingString(manifest, instance.settings, "goal_type") === "weekly"
   const minutesFirst = settingString(manifest, instance.settings, "metric") === "minutes"
+  const targets = {
+    cards: settingInt(manifest, instance.settings, "target_cards"),
+    sessions: settingInt(manifest, instance.settings, "target_sessions"),
+    minutes: settingInt(manifest, instance.settings, "target_minutes"),
+  }
 
   // Derived on render rather than pinned at mount, so a board left open across the rollover hour
   // moves to the new window instead of reporting yesterday's for as long as the page stays up.
@@ -52,7 +57,7 @@ export function useStudyGoals(instance: WidgetInstanceDto, manifest: WidgetManif
     // No empty state: a window nobody studied is three bars at zero, which is the whole point of a
     // goal widget. Only a read that failed is allowed to look like anything else.
     state: daily.isError ? "error" : daily.isPending ? "loading" : "ready",
-    goals: buildStudyGoals(totals, { weekly, minutesFirst }),
+    goals: buildStudyGoals(totals, { weekly, minutesFirst, targets }),
     retry,
   }
 }

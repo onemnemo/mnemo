@@ -1414,7 +1414,10 @@
     "SettingGoalTypeWeekly": "1週間",
     "SettingMetric": "先頭に表示",
     "SettingMetricCards": "カード",
-    "SettingMetricMinutes": "分"
+    "SettingMetricMinutes": "分",
+    "SettingTargetCards": "1日のカード数",
+    "SettingTargetSessions": "1日のセッション数",
+    "SettingTargetMinutes": "1日の学習時間（分）"
   },
   "WidgetLeeches": {
     "Title": "何度も落とすカード",

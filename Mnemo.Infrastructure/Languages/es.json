@@ -1414,7 +1414,10 @@
     "SettingGoalTypeWeekly": "Semanal",
     "SettingMetric": "Encabezar con",
     "SettingMetricCards": "Tarjetas",
-    "SettingMetricMinutes": "Minutos"
+    "SettingMetricMinutes": "Minutos",
+    "SettingTargetCards": "Tarjetas al día",
+    "SettingTargetSessions": "Sesiones al día",
+    "SettingTargetMinutes": "Minutos al día"
   },
   "WidgetLeeches": {
     "Title": "Se te siguen escapando",

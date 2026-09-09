@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 0a66c35d3d54e3cabdbc10dc93b9949b2af8db6bba11186a031a14054292723d
+sha256 2c7df784ec792ccfdfc1a9910548c5dfb640d897c23ac6dfc95c700890fcf8de
 namespaces 38
-keys 2283
+keys 2289
   App 28
   Chat 132
   Common 103
@@ -27,7 +27,7 @@ keys 2283
   RecentNotes 9
   Settings 318
   Sidebar 14
-  StudyGoals 11
+  StudyGoals 14
   Topbar 28
   TransferWarnings 45
   Trash 48
@@ -36,7 +36,7 @@ keys 2283
   WidgetConfig 4
   WidgetDeck 10
   WidgetForecast 4
-  WidgetGoals 14
+  WidgetGoals 17
   WidgetLeeches 4
   WidgetLibrary 28
   WidgetRecent 5
@@ -46,9 +46,9 @@ keys 2283
   WidgetToday 9
 
 culture de
-sha256 9894a3908c9d73a913721d971a1311d928d53f40fc4ffec047607dfb47f4ce34
+sha256 050f396d6bd79933a12df40e17c0184e23de38be8fae4224149a5f523b43925d
 namespaces 38
-keys 2283
+keys 2289
   App 28
   Chat 132
   Common 103
@@ -70,7 +70,7 @@ keys 2283
   RecentNotes 9
   Settings 318
   Sidebar 14
-  StudyGoals 11
+  StudyGoals 14
   Topbar 28
   TransferWarnings 45
   Trash 48
@@ -79,7 +79,7 @@ keys 2283
   WidgetConfig 4
   WidgetDeck 10
   WidgetForecast 4
-  WidgetGoals 14
+  WidgetGoals 17
   WidgetLeeches 4
   WidgetLibrary 28
   WidgetRecent 5
@@ -89,9 +89,9 @@ keys 2283
   WidgetToday 9
 
 culture es
-sha256 1ddd0c561421c01c30c5698f3fc5d8237fa24df347c08f8ffa6a69316f27c2cc
+sha256 5477048f88a508e5667932770f924e05740e5ef4b0eb68950c24a790513a15c4
 namespaces 38
-keys 2283
+keys 2289
   App 28
   Chat 132
   Common 103
@@ -113,7 +113,7 @@ keys 2283
   RecentNotes 9
   Settings 318
   Sidebar 14
-  StudyGoals 11
+  StudyGoals 14
   Topbar 28
   TransferWarnings 45
   Trash 48
@@ -122,7 +122,7 @@ keys 2283
   WidgetConfig 4
   WidgetDeck 10
   WidgetForecast 4
-  WidgetGoals 14
+  WidgetGoals 17
   WidgetLeeches 4
   WidgetLibrary 28
   WidgetRecent 5
@@ -132,9 +132,9 @@ keys 2283
   WidgetToday 9
 
 culture ja
-sha256 76b412c3b9e8eb270ae4e24b22de419cba022a6a309f368bd710b10e4baac4ea
+sha256 5c5d45c6965868572ae3ef2b22c8d88a1c31238cf7e84c43574a78a52401583a
 namespaces 38
-keys 2283
+keys 2289
   App 28
   Chat 132
   Common 103
@@ -156,7 +156,7 @@ keys 2283
   RecentNotes 9
   Settings 318
   Sidebar 14
-  StudyGoals 11
+  StudyGoals 14
   Topbar 28
   TransferWarnings 45
   Trash 48
@@ -165,7 +165,7 @@ keys 2283
   WidgetConfig 4
   WidgetDeck 10
   WidgetForecast 4
-  WidgetGoals 14
+  WidgetGoals 17
   WidgetLeeches 4
   WidgetLibrary 28
   WidgetRecent 5
@@ -175,9 +175,9 @@ keys 2283
   WidgetToday 9
 
 culture nb
-sha256 5986f6683571120e6a5f381f3b749942fa06a28caf8bfb978861bb6c77522430
+sha256 3fb5574cb358d719201987ee5eee5dfd132d7de9fe5b4e320245da8cfbd55aab
 namespaces 38
-keys 2283
+keys 2289
   App 28
   Chat 132
   Common 103
@@ -199,7 +199,7 @@ keys 2283
   RecentNotes 9
   Settings 318
   Sidebar 14
-  StudyGoals 11
+  StudyGoals 14
   Topbar 28
   TransferWarnings 45
   Trash 48
@@ -208,7 +208,7 @@ keys 2283
   WidgetConfig 4
   WidgetDeck 10
   WidgetForecast 4
-  WidgetGoals 14
+  WidgetGoals 17
   WidgetLeeches 4
   WidgetLibrary 28
   WidgetRecent 5

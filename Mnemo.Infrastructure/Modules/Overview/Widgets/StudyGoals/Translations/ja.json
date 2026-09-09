@@ -10,6 +10,9 @@
     "SettingGoalTypeWeekly": "毎週",
     "SettingMetric": "主要指標",
     "SettingMetricCards": "カード",
-    "SettingMetricMinutes": "分"
+    "SettingMetricMinutes": "分",
+    "SettingTargetCards": "1日のカード数",
+    "SettingTargetSessions": "1日のセッション数",
+    "SettingTargetMinutes": "1日の学習時間（分）"
   }
 }
