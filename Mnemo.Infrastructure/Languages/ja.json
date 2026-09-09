@@ -140,6 +140,7 @@
     "ProofingLanguagesNote": "いずれかの言語が知っている単語は正しいものとして扱われます。",
     "ProofingStateLoading": "準備しています",
     "ProofingStateAbsent": "まだ利用できません",
+    "ProofingStateBroken": "読み込めませんでした",
     "ProofingPersonalTitle": "自分の辞書",
     "ProofingPersonalCountOne": "{0} 語",
     "ProofingPersonalCountMany": "{0} 語",
@@ -442,7 +443,8 @@
     "ProofingPersonalAlreadyAdded": "その単語はすでに辞書に登録されています。",
     "proofing.language.notAvailableYet": "この言語の辞書はまだ同梱されていません。",
     "proofing.language.unsupportedByEngine": "スペルチェックはこの言語に対応していません。",
-    "proofing.language.filesMissing": "辞書ファイルがこのパソコンにありません。"
+    "proofing.language.filesMissing": "辞書ファイルがこのパソコンにありません。",
+    "proofing.language.unreadable": "辞書ファイルを読み込めませんでした。Mnemoを再インストールすると置き換えられます。"
   },
   "Onboarding": {
     "WelcomeTitle": "Mnemoへようこそ",

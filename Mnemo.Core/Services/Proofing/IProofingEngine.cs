@@ -29,6 +29,13 @@ public interface IProofingEngine
     bool IsReady(string language);
 
     /// <summary>
+    /// Whether the last attempt to load this language failed and no later attempt has succeeded.
+    /// False while a first load is still in flight, for a language nobody has asked for, and for a
+    /// language this engine does not serve. Never true together with <see cref="IsReady"/>.
+    /// </summary>
+    bool HasFailed(string language);
+
+    /// <summary>
     /// Finds every issue in <paramref name="text"/>. Returns an empty list for a language this engine
     /// does not serve, for empty text, and when there is nothing to report. Offsets are UTF-16 code
     /// unit indices into <paramref name="text"/>.

@@ -15,7 +15,8 @@
 
 export type ProofingTone = 'error' | 'unknown';
 
-export type ProofingLanguageState = 'ready' | 'loading' | 'absent';
+/** `broken` is installed but unreadable: nothing to wait for, and the host says why. */
+export type ProofingLanguageState = 'ready' | 'loading' | 'broken' | 'absent';
 
 export interface ProofingLicense {
   readonly name: string;

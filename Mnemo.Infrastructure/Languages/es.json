@@ -140,6 +140,7 @@
     "ProofingLanguagesNote": "Una palabra es correcta si cualquiera de estos idiomas la conoce.",
     "ProofingStateLoading": "Preparando",
     "ProofingStateAbsent": "Todavía no está disponible",
+    "ProofingStateBroken": "No se pudo leer",
     "ProofingPersonalTitle": "Tu diccionario",
     "ProofingPersonalCountOne": "{0} palabra",
     "ProofingPersonalCountMany": "{0} palabras",
@@ -442,7 +443,8 @@
     "ProofingPersonalAlreadyAdded": "Esa palabra ya está en tu diccionario.",
     "proofing.language.notAvailableYet": "Todavía no se incluye ningún diccionario para este idioma.",
     "proofing.language.unsupportedByEngine": "El corrector no admite este idioma.",
-    "proofing.language.filesMissing": "Los archivos del diccionario no están en este equipo."
+    "proofing.language.filesMissing": "Los archivos del diccionario no están en este equipo.",
+    "proofing.language.unreadable": "No se pudieron leer los archivos del diccionario. Reinstalar Mnemo los reemplaza."
   },
   "Onboarding": {
     "WelcomeTitle": "Bienvenido a Mnemo",

@@ -140,6 +140,7 @@
     "ProofingLanguagesNote": "A word is correct when any of these knows it.",
     "ProofingStateLoading": "Preparing",
     "ProofingStateAbsent": "Not available yet",
+    "ProofingStateBroken": "Could not be read",
     "ProofingPersonalTitle": "Your dictionary",
     "ProofingPersonalCountOne": "{0} word",
     "ProofingPersonalCountMany": "{0} words",
@@ -442,7 +443,8 @@
     "ProofingPersonalAlreadyAdded": "That word is already in your dictionary.",
     "proofing.language.notAvailableYet": "No dictionary ships for this language yet.",
     "proofing.language.unsupportedByEngine": "The checker does not support this language.",
-    "proofing.language.filesMissing": "The dictionary files are not on this machine."
+    "proofing.language.filesMissing": "The dictionary files are not on this machine.",
+    "proofing.language.unreadable": "The dictionary files could not be read. Reinstalling Mnemo replaces them."
   },
   "Onboarding": {
     "WelcomeTitle": "Welcome to Mnemo",

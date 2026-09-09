@@ -140,6 +140,7 @@
     "ProofingLanguagesNote": "Ein Wort gilt als richtig, sobald eine dieser Sprachen es kennt.",
     "ProofingStateLoading": "Wird vorbereitet",
     "ProofingStateAbsent": "Noch nicht verfügbar",
+    "ProofingStateBroken": "Konnte nicht gelesen werden",
     "ProofingPersonalTitle": "Dein Wörterbuch",
     "ProofingPersonalCountOne": "{0} Wort",
     "ProofingPersonalCountMany": "{0} Wörter",
@@ -442,7 +443,8 @@
     "ProofingPersonalAlreadyAdded": "Dieses Wort steht bereits in deinem Wörterbuch.",
     "proofing.language.notAvailableYet": "Für diese Sprache wird noch kein Wörterbuch mitgeliefert.",
     "proofing.language.unsupportedByEngine": "Die Prüfung unterstützt diese Sprache nicht.",
-    "proofing.language.filesMissing": "Die Wörterbuchdateien liegen nicht auf diesem Gerät."
+    "proofing.language.filesMissing": "Die Wörterbuchdateien liegen nicht auf diesem Gerät.",
+    "proofing.language.unreadable": "Die Wörterbuchdateien konnten nicht gelesen werden. Eine Neuinstallation von Mnemo ersetzt sie."
   },
   "Onboarding": {
     "WelcomeTitle": "Willkommen bei Mnemo",

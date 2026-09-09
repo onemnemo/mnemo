@@ -1,8 +1,11 @@
+using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Proofing;
 using Mnemo.Infrastructure.Modules.Proofing;
+using WeCantSpell.Hunspell;
 using Xunit;
 
 namespace Mnemo.Infrastructure.Tests.Proofing;
@@ -123,6 +126,32 @@ public sealed class HunspellProofingEngineTests
 
         Assert.True(engine.IsReady("en-US"));
         Assert.False(engine.IsReady("de-DE"));
+    }
+
+    [Fact]
+    public async Task AReadThatFailsIsReportedUntilARetrySucceeds()
+    {
+        // The first read fails the way a file locked by another process does; the next one reads
+        // the real files. The engine has to say so in between, and forget it afterwards.
+        var attempts = 0;
+        var engine = new HunspellProofingEngine(new ProofingDictionaryCatalog(), new SilentLogger(), (dictionary, affix) =>
+        {
+            attempts++;
+            if (attempts == 1)
+                throw new IOException("The file is in use by another process.");
+            return WordList.CreateFromFiles(dictionary, affix);
+        });
+
+        Assert.False(engine.HasFailed("en-US"));
+
+        Assert.Empty(await engine.CheckAsync("en-US", "jumpd", CancellationToken.None));
+        Assert.True(engine.HasFailed("en-US"));
+        Assert.False(engine.IsReady("en-US"));
+
+        Assert.NotEmpty(await engine.CheckAsync("en-US", "jumpd", CancellationToken.None));
+        Assert.True(engine.IsReady("en-US"));
+        Assert.False(engine.HasFailed("en-US"));
+        Assert.Equal(2, attempts);
     }
 
     [Fact]

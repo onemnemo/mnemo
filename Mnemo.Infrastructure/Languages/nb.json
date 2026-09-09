@@ -140,6 +140,7 @@
     "ProofingLanguagesNote": "Et ord er riktig så snart ett av disse kjenner det.",
     "ProofingStateLoading": "Forbereder",
     "ProofingStateAbsent": "Ikke tilgjengelig ennå",
+    "ProofingStateBroken": "Kunne ikke leses",
     "ProofingPersonalTitle": "Ordlisten din",
     "ProofingPersonalCountOne": "{0} ord",
     "ProofingPersonalCountMany": "{0} ord",
@@ -442,7 +443,8 @@
     "ProofingPersonalAlreadyAdded": "Det ordet finnes allerede i ordboken din.",
     "proofing.language.notAvailableYet": "Ingen ordliste følger med for dette språket ennå.",
     "proofing.language.unsupportedByEngine": "Kontrollen støtter ikke dette språket.",
-    "proofing.language.filesMissing": "Ordlistefilene finnes ikke på denne maskinen."
+    "proofing.language.filesMissing": "Ordlistefilene finnes ikke på denne maskinen.",
+    "proofing.language.unreadable": "Ordlistefilene kunne ikke leses. Å installere Mnemo på nytt erstatter dem."
   },
   "Onboarding": {
     "WelcomeTitle": "Velkommen til Mnemo",

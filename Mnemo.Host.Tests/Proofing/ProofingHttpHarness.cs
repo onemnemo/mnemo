@@ -106,11 +106,35 @@ internal sealed class ProofingHttpHarness : IAsyncDisposable
 
         public bool IsReady(string language) => false;
 
+        public bool HasFailed(string language) => false;
+
         public async ValueTask<IReadOnlyList<ProofingIssue>> CheckAsync(string language, string text, CancellationToken ct)
         {
             await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
             return [];
         }
+
+        public ValueTask<IReadOnlyList<ProofingFix>> SuggestAsync(
+            string language,
+            ProofingIssue issue,
+            string text,
+            CancellationToken ct)
+            => ValueTask.FromResult<IReadOnlyList<ProofingFix>>([]);
+    }
+
+    /// <summary>An engine whose one dictionary could not be read, which is what a broken install looks like.</summary>
+    internal sealed class UnreadableEngine : IProofingEngine
+    {
+        public string Id => "unreadable";
+
+        public IReadOnlyList<string> Languages => ["en-US"];
+
+        public bool IsReady(string language) => false;
+
+        public bool HasFailed(string language) => true;
+
+        public ValueTask<IReadOnlyList<ProofingIssue>> CheckAsync(string language, string text, CancellationToken ct)
+            => ValueTask.FromResult<IReadOnlyList<ProofingIssue>>([]);
 
         public ValueTask<IReadOnlyList<ProofingFix>> SuggestAsync(
             string language,

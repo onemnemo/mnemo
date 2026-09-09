@@ -83,8 +83,8 @@ internal sealed class StubProofingEngine : IProofingEngine
     public Dictionary<string, string[]> FlaggedFor { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Languages whose word list could not be read: they answer with nothing and never turn ready,
-    /// which is what a failed read leaves behind in the real engine.
+    /// Languages whose word list could not be read: they answer with nothing, never turn ready and
+    /// report the failed read, which is what a failed read leaves behind in the real engine.
     /// </summary>
     public HashSet<string> Unreadable { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -98,6 +98,8 @@ internal sealed class StubProofingEngine : IProofingEngine
     public TaskCompletionSource? Gate { get; set; }
 
     public bool IsReady(string language) => Ready && !Unreadable.Contains(language);
+
+    public bool HasFailed(string language) => Unreadable.Contains(language);
 
     public async ValueTask<IReadOnlyList<ProofingIssue>> CheckAsync(string language, string text, CancellationToken ct)
     {

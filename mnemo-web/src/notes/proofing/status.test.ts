@@ -44,4 +44,11 @@ describe('the ready set', () => {
   it('leaves out a language the catalogue does not know at all', () => {
     expect(readyLanguages(proofingStatusOf(['en-US', 'fr-FR']))).toEqual(['en-US']);
   });
+
+  it('leaves out a dictionary that could not be read, which no wait will bring back', () => {
+    const status = proofingStatusOf(['en-US', 'es-ES'], {
+      languages: [proofingLanguage('en-US', 'ready'), proofingLanguage('es-ES', 'broken')],
+    });
+    expect(readyLanguages(status)).toEqual(['en-US']);
+  });
 });

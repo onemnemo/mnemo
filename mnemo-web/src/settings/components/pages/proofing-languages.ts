@@ -16,12 +16,13 @@ export const ANY_LANGUAGE = "*"
  * reader has to skip, and it buried the only lines that matter: one still being
  * read, and one that cannot be used at all.
  *
- * An absent one answers with the host's own reason key. It is rendered only
- * when this build ships a translation for it: a key that does not resolve
- * renders as the key itself, which reads as a bug to every user who sees it.
+ * An absent or a broken one answers with the host's own reason key. It is
+ * rendered only when this build ships a translation for it: a key that does not
+ * resolve renders as the key itself, which reads as a bug to every user who
+ * sees it.
  *
- * Those three reasons sit in the Settings namespace under the dotted names the
- * catalogue emits (`proofing.language.filesMissing` and the two beside it)
+ * Those reasons sit in the Settings namespace under the dotted names the
+ * catalogue emits (`proofing.language.filesMissing` and the ones beside it)
  * rather than the PascalCase the rest of that namespace uses, because the host
  * chose the names and the web can only look them up by the name it is handed.
  */
@@ -33,7 +34,7 @@ export function describeState(
   if (language.state === "ready") return null
   if (language.state === "loading") return st("ProofingStateLoading")
   if (language.reasonKey && shipped(language.reasonKey)) return st(language.reasonKey)
-  return st("ProofingStateAbsent")
+  return st(language.state === "broken" ? "ProofingStateBroken" : "ProofingStateAbsent")
 }
 
 /** The active set with one entry moved a place. Unchanged when the move runs off an end. */

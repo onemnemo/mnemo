@@ -387,6 +387,23 @@ public sealed class ProofingServiceTests
     }
 
     [Fact]
+    public async Task StatusReportsALanguageAsBrokenWhenItsWordListCouldNotBeRead()
+    {
+        var engine = new StubProofingEngine(English) { Ready = false };
+        engine.Unreadable.Add("en-US");
+        var service = BuildWith(engine);
+
+        var status = await service.GetStatusAsync(null, CancellationToken.None);
+        var english = status.Languages.Single(l => l.Id == "en-US");
+
+        // Broken rather than loading, or the client would poll for a ready that never comes; the
+        // reason key is what the settings page prints under the row.
+        Assert.True(english.Installed);
+        Assert.Equal(ProofingLanguageState.Broken, english.State);
+        Assert.Equal(ProofingService.UnreadableReasonKey, english.ReasonKey);
+    }
+
+    [Fact]
     public async Task SuggestReturnsNothingForARangeOutsideTheText()
     {
         var (service, _, _, _, _, _) = Build("myocyte");

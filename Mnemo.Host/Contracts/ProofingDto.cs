@@ -10,8 +10,8 @@ public sealed record ProofingLicenseDto(string Name, string Url);
 /// <paramref name="NameKey"/>, so a dictionary added after a translation pass still reads as a word.</param>
 /// <param name="NameKey">Translation key naming the language.</param>
 /// <param name="RegionKey">Translation key naming the region, null when the language names none.</param>
-/// <param name="State"><c>ready</c>, <c>loading</c> or <c>absent</c>.</param>
-/// <param name="ReasonKey">Translation key explaining an absence. Serialised as null when there is none.</param>
+/// <param name="State"><c>ready</c>, <c>loading</c>, <c>broken</c> or <c>absent</c>.</param>
+/// <param name="ReasonKey">Translation key explaining an absence or a failed read. Serialised as null when there is none.</param>
 public sealed record ProofingLanguageDto(
     string Id,
     string Name,

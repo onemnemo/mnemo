@@ -38,6 +38,9 @@ public sealed class ProofingService : IProofingService
     /// <summary>The older editor setting, read only as a fallback when neither of the above is stored.</summary>
     public const string LegacyLanguageKey = "Editor.SpellCheckLanguages";
 
+    /// <summary>Reason key carried by a language whose files are present but could not be read.</summary>
+    public const string UnreadableReasonKey = "proofing.language.unreadable";
+
     private const string SpellingKind = "spelling";
     private const string DefaultLanguage = "en-US";
 
@@ -87,17 +90,21 @@ public sealed class ProofingService : IProofingService
             StartLoading(language);
 
         var languages = _catalog.Entries
-            .Select(entry => new ProofingLanguageStatus(
-                entry.Id,
-                entry.Name,
-                entry.NameKey,
-                entry.Region,
-                entry.RegionKey,
-                entry.Installed,
-                entry.Bundled,
-                StateOf(entry),
-                entry.ReasonKey,
-                entry.License))
+            .Select(entry =>
+            {
+                var state = StateOf(entry);
+                return new ProofingLanguageStatus(
+                    entry.Id,
+                    entry.Name,
+                    entry.NameKey,
+                    entry.Region,
+                    entry.RegionKey,
+                    entry.Installed,
+                    entry.Bundled,
+                    state,
+                    state == ProofingLanguageState.Broken ? UnreadableReasonKey : entry.ReasonKey,
+                    entry.License);
+            })
             .ToArray();
 
         return new ProofingStatus(enabled, active, languages, personal.Count, note);
@@ -304,16 +311,25 @@ public sealed class ProofingService : IProofingService
         if (!entry.Installed)
             return ProofingLanguageState.Absent;
 
-        return _engines.EnginesFor(entry.Id).Any(e => e.IsReady(entry.Id))
-            ? ProofingLanguageState.Ready
-            : ProofingLanguageState.Loading;
+        var engines = _engines.EnginesFor(entry.Id);
+        if (engines.Any(e => e.IsReady(entry.Id)))
+            return ProofingLanguageState.Ready;
+
+        // A failed read counts over a read in flight: the retry this status call just started fails
+        // the same way until the files change, and a "loading" answer would have the client poll
+        // for a ready that never comes.
+        if (engines.Any(e => e.HasFailed(entry.Id)))
+            return ProofingLanguageState.Broken;
+
+        return ProofingLanguageState.Loading;
     }
 
     /// <summary>
     /// Asks every engine for this language to check nothing, which is how a word list starts being
     /// read without a request waiting on it. Without this the first status call after launch would
     /// report a language that nobody has touched as loading and it would stay that way until a check
-    /// arrived.
+    /// arrived. A language whose last read failed is asked again the same way, which is the retry a
+    /// file locked for a moment needs; the failure stands in the status until a read succeeds.
     /// </summary>
     private void StartLoading(string language)
     {

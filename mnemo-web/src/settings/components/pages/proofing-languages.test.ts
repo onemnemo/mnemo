@@ -74,6 +74,13 @@ describe("what a dictionary is doing", () => {
   it("falls back rather than printing a reason key this build does not ship", () => {
     expect(describeState(CATALOG[2], st, () => false)).toBe("t:ProofingStateAbsent")
   })
+
+  // Installed but unreadable is neither absent nor loading: nothing is coming, and the host says why.
+  it("reports a dictionary that could not be read, with the host's reason or its own words", () => {
+    const broken = language({ state: "broken", reasonKey: "proofing.language.unreadable" })
+    expect(describeState(broken, st, () => true)).toBe("t:proofing.language.unreadable")
+    expect(describeState(broken, st, () => false)).toBe("t:ProofingStateBroken")
+  })
 })
 
 describe("ordering the active set", () => {

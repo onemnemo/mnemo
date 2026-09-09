@@ -23,6 +23,11 @@ namespace Mnemo.Infrastructure.Modules.Proofing;
 /// no stated safety guarantee against concurrent queries and would also make one user's dictionary
 /// leak into every note.
 /// </para>
+/// <para>
+/// A read that fails is not the answer forever. The failed load is dropped so the next request reads
+/// the files again, and the failure is remembered beside it until a read succeeds, so the status can
+/// say the dictionary is broken rather than still loading.
+/// </para>
 /// </summary>
 public sealed class HunspellProofingEngine : IProofingEngine
 {
@@ -35,13 +40,26 @@ public sealed class HunspellProofingEngine : IProofingEngine
 
     private readonly ProofingDictionaryCatalog _catalog;
     private readonly ILoggerService _logger;
+    private readonly Func<string, string, WordList> _readWordList;
     private readonly ConcurrentDictionary<string, Lazy<Task<WordList?>>> _loads =
         new(StringComparer.OrdinalIgnoreCase);
 
-    public HunspellProofingEngine(ProofingDictionaryCatalog catalog, ILoggerService logger)
+    /// <summary>Languages whose last read failed. An entry outlives the retry until a read succeeds.</summary>
+    private readonly ConcurrentDictionary<string, byte> _failed = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <param name="readWordList">
+    /// Reads a word list from its dictionary and affix paths, in that order. Left out, the files are
+    /// parsed by Hunspell; a test hands in one that fails so a broken read can be exercised without a
+    /// broken file on disk.
+    /// </param>
+    public HunspellProofingEngine(
+        ProofingDictionaryCatalog catalog,
+        ILoggerService logger,
+        Func<string, string, WordList>? readWordList = null)
     {
         _catalog = catalog;
         _logger = logger;
+        _readWordList = readWordList ?? ((dictionary, affix) => WordList.CreateFromFiles(dictionary, affix));
     }
 
     public string Id => "hunspell";
@@ -52,6 +70,8 @@ public sealed class HunspellProofingEngine : IProofingEngine
         _loads.TryGetValue(language, out var load)
         && load.IsValueCreated
         && load.Value is { IsCompletedSuccessfully: true, Result: not null };
+
+    public bool HasFailed(string language) => _failed.ContainsKey(language) && !IsReady(language);
 
     public async ValueTask<IReadOnlyList<ProofingIssue>> CheckAsync(string language, string text, CancellationToken ct)
     {
@@ -149,7 +169,8 @@ public sealed class HunspellProofingEngine : IProofingEngine
         if (words is null)
         {
             // A read that failed is not cached as the answer forever: dropping the entry lets a later
-            // request try again, which is what a file that was locked or half-written needs.
+            // request try again, which is what a file that was locked or half-written needs. The
+            // failure itself stays recorded until a read succeeds.
             _loads.TryRemove(new KeyValuePair<string, Lazy<Task<WordList?>>>(entry.Id, load));
         }
 
@@ -160,13 +181,17 @@ public sealed class HunspellProofingEngine : IProofingEngine
     {
         try
         {
-            return WordList.CreateFromFiles(dictionaryPath, affixPath);
+            var words = _readWordList(dictionaryPath, affixPath);
+            _failed.TryRemove(id, out _);
+            return words;
         }
         catch (Exception ex)
         {
             // A dictionary that will not parse is a broken install, not a request fault. Reporting it
-            // as "no issues" keeps the editor usable, and the log line is the only place it shows.
+            // as "no issues" keeps the editor usable; the status says the language is broken, and the
+            // log line says why.
             _logger.Log(LogLevel.Error, LogCategory, $"Dictionary '{id}' could not be read.", ex);
+            _failed[id] = 0;
             return null;
         }
     }

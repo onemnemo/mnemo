@@ -14,6 +14,12 @@ public static class ProofingLanguageState
     /// <summary>Installed, but the word list is still being read.</summary>
     public const string Loading = "loading";
 
+    /// <summary>
+    /// Installed, but the files could not be read. Stands until a later read succeeds, which the
+    /// next status request attempts, so a file that was locked for a moment recovers on its own.
+    /// </summary>
+    public const string Broken = "broken";
+
     /// <summary>No files for this language, so it cannot be checked at all.</summary>
     public const string Absent = "absent";
 }
@@ -24,7 +30,7 @@ public static class ProofingLanguageState
 /// <param name="NameKey">Translation key naming the language.</param>
 /// <param name="RegionKey">Translation key naming the region, null when there is no region.</param>
 /// <param name="State">One of the constants on <see cref="ProofingLanguageState"/>.</param>
-/// <param name="ReasonKey">Translation key explaining an absence. Null when the language is usable.</param>
+/// <param name="ReasonKey">Translation key explaining an absence or a failed read. Null when the language is usable.</param>
 public sealed record ProofingLanguageStatus(
     string Id,
     string Name,

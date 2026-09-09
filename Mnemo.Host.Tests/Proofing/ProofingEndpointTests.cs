@@ -233,6 +233,19 @@ public sealed class ProofingEndpointTests
     }
 
     [Fact]
+    public async Task ADictionaryThatCouldNotBeReadIsBrokenOnTheWireWithItsReason()
+    {
+        await using var host = await new ProofingHttpHarness(new ProofingHttpHarness.UnreadableEngine()).StartAsync();
+
+        using var json = JsonDocument.Parse(await host.Client.GetStringAsync("/api/proofing/status"));
+        var english = json.RootElement.GetProperty("languages").EnumerateArray()
+            .Single(l => l.GetProperty("id").GetString() == "en-US");
+
+        Assert.Equal("broken", english.GetProperty("state").GetString());
+        Assert.Equal("proofing.language.unreadable", english.GetProperty("reasonKey").GetString());
+    }
+
+    [Fact]
     public async Task EveryParagraphComesBackEvenWhenItIsClean()
     {
         await using var host = await new ProofingHttpHarness().StartAsync();
