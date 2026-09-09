@@ -51,6 +51,24 @@ describe("project icons", () => {
   it("returns null for a lucide-only name, so the caller falls through to lucide", () => {
     expect(getIconMarkup("house")).toBeNull()
   })
+
+  it("leaves a design token alone when tinting, so a knockout keeps its cut-outs", () => {
+    // The recent notes glyph paints its text lines in the page colour over a filled page; tinted to
+    // currentColor they would vanish into the page they sit on.
+    const markup = getIconMarkup("widgets/recent-notes") ?? ""
+    expect(markup).toContain('fill="currentColor"')
+    expect(markup).toContain("var(--canvas)")
+  })
+
+  it("carries the widget glyphs' stroke attributes under their SVG names", () => {
+    // The React spellings were silently ignored by every renderer, which drew each stroke at the
+    // initial width with butt caps. The SVG names are what the art actually means.
+    for (const name of ["study-goals", "flashcard-memory", "flashcard-tests", "recent-decks", "recent-notes"]) {
+      const markup = getIconMarkup(`widgets/${name}`) ?? ""
+      expect(markup, name).toContain("stroke-width=")
+      expect(markup, name).not.toMatch(/strokeWidth|strokeLinecap|strokeLinejoin/)
+    }
+  })
 })
 
 describe("hasIcon", () => {

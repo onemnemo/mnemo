@@ -56,8 +56,10 @@ function normalizeSvg(raw: string, preserveColors: boolean): string {
   svg = svg.replace(/<svg\b([^>]*)>/i, (_match, attrs: string) => `<svg${attrs.replace(/\s(?:width|height)="[^"]*"/gi, "")}>`)
 
   if (!preserveColors) {
-    // Concrete fill/stroke colors -> currentColor, leaving "none" and existing currentColor.
-    svg = svg.replace(/\b(fill|stroke)="(?!none"|currentColor")[^"]*"/gi, '$1="currentColor"')
+    // Concrete fill/stroke colors -> currentColor, leaving "none", existing currentColor and a
+    // design token reference. A token is already the theme's answer, which is what a knockout
+    // glyph uses to cut the page colour out of its own ink.
+    svg = svg.replace(/\b(fill|stroke)="(?!none"|currentColor"|var\()[^"]*"/gi, '$1="currentColor"')
   }
 
   return svg
