@@ -53,6 +53,8 @@
     "TransferReplaceConfirmCheckbox": "Erstatt samsvarende notater. Ved Markdown-import beholdes det gamle innholdet i papirkurven og kan gjenopprettes som et eget notat. Ved pakkeimport overskrives det permanent.",
     "TransferNounSingular": "notat",
     "TransferNounPlural": "notater",
+    "ImportHere": "Importer notater hit",
+    "TransferImportDestinationFormat": "Markdown-filer havner i {0}. En pakke beholder sine egne mapper.",
     "ExportNoNotesMessage": "Ingen notater er valgt for eksport.",
     "ExportFormatUnavailableMessage": "Ingen eksportformater er tilgjengelige.",
     "editor.slashHint": "Skriv ‘/’ for kommandoer",

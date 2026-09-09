@@ -91,6 +91,8 @@
     "TransferReplaceConfirmCheckbox": "Übereinstimmende Notizen ersetzen. Bei Markdown-Importen bleibt der bisherige Inhalt im Papierkorb und kann als separate Notiz wiederhergestellt werden. Paketimporte überschreiben ihn dauerhaft.",
     "TransferNounSingular": "Notiz",
     "TransferNounPlural": "Notizen",
+    "ImportHere": "Notizen hierher importieren",
+    "TransferImportDestinationFormat": "Markdown-Dateien landen in {0}. Ein Paket behält seine eigenen Ordner.",
     "ExportNoNotesMessage": "Keine Notizen zum Exportieren ausgewählt.",
     "ExportFormatUnavailableMessage": "Kein Exportformat verfügbar.",
     "editor.slashHint": "Tippe ‚/‘ für Befehle",

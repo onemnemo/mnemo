@@ -75,6 +75,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
 
   const scope = target.scope
   const noteCount = scope?.noteIds.length ?? 0
+  const destination = target.destination ?? null
   const available = useMemo(() => exportFormats(formatList, noteCount), [formatList, noteCount])
 
   // Default to the first offered format once the list arrives, and correct a selection the format
@@ -205,7 +206,11 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
 
     setBusy(true)
     try {
-      const result = await runNoteImport({ uploadIds, conflictPolicy: conflict })
+      const result = await runNoteImport({
+        uploadIds,
+        conflictPolicy: conflict,
+        targetFolderId: destination?.folderId ?? null,
+      })
       queueRef.current = []
       setQueue([])
       // An import can create folders and notes at once; everything under the notes key is
@@ -367,6 +372,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
                 queue={queue}
                 formats={formatList}
                 rejected={rejected}
+                destination={destination?.label ?? nt("MyNotes")}
                 conflict={conflict}
                 busy={busy}
                 ready={formatsReady}

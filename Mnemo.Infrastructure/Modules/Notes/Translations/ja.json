@@ -91,6 +91,8 @@
     "TransferReplaceConfirmCheckbox": "一致するノートを置き換えます。Markdownのインポートでは、元の内容はゴミ箱に保存され、別のノートとして復元できます。パッケージのインポートでは、元の内容は完全に上書きされます。",
     "TransferNounSingular": "ノート",
     "TransferNounPlural": "ノート",
+    "ImportHere": "ここにノートをインポート",
+    "TransferImportDestinationFormat": "Markdownファイルは{0}に保存されます。パッケージは元のフォルダー構成を保ちます。",
     "ExportNoNotesMessage": "エクスポートするノートが選択されていません。",
     "ExportFormatUnavailableMessage": "利用できるエクスポート形式がありません。",
     "editor.slashHint": "「/」でコマンド",

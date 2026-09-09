@@ -173,6 +173,7 @@ describe("the note transfer overlay's replace consent", () => {
     expect(api.runNoteImport).toHaveBeenCalledWith({
       uploadIds: ["upload-Biology.md"],
       conflictPolicy: "Replace",
+      targetFolderId: null,
     })
   })
 
@@ -205,6 +206,39 @@ describe("the note transfer overlay's replace consent", () => {
     expect(consentCheckbox()?.checked).toBe(false)
     expect(confirmButton().disabled).toBe(true)
     expect(api.runNoteImport).not.toHaveBeenCalled()
+  })
+})
+
+describe("the note transfer overlay's import destination", () => {
+  it("sends the folder the dialog was opened for", async () => {
+    act(() =>
+      useNoteTransfer.getState().open({
+        direction: "import",
+        scope: null,
+        destination: { folderId: "folder-1", label: "Biology" },
+      }),
+    )
+    mount(<NoteTransferOverlay />)
+
+    await chooseFile("Cells.md")
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(api.runNoteImport).toHaveBeenCalledWith({
+      uploadIds: ["upload-Cells.md"],
+      conflictPolicy: "KeepBoth",
+      targetFolderId: "folder-1",
+    })
+  })
+
+  it("names no folder when opened from the sidebar header, so the import lands at the root", async () => {
+    openImportDialog()
+
+    await chooseFile("Cells.md")
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(api.runNoteImport).toHaveBeenCalledWith(expect.objectContaining({ targetFolderId: null }))
   })
 })
 

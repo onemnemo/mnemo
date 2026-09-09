@@ -159,6 +159,8 @@
     "TransferReplaceConfirmCheckbox": "Replace matching notes. Markdown imports keep the old content in the trash for recovery as a separate note. Package imports permanently overwrite it.",
     "TransferNounSingular": "note",
     "TransferNounPlural": "notes",
+    "ImportHere": "Import notes here",
+    "TransferImportDestinationFormat": "Markdown files land in {0}. A package keeps its own folders.",
     "ExportNoNotesMessage": "No notes selected to export.",
     "ExportFormatUnavailableMessage": "No export format is available.",
     "editor.slashHint": "Type ‘/’ for commands"

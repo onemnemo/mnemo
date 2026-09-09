@@ -30,7 +30,8 @@ public sealed record NoteTransferUploadDto(
 /// </param>
 /// <param name="TargetFolderId">
 /// Folder a markdown import lands in, so importing while a folder is open files the note there
-/// rather than at the root. A package restores its own folder structure and ignores this.
+/// rather than at the root. Refused as <c>unknown_folder</c> when no folder carries the id. A
+/// package restores its own folder structure and ignores this.
 /// </param>
 public sealed record NoteTransferImportDto(
     IReadOnlyList<string> UploadIds,

@@ -26,6 +26,7 @@ export function NoteImportPanel({
   queue,
   formats,
   rejected,
+  destination,
   conflict,
   busy,
   ready,
@@ -39,6 +40,11 @@ export function NoteImportPanel({
   formats: TransferFormatDto[]
   /** Names turned away before upload, for the notice under the list. */
   rejected: string[]
+  /**
+   * Where a markdown file is filed, by name. Said outright because Replace matches titles in that
+   * folder alone, so the reader should know which folder before ticking the consent box.
+   */
+  destination: string
   conflict: ConflictPolicy
   busy: boolean
   /** False until the format list lands; picking before then would refuse every file. */
@@ -150,6 +156,11 @@ export function NoteImportPanel({
           {rejected.map((name) => common("TransferUnsupportedFile", { 0: name })).join(" ")}
         </p>
       ) : null}
+
+      <p className="flex items-start gap-2 text-caption text-text-tertiary">
+        <AppIcon name="common/folder" size={13} className="mt-px shrink-0" />
+        <span>{nt("TransferImportDestinationFormat", { 0: destination })}</span>
+      </p>
 
       <div className="space-y-2">
         <span className="block text-body-extra-small font-semibold text-text-secondary">

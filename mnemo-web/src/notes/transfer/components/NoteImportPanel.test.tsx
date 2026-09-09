@@ -102,6 +102,7 @@ describe("the notes import panel", () => {
         queue={queue}
         formats={FORMATS}
         rejected={[]}
+        destination="My notes"
         conflict="KeepBoth"
         busy={false}
         ready
@@ -122,6 +123,32 @@ describe("the notes import panel", () => {
     expect(container.textContent).not.toContain("NoteImportFailed")
   })
 
+  it("names the folder a markdown file will land in, through the served English strings", () => {
+    useI18nStore.setState({ bundle: { Notes: SERVED_ENGLISH_NOTES } })
+
+    mount(
+      <NoteImportPanel
+        queue={[READY_FILE]}
+        formats={FORMATS}
+        rejected={[]}
+        destination="Biology"
+        conflict="KeepBoth"
+        busy={false}
+        ready
+        replaceConfirmed={false}
+        onAddFiles={() => {}}
+        onRemove={() => {}}
+        onConflictChange={() => {}}
+        onReplaceConfirmedChange={() => {}}
+      />,
+    )
+
+    expect(container.textContent).toContain(
+      SERVED_ENGLISH_NOTES.TransferImportDestinationFormat.replace("{0}", "Biology"),
+    )
+    expect(container.textContent).not.toContain("TransferImportDestinationFormat")
+  })
+
   it.each([
     ["Markdown", ["Biology.md"]],
     ["package", ["Biology.mnemo"]],
@@ -134,6 +161,7 @@ describe("the notes import panel", () => {
         queue={names.map((name) => ({ ...READY_FILE, key: name, name }))}
         formats={FORMATS}
         rejected={[]}
+        destination="My notes"
         conflict="Replace"
         busy={false}
         ready
@@ -162,6 +190,7 @@ describe("the notes import panel", () => {
         queue={[READY_FILE]}
         formats={FORMATS}
         rejected={[]}
+        destination="My notes"
         conflict="KeepBoth"
         busy={false}
         ready

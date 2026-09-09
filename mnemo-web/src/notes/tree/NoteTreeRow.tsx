@@ -106,6 +106,7 @@ export function FolderRow({
   const saveFolder = useSaveNoteFolder();
   const deleteFolder = useDeleteNoteFolder();
   const createNote = useCreateNote();
+  const openTransfer = useNoteTransfer((state) => state.open);
   const { folder } = row;
 
   const handle: TreeDragHandle = { key: `folder:${folder.id}`, kind: 'folder', id: folder.id, label: folder.name };
@@ -185,6 +186,18 @@ export function FolderRow({
       <ContextMenuContent opensDialog={rename.opensEditor}>
         <ContextMenuItem icon="notes/compose" onSelect={() => void newNoteHere()}>
           {nt('NewNote')}
+        </ContextMenuItem>
+        <ContextMenuItem
+          icon="common/download"
+          onSelect={() =>
+            openTransfer({
+              direction: 'import',
+              scope: null,
+              destination: { folderId: folder.id, label: folder.name },
+            })
+          }
+        >
+          {nt('ImportHere')}
         </ContextMenuItem>
         <ContextMenuItem icon="flyout/rename" onSelect={rename.openFromMenu}>
           {nt('Rename')}

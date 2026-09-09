@@ -7,10 +7,19 @@ export interface NoteTransferScope {
   noteIds: string[]
 }
 
+/** Where a markdown import files its notes. A package restores its own folders and ignores it. */
+export interface NoteImportDestination {
+  folderId: string
+  /** The folder's name, so the dialog can say where the notes are going. */
+  label: string
+}
+
 export interface NoteTransferTarget {
   /** Directions on offer. A single one hides the toggle and fixes the dialog to that side. */
   direction: "import" | "export" | "both"
   scope: NoteTransferScope | null
+  /** The folder an import lands in. Absent means the library root. */
+  destination?: NoteImportDestination | null
 }
 
 interface NoteTransferState {

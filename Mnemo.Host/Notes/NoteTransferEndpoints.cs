@@ -159,6 +159,7 @@ public static class NoteTransferEndpoints
         endpoints.MapPost("/api/notes/transfer/import", async (
                 NoteTransferImportDto body,
                 IImportExportCoordinator transfer,
+                INoteFolderService folders,
                 CancellationToken cancellationToken) =>
             {
                 // Deduplicated first: the same id twice would import once and then report the second
@@ -181,6 +182,16 @@ public static class NoteTransferEndpoints
                 }
 
                 var targetFolderId = string.IsNullOrWhiteSpace(body.TargetFolderId) ? null : body.TargetFolderId.Trim();
+
+                // Refused before any staged file is consumed, the way the create route refuses a
+                // folder. The markdown adapter files a note into whatever id it is handed, and a
+                // note in a folder that does not exist is one the sidebar can never show.
+                if (targetFolderId is not null)
+                {
+                    var known = await folders.GetAllFoldersAsync().ConfigureAwait(false);
+                    if (!known.Any(f => f.FolderId == targetFolderId))
+                        return Results.BadRequest(new ErrorDto("unknown_folder", $"No note folder '{targetFolderId}'."));
+                }
 
                 var succeeded = 0;
                 var importedNotes = 0;

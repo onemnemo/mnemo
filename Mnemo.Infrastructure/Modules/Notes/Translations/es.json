@@ -159,6 +159,8 @@
     "TransferReplaceConfirmCheckbox": "Reemplazar las notas coincidentes. Las importaciones de Markdown conservan el contenido anterior en la papelera para recuperarlo como una nota independiente. Las importaciones de paquetes lo sobrescriben permanentemente.",
     "TransferNounSingular": "nota",
     "TransferNounPlural": "notas",
+    "ImportHere": "Importar notas aquí",
+    "TransferImportDestinationFormat": "Los archivos Markdown se guardan en {0}. Un paquete conserva sus propias carpetas.",
     "ExportNoNotesMessage": "No hay notas seleccionadas para exportar.",
     "ExportFormatUnavailableMessage": "No hay ningún formato de exportación disponible.",
     "editor.slashHint": "Escribe ‘/’ para ver comandos"
