@@ -12,7 +12,7 @@ export const activityManifest: WidgetManifest = {
   ns: "WidgetActivity",
   author: "Mnemo",
   category: "study",
-  icon: "calendar-days",
+  icon: "widgets/flashcard-stats",
   supportedSizes: [
     { columns: 2, rows: 1 },
     { columns: 2, rows: 2 },

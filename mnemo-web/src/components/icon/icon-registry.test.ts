@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 
+import { allWidgets } from "@/overview/widgets/registry"
+
 import { getIconMarkup, getLucideIcon, hasIcon } from "./icon-registry"
 
 describe("lucide lookup", () => {
@@ -68,6 +70,21 @@ describe("project icons", () => {
       expect(markup, name).toContain("stroke-width=")
       expect(markup, name).not.toMatch(/strokeWidth|strokeLinecap|strokeLinejoin/)
     }
+  })
+
+  it("wires every purpose-built widget glyph into its library manifest", () => {
+    const icons = new Map(allWidgets().map(({ manifest }) => [manifest.widgetId, manifest.icon]))
+    const intended = new Map([
+      ["mnemo.activity", "widgets/flashcard-stats"],
+      ["mnemo.flashcard-memory", "widgets/flashcard-memory"],
+      ["mnemo.flashcard-tests", "widgets/flashcard-tests"],
+      ["mnemo.recent", "widgets/recent-decks"],
+      ["mnemo.recent-notes", "widgets/recent-notes"],
+      ["mnemo.study-goals", "widgets/study-goals"],
+      ["mnemo.usage-summary", "widgets/usage-summary"],
+    ])
+
+    for (const [widgetId, icon] of intended) expect(icons.get(widgetId)).toBe(icon)
   })
 })
 

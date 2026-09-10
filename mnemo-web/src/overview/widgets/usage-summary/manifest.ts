@@ -6,7 +6,7 @@ export const usageSummaryManifest: WidgetManifest = {
   ns: "UsageSummary",
   author: "Mnemo",
   category: "study",
-  icon: "layers",
+  icon: "widgets/usage-summary",
   supportedSizes: [
     { columns: 1, rows: 2 },
     { columns: 2, rows: 1 },

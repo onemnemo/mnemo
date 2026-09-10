@@ -11,7 +11,7 @@ export const studyGoalsManifest: WidgetManifest = {
   ns: "WidgetGoals",
   author: "Mnemo",
   category: "study",
-  icon: "target",
+  icon: "widgets/study-goals",
   supportedSizes: [
     { columns: 2, rows: 1 },
     { columns: 1, rows: 2 },

@@ -12,7 +12,7 @@ export const flashcardMemoryManifest: WidgetManifest = {
   ns: "WidgetRetention",
   author: "Mnemo",
   category: "cards",
-  icon: "target",
+  icon: "widgets/flashcard-memory",
   supportedSizes: [
     { columns: 1, rows: 1 },
     { columns: 2, rows: 1 },

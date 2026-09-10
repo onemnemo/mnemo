@@ -6,7 +6,7 @@ export const recentManifest: WidgetManifest = {
   ns: "WidgetRecent",
   author: "Mnemo",
   category: "study",
-  icon: "clock",
+  icon: "widgets/recent-decks",
   supportedSizes: [
     { columns: 2, rows: 1 },
     { columns: 2, rows: 2 },

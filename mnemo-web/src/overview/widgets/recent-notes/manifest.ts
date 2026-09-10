@@ -12,7 +12,7 @@ export const recentNotesManifest: WidgetManifest = {
   ns: "RecentNotes",
   author: "Mnemo",
   category: "notes",
-  icon: "file-text",
+  icon: "widgets/recent-notes",
   supportedSizes: [
     { columns: 2, rows: 1 },
     { columns: 2, rows: 2 },
