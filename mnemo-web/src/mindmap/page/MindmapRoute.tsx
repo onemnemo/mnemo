@@ -201,7 +201,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     return projectScene(map.data, {
       templates: styling.templates,
       defaultTemplateId: styling.defaultId,
-      measurers: sceneMeasurers(),
+      measurers: sceneMeasurers(fontEpoch),
       refs,
     })
   }, [map.data, styling, refs, fontEpoch])
