@@ -938,7 +938,9 @@
     "ImageDownload": "Last ned",
     "ImageOptions": "Bildealternativer",
     "ImageCopyFailed": "Kunne ikke kopiere bildet",
+    "ImageBakeDecodeFailed": "Bildet kunne ikke dekodes.",
     "ImageBakeNoCanvas": "Denne nettleseren har ikke et 2D-lerret å tegne bildet på.",
+    "ImageBakeNoSize": "Bildet rapporterte ingen størrelse.",
     "ImageBakePngFailed": "Bildet kunne ikke gjøres om til PNG.",
     "ImageEditorInsert": "Sett inn",
     "ImageEditorApply": "Bruk",
@@ -1500,6 +1502,7 @@
     "PurgeBlockedByFormat": "{0} er også i papirkurven og ligger inni dette. Gjenopprett eller slett det for godt først."
   },
   "Errors": {
+    "RequestFailed": "Handlingen kunne ikke fullføres. Prøv igjen.",
     "InternalError": "Noe gikk galt inne i appen. Prøv igjen.",
     "NotFound": "Denne versjonen av appen kjenner ikke den forespørselen.",
     "NotesMigrating": "Notatene klargjøres fortsatt. Prøv igjen om et øyeblikk.",

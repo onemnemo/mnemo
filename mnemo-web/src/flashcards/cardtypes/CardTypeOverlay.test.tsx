@@ -388,7 +388,7 @@ describe("CardTypeOverlay card removal guard", () => {
     expect(mocks.saveCardType).toHaveBeenCalledTimes(1)
   })
 
-  it("writes nothing when the count cannot be read", async () => {
+  it("writes nothing and translates a count failure without a stable code", async () => {
     mocks.previewCardTypeSave.mockRejectedValue(new Error("the collection is locked"))
     open()
     await settle()
@@ -401,7 +401,7 @@ describe("CardTypeOverlay card removal guard", () => {
     expect(mocks.confirm).not.toHaveBeenCalled()
     expect(mocks.saveCardType).not.toHaveBeenCalled()
     expect(mocks.warn).toHaveBeenCalledWith("CardTypesSaveErrorTitle", {
-      description: "the collection is locked",
+      description: "RequestFailed",
     })
   })
 })
@@ -522,7 +522,7 @@ describe("CardTypeOverlay delete refusal", () => {
 
   it("shows what the server said when the failure is not one it has wording for", async () => {
     mocks.confirm.mockResolvedValue(true)
-    mocks.deleteCardType.mockRejectedValue(new Error("the collection is locked"))
+    mocks.deleteCardType.mockRejectedValue(new ApiError("the collection is locked", 423, "collection_locked"))
     open()
     await settle()
 

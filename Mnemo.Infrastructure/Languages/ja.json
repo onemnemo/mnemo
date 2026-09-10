@@ -938,7 +938,9 @@
     "ImageDownload": "ダウンロード",
     "ImageOptions": "画像のオプション",
     "ImageCopyFailed": "画像をコピーできませんでした",
+    "ImageBakeDecodeFailed": "画像を読み込めませんでした。",
     "ImageBakeNoCanvas": "このブラウザーには画像を描画するための2Dキャンバスがありません。",
+    "ImageBakeNoSize": "画像のサイズを取得できませんでした。",
     "ImageBakePngFailed": "画像をPNGに変換できませんでした。",
     "ImageEditorInsert": "挿入",
     "ImageEditorApply": "適用",
@@ -1500,6 +1502,7 @@
     "PurgeBlockedByFormat": "「{0}」もゴミ箱にあり、この中に入っています。先にそちらを復元するか完全に削除してください。"
   },
   "Errors": {
+    "RequestFailed": "操作を完了できませんでした。もう一度お試しください。",
     "InternalError": "アプリ内で問題が発生しました。もう一度お試しください。",
     "NotFound": "このバージョンのアプリはその要求を認識できません。",
     "NotesMigrating": "ノートはまだ準備中です。しばらくしてからもう一度お試しください。",

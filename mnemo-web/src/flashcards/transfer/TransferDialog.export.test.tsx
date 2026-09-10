@@ -118,7 +118,7 @@ describe("TransferDialog export reporting", () => {
     )
   })
 
-  it("reports a failure with the reason it was given", async () => {
+  it("translates a failure without a stable code", async () => {
     vi.mocked(runExport).mockRejectedValue(new Error("That folder is read only."))
 
     await clickExport()
@@ -126,7 +126,7 @@ describe("TransferDialog export reporting", () => {
     expect(toast.success).not.toHaveBeenCalled()
     expect(toast.warning).toHaveBeenCalledWith(
       "ExportFailedTitle",
-      expect.objectContaining({ description: "That folder is read only." }),
+      expect.objectContaining({ description: "RequestFailed" }),
     )
   })
 })

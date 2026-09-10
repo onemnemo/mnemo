@@ -28,16 +28,16 @@ describe("describeError", () => {
     expect(describeError(t, new ApiError("Something newer.", 400, "brand_new_code"))).toBe("Something newer.")
   })
 
-  it("keeps the server's sentence when no code came at all", () => {
-    expect(describeError(t, new ApiError("Bad Gateway", 502))).toBe("Bad Gateway")
+  it("uses translated fallback copy when no stable server code arrived", () => {
+    expect(describeError(t, new ApiError("Bad Gateway", 502))).toBe("Errors.RequestFailed")
   })
 
   it("reads a keyed client failure through its own namespace", () => {
     expect(describeError(t, new KeyedError("Mindmap", "ExportNothingToDraw"))).toBe("Mindmap.ExportNothingToDraw")
   })
 
-  it("keeps a plain error's message and says nothing for a value that is not one", () => {
-    expect(describeError(t, new Error("Failed to fetch"))).toBe("Failed to fetch")
+  it("uses translated fallback copy for a plain error and ignores values that are not errors", () => {
+    expect(describeError(t, new Error("Failed to fetch"))).toBe("Errors.RequestFailed")
     expect(describeError(t, "a string")).toBeUndefined()
     expect(describeError(t, undefined)).toBeUndefined()
   })

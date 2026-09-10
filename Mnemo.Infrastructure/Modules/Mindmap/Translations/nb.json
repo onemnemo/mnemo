@@ -140,6 +140,7 @@
     "ExportMd": "Eksporter som Markdown",
     "ExportFailedTitle": "Eksport mislyktes",
     "ExportNothingToDraw": "Det er ingenting på dette tankekartet å eksportere.",
+    "ExportDrawFailed": "Tankekartet kunne ikke tegnes.",
     "ExportNoCanvas": "Denne nettleseren har ikke et 2D-lerret å tegne tankekartet på.",
     "ExportPngFailed": "Tankekartet kunne ikke gjøres om til PNG.",
     "ExportFailed": "Eksporten kunne ikke fullføres.",

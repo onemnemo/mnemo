@@ -35,13 +35,21 @@ export async function rasterize(picture: SvgPicture, scale = 2): Promise<Blob> {
     if (!context) {
       throw new KeyedError("Mindmap", "ExportNoCanvas")
     }
-    context.drawImage(image, 0, 0, width, height)
+    try {
+      context.drawImage(image, 0, 0, width, height)
+    } catch {
+      throw new KeyedError("Mindmap", "ExportDrawFailed")
+    }
 
     return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new KeyedError("Mindmap", "ExportPngFailed"))),
-        "image/png",
-      )
+      try {
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new KeyedError("Mindmap", "ExportPngFailed"))),
+          "image/png",
+        )
+      } catch {
+        reject(new KeyedError("Mindmap", "ExportPngFailed"))
+      }
     })
   } finally {
     URL.revokeObjectURL(url)
@@ -52,7 +60,7 @@ function load(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image()
     image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error("The map could not be drawn."))
+    image.onerror = () => reject(new KeyedError("Mindmap", "ExportDrawFailed"))
     image.src = url
   })
 }

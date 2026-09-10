@@ -938,7 +938,9 @@
     "ImageDownload": "Descargar",
     "ImageOptions": "Opciones de imagen",
     "ImageCopyFailed": "No se pudo copiar la imagen",
+    "ImageBakeDecodeFailed": "No se pudo decodificar la imagen.",
     "ImageBakeNoCanvas": "Este navegador no tiene un lienzo 2D en el que dibujar la imagen.",
+    "ImageBakeNoSize": "La imagen no indicó ningún tamaño.",
     "ImageBakePngFailed": "La imagen no se pudo convertir en PNG.",
     "ImageEditorInsert": "Insertar",
     "ImageEditorApply": "Aplicar",
@@ -1500,6 +1502,7 @@
     "PurgeBlockedByFormat": "{0} también está en la papelera y vive dentro de este. Restáuralo o elimínalo para siempre primero."
   },
   "Errors": {
+    "RequestFailed": "No se pudo completar la acción. Inténtalo de nuevo.",
     "InternalError": "Algo salió mal dentro de la aplicación. Inténtalo de nuevo.",
     "NotFound": "Esta versión de la aplicación no conoce esa solicitud.",
     "NotesMigrating": "Las notas aún se están preparando. Inténtalo de nuevo en un momento.",

@@ -70,9 +70,10 @@ export const ERROR_KEYS: Readonly<Record<string, string>> = {
  * What a failure toast says under its title.
  *
  * The Host's code is chosen over its sentence wherever this build knows the code, and a surface
- * with wording of its own for a code passes it in and wins. A code this build does not know, or a
- * failure that never reached the Host, keeps whatever text arrived: a client older than its Host
- * still says something, and nothing is worse than an empty line under a failed save.
+ * with wording of its own for a code passes it in and wins. A code this build does not know keeps
+ * the Host's sentence so an older client still says something useful. A failure without a stable
+ * code gets shared translated wording instead of leaking a browser or operating system sentence
+ * in a different language.
  *
  * @param own Wording the calling surface has for particular codes, already translated.
  */
@@ -87,6 +88,7 @@ export function describeError(
     if (wording !== undefined) return wording
     const key = ERROR_KEYS[error.code]
     if (key !== undefined) return t(ERRORS, key)
+    return error.message
   }
-  return error instanceof Error ? error.message : undefined
+  return error instanceof Error ? t(ERRORS, "RequestFailed") : undefined
 }

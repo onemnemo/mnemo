@@ -3,14 +3,14 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 f8131a2ed3442c82284022ad708b99cb5a08aa199b6035328618471a1d23ba84
+sha256 c9608df8e1b261097f1942bbd2acec8b40dfaadfa6fc32f223bdca77b36b17f5
 namespaces 39
-keys 2338
+keys 2341
   App 28
   Chat 132
   Common 103
   EmojiPicker 14
-  Errors 42
+  Errors 43
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
@@ -18,9 +18,9 @@ keys 2338
   GlobalSearch 18
   Hardware 2
   Keybinds 106
-  Mindmap 334
-  Notes 224
-  NotesEditor 211
+  Mindmap 335
+  Notes 223
+  NotesEditor 213
   Onboarding 55
   Overview 31
   Permissions 6
@@ -47,14 +47,14 @@ keys 2338
   WidgetToday 9
 
 culture de
-sha256 cb3a1107a49c1867b783efe0dd4384b616a37699d93016ecdcda01050b772fcb
+sha256 b14294dbbeefbc06c5328f574698c34689d0d45f70eec66c6926f7c03a029b27
 namespaces 39
-keys 2338
+keys 2341
   App 28
   Chat 132
   Common 103
   EmojiPicker 14
-  Errors 42
+  Errors 43
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
@@ -62,9 +62,9 @@ keys 2338
   GlobalSearch 18
   Hardware 2
   Keybinds 106
-  Mindmap 334
-  Notes 224
-  NotesEditor 211
+  Mindmap 335
+  Notes 223
+  NotesEditor 213
   Onboarding 55
   Overview 31
   Permissions 6
@@ -91,14 +91,14 @@ keys 2338
   WidgetToday 9
 
 culture es
-sha256 6fd2d10a118a0203bd67e602461d92a646dfcd25c8ab9cf71406b8ed3a81f135
+sha256 18daf9763ee1a68ca433a1fbee1aff87e5b3f665a7a746cf3b91b156ccb95f0d
 namespaces 39
-keys 2338
+keys 2341
   App 28
   Chat 132
   Common 103
   EmojiPicker 14
-  Errors 42
+  Errors 43
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
@@ -106,9 +106,9 @@ keys 2338
   GlobalSearch 18
   Hardware 2
   Keybinds 106
-  Mindmap 334
-  Notes 224
-  NotesEditor 211
+  Mindmap 335
+  Notes 223
+  NotesEditor 213
   Onboarding 55
   Overview 31
   Permissions 6
@@ -135,14 +135,14 @@ keys 2338
   WidgetToday 9
 
 culture ja
-sha256 447dbb46fea25c85c4d175fa96a4d0550131807051f06141c4c88886b36426e3
+sha256 bcd6af425cb7d7b2589a9ff49699ab7edc1be5772f221c30ee62c5e7d1d76fc0
 namespaces 39
-keys 2338
+keys 2341
   App 28
   Chat 132
   Common 103
   EmojiPicker 14
-  Errors 42
+  Errors 43
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
@@ -150,9 +150,9 @@ keys 2338
   GlobalSearch 18
   Hardware 2
   Keybinds 106
-  Mindmap 334
-  Notes 224
-  NotesEditor 211
+  Mindmap 335
+  Notes 223
+  NotesEditor 213
   Onboarding 55
   Overview 31
   Permissions 6
@@ -179,14 +179,14 @@ keys 2338
   WidgetToday 9
 
 culture nb
-sha256 c25a32826d109510bfa64eccf375fde73e74ddf6c0c44abc412e2fc1d554207b
+sha256 6c1b1e37bdee8fd0e445f6eea919dfa6382469cd0b422746bb7be6b190cce08a
 namespaces 39
-keys 2338
+keys 2341
   App 28
   Chat 132
   Common 103
   EmojiPicker 14
-  Errors 42
+  Errors 43
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
@@ -194,9 +194,9 @@ keys 2338
   GlobalSearch 18
   Hardware 2
   Keybinds 106
-  Mindmap 334
-  Notes 224
-  NotesEditor 211
+  Mindmap 335
+  Notes 223
+  NotesEditor 213
   Onboarding 55
   Overview 31
   Permissions 6

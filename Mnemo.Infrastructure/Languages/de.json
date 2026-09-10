@@ -938,7 +938,9 @@
     "ImageDownload": "Herunterladen",
     "ImageOptions": "Bildoptionen",
     "ImageCopyFailed": "Das Bild konnte nicht kopiert werden",
+    "ImageBakeDecodeFailed": "Das Bild konnte nicht dekodiert werden.",
     "ImageBakeNoCanvas": "Dieser Browser hat keine 2D-Zeichenfläche, auf die das Bild gezeichnet werden kann.",
+    "ImageBakeNoSize": "Das Bild hat keine Größe gemeldet.",
     "ImageBakePngFailed": "Das Bild konnte nicht in eine PNG-Datei umgewandelt werden.",
     "ImageEditorInsert": "Einfügen",
     "ImageEditorApply": "Übernehmen",
@@ -1500,6 +1502,7 @@
     "PurgeBlockedByFormat": "{0} ist ebenfalls im Papierkorb und liegt darin. Stelle es zuerst wieder her oder lösche es endgültig."
   },
   "Errors": {
+    "RequestFailed": "Die Aktion konnte nicht abgeschlossen werden. Versuche es noch einmal.",
     "InternalError": "In der App ist etwas schiefgelaufen. Versuche es noch einmal.",
     "NotFound": "Diese Version der App kennt diese Anfrage nicht.",
     "NotesMigrating": "Die Notizen werden noch vorbereitet. Versuche es gleich noch einmal.",

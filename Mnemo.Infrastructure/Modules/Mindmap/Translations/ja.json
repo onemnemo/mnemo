@@ -140,6 +140,7 @@
     "ExportMd": "Markdownでエクスポート",
     "ExportFailedTitle": "エクスポートに失敗しました",
     "ExportNothingToDraw": "このマインドマップにはエクスポートするものがありません。",
+    "ExportDrawFailed": "マインドマップを描画できませんでした。",
     "ExportNoCanvas": "このブラウザーにはマインドマップを描画するための2Dキャンバスがありません。",
     "ExportPngFailed": "マインドマップをPNGに変換できませんでした。",
     "ExportFailed": "エクスポートを完了できませんでした。",

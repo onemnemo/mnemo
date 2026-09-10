@@ -140,6 +140,7 @@
     "ExportMd": "Als Markdown exportieren",
     "ExportFailedTitle": "Export fehlgeschlagen",
     "ExportNothingToDraw": "Auf dieser Mindmap gibt es nichts zu exportieren.",
+    "ExportDrawFailed": "Die Mindmap konnte nicht gezeichnet werden.",
     "ExportNoCanvas": "Dieser Browser hat keine 2D-Zeichenfläche, auf die die Mindmap gezeichnet werden kann.",
     "ExportPngFailed": "Die Mindmap konnte nicht in eine PNG-Datei umgewandelt werden.",
     "ExportFailed": "Der Export konnte nicht abgeschlossen werden.",

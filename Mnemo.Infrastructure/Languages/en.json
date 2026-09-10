@@ -938,7 +938,9 @@
     "ImageDownload": "Download",
     "ImageOptions": "Image options",
     "ImageCopyFailed": "Could not copy the image",
+    "ImageBakeDecodeFailed": "The image could not be decoded.",
     "ImageBakeNoCanvas": "This browser has no 2D canvas to draw the image onto.",
+    "ImageBakeNoSize": "The image reported no size.",
     "ImageBakePngFailed": "The image could not be turned into a PNG.",
     "ImageEditorInsert": "Insert",
     "ImageEditorApply": "Apply",
@@ -1500,6 +1502,7 @@
     "PurgeBlockedByFormat": "{0} is in the trash too and lives inside this. Restore or delete that for good first."
   },
   "Errors": {
+    "RequestFailed": "The action could not be completed. Try again.",
     "InternalError": "Something went wrong inside the app. Try again.",
     "NotFound": "This version of the app does not know that request.",
     "NotesMigrating": "Notes are still being prepared. Try again in a moment.",

@@ -1,7 +1,29 @@
-// @vitest-environment node
-import { describe, expect, it } from 'vitest';
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { bakedImageFileName } from './image-bake';
+import { bakeImage, bakedImageFileName } from './image-bake';
+
+afterEach(() => vi.unstubAllGlobals());
+
+class UnreadableImage {
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+
+  set src(_value: string) {
+    queueMicrotask(() => this.onerror?.());
+  }
+}
+
+describe('bakeImage', () => {
+  it('carries a translation key when the source cannot be decoded', async () => {
+    vi.stubGlobal('Image', UnreadableImage);
+
+    await expect(bakeImage('blob:image', null)).rejects.toMatchObject({
+      ns: 'NotesEditor',
+      key: 'ImageBakeDecodeFailed',
+    });
+  });
+});
 
 describe('bakedImageFileName', () => {
   it('names the file after the caption', () => {

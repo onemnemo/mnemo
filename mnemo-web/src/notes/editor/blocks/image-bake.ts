@@ -26,7 +26,7 @@ function load(url: string): Promise<HTMLImageElement> {
       resolve(image);
     };
     image.onerror = () => {
-      reject(new Error('The image could not be decoded.'));
+      reject(new KeyedError('NotesEditor', 'ImageBakeDecodeFailed'));
     };
     image.src = url;
   });
@@ -42,7 +42,7 @@ export async function bakeImage(url: string, crop: ImageCrop | null): Promise<Bl
   const image = await load(url);
   const naturalWidth = image.naturalWidth || image.width;
   const naturalHeight = image.naturalHeight || image.height;
-  if (naturalWidth <= 0 || naturalHeight <= 0) throw new Error('The image reported no size.');
+  if (naturalWidth <= 0 || naturalHeight <= 0) throw new KeyedError('NotesEditor', 'ImageBakeNoSize');
 
   const sx = crop ? crop.x * naturalWidth : 0;
   const sy = crop ? crop.y * naturalHeight : 0;
@@ -58,16 +58,24 @@ export async function bakeImage(url: string, crop: ImageCrop | null): Promise<Bl
   canvas.height = height;
   const context = canvas.getContext('2d');
   if (!context) throw new KeyedError('NotesEditor', 'ImageBakeNoCanvas');
-  context.drawImage(image, sx, sy, sw, sh, 0, 0, width, height);
+  try {
+    context.drawImage(image, sx, sy, sw, sh, 0, 0, width, height);
+  } catch {
+    throw new KeyedError('NotesEditor', 'ImageBakePngFailed');
+  }
 
   return await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) resolve(blob);
-        else reject(new KeyedError('NotesEditor', 'ImageBakePngFailed'));
-      },
-      'image/png',
-    );
+    try {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) resolve(blob);
+          else reject(new KeyedError('NotesEditor', 'ImageBakePngFailed'));
+        },
+        'image/png',
+      );
+    } catch {
+      reject(new KeyedError('NotesEditor', 'ImageBakePngFailed'));
+    }
   });
 }
 
