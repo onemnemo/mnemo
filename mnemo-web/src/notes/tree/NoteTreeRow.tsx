@@ -25,7 +25,6 @@ import {
 } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
 import { useNoteTransfer } from '../transfer/store';
-import { useNoteTabs } from '../workspace/tabs';
 import type { NoteFolderRowModel, NoteRowModel } from './tree-model';
 import type { TreeDragHandle } from './reorder';
 import type { TreeDrag } from './useNoteTreeDrag';
@@ -193,7 +192,7 @@ export function FolderRow({
             openTransfer({
               direction: 'import',
               scope: null,
-              destination: { folderId: folder.id, label: folder.name },
+              destination: { folderId: folder.id, label: row.path },
             })
           }
         >
@@ -231,7 +230,6 @@ export function NoteRow({
   const updateNote = useUpdateNoteMetadata();
   const deleteNote = useDeleteNote();
   const duplicateNote = useDuplicateNote();
-  const openTab = useNoteTabs((state) => state.open);
   const openTransfer = useNoteTransfer((state) => state.open);
   const { note } = row;
 
@@ -328,11 +326,6 @@ export function NoteRow({
           {note.isFavorite ? nt('Unfavourite') : nt('Favourite')}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        {/* Opens the tab without navigating, which is the whole difference from
-            clicking the row. */}
-        <ContextMenuItem icon="flyout/open" onSelect={() => openTab(note.id)}>
-          {nt('OpenInNewTab')}
-        </ContextMenuItem>
         <ContextMenuItem icon="common/panel-right" onSelect={() => openNoteInPeek(note.id)}>
           {t('App', 'PeekOpenInSidePeek')}
         </ContextMenuItem>

@@ -44,6 +44,19 @@ describe('buildNoteTree', () => {
     ]);
   });
 
+  it('gives nested folders an unambiguous visible path', () => {
+    const tree = buildNoteTree({
+      folders: [folder({ id: 'f1', name: 'Medicine' }), folder({ id: 'f1a', name: 'Anatomy', parentId: 'f1' })],
+      notes: [],
+      ...EMPTY,
+    });
+
+    expect(tree.rows.filter((row) => row.kind === 'folder').map((row) => row.path)).toEqual([
+      'Medicine',
+      'Medicine / Anatomy',
+    ]);
+  });
+
   it('counts every note in a folder subtree, subfolders included', () => {
     const tree = buildNoteTree({
       folders: [folder({ id: 'f1' }), folder({ id: 'f1a', parentId: 'f1' })],

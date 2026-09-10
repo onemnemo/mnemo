@@ -24,7 +24,6 @@ const mocks = vi.hoisted(() => ({
   duplicateNote: vi.fn(async () => ({ id: 'n8' })),
   navigate: vi.fn(),
   undo: vi.fn(),
-  openTab: vi.fn(),
   openTransfer: vi.fn(),
 }));
 
@@ -41,9 +40,6 @@ vi.mock('@/app/router', () => ({ navigate: mocks.navigate }));
 vi.mock('@/i18n/useT', () => ({ useT: () => (_ns: string, key: string) => key }));
 // Deleting raises the undo toast, which reaches for the query cache these rows are mounted without.
 vi.mock('@/trash/undo', () => ({ useUndoDelete: () => mocks.undo }));
-vi.mock('../workspace/tabs', () => ({
-  useNoteTabs: (select: (state: { open: unknown }) => unknown) => select({ open: mocks.openTab }),
-}));
 vi.mock('../transfer/store', () => ({
   useNoteTransfer: (select: (state: { open: unknown }) => unknown) => select({ open: mocks.openTransfer }),
 }));
@@ -65,6 +61,7 @@ const folderRow: NoteFolderRowModel = {
   id: 'f1',
   depth: 0,
   folder: { id: 'f1', name: 'Anatomy', parentId: null, order: 0 } as NoteFolderRowModel['folder'],
+  path: 'Medicine / Anatomy',
   noteCount: 3,
   expanded: true,
 };
@@ -135,7 +132,8 @@ function openContextMenu(): void {
 }
 
 function chooseMenuItem(label: string): void {
-  const item = [...document.querySelectorAll("[role='menuitem']")].find((el) => el.textContent === label);
+  const items = [...document.querySelectorAll("[role='menuitem']")];
+  const item = items.find((el) => el.textContent?.trim() === label);
   expect(item, `no menu item labelled ${label}`).not.toBeUndefined();
   act(() => {
     (item as HTMLElement).click();
@@ -158,6 +156,19 @@ function pressKey(target: EventTarget, key: string): void {
 }
 
 describe('notes sidebar folder row', () => {
+  it('imports into the selected folder and names its full path', () => {
+    mount(<FolderRow row={folderRow} onToggle={() => {}} drag={drag} />);
+
+    openContextMenu();
+    chooseMenuItem('ImportHere');
+
+    expect(mocks.openTransfer).toHaveBeenCalledWith({
+      direction: 'import',
+      scope: null,
+      destination: { folderId: 'f1', label: 'Medicine / Anatomy' },
+    });
+  });
+
   it('leaves the editor on screen when rename comes from the right-click menu', async () => {
     mount(<FolderRow row={folderRow} onToggle={() => {}} drag={drag} />);
 

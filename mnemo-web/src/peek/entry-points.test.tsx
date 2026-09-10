@@ -19,7 +19,6 @@ import { usePeekStore } from "./store"
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  openTab: vi.fn(),
   openTransfer: vi.fn(),
   undo: vi.fn(),
   mutate: vi.fn(async () => ({ id: "n9" })),
@@ -36,9 +35,6 @@ vi.mock("@/notes/api", () => ({
 vi.mock("@/app/router", () => ({ navigate: mocks.navigate }))
 vi.mock("@/i18n/useT", () => ({ useT: () => (_ns: string, key: string) => key }))
 vi.mock("@/trash/undo", () => ({ useUndoDelete: () => mocks.undo }))
-vi.mock("@/notes/workspace/tabs", () => ({
-  useNoteTabs: (select: (state: { open: unknown }) => unknown) => select({ open: mocks.openTab }),
-}))
 vi.mock("@/notes/transfer/store", () => ({
   useNoteTransfer: (select: (state: { open: unknown }) => unknown) => select({ open: mocks.openTransfer }),
 }))
@@ -99,7 +95,7 @@ afterEach(() => {
 })
 
 describe("opening a note in the side peek from the tree", () => {
-  it("offers the entry right after Open in new tab", () => {
+  it("offers the entry in the note actions", () => {
     mount(<NoteRow row={row} selected={false} drag={drag} />)
     act(() => {
       rowElement().focus()
@@ -108,7 +104,7 @@ describe("opening a note in the side peek from the tree", () => {
 
     const labels = [...document.querySelectorAll("[role='menuitem']")].map((item) => item.textContent)
     expect(labels).toContain("PeekOpenInSidePeek")
-    expect(labels.indexOf("PeekOpenInSidePeek")).toBe(labels.indexOf("OpenInNewTab") + 1)
+    expect(labels).not.toContain("OpenInNewTab")
   })
 
   it("opens the row's own note from the menu, without navigating", () => {

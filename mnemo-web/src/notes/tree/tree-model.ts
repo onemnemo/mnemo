@@ -27,6 +27,8 @@ export interface NoteFolderRowModel {
   id: string;
   depth: number;
   folder: NoteFolderDto;
+  /** Full visible path, used where the folder must be distinguished outside the tree. */
+  path: string;
   /** Every note in this folder's subtree, subfolders included. */
   noteCount: number;
   expanded: boolean;
@@ -177,19 +179,21 @@ export function buildNoteTree({ folders, notes, search, collapsed }: BuildNoteTr
     rows.push({ kind: 'note', id: note.id, depth, note });
 
   // Subfolders before the folder's own notes, at any depth, matching the desktop.
-  const pushFolders = (list: FolderNode[], depth: number) => {
+  const pushFolders = (list: FolderNode[], depth: number, parentPath = '') => {
     for (const node of list) {
       const expanded = !collapsed.has(node.folder.id);
+      const path = parentPath ? `${parentPath} / ${node.folder.name}` : node.folder.name;
       rows.push({
         kind: 'folder',
         id: node.folder.id,
         depth,
         folder: node.folder,
+        path,
         noteCount: node.noteCount,
         expanded,
       });
       if (!expanded) continue;
-      pushFolders(node.children, depth + 1);
+      pushFolders(node.children, depth + 1, path);
       for (const note of [...node.notes].sort(compareNotes)) pushNote(note, depth + 1);
     }
   };
