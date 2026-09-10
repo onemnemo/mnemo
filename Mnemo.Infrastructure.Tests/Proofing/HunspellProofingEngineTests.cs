@@ -129,17 +129,13 @@ public sealed class HunspellProofingEngineTests
     }
 
     [Fact]
-    public async Task AReadThatFailsIsReportedUntilARetrySucceeds()
+    public async Task AReadThatFailsStaysFailedWithoutRepeatedReads()
     {
-        // The first read fails the way a file locked by another process does; the next one reads
-        // the real files. The engine has to say so in between, and forget it afterwards.
         var attempts = 0;
-        var engine = new HunspellProofingEngine(new ProofingDictionaryCatalog(), new SilentLogger(), (dictionary, affix) =>
+        var engine = new HunspellProofingEngine(new ProofingDictionaryCatalog(), new SilentLogger(), (_, _) =>
         {
             attempts++;
-            if (attempts == 1)
-                throw new IOException("The file is in use by another process.");
-            return WordList.CreateFromFiles(dictionary, affix);
+            throw new IOException("The dictionary is corrupt.");
         });
 
         Assert.False(engine.HasFailed("en-US"));
@@ -148,10 +144,10 @@ public sealed class HunspellProofingEngineTests
         Assert.True(engine.HasFailed("en-US"));
         Assert.False(engine.IsReady("en-US"));
 
-        Assert.NotEmpty(await engine.CheckAsync("en-US", "jumpd", CancellationToken.None));
-        Assert.True(engine.IsReady("en-US"));
-        Assert.False(engine.HasFailed("en-US"));
-        Assert.Equal(2, attempts);
+        Assert.Empty(await engine.CheckAsync("en-US", "jumpd", CancellationToken.None));
+        Assert.False(engine.IsReady("en-US"));
+        Assert.True(engine.HasFailed("en-US"));
+        Assert.Equal(1, attempts);
     }
 
     [Fact]

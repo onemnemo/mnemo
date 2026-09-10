@@ -29,7 +29,7 @@ public interface IProofingEngine
     bool IsReady(string language);
 
     /// <summary>
-    /// Whether the last attempt to load this language failed and no later attempt has succeeded.
+    /// Whether the attempt to load this language failed.
     /// False while a first load is still in flight, for a language nobody has asked for, and for a
     /// language this engine does not serve. Never true together with <see cref="IsReady"/>.
     /// </summary>

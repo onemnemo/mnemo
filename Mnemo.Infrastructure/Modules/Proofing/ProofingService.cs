@@ -315,9 +315,8 @@ public sealed class ProofingService : IProofingService
         if (engines.Any(e => e.IsReady(entry.Id)))
             return ProofingLanguageState.Ready;
 
-        // A failed read counts over a read in flight: the retry this status call just started fails
-        // the same way until the files change, and a "loading" answer would have the client poll
-        // for a ready that never comes.
+        // A failed read is stable for this process. Calling it loading would make the client poll
+        // for a ready state that cannot arrive.
         if (engines.Any(e => e.HasFailed(entry.Id)))
             return ProofingLanguageState.Broken;
 
@@ -328,14 +327,14 @@ public sealed class ProofingService : IProofingService
     /// Asks every engine for this language to check nothing, which is how a word list starts being
     /// read without a request waiting on it. Without this the first status call after launch would
     /// report a language that nobody has touched as loading and it would stay that way until a check
-    /// arrived. A language whose last read failed is asked again the same way, which is the retry a
-    /// file locked for a moment needs; the failure stands in the status until a read succeeds.
+    /// arrived. A failed language is left alone so status polling cannot repeat the same disk read
+    /// and error log forever.
     /// </summary>
     private void StartLoading(string language)
     {
         foreach (var engine in _engines.EnginesFor(language))
         {
-            if (engine.IsReady(language))
+            if (engine.IsReady(language) || engine.HasFailed(language))
                 continue;
 
             _ = engine.CheckAsync(language, string.Empty, CancellationToken.None).AsTask();

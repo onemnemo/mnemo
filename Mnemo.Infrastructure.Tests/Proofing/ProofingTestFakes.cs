@@ -97,12 +97,15 @@ internal sealed class StubProofingEngine : IProofingEngine
     /// <summary>Blocks every check until set, standing in for a word list that is still being read.</summary>
     public TaskCompletionSource? Gate { get; set; }
 
+    public int CheckCount { get; private set; }
+
     public bool IsReady(string language) => Ready && !Unreadable.Contains(language);
 
     public bool HasFailed(string language) => Unreadable.Contains(language);
 
     public async ValueTask<IReadOnlyList<ProofingIssue>> CheckAsync(string language, string text, CancellationToken ct)
     {
+        CheckCount++;
         if (Gate is not null)
             await Gate.Task.WaitAsync(ct).ConfigureAwait(false);
 

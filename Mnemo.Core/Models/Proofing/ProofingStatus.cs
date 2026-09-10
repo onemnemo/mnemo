@@ -15,8 +15,8 @@ public static class ProofingLanguageState
     public const string Loading = "loading";
 
     /// <summary>
-    /// Installed, but the files could not be read. Stands until a later read succeeds, which the
-    /// next status request attempts, so a file that was locked for a moment recovers on its own.
+    /// Installed, but the files could not be read. Stands for the life of the process so status
+    /// polling does not keep reading the same broken files.
     /// </summary>
     public const string Broken = "broken";
 

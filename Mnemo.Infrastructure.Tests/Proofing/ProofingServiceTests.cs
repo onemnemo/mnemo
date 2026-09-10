@@ -394,6 +394,7 @@ public sealed class ProofingServiceTests
         var service = BuildWith(engine);
 
         var status = await service.GetStatusAsync(null, CancellationToken.None);
+        await service.GetStatusAsync(null, CancellationToken.None);
         var english = status.Languages.Single(l => l.Id == "en-US");
 
         // Broken rather than loading, or the client would poll for a ready that never comes; the
@@ -401,6 +402,7 @@ public sealed class ProofingServiceTests
         Assert.True(english.Installed);
         Assert.Equal(ProofingLanguageState.Broken, english.State);
         Assert.Equal(ProofingService.UnreadableReasonKey, english.ReasonKey);
+        Assert.Equal(0, engine.CheckCount);
     }
 
     [Fact]
