@@ -3,14 +3,14 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 c9608df8e1b261097f1942bbd2acec8b40dfaadfa6fc32f223bdca77b36b17f5
+sha256 5a3f5f8492f9e398f5ec34ad4381187b8fa691e7387e923d1320768659e1b499
 namespaces 39
-keys 2341
+keys 2398
   App 28
   Chat 132
   Common 103
   EmojiPicker 14
-  Errors 43
+  Errors 57
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
@@ -26,7 +26,7 @@ keys 2341
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 320
+  Settings 363
   Sidebar 14
   StudyGoals 14
   Topbar 28
@@ -47,14 +47,14 @@ keys 2341
   WidgetToday 9
 
 culture de
-sha256 b14294dbbeefbc06c5328f574698c34689d0d45f70eec66c6926f7c03a029b27
+sha256 9595ce6078c11a5de47d75673c3ed7d7f569710a5d9ebe3e609c696159053c2b
 namespaces 39
-keys 2341
+keys 2398
   App 28
   Chat 132
   Common 103
   EmojiPicker 14
-  Errors 43
+  Errors 57
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
@@ -70,7 +70,7 @@ keys 2341
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 320
+  Settings 363
   Sidebar 14
   StudyGoals 14
   Topbar 28
@@ -91,14 +91,14 @@ keys 2341
   WidgetToday 9
 
 culture es
-sha256 18daf9763ee1a68ca433a1fbee1aff87e5b3f665a7a746cf3b91b156ccb95f0d
+sha256 b14456208255b47773e53f55e8d53cc5457c14c0de8a3b4148c3f3b7f2a30794
 namespaces 39
-keys 2341
+keys 2398
   App 28
   Chat 132
   Common 103
   EmojiPicker 14
-  Errors 43
+  Errors 57
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
@@ -114,7 +114,7 @@ keys 2341
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 320
+  Settings 363
   Sidebar 14
   StudyGoals 14
   Topbar 28
@@ -135,14 +135,14 @@ keys 2341
   WidgetToday 9
 
 culture ja
-sha256 bcd6af425cb7d7b2589a9ff49699ab7edc1be5772f221c30ee62c5e7d1d76fc0
+sha256 70232b83c2ac1c20cf3b1d24268c05054f872b66fae7556199284077f9aad171
 namespaces 39
-keys 2341
+keys 2398
   App 28
   Chat 132
   Common 103
   EmojiPicker 14
-  Errors 43
+  Errors 57
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
@@ -158,7 +158,7 @@ keys 2341
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 320
+  Settings 363
   Sidebar 14
   StudyGoals 14
   Topbar 28
@@ -179,14 +179,14 @@ keys 2341
   WidgetToday 9
 
 culture nb
-sha256 6c1b1e37bdee8fd0e445f6eea919dfa6382469cd0b422746bb7be6b190cce08a
+sha256 3f6a79c5c9ddd2f78dd72af57947a5f7882857dc95c1e7b6cc5cecebe69e6f7b
 namespaces 39
-keys 2341
+keys 2398
   App 28
   Chat 132
   Common 103
   EmojiPicker 14
-  Errors 43
+  Errors 57
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
@@ -202,7 +202,7 @@ keys 2341
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 320
+  Settings 363
   Sidebar 14
   StudyGoals 14
   Topbar 28

@@ -54,6 +54,7 @@ import {
   FolderOpen,
   Frame,
   Hash,
+  HardDrive,
   Code,
   Highlighter,
   House,
@@ -219,6 +220,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
 
   // The settings rail, one page each.
   user: User,
+  "hard-drive": HardDrive,
   keyboard: Keyboard,
   download: Download,
   // The theme picker's "match system" card.

@@ -158,9 +158,13 @@ FUSE 2 packages.
 
 ## Backups
 
-Open **Settings > Support > Open data folder** to find the complete Mnemo data directory. Close
-Mnemo, then copy that directory somewhere safe. Restoring that copy restores the application as
-a whole.
+Open **Settings > Storage & data** to create one complete backup file containing your notes,
+flashcards, mind maps, conversations, settings, trash, and the images and files inside them. API
+keys stay on the device. Restore the file from the same page. Mnemo validates it before replacing
+anything and keeps a recovery copy of the previous data.
+
+For a manual backup, open **Settings > Support > Open data folder**, close Mnemo, then copy the
+complete data directory somewhere safe. Restoring that copy restores the application as a whole.
 
 A `.mnemo` export covers the notes, decks or maps selected for that export. It does not include
 the trash, Overview layout or all application settings. Items in the trash are permanently

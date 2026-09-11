@@ -30,6 +30,46 @@ export type DirtyProbe = () => boolean
 const participants = new Set<ShutdownParticipant>()
 const guards = new Set<ShutdownGuard>()
 const probes = new Set<DirtyProbe>()
+let allowControlledShutdown = false
+let controlledShutdownState: "idle" | "armed" | "started" = "idle"
+const controlledShutdownWaiters = new Set<(started: boolean) => void>()
+// The host schedules its close 150 ms after answering. This leaves room for the event without
+// turning a dead connection into a permanent loading state.
+const controlledShutdownSignalDeadlineMs = 1_000
+
+export function allowNextControlledShutdown(): void {
+  allowControlledShutdown = true
+  controlledShutdownState = "armed"
+}
+
+export function cancelControlledShutdown(): void {
+  allowControlledShutdown = false
+  controlledShutdownState = "idle"
+  settleControlledShutdownWaiters(false)
+}
+
+/** Waits briefly for the shutdown event that confirms an accepted restart request. */
+export function waitForControlledShutdownStart(): Promise<boolean> {
+  if (controlledShutdownState === "started") return Promise.resolve(true)
+  if (controlledShutdownState !== "armed") return Promise.resolve(false)
+
+  return new Promise((resolve) => {
+    const waiter = (started: boolean) => {
+      window.clearTimeout(timer)
+      resolve(started)
+    }
+    const timer = window.setTimeout(() => {
+      controlledShutdownWaiters.delete(waiter)
+      resolve(false)
+    }, controlledShutdownSignalDeadlineMs)
+    controlledShutdownWaiters.add(waiter)
+  })
+}
+
+function settleControlledShutdownWaiters(started: boolean): void {
+  for (const waiter of controlledShutdownWaiters) waiter(started)
+  controlledShutdownWaiters.clear()
+}
 
 /** Registers a participant. Returns the disposer; call it on unmount. */
 export function onShutdown(participant: ShutdownParticipant): () => void {
@@ -101,6 +141,12 @@ export async function runShutdown(): Promise<void> {
  * throws would otherwise be a window that cannot be closed.
  */
 export async function runShutdownGuards(): Promise<boolean> {
+  if (allowControlledShutdown) {
+    allowControlledShutdown = false
+    controlledShutdownState = "started"
+    settleControlledShutdownWaiters(true)
+    return true
+  }
   for (const guard of [...guards]) {
     try {
       if (!(await guard())) return false
@@ -196,4 +242,7 @@ export function resetShutdownForTests(): void {
   participants.clear()
   guards.clear()
   probes.clear()
+  allowControlledShutdown = false
+  controlledShutdownState = "idle"
+  settleControlledShutdownWaiters(false)
 }

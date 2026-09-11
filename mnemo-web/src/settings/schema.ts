@@ -15,7 +15,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
     id: "Profile",
     icon: "user",
     title: "Profile",
-    subtitle: "ProfileSubtitle",
+    subtitle: "AccountSubtitle",
     section: "you",
     groups: [
       {
@@ -494,6 +494,17 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
   },
 
   {
+    id: "Storage",
+    icon: "hard-drive",
+    title: "StorageCategoryTitle",
+    subtitle: "StorageSubtitle",
+    keywords: ["backup", "restore", "export", "data", "folder", "portable"],
+    section: "advanced",
+    page: "storage",
+    groups: [],
+  },
+
+  {
     id: "Trash",
     icon: "trash-2",
     title: "TrashCategoryTitle",
@@ -558,14 +569,6 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             description: "LogFolderDescription",
             buttonLabel: "OpenFolder",
             action: "open-log-folder",
-          },
-          {
-            kind: "action",
-            id: "data-folder",
-            title: "DataFolder",
-            description: "DataFolderDescription",
-            buttonLabel: "OpenFolder",
-            action: "open-data-folder",
           },
           {
             kind: "action",

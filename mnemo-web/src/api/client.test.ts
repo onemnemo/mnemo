@@ -8,7 +8,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { ApiError, apiFetch, apiFetchExpecting } from "./client"
+import { ApiError, apiFetch, apiFetchExpecting, apiFetchOptional } from "./client"
 
 function respondWith(status: number, body: unknown): void {
   vi.stubGlobal(
@@ -79,5 +79,19 @@ describe("apiFetch", () => {
     respondWith(200, {})
     await apiFetch("/notes")
     expect(new Headers(lastRequest().init.headers).get("Authorization")).toBe("Bearer tok")
+  })
+})
+
+describe("apiFetchOptional", () => {
+  it("returns null for a successful empty response", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))))
+
+    await expect(apiFetchOptional("/backups/restore-status")).resolves.toBeNull()
+  })
+
+  it("parses a successful response that has a body", async () => {
+    respondWith(200, { success: true })
+
+    await expect(apiFetchOptional("/backups/restore-status")).resolves.toEqual({ success: true })
   })
 })

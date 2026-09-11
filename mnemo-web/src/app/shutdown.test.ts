@@ -9,6 +9,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  allowNextControlledShutdown,
+  cancelControlledShutdown,
   completeShutdown,
   isAnythingDirty,
   onDirtyCheck,
@@ -17,6 +19,7 @@ import {
   resetShutdownForTests,
   runShutdown,
   runShutdownGuards,
+  waitForControlledShutdownStart,
 } from "./shutdown"
 
 /** The endpoint each POST went to, in order. */
@@ -112,6 +115,46 @@ describe("runShutdown", () => {
 })
 
 describe("runShutdownGuards", () => {
+  it("allows one confirmed controlled restart without raising registered guards", async () => {
+    const guard = vi.fn(() => Promise.resolve(false))
+    onShutdownGuard(guard)
+    allowNextControlledShutdown()
+
+    await expect(runShutdownGuards()).resolves.toBe(true)
+    expect(guard).not.toHaveBeenCalled()
+    await expect(runShutdownGuards()).resolves.toBe(false)
+    expect(guard).toHaveBeenCalledOnce()
+  })
+
+  it("restores normal guarding when a controlled restart request fails", async () => {
+    const guard = vi.fn(() => Promise.resolve(false))
+    onShutdownGuard(guard)
+    allowNextControlledShutdown()
+    cancelControlledShutdown()
+
+    await expect(runShutdownGuards()).resolves.toBe(false)
+    expect(guard).toHaveBeenCalledOnce()
+  })
+
+  it("reports when an armed controlled shutdown actually starts", async () => {
+    allowNextControlledShutdown()
+    const started = waitForControlledShutdownStart()
+
+    await runShutdownGuards()
+
+    await expect(started).resolves.toBe(true)
+  })
+
+  it("stops waiting when no controlled shutdown event arrives", async () => {
+    vi.useFakeTimers()
+    allowNextControlledShutdown()
+    const started = waitForControlledShutdownStart()
+
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    await expect(started).resolves.toBe(false)
+  })
+
   it("stops at the first objection", async () => {
     const later = vi.fn(() => Promise.resolve(true))
     onShutdownGuard(() => Promise.resolve(false))

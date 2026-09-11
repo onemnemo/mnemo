@@ -106,6 +106,21 @@ export async function apiSend(path: string, init?: RequestInit): Promise<void> {
   }
 }
 
+/** Parses a successful JSON response, or returns null for a successful 204 response. */
+export async function apiFetchOptional<T>(path: string, init?: RequestInit): Promise<T | null> {
+  const headers = new Headers(init?.headers)
+  headers.set("Accept", "application/json")
+
+  const response = await send(path, { ...init, headers })
+  if (!response.ok) {
+    await fail(response)
+  }
+  if (response.status === 204) return null
+
+  const data: unknown = await response.json()
+  return data as T
+}
+
 /**
  * Like {@link apiFetch}, but hands back the parsed body for statuses the caller
  * names instead of throwing on them.
