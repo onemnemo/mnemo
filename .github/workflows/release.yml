@@ -155,10 +155,9 @@ jobs:
         working-directory: mnemo-web
         run: npm run build
 
-      # The notes are the CHANGELOG section named for this tag, and Velopack shows them in
-      # the update prompt, so an empty notes file is a version that tells the person nothing
-      # about what they are about to install. A prerelease usually has no curated section,
-      # hence the fallback rather than a failure.
+      # The notes are the CHANGELOG section named for this tag. Release candidates can reuse
+      # the matching finished release section so the rehearsal exercises the real copy.
+      # Nightlies keep the short fallback unless they have a section of their own.
       - name: Collect the release notes
         shell: bash
         env:
@@ -167,11 +166,23 @@ jobs:
           set -euo pipefail
           mkdir -p build
           notes=build/release-notes.md
-          awk -v heading="## $SEMVER" '
-            $0 == heading { found = 1; next }
-            found && /^## / { exit }
-            found { print }
-          ' CHANGELOG.md > "$notes"
+          collect_notes() {
+            awk -v heading="## $1" '
+              $0 == heading { found = 1; next }
+              found && /^## / { exit }
+              found { print }
+            ' CHANGELOG.md > "$notes"
+          }
+
+          collect_notes "$SEMVER"
+          case "$SEMVER" in
+            *-alpha.*|*-beta.*|*-rc.*)
+              if [ ! -s "$notes" ]; then
+                collect_notes "${SEMVER%%-*}"
+              fi
+              ;;
+          esac
+
           if [ ! -s "$notes" ]; then
             printf 'Mnemo %s\n' "$SEMVER" > "$notes"
           fi

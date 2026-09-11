@@ -138,7 +138,7 @@ Transitive dependencies are not enumerated individually here; see "What this doe
 cover" below.
 
   MIT License
-    @tailwindcss/vite, @tanstack/react-query, @xyflow/react, clsx, emojilib, katex,
+    @tailwindcss/vite, @tanstack/react-query, clsx, emojilib, katex,
     prosemirror-commands, prosemirror-history, prosemirror-keymap, prosemirror-model,
     prosemirror-state, prosemirror-view, radix-ui, react, react-dom, react-markdown,
     remark-gfm, remark-math, remark-parse, tailwind-merge, tailwindcss,
@@ -164,9 +164,10 @@ BACKEND (.NET) NUGET DEPENDENCIES
 
 Direct PackageReferences across Mnemo.Core, Mnemo.Infrastructure and Mnemo.Host, the
 assemblies that ship in a built app. Test-project-only packages
-(coverlet.collector, Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) are
-omitted; they never leave the test binaries. Transitive package dependencies are not
-enumerated individually here; see "What this does not cover" below.
+(coverlet.collector, Microsoft.AspNetCore.TestHost, Microsoft.NET.Test.Sdk, xunit,
+xunit.runner.visualstudio) are omitted; they never leave the test binaries. Transitive
+package dependencies are not enumerated individually here; see "What this does not
+cover" below.
 
   MIT License
     CommunityToolkit.Mvvm, Microsoft.Data.Sqlite, Microsoft.Extensions.DependencyInjection,
@@ -179,7 +180,11 @@ enumerated individually here; see "What this does not cover" below.
     transitively; do not reference it directly, see Mnemo.Host.csproj)
 
   BSD 2-Clause License
-    Markdig
+    Markdig 0.37.0
+    Source:    https://github.com/xoofx/markdig
+    Copyright: Copyright (c) 2018-2019, Alexandre Mutel
+    License:   BSD 2-Clause License. The full copyright notice and license text
+               ship at LICENSES/BSD-2-Clause.txt.
 
   MPL-1.1 / GPL-2.0 / LGPL-2.1 (tri-licensed, choose one)
     WeCantSpell.Hunspell 7.0.1. The package is a C# port of the original Hunspell
