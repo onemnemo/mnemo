@@ -24,7 +24,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
         rows: [
           {
             kind: "custom",
-            id: "profile-picture-gallery",
+            id: "profile-picture",
             title: "ProfilePicture",
             description: "ProfilePictureDescription",
           },
@@ -32,8 +32,13 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             kind: "text",
             key: "User.DisplayName",
             title: "DisplayName",
-            description: "DisplayNameDescription",
             defaultValue: "John Doe",
+          },
+          {
+            kind: "custom",
+            id: "profile-colour",
+            title: "ProfileColour",
+            description: "ProfileColourDescription",
           },
         ],
       },

@@ -52,6 +52,7 @@ public static class SettingsKeyRegistry
     [
         new("User.DisplayName", SettingValueKind.Text),
         new("User.ProfilePicture", SettingValueKind.Text),
+        new("User.ProfileColour", SettingValueKind.Text),
 
         new("App.LaunchAtStartup", SettingValueKind.Boolean),
         // Which route a launch lands on: a route key, or "last" to resume where the

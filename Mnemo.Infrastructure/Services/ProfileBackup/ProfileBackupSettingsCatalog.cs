@@ -19,6 +19,7 @@ internal static class ProfileBackupSettingsCatalog
         {
             ["User.DisplayName"] = ProfileSettingClassification.Portable,
             ["User.ProfilePicture"] = ProfileSettingClassification.Portable,
+            ["User.ProfileColour"] = ProfileSettingClassification.Portable,
             ["App.Language"] = ProfileSettingClassification.Portable,
             ["Appearance.Theme"] = ProfileSettingClassification.Portable,
             ["App.OpenTo"] = ProfileSettingClassification.Portable,

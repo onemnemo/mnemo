@@ -4,12 +4,13 @@ import { APP_ICONS, DEFAULT_APP_ICON, appIconName } from "../assets"
 import { rowDescription, rowTitle } from "../labels"
 import type { CustomRow as CustomRowSchema } from "../types"
 import { AboutIdentityRow } from "./custom/AboutIdentityRow"
-import { AvatarPicker } from "./custom/AvatarPicker"
 import { CheckForUpdatesRow } from "./custom/CheckForUpdatesRow"
 import { ClearChatHistoryRow } from "./custom/ClearChatHistoryRow"
 import { ImageGalleryRow } from "./custom/ImageGalleryRow"
 import { LanguageRow } from "./custom/LanguageRow"
 import { ModelPickerRow } from "./custom/ModelPickerRow"
+import { ProfileColourRow } from "./custom/ProfileColourRow"
+import { ProfilePictureRow } from "./custom/ProfilePictureRow"
 import { ReduceMotionRow } from "./custom/ReduceMotionRow"
 import { ReleaseChannelRow } from "./custom/ReleaseChannelRow"
 import { TestConnectionRow } from "./custom/TestConnectionRow"
@@ -48,8 +49,11 @@ export function CustomRow({ row, divider }: { row: CustomRowSchema; divider: boo
         />
       )
 
-    case "profile-picture-gallery":
-      return <AvatarPicker {...shared} />
+    case "profile-picture":
+      return <ProfilePictureRow {...shared} />
+
+    case "profile-colour":
+      return <ProfileColourRow {...shared} />
 
     case "assistant-model":
       return <ModelPickerRow {...shared} settingKey="AI.OpenRouter.AssistantModel" />

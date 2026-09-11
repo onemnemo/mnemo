@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 5a3f5f8492f9e398f5ec34ad4381187b8fa691e7387e923d1320768659e1b499
+sha256 87c26b6c05567cae62997ce2175b4994d9c28ad65d4c9e77dc1387cdb9fd0012
 namespaces 39
-keys 2398
+keys 2401
   App 28
   Chat 132
   Common 103
@@ -21,12 +21,12 @@ keys 2398
   Mindmap 335
   Notes 223
   NotesEditor 213
-  Onboarding 55
+  Onboarding 51
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 363
+  Settings 370
   Sidebar 14
   StudyGoals 14
   Topbar 28
@@ -47,9 +47,9 @@ keys 2398
   WidgetToday 9
 
 culture de
-sha256 9595ce6078c11a5de47d75673c3ed7d7f569710a5d9ebe3e609c696159053c2b
+sha256 1dd7964354dbc77c52f698247852e594cec19a1a1ed6ad692287e0a76e6c3515
 namespaces 39
-keys 2398
+keys 2401
   App 28
   Chat 132
   Common 103
@@ -65,12 +65,12 @@ keys 2398
   Mindmap 335
   Notes 223
   NotesEditor 213
-  Onboarding 55
+  Onboarding 51
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 363
+  Settings 370
   Sidebar 14
   StudyGoals 14
   Topbar 28
@@ -91,9 +91,9 @@ keys 2398
   WidgetToday 9
 
 culture es
-sha256 b14456208255b47773e53f55e8d53cc5457c14c0de8a3b4148c3f3b7f2a30794
+sha256 21317c1634ed17c08fa6b518962fce958b20a734ed2f2b736e65388dc68e30bc
 namespaces 39
-keys 2398
+keys 2401
   App 28
   Chat 132
   Common 103
@@ -109,12 +109,12 @@ keys 2398
   Mindmap 335
   Notes 223
   NotesEditor 213
-  Onboarding 55
+  Onboarding 51
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 363
+  Settings 370
   Sidebar 14
   StudyGoals 14
   Topbar 28
@@ -135,9 +135,9 @@ keys 2398
   WidgetToday 9
 
 culture ja
-sha256 70232b83c2ac1c20cf3b1d24268c05054f872b66fae7556199284077f9aad171
+sha256 677449566f586b5790e8daaad0532814c6f56e9449d76a07c54df9c932043162
 namespaces 39
-keys 2398
+keys 2401
   App 28
   Chat 132
   Common 103
@@ -153,12 +153,12 @@ keys 2398
   Mindmap 335
   Notes 223
   NotesEditor 213
-  Onboarding 55
+  Onboarding 51
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 363
+  Settings 370
   Sidebar 14
   StudyGoals 14
   Topbar 28
@@ -179,9 +179,9 @@ keys 2398
   WidgetToday 9
 
 culture nb
-sha256 3f6a79c5c9ddd2f78dd72af57947a5f7882857dc95c1e7b6cc5cecebe69e6f7b
+sha256 3229825fe58d89994c48e15b556d85ec816ea1d43b954a5304e86307f7ee1bec
 namespaces 39
-keys 2398
+keys 2401
   App 28
   Chat 132
   Common 103
@@ -197,12 +197,12 @@ keys 2398
   Mindmap 335
   Notes 223
   NotesEditor 213
-  Onboarding 55
+  Onboarding 51
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 363
+  Settings 370
   Sidebar 14
   StudyGoals 14
   Topbar 28

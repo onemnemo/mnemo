@@ -97,6 +97,19 @@
      260 at very low chroma is the near-neutral grey the design settled on. */
   --neutral-hue: 260;
   --neutral-chroma: 0.0015;
+
+  /* Profile colours are identity, not theme chrome. They stay fixed across themes so
+     choosing green continues to mean the same green after the theme changes. */
+  --profile-clay: oklch(0.85 0.075 45);
+  --profile-clay-ink: oklch(0.36 0.09 40);
+  --profile-sand: oklch(0.88 0.075 85);
+  --profile-sand-ink: oklch(0.36 0.07 75);
+  --profile-moss: oklch(0.85 0.07 150);
+  --profile-moss-ink: oklch(0.34 0.07 155);
+  --profile-sky: oklch(0.85 0.06 235);
+  --profile-sky-ink: oklch(0.35 0.08 245);
+  --profile-iris: oklch(0.85 0.07 300);
+  --profile-iris-ink: oklch(0.36 0.09 300);
 }
 
 /* ---- Motion ----

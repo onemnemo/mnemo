@@ -21,6 +21,8 @@ public sealed class SettingsToolService
     /// <summary>Must stay aligned with <c>Mnemo.UI.Services.ThemeService</c> bundled themes.</summary>
     private static readonly string[] ThemeIds = ["Dawn", "Noon", "Dusk", "Ember", "Glass"];
 
+    private static readonly string[] ProfileColourIds = ["default", "clay", "sand", "moss", "sky", "iris"];
+
     /// <summary>Human-friendly keys models often use; values are catalog keys used for storage.</summary>
     private static readonly IReadOnlyDictionary<string, string> KeyAliases =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -43,6 +45,12 @@ public sealed class SettingsToolService
         ["App.Icon"] = new("App", false, string.Empty, v => v?.ToString() ?? string.Empty),
         ["User.DisplayName"] = new("User", true, "John Doe", v => v?.ToString() ?? "John Doe"),
         ["User.ProfilePicture"] = new("User", false, string.Empty, v => v?.ToString() ?? string.Empty),
+        ["User.ProfileColour"] = new(
+            "User",
+            true,
+            "default",
+            v => CoerceChoice(v, "Profile colour", ProfileColourIds),
+            ProfileColourIds),
         ["Editor.AutoSave"] = new("Editor", true, true, CoerceBool),
         ["Editor.Width"] = new("Editor", true, "Wide", v => v?.ToString() ?? "Wide"),
         // The master switch; the aliases above route the plain words here.
@@ -228,22 +236,27 @@ public sealed class SettingsToolService
 
     private static object CoerceTheme(object? v)
     {
+        return CoerceChoice(v, "Theme", ThemeIds);
+    }
+
+    private static object CoerceChoice(object? v, string name, IReadOnlyList<string> allowedValues)
+    {
         var s = (v switch
         {
-            null => throw new InvalidOperationException("Expected theme name string."),
+            null => throw new InvalidOperationException($"Expected {name.ToLowerInvariant()} name string."),
             JsonElement je when je.ValueKind == JsonValueKind.String => je.GetString() ?? string.Empty,
             _ => v!.ToString() ?? string.Empty
         }).Trim();
 
         if (string.IsNullOrEmpty(s))
-            throw new InvalidOperationException("Theme name is required.");
+            throw new InvalidOperationException($"{name} name is required.");
 
-        foreach (var id in ThemeIds)
+        foreach (var id in allowedValues)
         {
             if (string.Equals(s, id, StringComparison.OrdinalIgnoreCase))
                 return id;
         }
 
-        throw new InvalidOperationException($"Theme must be one of: {string.Join(", ", ThemeIds)}.");
+        throw new InvalidOperationException($"{name} must be one of: {string.Join(", ", allowedValues)}.");
     }
 }
