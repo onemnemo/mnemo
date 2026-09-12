@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest"
 import { mergedEnglishBundle, readRepoText, resolves } from "@/i18n/test-bundle"
 
 const PAGE = readRepoText("mnemo-web", "src", "settings", "components", "pages", "StorageDataPage.tsx")
+const BACKUP = readRepoText("mnemo-web", "src", "settings", "backup-export.ts")
 const SCHEMA = readRepoText("mnemo-web", "src", "settings", "schema.ts")
 
-const DIRECT_KEYS = [...PAGE.matchAll(/t\("(Settings|Common|Errors)", "([A-Za-z0-9_.]+)"/g)].map(
+const DIRECT_KEYS = [...`${PAGE}\n${BACKUP}`.matchAll(/t\("(Settings|Common|Errors)", "([A-Za-z0-9_.]+)"/g)].map(
   (match) => [match[1], match[2]] as const,
 )
 

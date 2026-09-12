@@ -76,6 +76,14 @@ vi.mock("../../backup-api", () => ({
 }))
 vi.mock("../../folders", () => ({ openHostFolder: mocks.openHostFolder }))
 
+// The real command, wrapped so a test can see that the page reaches it rather than a copy.
+const shared = vi.hoisted(() => ({ createProfileBackup: vi.fn() }))
+vi.mock("../../backup-export", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../backup-export")>()
+  shared.createProfileBackup.mockImplementation(actual.createProfileBackup)
+  return { ...actual, createProfileBackup: shared.createProfileBackup }
+})
+
 import { StorageDataPage } from "./StorageDataPage"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -148,6 +156,7 @@ describe("StorageDataPage", () => {
     await renderPage()
     await press("BackUp")
 
+    expect(shared.createProfileBackup).toHaveBeenCalledOnce()
     expect(mocks.saveServerExport).toHaveBeenCalledWith(expect.any(Object), expect.any(Function), chosenTarget)
     expect(mocks.progress).toHaveBeenCalledWith("BackingUp", {
       description: expect.stringMatching(/^BackupFileName\.mnemo-backup$/),

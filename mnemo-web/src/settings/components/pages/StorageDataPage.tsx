@@ -3,12 +3,6 @@ import { useEffect, useState } from "react"
 import { ApiError } from "@/api/client"
 import { describeError } from "@/api/error-copy"
 import {
-  announceExport,
-  chooseExportTarget,
-  exportSaveOptions,
-  saveServerExport,
-} from "@/api/export-file"
-import {
   allowNextControlledShutdown,
   cancelControlledShutdown,
   waitForControlledShutdownStart,
@@ -27,12 +21,12 @@ import {
   getBackupRestoreState,
   type BackupInspection,
   type RestoreStatus,
-  requestBackupExport,
   restartForBackupRestore,
   selectBackup,
   stageBackupRestore,
 } from "../../backup-api"
 import { openHostFolder } from "../../folders"
+import { useProfileBackup } from "../../useProfileBackup"
 import { Row, Section } from "../kit"
 
 function announceRestoreOutcome(t: TranslateFn, status: RestoreStatus): void {
@@ -66,8 +60,10 @@ function announceRestoreOutcome(t: TranslateFn, status: RestoreStatus): void {
 export function StorageDataPage() {
   const t = useT()
   const language = useI18nStore((state) => state.language)
-  const [busy, setBusy] = useState<"backup" | "select" | "restore" | null>(null)
+  const backup = useProfileBackup()
+  const [busy, setBusy] = useState<"select" | "restore" | null>(null)
   const [selection, setSelection] = useState<{ grant: string; inspection: BackupInspection } | null>(null)
+  const working = backup.busy || busy !== null
 
   useEffect(() => {
     void consumeRestoreStatus().then((status) => {
@@ -77,38 +73,6 @@ export function StorageDataPage() {
       console.error("[backup] could not read the restore outcome", error)
     })
   }, [t])
-
-  async function createBackup() {
-    setBusy("backup")
-    let progressToastId: string | null = null
-    try {
-      const request = {
-        fileName: `${t("Settings", "BackupFileName", { date: new Date().toISOString().slice(0, 10) })}.mnemo-backup`,
-        ...exportSaveOptions((key) => t("Common", key)),
-      }
-      const target = await chooseExportTarget(request)
-      if (target.status === "declined") return
-      progressToastId = toast.progress(t("Settings", "BackingUp"), {
-        description: request.fileName,
-      })
-      const outcome = await saveServerExport(request, (grant) => requestBackupExport(grant), target)
-      announceExport(
-        outcome,
-        {
-          title: t("Settings", "BackupComplete"),
-          downloaded: t("Common", "TransferExportFinished"),
-        },
-        progressToastId,
-      )
-    } catch (error) {
-      const title = t("Settings", "BackupFailed")
-      const description = describeError(t, error)
-      if (progressToastId) toast.update(progressToastId, { type: "warning", title, description })
-      else toast.warning(title, { description })
-    } finally {
-      setBusy(null)
-    }
-  }
 
   async function chooseBackup() {
     setBusy("select")
@@ -197,25 +161,25 @@ export function StorageDataPage() {
           <Button
             variant="outline"
             size="sm"
-            disabled={busy !== null}
+            disabled={working}
             icon={
               <AppIcon
-                name={busy === "backup" ? "loader-circle" : "download"}
+                name={backup.busy ? "loader-circle" : "download"}
                 size={13}
                 strokeWidth={1.7}
-                className={busy === "backup" ? "animate-spin" : undefined}
+                className={backup.busy ? "animate-spin" : undefined}
               />
             }
-            onClick={() => void createBackup()}
+            onClick={backup.start}
           >
-            {t("Settings", busy === "backup" ? "BackingUp" : "BackUp")}
+            {backup.label}
           </Button>
         </Row>
         <Row label={t("Settings", "RestoreBackup")} description={t("Settings", "RestoreBackupDescription")}>
           <Button
             variant="outline"
             size="sm"
-            disabled={busy !== null}
+            disabled={working}
             icon={
               <AppIcon
                 name={busy === "select" ? "loader-circle" : "rotate-ccw"}
