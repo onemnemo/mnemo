@@ -190,6 +190,32 @@ function blockFromPos(view: EditorView, registry: BlockRegistry, pos: number): A
   };
 }
 
+/**
+ * The block a record names, against the live document. A position is only
+ * meaningful against the document it was read from, and a block with no view of
+ * its own has its element rebuilt outright when an attr changes, so once the
+ * document has moved on the block is re-found by the one thing that survives, its
+ * sid. Null when it is gone.
+ */
+function liveBlock(view: EditorView, registry: BlockRegistry, block: ActiveBlock): ActiveBlock | null {
+  if (block.doc === view.state.doc) return block;
+  const found = locateBlock(view.state, registry, block.pos, String(block.node.attrs.sid ?? ''));
+  return found ? blockFromPos(view, registry, found.pos) : null;
+}
+
+/** The drag's record of a block: its top-level index when it has one, its position, identity and name. */
+function handleFor(
+  block: Pick<ActiveBlock, 'pos' | 'node' | 'depth' | 'topIndex'>,
+  t: ReturnType<typeof useT>,
+): BlockDragHandle {
+  return {
+    index: block.depth === 1 ? block.topIndex : null,
+    pos: block.pos,
+    sid: String(block.node.attrs.sid ?? ''),
+    label: blockLabel(block.node, t),
+  };
+}
+
 /** Where the row beside a block is drawn, from the measurements the record already holds. */
 function rowOf(active: ActiveBlock): ChromeRow {
   return chromeRowGeometry({
@@ -274,16 +300,12 @@ export function BlockGutter({
     if (dragging) return;
     // While a layer of ours is open the handle stays on its block; otherwise hover
     // wins over the caret. Re-read the chosen block's rect so a scroll keeps the
-    // handle pinned to it, but keep pos/node without another lookup - unless the
-    // document changed under the snapshot (a menu command, an attr write, an
-    // invariant repair). Then neither half of the snapshot can be trusted: a
-    // position is only meaningful against the doc it was read from, and a block
-    // with no view of its own has its element rebuilt outright when an attr
-    // changes, so the block is re-found by the one thing that survives, its sid.
+    // handle pinned to it, but keep pos/node without another lookup unless the
+    // document changed under the snapshot (a menu command, a drop, an attr
+    // write, an invariant repair).
     let chosen = pinned ? activeRef.current : (hoveredRef.current ?? caretRef.current);
     if (chosen && chosen.doc !== view.state.doc) {
-      const found = locateBlock(view.state, registry, chosen.pos, String(chosen.node.attrs.sid ?? ''));
-      chosen = found ? blockFromPos(view, registry, found.pos) : null;
+      chosen = liveBlock(view, registry, chosen);
       if (pinned) activeRef.current = chosen;
       else if (hoveredRef.current) hoveredRef.current = chosen;
       else caretRef.current = chosen;
@@ -412,6 +434,13 @@ export function BlockGutter({
     if (dragging) drag.placeGhost();
   });
 
+  // A drop moves the document under the row. Once the drag is over the block is
+  // re-found, so the row and the next press follow it to where it landed rather
+  // than staying at the slot it left.
+  useEffect(() => {
+    if (!dragging) refresh();
+  }, [dragging, refresh]);
+
   // A scroll or resize moves the block under a shown handle; re-measure it.
   useEffect(() => {
     const onGeometry = () => refresh();
@@ -495,26 +524,13 @@ export function BlockGutter({
   const pressFromBlock = useCallback((event: DragPress, pos: number) => {
     const { view: liveView, registry: liveRegistry, t: translate, press } = latest.current;
     const located = deepestBlockAt(liveView.state.doc, liveRegistry, pos);
-    if (!located) return;
-    press(event, {
-      index: located.depth === 1 ? located.topIndex : null,
-      pos: located.pos,
-      sid: String(located.node.attrs.sid ?? ''),
-      label: blockLabel(located.node, translate),
-    });
+    if (located) press(event, handleFor(located, translate));
   }, []);
 
   useEffect(() => registerBlockDragPress(view, pressFromBlock), [view, pressFromBlock]);
 
   const handleBlock = active;
-  const handle: BlockDragHandle | null = handleBlock
-    ? {
-        index: handleBlock.depth === 1 ? handleBlock.topIndex : null,
-        pos: handleBlock.pos,
-        sid: String(handleBlock.node.attrs.sid),
-        label: blockLabel(handleBlock.node, t),
-      }
-    : null;
+  const handle: BlockDragHandle | null = handleBlock ? handleFor(handleBlock, t) : null;
 
   // Sibling context for the menu's disabled states; commands re-locate fresh.
   const menuLocation =
@@ -650,7 +666,12 @@ export function BlockGutter({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         className={cn(CHROME_BUTTON, 'cursor-grab active:cursor-grabbing')}
-        onPointerDown={(event) => drag.press(event, handle)}
+        onPointerDown={(event) => {
+          // The row's record can predate an edit made while the pointer stayed on
+          // the block, and the drag holds it to its position, so it is re-found.
+          const fresh = liveBlock(view, registry, handleBlock);
+          if (fresh) drag.press(event, handleFor(fresh, t));
+        }}
         onClick={(event) => {
           // Swallow the click that tails a drag; a real click acts.
           if (drag.suppressClick(handle.sid)) {

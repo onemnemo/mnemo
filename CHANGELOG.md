@@ -21,6 +21,7 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 ### Added
 
 - **Notes.** The note editor is now organized into blocks such as paragraphs, headings, lists, quotes and dividers. You can create them with markdown style shortcuts as you type, convert one type into another, drag them to reorder using each block's own handle, and undo or redo any change.
+- **Notes.** Blocks can be dragged into a two column layout: drop one into either column, move it between the columns or reorder it within one, and drag it back out onto the page.
 - **Notes.** Added block level selection: drag in the note's margin to select a run of blocks, or press Ctrl+A to select the current block and press it again to select the whole note. A selection can be dragged to reorder it, and dragging selected text moves it across blocks, including inside a two column layout.
 - **Notes.** Added a slash menu: type a slash to insert a block such as a heading, list, table, image, equation, callout or two column layout, with icons and descriptions to help you find the right one. It only opens for a slash you just typed, and is reachable from the keyboard.
 - **Notes.** Added a floating formatting toolbar that appears near a text selection, for bold, italic, links, inline code, and text or highlight colour, with a redesigned colour picker. It is fully reachable from the keyboard, including its link and inline code buttons.

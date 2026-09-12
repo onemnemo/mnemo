@@ -5,7 +5,7 @@ import type { EditorState } from 'prosemirror-state';
 import { buildNoteEditState } from '../../edit/build-edit-state';
 import { block, span } from '../mapper/fixtures';
 import { undo } from '../history';
-import { extractBlockTransaction, moveBlockTransaction } from './block-move';
+import { extractBlockTransaction, moveBlockIntoCellTransaction, moveBlockTransaction } from './block-move';
 
 type Blocks = Parameters<typeof buildNoteEditState>[0];
 
@@ -156,5 +156,120 @@ describe('extractBlockTransaction', () => {
     expect(extractBlockTransaction(state, target.pos, 'not-the-sid', 0)).toBeNull();
     expect(extractBlockTransaction(state, 0, String(state.doc.child(0).attrs.sid), 1)).toBeNull();
     expect(extractBlockTransaction(state, target.pos, target.sid, 5)).toBeNull();
+  });
+});
+
+/** Position and sid of the left (0) or right (1) cell of the first two-column, at any depth. */
+function findCell(state: EditorState, side: 0 | 1): { pos: number; sid: string } {
+  let found: { pos: number; sid: string } | null = null;
+  state.doc.descendants((node, pos) => {
+    if (found || node.type.name !== 'twoColumn') return !found;
+    const cell = node.child(side + 1);
+    let cellPos = pos + 1 + node.child(0).nodeSize;
+    if (side === 1) cellPos += node.child(1).nodeSize;
+    found = { pos: cellPos, sid: String(cell.attrs.sid) };
+    return false;
+  });
+  if (!found) throw new Error('no two-column');
+  return found;
+}
+
+/** The texts of each cell's block children in the first two-column, left then right. */
+function cellTexts(state: EditorState): string[][] {
+  let found: string[][] | null = null;
+  state.doc.descendants((node) => {
+    if (found || node.type.name !== 'twoColumn') return !found;
+    found = [node.child(1), node.child(2)].map((cell) => {
+      const texts: string[] = [];
+      cell.forEach((child, _offset, index) => {
+        if (index > 0) texts.push(child.textContent);
+      });
+      return texts;
+    });
+    return false;
+  });
+  if (!found) throw new Error('no two-column');
+  return found;
+}
+
+describe('moveBlockIntoCellTransaction', () => {
+  it('moves a top-level block into a cell at the chosen slot, sid intact', () => {
+    const state = columnDoc();
+    const one = findParagraph(state, 'one');
+    const right = findCell(state, 1);
+    const tr = moveBlockIntoCellTransaction(state, one.pos, one.sid, right.pos, right.sid, 0);
+    expect(tr).not.toBeNull();
+    const next = state.apply(tr!);
+    expect(order(next).length).toBe(1);
+    expect(cellTexts(next)).toEqual([['a', 'b'], ['one', 'c']]);
+    expect(findParagraph(next, 'one').sid).toBe(one.sid);
+  });
+
+  it('moves a block from one cell to the other', () => {
+    const state = columnDoc();
+    const a = findParagraph(state, 'a');
+    const right = findCell(state, 1);
+    const next = state.apply(moveBlockIntoCellTransaction(state, a.pos, a.sid, right.pos, right.sid, 1)!);
+    expect(cellTexts(next)).toEqual([['b'], ['c', 'a']]);
+  });
+
+  it('reorders within a cell, with the slot counted after the block leaves', () => {
+    const state = columnDoc();
+    const a = findParagraph(state, 'a');
+    const left = findCell(state, 0);
+    const next = state.apply(moveBlockIntoCellTransaction(state, a.pos, a.sid, left.pos, left.sid, 1)!);
+    expect(cellTexts(next)).toEqual([['b', 'a'], ['c']]);
+  });
+
+  it('reseeds a cell it empties through the column-repair invariant, in the same step', () => {
+    const state = columnDoc();
+    const c = findParagraph(state, 'c');
+    const left = findCell(state, 0);
+    const moved = state.apply(moveBlockIntoCellTransaction(state, c.pos, c.sid, left.pos, left.sid, 2)!);
+    expect(cellTexts(moved)).toEqual([['a', 'b', 'c'], ['']]);
+
+    let restored = moved;
+    undo(moved, (tr) => {
+      restored = moved.apply(tr);
+    });
+    expect(cellTexts(restored)).toEqual([['a', 'b'], ['c']]);
+  });
+
+  it('is one undo step for a block leaving the page', () => {
+    const state = columnDoc();
+    const one = findParagraph(state, 'one');
+    const left = findCell(state, 0);
+    const moved = state.apply(moveBlockIntoCellTransaction(state, one.pos, one.sid, left.pos, left.sid, 2)!);
+    expect(order(moved).length).toBe(1);
+
+    let restored = moved;
+    undo(moved, (tr) => {
+      restored = moved.apply(tr);
+    });
+    expect(order(restored)).toEqual(['one', 'abc']);
+    expect(cellTexts(restored)).toEqual([['a', 'b'], ['c']]);
+  });
+
+  it('refuses a stale block, a stale cell, an out-of-range slot and the block\'s own slot', () => {
+    const state = columnDoc();
+    const a = findParagraph(state, 'a');
+    const b = findParagraph(state, 'b');
+    const left = findCell(state, 0);
+    const right = findCell(state, 1);
+    expect(moveBlockIntoCellTransaction(state, a.pos, b.sid, right.pos, right.sid, 0)).toBeNull();
+    expect(moveBlockIntoCellTransaction(state, a.pos, a.sid, right.pos, left.sid, 0)).toBeNull();
+    expect(moveBlockIntoCellTransaction(state, a.pos, a.sid, right.pos, right.sid, 2)).toBeNull();
+    expect(moveBlockIntoCellTransaction(state, a.pos, a.sid, right.pos, right.sid, -1)).toBeNull();
+    expect(moveBlockIntoCellTransaction(state, a.pos, a.sid, left.pos, left.sid, 0)).toBeNull();
+  });
+
+  it('refuses to move a layout into one of its own cells', () => {
+    const state = columnDoc();
+    const layoutPos = state.doc.child(0).nodeSize;
+    const layout = state.doc.child(1);
+    const left = findCell(state, 0);
+    expect(
+      moveBlockIntoCellTransaction(state, layoutPos, String(layout.attrs.sid), left.pos, left.sid, 0),
+    ).toBeNull();
   });
 });

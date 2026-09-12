@@ -1,31 +1,36 @@
 import { useCallback, useRef } from 'react';
+import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 
 import { usePointerDrag, type DragPress, type Point, type PointerDrag } from '@/lib/dnd/usePointerDrag';
 
 import { ensureRealized } from '../pipeline/ensure-realized';
+import { measureColumnRows } from '../pipeline/measure-column-rows';
+import { DROP_LINE_HEIGHT, resolveBlockReorder, type BlockRow } from '../pipeline/resolve-block-reorder';
 import {
-  DROP_LINE_HEIGHT,
-  resolveBlockReorder,
-  type BlockRow,
-  type ReorderTarget,
-} from '../pipeline/resolve-block-reorder';
-import { extractBlockTransaction, moveBlockTransaction } from './block-move';
+  resolveColumnDrop,
+  sameBlockDropTarget,
+  stickyIndex,
+  type BlockDropTarget,
+  type DragSource,
+  type PreviousSlot,
+} from '../pipeline/resolve-column-drop';
+import { extractBlockTransaction, moveBlockIntoCellTransaction, moveBlockTransaction } from './block-move';
 
 /**
- * The note-block side of {@link usePointerDrag}: measure the top-level blocks,
- * resolve a vertical reorder, and commit it as one transaction.
+ * The note-block side of {@link usePointerDrag}: measure the blocks on screen,
+ * resolve where the drag would land, and commit it as one transaction.
  *
  * All of the pointer machinery - the two thresholds, the ghost, Escape, pointer
  * loss, the swallowed trailing click, edge auto-scroll - is the shared hook. This
  * supplies only what a note knows: where the blocks are and how to move one.
  *
- * Two kinds of source, one drop model. A top-level block moves between the
- * document's child gaps. A block nested in a two-column cell drags by the same
- * handle but *extracts*: it leaves its cell and lands in the chosen top-level
- * gap, the way the desktop's per-cell grips and Notion's drag-out both read.
- * Dropping *into* a column is out of scope here; the drop gaps here are
- * top-level boundaries only.
+ * Two kinds of landing, one ladder. A pointer over a two-column layout lands in
+ * the lane under it, whether the block comes from the page, from the other lane
+ * or from further up the same lane; the strip at the layout's edges hands the
+ * pointer back to the page. Anywhere else the drop is a top-level gap: a move for
+ * a top-level block, an extraction for one nested in a cell, which leaves its
+ * cell and lands in the chosen gap the way the desktop's per-cell grips read.
  */
 
 export interface BlockDragHandle {
@@ -43,7 +48,8 @@ export interface BlockDragHandle {
 
 type DropPlan =
   | { kind: 'move'; sourceIndex: number; moveTo: number }
-  | { kind: 'extract'; pos: number; sid: string; insertIndex: number };
+  | { kind: 'extract'; pos: number; sid: string; insertIndex: number }
+  | { kind: 'nest'; pos: number; sid: string; cellPos: number; cellSid: string; childIndex: number };
 
 /** Measure a little past the fold so a boundary just off screen is still honest. */
 const VIEWPORT_MARGIN = 200;
@@ -141,16 +147,43 @@ function posOfChild(view: EditorView, index: number): number {
   return pos;
 }
 
-export function useBlockDrag(view: EditorView | null): PointerDrag<BlockDragHandle, ReorderTarget> {
-  // The last insert index shown, for the sticky middle band; reset each press so a
+/** The dragged block as the column resolver sees it: its range, and its cell and index there. */
+function dragSource(doc: PMNode, handle: BlockDragHandle): DragSource {
+  const node = doc.nodeAt(handle.pos);
+  const $pos = doc.resolve(handle.pos);
+  const inCell = $pos.depth > 0 && $pos.parent.type.name === 'columnGroup';
+  return {
+    pos: handle.pos,
+    end: handle.pos + (node?.nodeSize ?? 0),
+    cellPos: inCell ? $pos.before($pos.depth) : null,
+    // The cell's line sits at node index 0, so the block-child index is one less.
+    cellIndex: inCell ? $pos.index($pos.depth) - 1 : null,
+  };
+}
+
+export function useBlockDrag(view: EditorView | null): PointerDrag<BlockDragHandle, BlockDropTarget> {
+  // The last slot shown, for the sticky middle band; reset each press so a
   // previous drag cannot make the first middle-band entry of the next one stick.
-  const previousInsertIndex = useRef<number | null>(null);
+  const previousSlot = useRef<PreviousSlot | null>(null);
 
   const resolve = useCallback(
-    (pointer: Point, handle: BlockDragHandle): ReorderTarget | null => {
+    (pointer: Point, handle: BlockDragHandle): BlockDropTarget | null => {
       if (!view) return null;
       const doc = view.state.doc;
       const { rows, left, width } = measure(view, pointer.y);
+
+      if (rows.length > 0) {
+        const columns = measureColumnRows(view, rows[0].index, rows[rows.length - 1].index);
+        const inColumns =
+          columns.length > 0
+            ? resolveColumnDrop({ rows: columns, pointer, source: dragSource(doc, handle), previous: previousSlot.current })
+            : null;
+        if (inColumns) {
+          const target = inColumns.kind === 'cell' ? inColumns : null;
+          previousSlot.current = target ? { cellPos: target.cellPos, insertIndex: target.insertIndex } : null;
+          return target;
+        }
+      }
 
       const target = resolveBlockReorder({
         rows,
@@ -159,9 +192,9 @@ export function useBlockDrag(view: EditorView | null): PointerDrag<BlockDragHand
         pointerY: pointer.y,
         left,
         width,
-        previousInsertIndex: previousInsertIndex.current,
+        previousInsertIndex: stickyIndex(previousSlot.current, null),
       });
-      previousInsertIndex.current = target ? target.insertIndex : null;
+      previousSlot.current = target ? { cellPos: null, insertIndex: target.insertIndex } : null;
       if (!target) return null;
 
       // The boundary block sits off screen (a drop toward the fold): realize it so
@@ -169,39 +202,59 @@ export function useBlockDrag(view: EditorView | null): PointerDrag<BlockDragHand
       if (target.insertIndex < doc.childCount && !rows.some((row) => row.index === target.insertIndex)) {
         const realized = ensureRealized(view, posOfChild(view, target.insertIndex));
         if (realized) {
-          return { ...target, line: { ...target.line, top: realized.rect.top - DROP_LINE_HEIGHT / 2 } };
+          return { kind: 'gap', ...target, line: { ...target.line, top: realized.rect.top - DROP_LINE_HEIGHT / 2 } };
         }
       }
-      return target;
+      return { kind: 'gap', ...target };
     },
     [view],
   );
 
-  const drag = usePointerDrag<BlockDragHandle, ReorderTarget, DropPlan>({
+  const drag = usePointerDrag<BlockDragHandle, BlockDropTarget, DropPlan>({
     getKey: (handle) => handle.sid,
     ghost: { offset: { x: 24, y: 14 }, tiltDeg: -1.5 },
     autoScroll: view ? { container: () => findScrollParent(view.dom), zone: 40, minStep: 9, maxStep: 18 } : undefined,
-    // The line's Y as well as the gap: a scroll moves the boundary under a held
-    // pointer without changing which gap it is, and the indicator has to follow.
-    sameTarget: (a, b) => a?.insertIndex === b?.insertIndex && a?.line.top === b?.line.top,
+    // The line's Y as well as the slot: a scroll moves the boundary under a held
+    // pointer without changing which slot it is, and the indicator has to follow.
+    sameTarget: sameBlockDropTarget,
     resolve,
-    plan: (handle, target) =>
-      handle.index !== null
+    plan: (handle, target) => {
+      if (target.kind === 'cell') {
+        return {
+          kind: 'nest',
+          pos: handle.pos,
+          sid: handle.sid,
+          cellPos: target.cellPos,
+          cellSid: target.cellSid,
+          childIndex: target.moveTo,
+        };
+      }
+      return handle.index !== null
         ? { kind: 'move', sourceIndex: handle.index, moveTo: target.moveTo }
-        : { kind: 'extract', pos: handle.pos, sid: handle.sid, insertIndex: target.moveTo },
+        : { kind: 'extract', pos: handle.pos, sid: handle.sid, insertIndex: target.moveTo };
+    },
     onDrop: (planned) => {
       if (!view) return;
       const tr =
         planned.kind === 'move'
           ? moveBlockTransaction(view.state, planned.sourceIndex, planned.moveTo)
-          : extractBlockTransaction(view.state, planned.pos, planned.sid, planned.insertIndex);
+          : planned.kind === 'extract'
+            ? extractBlockTransaction(view.state, planned.pos, planned.sid, planned.insertIndex)
+            : moveBlockIntoCellTransaction(
+                view.state,
+                planned.pos,
+                planned.sid,
+                planned.cellPos,
+                planned.cellSid,
+                planned.childIndex,
+              );
       if (tr) view.dispatch(tr);
     },
   });
 
   const press = useCallback(
     (event: DragPress, handle: BlockDragHandle) => {
-      previousInsertIndex.current = null;
+      previousSlot.current = null;
       drag.press(event, handle);
     },
     [drag],
