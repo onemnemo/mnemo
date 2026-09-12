@@ -7,6 +7,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Flashcards;
+using Mnemo.Infrastructure.Services.Flashcards.Optimizer;
 using Mnemo.Infrastructure.Services.ImportExport.Adapters;
 using Mnemo.Infrastructure.Tests.Flashcards.Persistence;
 using Xunit;
@@ -51,8 +52,196 @@ public sealed class FlashcardAnkiSchedulingImportTests
             // The card reached that date by waiting out its interval, so that is when it was answered.
             Assert.Equal(expected.AddDays(-45), schedule.LastReviewedAt);
 
-            // No published mapping turns another algorithm's ease into FSRS memory state, so the
-            // first real review is left to cold start rather than being handed invented numbers.
+            var expectedMemory = FsrsSm2Memory.Approximate(
+                2.5d, 45d, 0.9d, FsrsWeightRules.Defaults());
+            Assert.NotNull(expectedMemory);
+            Assert.Equal(expectedMemory.Value.Stability, schedule.Stability!.Value, 10);
+            Assert.Equal(expectedMemory.Value.Difficulty, schedule.Difficulty!.Value, 10);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task Import_AnkiMemory_LandsWithTheSchedule()
+    {
+        var cards = new[]
+        {
+            new AnkiFixtureCard("Physiology", "Front", "Back", CardRows:
+            [
+                new AnkiFixtureCardRow(
+                    0,
+                    new AnkiFixtureScheduling(Type: 2, Queue: 2, Due: DaysToFuture(30), Interval: 45, Reps: 12),
+                    Data: "{\"s\":123.4567,\"d\":6.125}"),
+            ]),
+        };
+
+        var apkg = await AnkiPackageFixture.WriteAsync(AnkiFixtureLayout.Legacy, cards, new Dictionary<string, byte[]>());
+        try
+        {
+            var (_, schedule) = await ImportSingleAsync(apkg);
+
+            Assert.Equal(123.4567d, schedule.Stability);
+            Assert.Equal(6.125d, schedule.Difficulty);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task Import_AnkiMemory_IsClampedToTheSchedulerRange()
+    {
+        var cards = new[]
+        {
+            new AnkiFixtureCard("Physiology", "Front", "Back", CardRows:
+            [
+                new AnkiFixtureCardRow(
+                    0,
+                    new AnkiFixtureScheduling(Type: 2, Queue: 2, Due: DaysToFuture(30), Interval: 0),
+                    Data: "{\"s\":0,\"d\":40}"),
+            ]),
+        };
+
+        var apkg = await AnkiPackageFixture.WriteAsync(AnkiFixtureLayout.Legacy, cards, new Dictionary<string, byte[]>());
+        try
+        {
+            var (_, schedule) = await ImportSingleAsync(apkg);
+
+            Assert.Equal(FsrsForwardModel.MinStability, schedule.Stability);
+            Assert.Equal(10d, schedule.Difficulty);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task Import_JunkCardData_LeavesMemoryUnsetWhenNothingElseCanDeriveIt()
+    {
+        var cards = new[]
+        {
+            new AnkiFixtureCard("Physiology", "Front", "Back", CardRows:
+            [
+                new AnkiFixtureCardRow(
+                    0,
+                    new AnkiFixtureScheduling(Type: 2, Queue: 2, Due: DaysToFuture(30), Interval: 0),
+                    Data: "not json"),
+            ]),
+        };
+
+        var apkg = await AnkiPackageFixture.WriteAsync(AnkiFixtureLayout.Legacy, cards, new Dictionary<string, byte[]>());
+        try
+        {
+            var (_, schedule) = await ImportSingleAsync(apkg);
+
+            Assert.Null(schedule.Stability);
+            Assert.Null(schedule.Difficulty);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task Import_ReviewHistory_ReplaysMemoryFromAnswerTimestamps()
+    {
+        var first = new DateTimeOffset(2026, 1, 1, 8, 0, 0, TimeSpan.Zero);
+        var reviews = new[]
+        {
+            new AnkiFixtureReview(first, 3, 1),
+            new AnkiFixtureReview(first.AddDays(10), 3, 10),
+            new AnkiFixtureReview(first.AddDays(17), 3, 20),
+        };
+        var cards = new[]
+        {
+            new AnkiFixtureCard("Physiology", "Front", "Back", CardRows:
+            [
+                new AnkiFixtureCardRow(
+                    0,
+                    new AnkiFixtureScheduling(Type: 2, Queue: 2, Due: DaysToFuture(30), Interval: 20),
+                    Reviews: reviews),
+            ]),
+        };
+
+        var weights = FsrsWeightRules.Defaults();
+        var expected = FsrsForwardModel.First(FlashcardReviewGrade.Good, weights);
+        expected = FsrsForwardModel.Next(expected, 10d, FlashcardReviewGrade.Good, weights);
+        expected = FsrsForwardModel.Next(expected, 7d, FlashcardReviewGrade.Good, weights);
+
+        var apkg = await AnkiPackageFixture.WriteAsync(AnkiFixtureLayout.Legacy, cards, new Dictionary<string, byte[]>());
+        try
+        {
+            var (_, schedule) = await ImportSingleAsync(apkg);
+
+            Assert.Equal(expected.Stability, schedule.Stability!.Value, 10);
+            Assert.Equal(expected.Difficulty, schedule.Difficulty!.Value, 10);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task Import_AnkiMemory_WinsOverReviewHistory()
+    {
+        var first = new DateTimeOffset(2026, 1, 1, 8, 0, 0, TimeSpan.Zero);
+        var cards = new[]
+        {
+            new AnkiFixtureCard("Physiology", "Front", "Back", CardRows:
+            [
+                new AnkiFixtureCardRow(
+                    0,
+                    new AnkiFixtureScheduling(Type: 2, Queue: 2, Due: DaysToFuture(30), Interval: 20),
+                    Reviews:
+                    [
+                        new AnkiFixtureReview(first, 3, 1),
+                        new AnkiFixtureReview(first.AddDays(10), 3, 10),
+                    ],
+                    Data: "{\"s\":70.25,\"d\":4.75}"),
+            ]),
+        };
+
+        var apkg = await AnkiPackageFixture.WriteAsync(AnkiFixtureLayout.Legacy, cards, new Dictionary<string, byte[]>());
+        try
+        {
+            var (_, schedule) = await ImportSingleAsync(apkg);
+
+            Assert.Equal(70.25d, schedule.Stability);
+            Assert.Equal(4.75d, schedule.Difficulty);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task Import_NewCard_IgnoresMemoryData()
+    {
+        var cards = new[]
+        {
+            new AnkiFixtureCard("Physiology", "Front", "Back", CardRows:
+            [
+                new AnkiFixtureCardRow(
+                    0,
+                    new AnkiFixtureScheduling(Type: 0, Queue: 0, Due: 10),
+                    Data: "{\"s\":20,\"d\":5}"),
+            ]),
+        };
+
+        var apkg = await AnkiPackageFixture.WriteAsync(AnkiFixtureLayout.Legacy, cards, new Dictionary<string, byte[]>());
+        try
+        {
+            var (_, schedule) = await ImportSingleAsync(apkg);
+
+            Assert.Equal(FlashcardFsrsState.New, schedule.FsrsState);
             Assert.Null(schedule.Stability);
             Assert.Null(schedule.Difficulty);
         }

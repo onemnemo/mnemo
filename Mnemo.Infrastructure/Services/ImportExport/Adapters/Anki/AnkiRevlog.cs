@@ -18,11 +18,6 @@ internal sealed record AnkiRevlogRow(long Id, long CardId, int Ease, int Interva
 /// <summary>
 /// Turns an Anki review log into review rows, and review rows back into one.
 /// </summary>
-/// <remarks>
-/// Only what the other app recorded crosses. There is deliberately no stability or difficulty on
-/// an imported answer: no published mapping turns another algorithm's ease factor into FSRS memory
-/// state, and an invented one would read as a measurement of somebody's memory.
-/// </remarks>
 internal static class AnkiRevlog
 {
     /// <summary>Answered from the learning queue.</summary>

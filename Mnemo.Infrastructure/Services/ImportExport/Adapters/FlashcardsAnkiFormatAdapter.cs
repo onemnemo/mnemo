@@ -11,6 +11,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services.Flashcards.Optimizer;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.ImportExport.Adapters.Anki;
 
@@ -174,6 +175,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
             var now = DateTimeOffset.UtcNow;
             var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
+            var weights = FsrsWeightRules.Resolve(preset);
             var folders = await DeckFolderResolver.CreateAsync(_library, cancellationToken).ConfigureAwait(false);
             var tally = new ImportTally();
             var failedDecks = 0;
@@ -206,7 +208,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
                         var sides = await ReadSidesAsync(
                             note, cardRow.Ord, rowCount: 1, collectionInfo, opened, warnings, tally, cancellationToken).ConfigureAwait(false);
-                        drafts.Add(DraftFor(note, cardRow, sides, collectionInfo, now));
+                        drafts.Add(DraftFor(note, cardRow, sides, collectionInfo, revlog, weights, now, tally));
                         draftRows.Add(cardRow);
                     }
 
@@ -216,7 +218,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                             clozeNote.Note, ord: 0, clozeNote.Rows.Count, collectionInfo, opened, warnings, tally, cancellationToken)
                             .ConfigureAwait(false);
 
-                        if (MaterialFor(clozeNote, sides, collectionInfo, now) is { } fact)
+                        if (MaterialFor(clozeNote, sides, collectionInfo, revlog, weights, now, tally) is { } fact)
                         {
                             material.Add(fact);
                             materialNotes.Add(clozeNote);
@@ -226,7 +228,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                         // Preserve individual cards when a cloze note contains no cloze markers.
                         foreach (var row in clozeNote.Rows.Values)
                         {
-                            drafts.Add(DraftFor(clozeNote.Note, row, sides, collectionInfo, now));
+                            drafts.Add(DraftFor(clozeNote.Note, row, sides, collectionInfo, revlog, weights, now, tally));
                             draftRows.Add(row);
                         }
                     }
@@ -309,9 +311,12 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     ("count", plan.NotesFiledTogether.ToString(CultureInfo.InvariantCulture))));
             }
 
-            // The first few intervals will not match what the other app would have given, and a user
-            // who is not told that reads it as the import having got the schedule wrong.
-            if (importedCards > 0 && cards.Any(c => c.Type != 0))
+            if (importedCards > 0 && tally.CardsWithMemory > 0)
+                warnings.Add(TransferWarning.Of("AnkiMemoryCarriedOver"));
+
+            // A card with no usable memory or history still has to start measuring from its next
+            // answers. Calling that out keeps a mixed import honest about the cards it could not carry.
+            if (importedCards > 0 && tally.CardsWithoutMemory > 0)
                 warnings.Add(TransferWarning.Of("AnkiScheduleCarriedOver"));
 
             // Retention and the deck's own numbers move the moment this lands, and someone who
@@ -861,7 +866,14 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
     /// <summary>One card row as a card written side by side, which is what a single row stands for.</summary>
     private static FlashcardCardDraft DraftFor(
-        NoteRow note, CardRow row, NoteSides sides, CollectionInfo collectionInfo, DateTimeOffset now) =>
+        NoteRow note,
+        CardRow row,
+        NoteSides sides,
+        CollectionInfo collectionInfo,
+        IReadOnlyDictionary<long, List<AnkiRevlogRow>> revlog,
+        double[] weights,
+        DateTimeOffset now,
+        ImportTally tally) =>
         new(
             DeckId: string.Empty,
             Type: DetectType(sides.Front.Text, sides.FrontHtml, note.ModelName),
@@ -874,7 +886,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             BackBlocks: sides.Back.Blocks,
             // Landing a studied collection as new cards makes every one of them due at once, which
             // is the opposite of what importing a schedule is for.
-            Schedule: BuildImportedSchedule(row, collectionInfo.CollectionCreatedAt, now),
+            Schedule: BuildImportedSchedule(row, collectionInfo.CollectionCreatedAt, revlog, weights, now, tally),
             State: row.Queue == AnkiQueueSuspended
                 ? FlashcardCardState.Suspended
                 : FlashcardCardState.Active);
@@ -890,7 +902,13 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// the plain cards they describe rather than losing them to a classification nobody typed.
     /// </returns>
     private static FlashcardFactDraft? MaterialFor(
-        AnkiClozeNote note, NoteSides sides, CollectionInfo collectionInfo, DateTimeOffset now)
+        AnkiClozeNote note,
+        NoteSides sides,
+        CollectionInfo collectionInfo,
+        IReadOnlyDictionary<long, List<AnkiRevlogRow>> revlog,
+        double[] weights,
+        DateTimeOffset now,
+        ImportTally tally)
     {
         if (FlashcardGeneration.ClozeOrdinals(sides.Front.Text).Count == 0)
             return null;
@@ -899,7 +917,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         foreach (var (ordinal, row) in note.Rows)
         {
             carried[FlashcardGeneration.ClozeKey(ordinal)] = new FlashcardImportedCard(
-                BuildImportedSchedule(row, collectionInfo.CollectionCreatedAt, now),
+                BuildImportedSchedule(row, collectionInfo.CollectionCreatedAt, revlog, weights, now, tally),
                 row.Queue == AnkiQueueSuspended ? FlashcardCardState.Suspended : FlashcardCardState.Active);
         }
 
@@ -1099,7 +1117,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         await using var command = connection.CreateCommand();
         // odue/odid hold the real due date and home deck of a card parked in a filtered deck. Read
         // without them such a card imports into the temporary deck, due whenever the filter said.
-        command.CommandText = "SELECT id, nid, did, ord, type, queue, due, ivl, factor, reps, lapses, mod, odue, odid FROM cards";
+        command.CommandText = "SELECT id, nid, did, ord, type, queue, due, ivl, factor, reps, lapses, mod, odue, odid, data FROM cards";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -1117,7 +1135,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 reader.IsDBNull(10) ? 0 : reader.GetInt32(10),
                 reader.IsDBNull(11) ? DateTimeOffset.UtcNow : ParseUnixTimestamp(reader.GetInt64(11)),
                 reader.IsDBNull(12) ? 0 : reader.GetInt64(12),
-                reader.IsDBNull(13) ? 0 : reader.GetInt64(13)));
+                reader.IsDBNull(13) ? 0 : reader.GetInt64(13),
+                reader.IsDBNull(14) ? string.Empty : reader.GetString(14)));
         }
 
         return cards;
@@ -2166,12 +2185,16 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
     /// <summary>
     /// Turns one Anki card row's scheduling into the state this app keeps, or null for a card that
-    /// has never been answered. Only what the other app recorded is carried: its due date, how many
-    /// times it has been seen, how many times it lapsed, and which phase it is in. Its memory
-    /// figures are left unset, because no published mapping turns another algorithm's ease into
-    /// FSRS stability and difficulty, and a guess would read as a measurement.
+    /// has never been answered. Native FSRS memory wins over review-log replay, which wins over the
+    /// published SM-2 approximation. A card with none of those keeps its schedule without memory.
     /// </summary>
-    private static FlashcardImportedSchedule? BuildImportedSchedule(CardRow card, DateTimeOffset collectionCreatedAt, DateTimeOffset now)
+    private static FlashcardImportedSchedule? BuildImportedSchedule(
+        CardRow card,
+        DateTimeOffset collectionCreatedAt,
+        IReadOnlyDictionary<long, List<AnkiRevlogRow>> revlog,
+        double[] weights,
+        DateTimeOffset now,
+        ImportTally tally)
     {
         var state = card.Type switch
         {
@@ -2195,7 +2218,67 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         if (lastReviewedAt > now)
             lastReviewedAt = null;
 
-        return new FlashcardImportedSchedule(due, Math.Max(0, card.Reps), Math.Max(0, card.Lapses), state, lastReviewedAt);
+        var memory = ReadAnkiMemory(card.Data)
+            ?? ReplayMemory(card.Id, revlog, weights)
+            ?? FsrsSm2Memory.Approximate(card.Factor / 1000d, card.IntervalDays, 0.9d, weights);
+
+        if (memory is null)
+            tally.CardsWithoutMemory++;
+        else
+            tally.CardsWithMemory++;
+
+        return new FlashcardImportedSchedule(
+            due,
+            memory?.Stability,
+            memory?.Difficulty,
+            Math.Max(0, card.Reps),
+            Math.Max(0, card.Lapses),
+            state,
+            lastReviewedAt);
+    }
+
+    private static FsrsForwardModel.MemoryState? ReplayMemory(
+        long cardId,
+        IReadOnlyDictionary<long, List<AnkiRevlogRow>> revlog,
+        double[] weights)
+    {
+        if (!revlog.TryGetValue(cardId, out var rows))
+            return null;
+
+        var logs = AnkiRevlog.ToReviewLogs(string.Empty, string.Empty, string.Empty, rows);
+        return FsrsMemoryReplay.Replay(logs, weights);
+    }
+
+    private static FsrsForwardModel.MemoryState? ReadAnkiMemory(string data)
+    {
+        if (string.IsNullOrWhiteSpace(data))
+            return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(data);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("s", out var stabilityValue)
+                || !root.TryGetProperty("d", out var difficultyValue)
+                || stabilityValue.ValueKind != JsonValueKind.Number
+                || difficultyValue.ValueKind != JsonValueKind.Number
+                || !stabilityValue.TryGetDouble(out var stability)
+                || !difficultyValue.TryGetDouble(out var difficulty)
+                || !double.IsFinite(stability)
+                || !double.IsFinite(difficulty))
+            {
+                return null;
+            }
+
+            return new FsrsForwardModel.MemoryState(
+                Math.Clamp(stability, FsrsForwardModel.MinStability, FsrsForwardModel.MaxStability),
+                Math.Clamp(difficulty, 1d, 10d));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -2409,6 +2492,10 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         public SortedSet<string> NoteTypesWithExtraFields { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public int CardsWithAudio { get; set; }
+
+        public int CardsWithMemory { get; set; }
+
+        public int CardsWithoutMemory { get; set; }
     }
 
     /// <summary>
@@ -2505,7 +2592,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         int Lapses,
         DateTimeOffset LastModifiedAt,
         long OriginalDue,
-        long OriginalDeckId)
+        long OriginalDeckId,
+        string Data)
     {
         /// <summary>The deck the card belongs to once it leaves whatever filtered deck holds it.</summary>
         public long HomeDeckId => OriginalDeckId != 0 ? OriginalDeckId : DeckId;

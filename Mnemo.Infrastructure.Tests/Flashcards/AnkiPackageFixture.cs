@@ -35,6 +35,7 @@ internal sealed record AnkiFixtureScheduling(
     int Queue = 0,
     long Due = 0,
     int Interval = 0,
+    int Factor = 2500,
     int Reps = 0,
     int Lapses = 0,
     long OriginalDue = 0,
@@ -86,7 +87,8 @@ internal sealed record AnkiFixtureCardRow(
     int Ord,
     AnkiFixtureScheduling? Scheduling = null,
     string? DeckName = null,
-    IReadOnlyList<AnkiFixtureReview>? Reviews = null);
+    IReadOnlyList<AnkiFixtureReview>? Reviews = null,
+    string Data = "");
 
 /// <summary>
 /// One note in a fixture package, and the deck it belongs to. <paramref name="ExtraFields"/> stands
@@ -369,7 +371,7 @@ internal static class AnkiPackageFixture
                 await ExecAsync(
                     connection,
                     "INSERT INTO cards(id,nid,did,ord,mod,usn,type,queue,due,ivl,factor,reps,lapses,left,odue,odid,flags,data) " +
-                    "VALUES(@id, @nid, @did, @ord, 0, 0, @type, @queue, @due, @ivl, 2500, @reps, @lapses, 0, @odue, @odid, 0, '');",
+                    "VALUES(@id, @nid, @did, @ord, 0, 0, @type, @queue, @due, @ivl, @factor, @reps, @lapses, 0, @odue, @odid, 0, @data);",
                     ("@id", cardId),
                     ("@nid", noteId),
                     ("@did", deckIds[row.DeckName ?? card.DeckName]),
@@ -378,10 +380,12 @@ internal static class AnkiPackageFixture
                     ("@queue", scheduling.Queue),
                     ("@due", scheduling.Due),
                     ("@ivl", scheduling.Interval),
+                    ("@factor", scheduling.Factor),
                     ("@reps", scheduling.Reps),
                     ("@lapses", scheduling.Lapses),
                     ("@odue", scheduling.OriginalDue),
-                    ("@odid", scheduling.OriginalDeckId)).ConfigureAwait(false);
+                    ("@odid", scheduling.OriginalDeckId),
+                    ("@data", row.Data)).ConfigureAwait(false);
 
                 // A note that lists its rows carries its history per row, because each deletion was
                 // answered separately. One written the short way carries the note's own list.
