@@ -191,11 +191,16 @@ export async function saveServerExport(
 export function announceExport(
   outcome: ExportOutcome,
   strings: { readonly title: string; readonly downloaded: string },
+  progressToastId?: string,
 ): boolean {
   const description = exportReport(outcome, strings.downloaded)
-  if (description === null) return false
+  if (description === null) {
+    if (progressToastId) toast.discard(progressToastId)
+    return false
+  }
 
-  toast.success(strings.title, { description })
+  if (progressToastId) toast.update(progressToastId, { type: "success", title: strings.title, description })
+  else toast.success(strings.title, { description })
   return true
 }
 

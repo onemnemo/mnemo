@@ -6,7 +6,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { Z_LAYERS } from "@/lib/z-layers"
-import { useToastStore } from "@/stores/toast"
+import { type ToastType, useToastStore } from "@/stores/toast"
 
 import { ToastHost } from "./ToastHost"
 
@@ -39,7 +39,7 @@ afterEach(() => {
 describe("ToastHost stacking", () => {
   it("sits at the layer the shared order gives it", () => {
     useToastStore.setState({
-      toasts: [{ id: "1", type: "info", title: "Saved", durationMs: 0, createdAt: Date.now() }],
+      toasts: [{ id: "1", type: "info", title: "Saved", durationMs: 0, createdAt: Date.now(), revision: 0 }],
     })
 
     act(() => root.render(<ToastHost />))
@@ -47,5 +47,46 @@ describe("ToastHost stacking", () => {
     const region = container.querySelector<HTMLElement>('[role="region"]')
     expect(region, "the toast stack is not on screen").not.toBeNull()
     expect(region!.style.zIndex).toBe(String(Z_LAYERS.toast))
+  })
+
+  it("shows ongoing work with a persistent spinner", () => {
+    useToastStore.setState({
+      toasts: [
+        {
+          id: "1",
+          type: "progress",
+          title: "Backing up",
+          durationMs: 0,
+          createdAt: Date.now(),
+          revision: 0,
+        },
+      ],
+    })
+
+    act(() => root.render(<ToastHost />))
+
+    expect(container.querySelector("svg")?.classList.contains("animate-spin")).toBe(true)
+    expect(container.querySelector("button")?.classList.contains("opacity-100")).toBe(true)
+  })
+
+  it("renders an unknown host type as an information toast", () => {
+    useToastStore.setState({
+      toasts: [
+        {
+          id: "1",
+          type: "task" as ToastType,
+          title: "Older host event",
+          durationMs: 0,
+          createdAt: Date.now(),
+          revision: 0,
+        },
+      ],
+    })
+
+    act(() => root.render(<ToastHost />))
+
+    const status = container.querySelector('[role="status"]')
+    expect(status).not.toBeNull()
+    expect(status?.firstElementChild?.querySelector("svg")).toBeNull()
   })
 })

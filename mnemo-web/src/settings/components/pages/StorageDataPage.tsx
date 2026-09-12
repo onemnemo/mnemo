@@ -80,6 +80,7 @@ export function StorageDataPage() {
 
   async function createBackup() {
     setBusy("backup")
+    let progressToastId: string | null = null
     try {
       const request = {
         fileName: `${t("Settings", "BackupFileName", { date: new Date().toISOString().slice(0, 10) })}.mnemo-backup`,
@@ -87,13 +88,23 @@ export function StorageDataPage() {
       }
       const target = await chooseExportTarget(request)
       if (target.status === "declined") return
-      const outcome = await saveServerExport(request, (grant) => requestBackupExport(grant), target)
-      announceExport(outcome, {
-        title: t("Settings", "BackupComplete"),
-        downloaded: t("Common", "TransferExportFinished"),
+      progressToastId = toast.progress(t("Settings", "BackingUp"), {
+        description: request.fileName,
       })
+      const outcome = await saveServerExport(request, (grant) => requestBackupExport(grant), target)
+      announceExport(
+        outcome,
+        {
+          title: t("Settings", "BackupComplete"),
+          downloaded: t("Common", "TransferExportFinished"),
+        },
+        progressToastId,
+      )
     } catch (error) {
-      toast.warning(t("Settings", "BackupFailed"), { description: describeError(t, error) })
+      const title = t("Settings", "BackupFailed")
+      const description = describeError(t, error)
+      if (progressToastId) toast.update(progressToastId, { type: "warning", title, description })
+      else toast.warning(title, { description })
     } finally {
       setBusy(null)
     }
@@ -187,7 +198,14 @@ export function StorageDataPage() {
             variant="outline"
             size="sm"
             disabled={busy !== null}
-            icon={<AppIcon name="download" size={13} strokeWidth={1.7} />}
+            icon={
+              <AppIcon
+                name={busy === "backup" ? "loader-circle" : "download"}
+                size={13}
+                strokeWidth={1.7}
+                className={busy === "backup" ? "animate-spin" : undefined}
+              />
+            }
             onClick={() => void createBackup()}
           >
             {t("Settings", busy === "backup" ? "BackingUp" : "BackUp")}
@@ -198,7 +216,14 @@ export function StorageDataPage() {
             variant="outline"
             size="sm"
             disabled={busy !== null}
-            icon={<AppIcon name="rotate-ccw" size={13} strokeWidth={1.7} />}
+            icon={
+              <AppIcon
+                name={busy === "select" ? "loader-circle" : "rotate-ccw"}
+                size={13}
+                strokeWidth={1.7}
+                className={busy === "select" ? "animate-spin" : undefined}
+              />
+            }
             onClick={() => void chooseBackup()}
           >
             {t("Settings", busy === "select" ? "InspectingBackup" : "ChooseBackup")}
@@ -259,7 +284,17 @@ function BackupPreviewDialog({
             <Button variant="ghost" size="sm" disabled={busy} onClick={onClose}>
               {t("Common", "Cancel")}
             </Button>
-            <Button variant="danger" size="sm" disabled={busy} onClick={onRestore}>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={busy}
+              icon={
+                busy ? (
+                  <AppIcon name="loader-circle" size={13} strokeWidth={1.7} className="animate-spin" />
+                ) : undefined
+              }
+              onClick={onRestore}
+            >
               {t("Settings", busy ? "PreparingRestore" : "RestoreBackup")}
             </Button>
           </div>

@@ -11,14 +11,18 @@ import type { ToastType } from "@/stores/toast"
  * in dark mode, so Soma speaks in the app's own ink instead, and nothing else in
  * the list is allowed to look like it.
  */
-export const NOTIFICATION_MARK: Record<ToastType, { icon: string; fg: string; bg: string }> = {
+export const NOTIFICATION_MARK: Record<ToastType, { icon: string; fg: string; bg: string; spin?: boolean }> = {
   info: { icon: "info", fg: "text-ink-2", bg: "bg-frame-active" },
   // Blue rather than green: the palette has no green, and adding one for a
   // single mark would cost more than it says.
   success: { icon: "circle-check", fg: "text-state-new", bg: "bg-state-new-wash" },
   warning: { icon: "triangle-alert", fg: "text-state-learn", bg: "bg-state-learn-wash" },
   action: { icon: "circle-alert", fg: "text-danger", bg: "bg-danger-wash" },
-  task: { icon: "layers", fg: "text-state-due", bg: "bg-state-due-wash" },
+  progress: { icon: "loader-circle", fg: "text-ink-3", bg: "bg-frame-active", spin: true },
+}
+
+export function notificationMark(type: ToastType) {
+  return NOTIFICATION_MARK[type] ?? NOTIFICATION_MARK.info
 }
 
 const MINUTE = 60_000

@@ -15,12 +15,14 @@ const mocks = vi.hoisted(() => ({
   consumeRestoreStatus: vi.fn(),
   getBackupRestoreState: vi.fn(),
   openHostFolder: vi.fn(),
+  progress: vi.fn(),
   requestBackupExport: vi.fn(),
   restartForBackupRestore: vi.fn(),
   saveServerExport: vi.fn(),
   selectBackup: vi.fn(),
   stageBackupRestore: vi.fn(),
   success: vi.fn(),
+  update: vi.fn(),
   waitForControlledShutdownStart: vi.fn(),
   warning: vi.fn(),
 }))
@@ -61,7 +63,9 @@ vi.mock("@/i18n/store", () => ({
   useI18nStore: (selector: (state: { language: string }) => unknown) => selector({ language: "en" }),
 }))
 vi.mock("@/stores/dialog", () => ({ dialog: { confirm: mocks.confirm } }))
-vi.mock("@/stores/toast", () => ({ toast: { success: mocks.success, warning: mocks.warning } }))
+vi.mock("@/stores/toast", () => ({
+  toast: { progress: mocks.progress, success: mocks.success, update: mocks.update, warning: mocks.warning },
+}))
 vi.mock("../../backup-api", () => ({
   consumeRestoreStatus: mocks.consumeRestoreStatus,
   getBackupRestoreState: mocks.getBackupRestoreState,
@@ -105,6 +109,7 @@ beforeEach(() => {
   document.body.append(container)
   root = createRoot(container)
   mocks.chooseExportTarget.mockResolvedValue(chosenTarget)
+  mocks.progress.mockReturnValue("backup-progress")
   mocks.saveServerExport.mockResolvedValue({ status: "saved", path: chosenTarget.path })
   mocks.selectBackup.mockResolvedValue({ available: true, cancelled: false, grant: "restore-grant", inspection })
   mocks.confirm.mockResolvedValue(true)
@@ -144,10 +149,28 @@ describe("StorageDataPage", () => {
     await press("BackUp")
 
     expect(mocks.saveServerExport).toHaveBeenCalledWith(expect.any(Object), expect.any(Function), chosenTarget)
+    expect(mocks.progress).toHaveBeenCalledWith("BackingUp", {
+      description: expect.stringMatching(/^BackupFileName\.mnemo-backup$/),
+    })
     expect(mocks.announceExport).toHaveBeenCalledWith(
       { status: "saved", path: chosenTarget.path },
       expect.objectContaining({ title: "BackupComplete" }),
+      "backup-progress",
     )
+  })
+
+  it("turns backup progress into the failure instead of leaving conflicting toasts", async () => {
+    mocks.saveServerExport.mockRejectedValue(new ApiError("failed", 409, "backup_failed"))
+    await renderPage()
+
+    await press("BackUp")
+
+    expect(mocks.update).toHaveBeenCalledWith("backup-progress", {
+      type: "warning",
+      title: "BackupFailed",
+      description: expect.any(String),
+    })
+    expect(mocks.warning).not.toHaveBeenCalledWith("BackupFailed", expect.anything())
   })
 
   it("previews the actual selection response before offering restore", async () => {

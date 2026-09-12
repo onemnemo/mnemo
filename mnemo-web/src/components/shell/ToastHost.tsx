@@ -18,11 +18,11 @@ const GLYPH: Record<ToastType, { icon: string | null; className: string; spin?: 
   success: { icon: "check", className: "text-ink" },
   warning: { icon: "triangle-alert", className: "text-[var(--state-learn)]" },
   action: { icon: "circle-alert", className: "text-danger" },
-  task: { icon: "loader-circle", className: "text-ink-3", spin: true },
+  progress: { icon: "loader-circle", className: "text-ink-3", spin: true },
 }
 
 function Glyph({ type }: { type: ToastType }) {
-  const glyph = GLYPH[type]
+  const glyph = GLYPH[type] ?? GLYPH.info
   if (!glyph.icon) return <span className="size-1.5 rounded-full bg-ink-3" />
   return (
     <AppIcon
@@ -60,7 +60,7 @@ function ToastRow({ toast, paused }: { toast: Toast; paused: boolean }) {
     // with the line still half full.
     animation.finished.then(() => dismiss(toast.id)).catch(() => {})
     return () => animation.cancel()
-  }, [toast.id, toast.durationMs, sticky, dismiss])
+  }, [toast.id, toast.durationMs, toast.revision, sticky, dismiss])
 
   useEffect(() => {
     const animation = drainRef.current?.getAnimations()[0]

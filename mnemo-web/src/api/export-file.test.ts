@@ -26,7 +26,7 @@ vi.mock("@/stores/dialog", () => ({
 }))
 
 vi.mock("@/stores/toast", () => ({
-  toast: { success: vi.fn(), warning: vi.fn() },
+  toast: { discard: vi.fn(), success: vi.fn(), update: vi.fn(), warning: vi.fn() },
 }))
 
 interface Call {
@@ -331,6 +331,22 @@ describe("announceExport", () => {
   it("falls back to the generic line when the browser took the file", () => {
     expect(announceExport({ status: "downloaded" }, strings)).toBe(true)
     expect(toast.success).toHaveBeenCalledWith("Export complete", { description: "Export finished." })
+  })
+
+  it("turns an existing progress toast into the final receipt", () => {
+    expect(announceExport({ status: "saved", path: "/home/me/deck.mnemo" }, strings, "progress-id")).toBe(true)
+    expect(toast.update).toHaveBeenCalledWith("progress-id", {
+      type: "success",
+      title: "Export complete",
+      description: "/home/me/deck.mnemo",
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it("discards progress when a replacement chooser is cancelled", () => {
+    expect(announceExport({ status: "cancelled" }, strings, "progress-id")).toBe(false)
+    expect(toast.discard).toHaveBeenCalledWith("progress-id")
+    expect(toast.update).not.toHaveBeenCalled()
   })
 })
 

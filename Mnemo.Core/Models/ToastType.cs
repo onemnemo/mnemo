@@ -7,5 +7,5 @@ public enum ToastType
     Success,
     Warning,
     Action,
-    Task,
+    Progress,
 }

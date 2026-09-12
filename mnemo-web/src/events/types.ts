@@ -36,7 +36,7 @@ export const EventType = {
 
 /** Payload of a `toast` event - mirrors Mnemo.Host/Contracts/ToastEventDto. */
 export interface ToastEventData {
-  type: "info" | "success" | "warning" | "action" | "task"
+  type: "info" | "success" | "warning" | "action" | "progress"
   title: string
   description?: string | null
   durationMs: number

@@ -3,7 +3,7 @@ import { DropdownMenu, Popover } from "radix-ui"
 
 import { RouteLink } from "@/app/RouteLink"
 import { AppIcon } from "@/components/icon/AppIcon"
-import { agoLabel, bucketOf, NOTIFICATION_MARK, type Bucket } from "@/components/shell/topbar/notification-model"
+import { agoLabel, bucketOf, notificationMark, type Bucket } from "@/components/shell/topbar/notification-model"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { type NotificationEntry, useToastStore } from "@/stores/toast"
@@ -134,7 +134,7 @@ const BUCKET_KEY: Record<Bucket, string> = {
 function Row({ entry, now, onNavigate }: { entry: NotificationEntry; now: number; onNavigate: () => void }) {
   const t = useT()
   const [leaving, setLeaving] = useState(false)
-  const mark = NOTIFICATION_MARK[entry.type]
+  const mark = notificationMark(entry.type)
 
   function dismiss(): void {
     setLeaving(true)
@@ -167,7 +167,12 @@ function Row({ entry, now, onNavigate }: { entry: NotificationEntry; now: number
           </span>
 
           <span className={cn("mt-0.5 grid size-7 shrink-0 place-items-center rounded-[9px]", mark.bg)}>
-            <AppIcon name={mark.icon} size={14} strokeWidth={1.9} className={mark.fg} />
+            <AppIcon
+              name={mark.icon}
+              size={14}
+              strokeWidth={1.9}
+              className={cn(mark.fg, mark.spin && "animate-spin")}
+            />
           </span>
 
           <div className="min-w-0 flex-1 pt-0.5">

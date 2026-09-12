@@ -4,7 +4,7 @@ import { getSettingValue } from "@/settings/store"
 
 // Mirrors Mnemo.Core ToastType. Each maps to a --toast-accent-* / --toast-icon-badge-*
 // token pair in the theme (see ToastHost).
-export type ToastType = "info" | "success" | "warning" | "action" | "task"
+export type ToastType = "info" | "success" | "warning" | "action" | "progress"
 
 export interface ToastAction {
   label: string
@@ -25,12 +25,24 @@ export interface ToastOptions {
   onDismissed?: () => void
 }
 
+export interface ToastUpdate {
+  type?: ToastType
+  title?: string
+  description?: string | null
+  notificationAction?: ToastOptions["notificationAction"] | null
+  durationMs?: number
+  primary?: ToastAction | null
+  secondary?: ToastAction | null
+  onDismissed?: (() => void) | null
+}
+
 export interface Toast extends ToastOptions {
   id: string
   type: ToastType
   title: string
   durationMs: number
   createdAt: number
+  revision: number
 }
 
 export interface NotificationEntry {
@@ -51,11 +63,45 @@ const MAX_VISIBLE = 6
 const MAX_HISTORY = 200
 const DEFAULT_DURATION_MS = 5000
 
+function updateOptional<T>(current: T | undefined, next: T | null | undefined): T | undefined {
+  return next === undefined ? current : (next ?? undefined)
+}
+
+function updateDuration(current: Toast, type: ToastType, requested: number | undefined): number {
+  if (requested !== undefined) return requested
+  if (type === "progress") return 0
+  if (current.type === "progress") return DEFAULT_DURATION_MS
+  return current.durationMs
+}
+
+function updateNotificationHistory(history: NotificationEntry[], id: string, patch: ToastUpdate): NotificationEntry[] {
+  const current = history.find((notification) => notification.id === id)
+  if (!current) return history
+
+  const type = patch.type ?? current.type
+  const completed = current.type === "progress" && type !== "progress"
+  const updated: NotificationEntry = {
+    ...current,
+    type,
+    title: patch.title ?? current.title,
+    description: updateOptional(current.description, patch.description),
+    createdAt: completed ? Date.now() : current.createdAt,
+    seen: completed ? false : current.seen,
+    read: completed ? false : current.read,
+    action: updateOptional(current.action, patch.notificationAction),
+  }
+
+  if (completed) return [updated, ...history.filter((notification) => notification.id !== id)]
+  return history.map((notification) => (notification.id === id ? updated : notification))
+}
+
 interface ToastState {
   toasts: Toast[]
   history: NotificationEntry[]
   spawn: (type: ToastType, title: string, options?: ToastOptions) => string
+  update: (id: string, patch: ToastUpdate) => void
   dismiss: (id: string) => void
+  discard: (id: string) => void
   /** Kills the dot on the bell. Called when the flyout opens. */
   markAllSeen: () => void
   /** Kills the row markers. Called when the flyout closes, so the list you are looking at stays the list you opened. */
@@ -77,6 +123,7 @@ export const useToastStore = create<ToastState>((set) => ({
       title,
       durationMs: options.durationMs ?? DEFAULT_DURATION_MS,
       createdAt: Date.now(),
+      revision: 0,
     }
     // App.EnableToasts only silences the pop-up card; the notification list still
     // gets every entry, so turning it off loses nothing, just the interruption.
@@ -100,7 +147,32 @@ export const useToastStore = create<ToastState>((set) => ({
     }))
     return id
   },
+  update: (id, patch) =>
+    set((state) => ({
+      toasts: state.toasts.map((current) => {
+        if (current.id !== id) return current
+        const type = patch.type ?? current.type
+        return {
+          ...current,
+          type,
+          title: patch.title ?? current.title,
+          description: updateOptional(current.description, patch.description),
+          notificationAction: updateOptional(current.notificationAction, patch.notificationAction),
+          durationMs: updateDuration(current, type, patch.durationMs),
+          primary: updateOptional(current.primary, patch.primary),
+          secondary: updateOptional(current.secondary, patch.secondary),
+          onDismissed: updateOptional(current.onDismissed, patch.onDismissed),
+          revision: current.revision + 1,
+        }
+      }),
+      history: updateNotificationHistory(state.history, id, patch),
+    })),
   dismiss: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+  discard: (id) =>
+    set((state) => ({
+      toasts: state.toasts.filter((toast) => toast.id !== id),
+      history: state.history.filter((notification) => notification.id !== id),
+    })),
   markAllSeen: () => set((state) => ({ history: state.history.map((n) => (n.seen ? n : { ...n, seen: true })) })),
   markAllRead: () =>
     set((state) => ({ history: state.history.map((n) => (n.read ? n : { ...n, read: true, seen: true })) })),
@@ -110,11 +182,17 @@ export const useToastStore = create<ToastState>((set) => ({
   clearHistory: () => set({ history: [] }),
 }))
 
-/** Convenience API: `toast.success("Saved")`, `toast.action("Update ready", { primary: {...} })`. */
+type ProgressToastOptions = Omit<ToastOptions, "durationMs">
+
+/** Convenience API: `toast.success("Saved")`, `toast.progress("Exporting")`. */
 export const toast = {
   info: (title: string, options?: ToastOptions) => useToastStore.getState().spawn("info", title, options),
   success: (title: string, options?: ToastOptions) => useToastStore.getState().spawn("success", title, options),
   warning: (title: string, options?: ToastOptions) => useToastStore.getState().spawn("warning", title, options),
   action: (title: string, options?: ToastOptions) => useToastStore.getState().spawn("action", title, options),
-  task: (title: string, options?: ToastOptions) => useToastStore.getState().spawn("task", title, options),
+  progress: (title: string, options?: ProgressToastOptions) =>
+    useToastStore.getState().spawn("progress", title, { ...options, durationMs: 0 }),
+  update: (id: string, patch: ToastUpdate) => useToastStore.getState().update(id, patch),
+  dismiss: (id: string) => useToastStore.getState().dismiss(id),
+  discard: (id: string) => useToastStore.getState().discard(id),
 }
