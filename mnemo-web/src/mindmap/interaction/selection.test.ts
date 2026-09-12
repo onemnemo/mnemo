@@ -4,6 +4,7 @@ import {
   addElements,
   EMPTY_SELECTION,
   isSelected,
+  removeElements,
   retain,
   selectElements,
   selectionSize,
@@ -59,10 +60,25 @@ describe("toggling", () => {
 })
 
 describe("a marquee's release", () => {
-  it("replaces on its own and adds when it is additive", () => {
+  it("replaces, adds, or subtracts according to its modifier", () => {
     const first = selectElements(["a", "b"])
     expect([...selectElements(["c"]).elements]).toEqual(["c"])
     expect([...addElements(first, ["c"]).elements]).toEqual(["a", "b", "c"])
+    expect([...removeElements(first, ["b"]).elements]).toEqual(["a"])
+  })
+
+  it("moves the primary to a survivor when subtraction removes it", () => {
+    const first = addElements(selectOnly("edge", "e1"), ["a", "b"])
+    const next = removeElements(first, ["b"])
+
+    expect([...next.elements]).toEqual(["a"])
+    expect([...next.edges]).toEqual(["e1"])
+    expect(next.primary).toEqual({ kind: "element", id: "a" })
+  })
+
+  it("keeps the same selection when subtraction catches nothing", () => {
+    const first = selectElements(["a"])
+    expect(removeElements(first, ["b"])).toBe(first)
   })
 
   it("catches nothing without clearing the primary out from under an empty result", () => {

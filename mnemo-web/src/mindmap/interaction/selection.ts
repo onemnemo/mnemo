@@ -95,6 +95,23 @@ export function addElements(selection: Selection, ids: Iterable<string>): Select
   }
 }
 
+/** Difference, for a Ctrl-dragged marquee. Elements only, like every marquee operation. */
+export function removeElements(selection: Selection, ids: Iterable<string>): Selection {
+  const elements = new Set(selection.elements)
+  let changed = false
+  for (const id of ids) {
+    changed = elements.delete(id) || changed
+  }
+  if (!changed) {
+    return selection
+  }
+
+  const next: Selection = { elements, edges: selection.edges, primary: selection.primary }
+  const primaryLives =
+    next.primary != null && setFor(next, next.primary.kind).has(next.primary.id)
+  return primaryLives ? next : { ...next, primary: fallbackPrimary(next) }
+}
+
 /** Drops ids that are no longer in the document, after a delete or a reload. */
 export function retain(
   selection: Selection,

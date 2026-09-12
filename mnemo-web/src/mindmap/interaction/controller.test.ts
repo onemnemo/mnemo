@@ -406,6 +406,20 @@ describe("installInteraction", () => {
     h.uninstall()
   })
 
+  it("subtracts what a Ctrl-dragged band touches from the selection", () => {
+    const h = harness()
+    h.press("a", { x: 210, y: -50 })
+    h.release({ x: 210, y: -50 })
+    h.press("loose", { x: 210, y: 410 }, { shiftKey: true })
+
+    h.press(null, { x: 150, y: -100 }, { ctrlKey: true })
+    h.move({ x: 310, y: 20 })
+    h.release({ x: 310, y: 20 })
+
+    expect([...h.selection().elements]).toEqual(["loose"])
+    h.uninstall()
+  })
+
   it("hands a sweep to the frame tool instead of to the selection", () => {
     const h = harness()
     h.arm("frame")

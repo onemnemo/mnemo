@@ -73,6 +73,8 @@ export interface CanvasRuntimeOptions {
    * otherwise; most maps fit with room to spare and this never fires for them.
    */
   readonly onFitClamped?: () => void
+  /** Whether the primary modifier may claim an empty-canvas press for panning. */
+  readonly canPrimaryPan?: () => boolean
 }
 
 export interface CanvasRuntime {
@@ -383,11 +385,16 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
       beginPan(event)
       return
     }
-    // The primary modifier over empty canvas pans as well, so a pan is always reachable from the
-    // left button alone. Only over empty canvas: on a node the same press toggles it into the
-    // selection, which is the older meaning and the one with nowhere else to go, and an edge is
-    // the same toggle found geometrically.
-    if (event.button === 0 && panModifier(event) && !onNode(event.target) && !overEdge(event)) {
+    // The primary modifier over empty canvas pans when the caller has no selection operation for
+    // it. Nodes and edges keep their additive click, and an existing selection reserves the press
+    // for a subtractive marquee.
+    if (
+      event.button === 0 &&
+      panModifier(event) &&
+      (options.canPrimaryPan?.() ?? true) &&
+      !onNode(event.target) &&
+      !overEdge(event)
+    ) {
       beginPan(event)
     }
   }

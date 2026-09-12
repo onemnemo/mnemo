@@ -16,7 +16,7 @@ import { MindmapNode } from "./MindmapNode"
 import { createCanvasRuntime, type CanvasRuntime } from "./runtime"
 import { installInteraction, type MovedElement, type NodeChrome } from "../interaction/controller"
 import type { ResizeBox } from "../interaction/resize"
-import { EMPTY_SELECTION, type Selection } from "../interaction/selection"
+import { EMPTY_SELECTION, isEmpty, type Selection } from "../interaction/selection"
 import { cursorFor, type MindmapTool } from "../interaction/tool"
 import type { Point, Scene, Viewport } from "../model/scene"
 
@@ -179,6 +179,7 @@ export function MindmapCanvas({
       onCameraChange: (next) => live.current.onCamera?.(next),
       onCameraSettled: (next) => live.current.onCameraSettled?.(next),
       onFitClamped: () => live.current.onFitClamped?.(),
+      canPrimaryPan: () => isEmpty(live.current.selection),
     })
     runtime.current = created
     if (runtimeRef) {

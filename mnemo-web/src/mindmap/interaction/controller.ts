@@ -22,12 +22,16 @@ import type { MindmapTool } from "./tool"
 import {
   addElements,
   EMPTY_SELECTION,
+  isEmpty,
   isSelected,
+  removeElements,
   selectElements,
   selectOnly,
   toggle,
   type Selection,
 } from "./selection"
+
+type MarqueeIntent = "replace" | "add" | "subtract"
 
 /** Client pixels of slack, summed across both axes, before a press becomes a drag. */
 const DRAG_THRESHOLD = 4
@@ -111,6 +115,7 @@ type Gesture =
       /** Deferred until the press turns out to be a click, so a multi-drag keeps its selection. */
       readonly selectOnUp: boolean
       readonly additive: boolean
+      readonly marqueeIntent: MarqueeIntent
     }
   | {
       readonly kind: "drag"
@@ -125,7 +130,7 @@ type Gesture =
       readonly pointerId: number
       readonly startClient: Point
       readonly startCanvas: Point
-      readonly additive: boolean
+      readonly intent: MarqueeIntent
       /** What the sweep is for. Decided when it starts, so a tool change mid-gesture cannot rewrite it. */
       readonly groups: boolean
       readonly box: HTMLElement
@@ -240,17 +245,21 @@ export function installInteraction(
     // So the map answers the keyboard without needing a second click somewhere neutral.
     pane.focus({ preventScroll: true })
 
-    const additive = event.shiftKey || event.ctrlKey || event.metaKey
+    const subtractive = event.ctrlKey || event.metaKey
+    const additive = event.shiftKey || subtractive
+    const marqueeIntent: MarqueeIntent = subtractive
+      ? "subtract"
+      : event.shiftKey
+        ? "add"
+        : "replace"
     const startClient = { x: event.clientX, y: event.clientY }
     const startCanvas = surface.toCanvas(event.clientX, event.clientY)
     const elementId = elementAt(event.target)
     const tool = handlers.tool()
 
-    // The modifier the runtime pans on, over what is genuinely empty canvas. Asked here rather
-    // than at the top so a node keeps its additive toggle and an edge, which is only ever found
-    // geometrically, keeps its click. Shift is still the additive marquee, so adding to a
-    // selection by sweeping keeps a key of its own.
-    if (panModifier(event) && !elementId && !edgeAt(startCanvas)) {
+    // The runtime may pan with the primary modifier only when there is no selection to subtract
+    // from. Asked here rather than at the top so nodes and edges keep their additive click.
+    if (panModifier(event) && isEmpty(handlers.selection()) && !elementId && !edgeAt(startCanvas)) {
       return
     }
 
@@ -327,6 +336,7 @@ export function installInteraction(
         startCanvas,
         selectOnUp: already && selectionCount(selection) > 1,
         additive,
+        marqueeIntent,
       }
       return
     }
@@ -350,6 +360,7 @@ export function installInteraction(
       startCanvas,
       selectOnUp: false,
       additive,
+      marqueeIntent,
     }
   }
 
@@ -390,7 +401,7 @@ export function installInteraction(
       pointerId: press.pointerId,
       startClient: press.startClient,
       startCanvas: press.startCanvas,
-      additive: press.additive,
+      intent: press.marqueeIntent,
       groups: handlers.tool() === "frame",
       box: openMarquee(pane),
     }
@@ -535,10 +546,13 @@ export function installInteraction(
       return
     }
 
-    // Replace on release rather than add, which is deliberate and matches the desktop: a marquee is
-    // how you say "these", and shift is how you say "and these too".
+    const selection = handlers.selection()
     handlers.setSelection(
-      finished.additive ? addElements(handlers.selection(), hits) : selectElements(hits),
+      finished.intent === "add"
+        ? addElements(selection, hits)
+        : finished.intent === "subtract"
+          ? removeElements(selection, hits)
+          : selectElements(hits),
     )
   }
 

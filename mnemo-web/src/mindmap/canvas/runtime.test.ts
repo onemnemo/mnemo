@@ -317,6 +317,16 @@ describe("panning the map", () => {
     dispose()
   })
 
+  it("leaves the primary modifier to selection when panning is reserved", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE, { canPrimaryPan: () => false })
+    stubCapture(pane)
+
+    dragBy(pane, { button: 0, ctrlKey: true }, 12, 8)
+
+    expect(runtime.viewport()).toEqual({ x: 0, y: 0, zoom: 1 })
+    dispose()
+  })
+
   it("leaves the same press on a node alone, where it still means add to the selection", () => {
     const { runtime, pane, dispose } = mount(EMPTY_SCENE)
     stubCapture(pane)
