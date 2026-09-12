@@ -11,6 +11,10 @@ namespace Mnemo.Host.Transfer;
 /// </summary>
 public static class TransferStagingStore
 {
+    public const string ProfileBackupImportCode = "profile_backup_requires_restore";
+    public const string ProfileBackupImportMessage =
+        "This is a full backup. Restore it from Settings, under Storage and data.";
+
     /// <summary>
     /// How long an abandoned staged file survives. Only long enough to outlast an import dialog
     /// somebody left open; the confirmed and cancelled paths both delete eagerly, so anything
@@ -27,6 +31,9 @@ public static class TransferStagingStore
     /// </summary>
     public static bool IsValidStagingId(string? stagingId) =>
         stagingId is { Length: 32 } && stagingId.All(Uri.IsHexDigit);
+
+    public static bool IsProfileBackup(string? fileName) =>
+        string.Equals(Path.GetExtension(fileName), ".mnemo-backup", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Stages an upload under its own directory and returns the id plus the path to write to.

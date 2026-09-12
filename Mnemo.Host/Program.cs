@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Net;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using Microsoft.AspNetCore.Builder;
@@ -13,6 +15,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Core.Services.Proofing;
 using Mnemo.Host.Ai;
+using Mnemo.Host.Backup;
 using Mnemo.Host.Chat;
 using Mnemo.Host.Chrome;
 using Mnemo.Host.Composition;
@@ -35,6 +38,8 @@ using Mnemo.Host.Trash;
 using Mnemo.Host.Updates;
 using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services;
+using Mnemo.Infrastructure.Services.ProfileBackup;
 using Photino.NET;
 using Velopack;
 
@@ -42,6 +47,8 @@ namespace Mnemo.Host;
 
 public static class Program
 {
+    internal const string WaitForProcessArgument = "--wait-for-process";
+
     [STAThread]
     public static int Main(string[] args)
     {
@@ -78,18 +85,32 @@ public static class Program
         }
 
         var options = HostOptions.Parse(args);
+        WaitForPredecessor(args);
+        var startupLogger = new LoggerService();
+        CrashLog.UseLogger(startupLogger);
+        using var instanceLock = HostInstanceLock.Acquire();
 
-        // Photino needs the window on this (STA) entry thread, so the async server
-        // startup is bridged exactly once, here.
-        var server = Task.Run(() => StartServerAsync(options)).GetAwaiter().GetResult();
+        Task.Run(() => ProfileRestoreStartup.ApplyPendingAsync(
+            MnemoAppPaths.GetLocalUserDataRoot(),
+            CurrentAppVersion(),
+            startupLogger,
+            allowProfileReplacement: !instanceLock.AnotherInstanceIsRunning())).GetAwaiter().GetResult();
+
+        // Photino needs the window on this (STA) entry thread, so asynchronous server startup
+        // is completed before the native message loop takes ownership of this thread.
+        var server = Task.Run(() => StartServerAsync(options, startupLogger, instanceLock)).GetAwaiter().GetResult();
+        var restart = false;
         try
         {
             RunWindow(options, server);
+            restart = server.App.Services.GetRequiredService<AppRestartCoordinator>().Requested;
             return 0;
         }
         finally
         {
             StopServer(server);
+            if (restart)
+                Relaunch(args);
         }
     }
 
@@ -136,9 +157,95 @@ public static class Program
         }
     }
 
+    private static string CurrentAppVersion()
+    {
+        var assembly = Assembly.GetEntryAssembly();
+        return assembly?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly?.GetName().Version?.ToString()
+            ?? "0.0.0";
+    }
+
+    private static void Relaunch(string[] args)
+    {
+        try
+        {
+            var executable = Startup.LaunchAtStartupService.ResolveAutostartExecutable(
+                OperatingSystem.IsLinux(),
+                Environment.GetEnvironmentVariable("APPIMAGE"),
+                Environment.ProcessPath)
+                ?? throw new InvalidOperationException("The current executable path is unavailable.");
+            var start = new ProcessStartInfo(executable) { UseShellExecute = false };
+            if (string.Equals(Path.GetFileNameWithoutExtension(executable), "dotnet", StringComparison.OrdinalIgnoreCase))
+            {
+                var assemblyPath = Assembly.GetEntryAssembly()?.Location
+                    ?? throw new InvalidOperationException("The entry assembly path is unavailable.");
+                start.ArgumentList.Add(assemblyPath);
+            }
+            foreach (var argument in RelaunchArguments(args, Environment.ProcessId))
+                start.ArgumentList.Add(argument);
+            Process.Start(start);
+        }
+        catch (Exception ex)
+        {
+            // The staged restore remains pending, so a manual launch can still apply it.
+            CrashLog.Write("Mnemo could not relaunch to finish the profile restore.", ex);
+        }
+    }
+
+    internal static IReadOnlyList<string> RelaunchArguments(IReadOnlyList<string> args, int processId)
+    {
+        var result = new List<string>();
+        for (var i = 0; i < args.Count; i++)
+        {
+            if (args[i] == WaitForProcessArgument)
+            {
+                if (i + 1 < args.Count)
+                    i++;
+                continue;
+            }
+            result.Add(args[i]);
+        }
+        result.Add(WaitForProcessArgument);
+        result.Add(processId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return result;
+    }
+
+    internal static int? PredecessorProcessId(IReadOnlyList<string> args)
+    {
+        for (var i = args.Count - 2; i >= 0; i--)
+        {
+            if (args[i] == WaitForProcessArgument &&
+                int.TryParse(args[i + 1], out var processId) && processId > 0)
+            {
+                return processId;
+            }
+        }
+        return null;
+    }
+
+    private static void WaitForPredecessor(IReadOnlyList<string> args)
+    {
+        var processId = PredecessorProcessId(args);
+        if (processId is null || processId == Environment.ProcessId)
+            return;
+        try
+        {
+            using var predecessor = Process.GetProcessById(processId.Value);
+            if (!predecessor.WaitForExit(milliseconds: 60_000))
+                throw new TimeoutException("The previous Mnemo process did not exit within one minute.");
+        }
+        catch (ArgumentException)
+        {
+            // The predecessor exited before this process opened its handle.
+        }
+    }
+
     private sealed record ServerHandle(WebApplication App, string ApiBaseUrl, string WindowUrl, string SpellcheckLanguage);
 
-    private static async Task<ServerHandle> StartServerAsync(HostOptions options)
+    private static async Task<ServerHandle> StartServerAsync(
+        HostOptions options,
+        ILoggerService startupLogger,
+        HostInstanceLock instanceLock)
     {
         // The port is part of the origin the window loads, and the browser partitions web
         // storage by origin, so production resolves the same port on every launch instead
@@ -163,7 +270,7 @@ public static class Program
         WindowHostLifetime.Install(builder.Services);
 
         var modules = HostComposition.DiscoverModules(out var discoveryFailures);
-        HostComposition.AddMnemoBackend(builder.Services, modules);
+        HostComposition.AddMnemoBackend(builder.Services, modules, startupLogger, instanceLock);
 
         var app = builder.Build();
         var logger = app.Services.GetRequiredService<ILoggerService>();
@@ -199,6 +306,7 @@ public static class Program
         app.MapEventStream();
         app.MapLifecycle();
         app.MapExportFile();
+        app.MapProfileBackup();
         app.MapSettings();
         app.MapProfileAssets();
         app.MapKeybinds();
@@ -367,6 +475,7 @@ public static class Program
         AttachShutdownGate(window, server.App.Services);
         ExitSignals.Attach(window, logger);
         server.App.Services.GetRequiredService<NativeFileDialogs>().Attach(window);
+        server.App.Services.GetRequiredService<AppRestartCoordinator>().Attach(window);
 
         logger.Info(CrashLog.Category, $"Load({url})");
         window.Load(url);
@@ -391,6 +500,7 @@ public static class Program
         var gate = services.GetRequiredService<ShutdownGate>();
         var events = services.GetRequiredService<IAppEventPublisher>();
         var logger = services.GetRequiredService<ILoggerService>();
+        var restart = services.GetRequiredService<AppRestartCoordinator>();
 
         window.RegisterClosingHandler((_, e) =>
         {
@@ -413,6 +523,7 @@ public static class Program
                     // drain that stays spent would let the next close through with no
                     // save and no prompt.
                     gate.Reset();
+                    restart.CancelRequest();
                     return;
                 }
 

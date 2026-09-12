@@ -51,6 +51,21 @@ public sealed class NativeFileDialogs
             window.ShowSaveFile(title, StartDirectory(startDirectory), filters, fileName));
     }
 
+    public Task<string?> PickOpenFileAsync(string title, string filterName, string[] extensions)
+    {
+        if (extensions.Length == 0 || extensions.Any(extension =>
+                string.IsNullOrWhiteSpace(extension) || extension.IndexOfAny(['*', '.', '/', '\\']) >= 0))
+        {
+            throw new ArgumentException("Open-file extensions must be bare suffixes.", nameof(extensions));
+        }
+
+        return OnWindowThreadAsync(window =>
+        {
+            var selected = window.ShowOpenFile(title, StartDirectory(null), false, [(filterName, extensions)]);
+            return selected?.FirstOrDefault();
+        });
+    }
+
     private static string StartDirectory(string? requested) =>
         !string.IsNullOrWhiteSpace(requested) && Directory.Exists(requested)
             ? requested!

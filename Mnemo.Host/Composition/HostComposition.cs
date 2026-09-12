@@ -4,6 +4,7 @@ using Mnemo.Core.History;
 using Mnemo.Core.Services;
 using Mnemo.Core.Services.Ai;
 using Mnemo.Core.Services.Search;
+using Mnemo.Host.Backup;
 using Mnemo.Host.Events;
 using Mnemo.Host.HeadlessShell;
 using Mnemo.Host.I18n;
@@ -30,6 +31,7 @@ using Mnemo.Infrastructure.Services.Notes.Persistence;
 using Mnemo.Infrastructure.Services.Notes.Trash;
 using Mnemo.Infrastructure.Services.Packaging;
 using Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
+using Mnemo.Infrastructure.Services.ProfileBackup;
 using Mnemo.Infrastructure.Services.Search;
 using Mnemo.Infrastructure.Services.Spellcheck;
 using Mnemo.Infrastructure.Services.Statistics;
@@ -108,15 +110,23 @@ public static class HostComposition
     /// pure metadata run from <see cref="InitializeBackendAsync"/> once the
     /// provider exists.
     /// </summary>
-    public static void AddMnemoBackend(IServiceCollection services, IReadOnlyList<IModule> modules)
+    public static void AddMnemoBackend(
+        IServiceCollection services,
+        IReadOnlyList<IModule> modules,
+        ILoggerService? startupLogger = null,
+        HostInstanceLock? instanceLock = null)
     {
         // 1. Core/Infrastructure services
         services.AddSingleton<IHistoryManager, HistoryManager>();
-        services.AddSingleton<ILoggerService, LoggerService>();
+        if (startupLogger is null)
+            services.AddSingleton<ILoggerService, LoggerService>();
+        else
+            services.AddSingleton(startupLogger);
         services.AddSingleton<IStorageProvider, SqliteStorageProvider>();
         services.AddSingleton<IChatModuleHistoryService, ChatModuleHistoryService>();
         services.AddSingleton<IChatHistoryClearService, ChatHistoryClearService>();
         services.AddSingleton<ISettingsService, SettingsService>();
+        services.AddSingleton<IProfileBackupService, ProfileBackupService>();
         services.AddSingleton<IPerfDiagnostics, PerfDiagnosticsService>();
         services.AddSingleton<IUpdateService, VelopackUpdateService>();
         services.AddSingleton<IMarkdownProcessor, MarkdownProcessor>();
@@ -200,7 +210,10 @@ public static class HostComposition
         // Image uploads, the editing-session registry, and the orphan sweep over them. The
         // instance lock is what keeps that sweep from deleting what another running instance's
         // undo history can still restore.
-        services.AddSingleton(_ => Lifecycle.HostInstanceLock.Acquire());
+        if (instanceLock is null)
+            services.AddSingleton(_ => Lifecycle.HostInstanceLock.Acquire());
+        else
+            services.AddSingleton(instanceLock);
         services.AddSingleton<Notes.NoteAssets>();
         services.AddSingleton<Mindmap.MindmapAssets>();
 
@@ -308,6 +321,8 @@ public static class HostComposition
         // Likewise for the native file and folder choosers: registered whether or not a window
         // ever attaches, so the endpoint can answer "not here" instead of failing to resolve.
         services.AddSingleton<NativeFileDialogs>();
+        services.AddSingleton<AppRestartCoordinator>();
+        services.AddSingleton<ProfileRestoreGrants>();
 
         // The destinations those choosers returned, which is the only thing the write route will
         // accept. Process-wide because the chooser and the upload are two separate requests.

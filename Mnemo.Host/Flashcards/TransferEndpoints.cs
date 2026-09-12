@@ -94,6 +94,10 @@ public static class TransferEndpoints
             var file = form.Files.GetFile("file") ?? form.Files.FirstOrDefault();
             if (file is null || file.Length == 0)
                 return Results.BadRequest(new ErrorDto("empty_upload", "No file was uploaded."));
+            if (TransferStagingStore.IsProfileBackup(file.FileName))
+                return Results.BadRequest(new ErrorDto(
+                    TransferStagingStore.ProfileBackupImportCode,
+                    TransferStagingStore.ProfileBackupImportMessage));
             if (file.Length > TransferLimits.MaxFileBytes)
                 return Results.BadRequest(new ErrorDto("file_too_large", $"The file exceeds the {TransferLimits.MaxFileMegabytes} MB limit."));
 
