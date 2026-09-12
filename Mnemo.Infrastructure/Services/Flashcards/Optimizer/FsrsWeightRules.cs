@@ -45,6 +45,25 @@ public static class FsrsWeightRules
         4.0d, 1.0d, 6.0d, 2.0d, 2.0d, 0.8d, 0.8d
     };
 
+    /// <summary>
+    /// Resolves the weight vector a preset schedules with. A missing vector uses the published
+    /// defaults, and an FSRS-5 vector is padded with the parameters that model pinned.
+    /// </summary>
+    public static double[] Resolve(FlashcardPreset preset)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+
+        if (preset.Weights is not { } weights)
+            return FlashcardFsrsParameters.Default.Weights;
+
+        var resolved = Expand(weights);
+
+        // Decay is a divisor, so zero takes the forgetting curve to infinity. Stored presets pass
+        // the full parameter gate, but this also protects callers holding a preset from elsewhere.
+        resolved[20] = Math.Min(UpperBounds[20], Math.Max(LowerBounds[20], resolved[20]));
+        return resolved;
+    }
+
     /// <summary>Smallest value slot <paramref name="index"/> may hold.</summary>
     public static double LowerBound(int index) => LowerBounds[index];
 

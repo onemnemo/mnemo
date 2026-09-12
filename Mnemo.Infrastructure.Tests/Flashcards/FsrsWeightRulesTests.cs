@@ -44,6 +44,35 @@ public sealed class FsrsWeightRulesTests
         Assert.Equal(0.5d, expanded[20]);
     }
 
+    [Fact]
+    public void Resolving_a_preset_uses_the_same_padding_and_decay_guard_as_the_scheduler()
+    {
+        var fsrs5 = FlashcardFsrsParameters.Default.Weights.Take(19).ToArray();
+        var preset = FlashcardPreset.CreateStandard(Now) with { Weights = fsrs5 };
+
+        var resolved = FsrsWeightRules.Resolve(preset);
+
+        Assert.Equal(21, resolved.Length);
+        Assert.Equal(fsrs5, resolved.Take(19));
+        Assert.Equal(0d, resolved[19]);
+        Assert.Equal(0.5d, resolved[20]);
+    }
+
+    [Theory]
+    [InlineData(0d, 0.1d)]
+    [InlineData(5d, 0.8d)]
+    public void Resolving_a_preset_holds_the_decay_inside_the_box(double stored, double expected)
+    {
+        var weights = FlashcardFsrsParameters.Default.Weights.ToArray();
+        weights[20] = stored;
+        var preset = FlashcardPreset.CreateStandard(Now) with { Weights = weights };
+
+        var resolved = FsrsWeightRules.Resolve(preset);
+
+        Assert.Equal(expected, resolved[20]);
+        Assert.Equal(weights.Take(20), resolved.Take(20));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(18)]

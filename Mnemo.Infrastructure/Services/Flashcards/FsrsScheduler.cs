@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services.Flashcards.Optimizer;
 
 namespace Mnemo.Infrastructure.Services.Flashcards;
 
@@ -25,29 +26,18 @@ public sealed class FsrsScheduler : IFsrsScheduler
         _clock = clock;
     }
 
-    private const int WeightCount = 21;
-    private const int Fsrs5WeightCount = 19;
     private const double MinStability = 0.001d;
     private const double MaxStability = 36500d;
     private const double MaxInterval = 36500d;
     private const double MinRetention = 0.70d;
     private const double MaxRetention = 0.99d;
 
-    // FSRS-5 pinned the forgetting curve's decay at -0.5. Padding a 19-slot vector with these two
-    // reproduces that exactly under FSRS-6's decay = -w20 parameterisation.
-    private const double Fsrs5ShortTermDamping = 0.0d;
-    private const double Fsrs5Decay = 0.5d;
-
-    // The range FSRS-6's own parameter clipper holds w20 to.
-    private const double MinDecay = 0.1d;
-    private const double MaxDecay = 0.8d;
-
     public FlashcardSchedule ApplyGrade(FlashcardSchedule current, FlashcardReviewGrade grade, DateTimeOffset reviewedAt, FlashcardPreset preset)
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(preset);
 
-        var weights = ResolveWeights(preset);
+        var weights = FsrsWeightRules.Resolve(preset);
         var retention = Math.Clamp(preset.DesiredRetention, MinRetention, MaxRetention);
 
         double stability;
@@ -204,45 +194,6 @@ public sealed class FsrsScheduler : IFsrsScheduler
                 return (state, next, now.AddMinutes(steps[next]));
             }
         }
-    }
-
-    /// <summary>
-    /// Accepts Mnemo's 21-slot FSRS-6 vector, or the 19-slot vector the FSRS-5 optimizer emits.
-    /// Padding the latter is exact rather than approximate: no short-term damping and a decay of 0.5
-    /// are precisely what FSRS-5 pinned. Any other length is a mistake (a truncated paste, or a
-    /// vector from a different algorithm), and quietly scheduling every future review on substituted
-    /// weights would bury it, so it throws instead.
-    /// </summary>
-    private static double[] ResolveWeights(FlashcardPreset preset)
-    {
-        if (preset.Weights is not { } w)
-            return FlashcardFsrsParameters.Default.Weights;
-
-        double[] resolved;
-        switch (w.Count)
-        {
-            case WeightCount:
-                resolved = w.ToArray();
-                break;
-
-            case Fsrs5WeightCount:
-                resolved = new double[WeightCount];
-                for (var i = 0; i < Fsrs5WeightCount; i++)
-                    resolved[i] = w[i];
-                resolved[19] = Fsrs5ShortTermDamping;
-                resolved[20] = Fsrs5Decay;
-                break;
-
-            default:
-                throw new ArgumentException(
-                    $"FSRS weights must hold {Fsrs5WeightCount} or {WeightCount} values, but the preset has {w.Count}.",
-                    nameof(preset));
-        }
-
-        // Decay is a divisor, so a zero here takes the whole forgetting curve to infinity. The trainer
-        // is held to this same range, which makes anything outside it a bad paste rather than a taste.
-        resolved[20] = Clamp(resolved[20], MinDecay, MaxDecay);
-        return resolved;
     }
 
     private static int[] Steps(IReadOnlyList<int> steps) =>
