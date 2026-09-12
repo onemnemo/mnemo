@@ -10,8 +10,9 @@
  * which is schema declaration order, so a mark array serializes identically no
  * matter what order the user applied the formatting in. That is the whole
  * canonicalization pass we would otherwise have had to write and test. The
- * order below matches `TextStyle`'s field order so there is one sequence to
- * keep in mind rather than two.
+ * Script marks precede text decorations so `<u>` and `<s>` render inside the
+ * shifted glyph box. If the decoration wraps `<sub>` or `<sup>`, browsers draw
+ * its line against the surrounding text baseline instead of the script.
  *
  * Corpus counts are noted where they are zero or near-zero, several of these
  * exist for parity with data that no real note has ever produced, and are not
@@ -219,6 +220,8 @@ export const supMark = flagMark('sup', 'superscript', {
 export const markModules: readonly AnyMarkModule[] = [
   strongMark,
   emMark,
+  subMark,
+  supMark,
   underlineMark,
   strikeMark,
   codeMark,
@@ -227,6 +230,4 @@ export const markModules: readonly AnyMarkModule[] = [
   fgSwatchMark,
   linkMark,
   noAutoLinkMark,
-  subMark,
-  supMark,
 ];
