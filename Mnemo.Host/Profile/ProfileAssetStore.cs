@@ -17,7 +17,7 @@ namespace Mnemo.Host.Profile;
 public static class ProfileAssetStore
 {
     private static string ResolveDirectory() =>
-        Path.Combine(MnemoAppPaths.GetLocalUserDataRoot(), "avatar");
+        MnemoAppPaths.GetAvatarDirectory();
 
     private static readonly ManagedAssetStore Store = new(ResolveDirectory, ManagedAssetStore.ImageExtensions);
 

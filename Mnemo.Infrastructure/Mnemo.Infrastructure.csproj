@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Mnemo.Infrastructure.Tests" />
+    <InternalsVisibleTo Include="Mnemo.Host.Tests" />
   </ItemGroup>
 
   <ItemGroup>

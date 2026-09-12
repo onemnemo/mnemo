@@ -8,6 +8,13 @@ public static class MnemoAppPaths
     private const string ProductFolderName = "Mnemo";
 
     /// <summary>
+    /// Directories whose files belong to the saved profile and therefore travel in a full backup.
+    /// Adding a managed asset root starts here so storage, backup, and restore share one inventory.
+    /// </summary>
+    public static IReadOnlyList<string> ManagedProfileDirectoryNames { get; } =
+        ["avatar", "images", "note-assets", "mindmap-assets", "chat-attachments"];
+
+    /// <summary>
     /// Environment variable that overrides the data root wholesale, so a second app
     /// instance (e.g. a dev host) can run against its own profile instead of the
     /// shared per-user directory. Unset means normal per-user resolution.
@@ -69,6 +76,10 @@ public static class MnemoAppPaths
     /// </summary>
     public static string GetImagesDirectory()
         => Path.Combine(GetLocalUserDataRoot(), "images");
+
+    /// <summary>Returns the directory containing the optional profile picture.</summary>
+    public static string GetAvatarDirectory()
+        => Path.Combine(GetLocalUserDataRoot(), "avatar");
 
     /// <summary>
     /// Returns the directory where chat attachments uploaded through the web host are
