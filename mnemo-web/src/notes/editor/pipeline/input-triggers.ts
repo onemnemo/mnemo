@@ -1,6 +1,6 @@
 /**
  * The input-trigger plugin: one `handleTextInput` that runs the registry's
- * per-block input triggers against what the user is typing.
+ * scoped input triggers against what the user is typing.
  *
  * This is the generic engine behind the markdown shortcuts, and behind any later
  * as-you-type rule a module contributes. It knows nothing about markdown: it
@@ -11,10 +11,10 @@
  *
  * Two properties keep it cheap and predictable:
  *
- *  - **Per-block.** Only triggers whose owning block type matches the caret's
- *    block are tested, so a note full of block types does not run every module's
- *    regex on every keystroke, the reason the registry keeps each trigger's
- *    owner alongside it.
+ *  - **Scoped.** A block module's triggers run only for their owning block type.
+ *    Editor-level triggers are reserved for syntax that applies anywhere the
+ *    target mark is allowed, so one shared rule does not have to be copied into
+ *    every prose block.
  *
  *  - **First match wins.** Triggers are tried in registry order and the first one
  *    that both matches and returns a transaction handles the input. A trigger may
@@ -31,10 +31,16 @@
 
 import { Plugin } from 'prosemirror-state';
 import type { BlockRegistry, InputTriggerEntry } from '../registry/build';
+import type { InputTriggerContribution } from '../registry/types';
 import { asOwnUndoStep } from '../history';
 
-export function inputTriggerPlugin(registry: BlockRegistry): Plugin {
-  const triggers = registry.inputTriggers;
+type InputTrigger = InputTriggerEntry | InputTriggerContribution;
+
+export function inputTriggerPlugin(
+  registry: BlockRegistry,
+  editorTriggers: readonly InputTriggerContribution[] = [],
+): Plugin {
+  const triggers: readonly InputTrigger[] = [...registry.inputTriggers, ...editorTriggers];
 
   return new Plugin({
     props: {
@@ -65,9 +71,9 @@ export function inputTriggerPlugin(registry: BlockRegistry): Plugin {
         if (textBefore.length !== $from.parentOffset) return false;
         const matchText = textBefore + text;
 
-        const candidates: { readonly trigger: InputTriggerEntry; readonly match: RegExpExecArray }[] = [];
+        const candidates: { readonly trigger: InputTrigger; readonly match: RegExpExecArray }[] = [];
         for (const trigger of triggers) {
-          if (trigger.nodeName !== blockName) continue;
+          if ('nodeName' in trigger && trigger.nodeName !== blockName) continue;
           const match = trigger.match.exec(matchText);
           if (match) candidates.push({ trigger, match });
         }

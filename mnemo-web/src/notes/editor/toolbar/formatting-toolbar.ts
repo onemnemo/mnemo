@@ -84,8 +84,8 @@ const TOOLTIP_KEYS: Readonly<Record<string, string>> = {
  * bespoke link button (built below, alongside the colour button) sits in the
  * row, since a command that opens UI cannot live in the catalog `run` slot
  * `isCommandEnabled` dry-runs. `editor.code` has no desktop button to match
- * against, so it is appended to the same group; clear-marks and undo/redo
- * stay with the slash menu and keymap.
+ * against, so it is appended to the same group. Undo, redo and the internal
+ * mark escape stay out of a toolbar that exists only for a visible selection.
  */
 const BUTTON_GROUPS: readonly (readonly string[])[] = [
   [

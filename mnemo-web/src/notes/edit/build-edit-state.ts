@@ -63,6 +63,8 @@ import { equationOpenOnInsert } from '../editor/atoms';
 import { slashMenuPlugin } from '../editor/slash';
 import { linkInteractionPlugin } from '../editor/marks/link-interaction';
 import { autoLinkPlugin } from '../editor/marks/auto-link';
+import { scriptAssistancePlugin, scriptEscapeKeymap } from '../editor/scripts/assistance';
+import { scriptShortcutTriggers } from '../editor/scripts/shortcuts';
 import type { BlockRegistry } from '../editor/registry/build';
 import type { InlineMapper } from '../editor/mapper/inline';
 import type { Block } from '../model/types';
@@ -116,6 +118,9 @@ export type NoteEditState =
  *    keys.
  *  - `inputTriggerPlugin` runs on text input, not on a key chord, so it sits
  *    before the keymaps without competing with them.
+ *  - `scriptAssistancePlugin` follows the conversion triggers so a terminating
+ *    Space converts literal syntax first. When no syntax is pending, it ends an
+ *    inherited script without disturbing bold or another ordinary mark.
  *  - `autoLinkPlugin` follows the markdown triggers. Both read text input, and
  *    a block marker such as `# ` must convert the block before a generic text
  *    completion rule can see the same space.
@@ -139,6 +144,8 @@ export type NoteEditState =
  *    `numberedListPlugin`, `findPlugin` and `intrinsicSizePlugin` only decorate;
  *    none of them touch key dispatch except `findPlugin`, which claims Ctrl+F
  *    (unclaimed by anything above) and Escape only while find is open.
+ *  - `scriptEscapeKeymap` follows find, so the first Escape closes that surface
+ *    and a later Escape can end an explicitly armed subscript or superscript.
  *  - `blockIdentityPlugin` also only appends. Its place after the pipeline is
  *    not load-bearing, a block the pipeline itself creates gets its identity on
  *    the next append round either way, but reading it last matches when it
@@ -194,7 +201,8 @@ export function editorPlugins(
     // press rather than marked again. It owns the caret at the edge of a block
     // that holds none, which the keymaps below have no position for.
     gapCursorPlugin(registry),
-    inputTriggerPlugin(registry),
+    inputTriggerPlugin(registry, scriptShortcutTriggers()),
+    scriptAssistancePlugin(),
     autoLinkPlugin(),
     // Before every keymap and before the generic replace they fall through to:
     // it claims only a text range that spans two blocks.
@@ -236,6 +244,9 @@ export function editorPlugins(
     // handleKeyDown claims only Ctrl+F, and Escape while find is open, neither of
     // which any earlier plugin takes.
     findPlugin(),
+    // Escape reaches script formatting only after menus, block selection and
+    // find have declined it. A plain selection still collapses below.
+    scriptEscapeKeymap(),
     // The bottom of the Escape escalation: find closes first, a block selection
     // clears before that, and only a plain text range reaches this, which is why
     // it sits below both rather than with the other structural keys.
