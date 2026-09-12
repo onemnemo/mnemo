@@ -626,7 +626,12 @@
     "PeekCollapse": "Contraer",
     "PeekExpand": "Mostrar la vista lateral",
     "PeekTooLongTitle": "Esta nota es demasiado larga para la vista previa",
-    "PeekTooLongDescription": "Ábrela completa para leerla entera."
+    "PeekTooLongDescription": "Ábrela completa para leerla entera.",
+    "BetaNoticeBadge": "Beta · {version}",
+    "BetaNoticeTitle": "Estás usando una versión beta",
+    "BetaNoticeBody": "Algunas partes de Mnemo todavía pueden tener fallos. Si algo no funciona como esperas, infórmanos.",
+    "BetaNoticeBackupDescription": "Crea un archivo restaurable con tus notas, tarjetas, mapas, ajustes y archivos.",
+    "BetaNoticeReportBug": "Informar de un error"
   },
   "Chat": {
     "AssistantNoResponse": "Sin respuesta.",

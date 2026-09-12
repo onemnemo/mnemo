@@ -75,6 +75,7 @@ internal static class ProfileBackupSettingsCatalog
             ["flashcards.state.v2.migrated-backup"] = ProfileSettingClassification.Derived,
             ["flashcards.factless-card-repair"] = ProfileSettingClassification.Derived,
             ["App.DeveloperModeGateUnlocked"] = ProfileSettingClassification.Derived,
+            ["App.BetaNoticeSeenVersion"] = ProfileSettingClassification.Derived,
             ["Onboarding.Completed"] = ProfileSettingClassification.Derived,
             ["Updates.RemindAtUtc"] = ProfileSettingClassification.Derived,
             ["Updates.SnoozeLaunchesRemaining"] = ProfileSettingClassification.Derived,

@@ -1,3 +1,5 @@
+import { NEW_ISSUE_URL, RELEASES_URL, REPOSITORY_URL } from "@/app/links"
+
 import type { SettingsCategory, SettingsRow } from "./types"
 
 // The settings tree. Mirrors SettingsViewModel.RebuildCategories: same categories in
@@ -5,9 +7,6 @@ import type { SettingsCategory, SettingsRow } from "./types"
 //
 // Keys named here must also be registered in Mnemo.Host/Settings/SettingsKeyRegistry,
 // that allowlist is what makes them readable and writable over the API.
-
-/** Where About's rows point. One constant, because three rows are paths under it. */
-const REPOSITORY_URL = "https://github.com/onemnemo/mnemo"
 
 /** Every category, in nav order. Filter with `visibleCategories` before rendering. */
 export const SETTINGS_SCHEMA: SettingsCategory[] = [
@@ -477,7 +476,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             title: "ReleaseNotes",
             description: "ReleaseNotesDescription",
             buttonLabel: "ViewOnGitHub",
-            href: `${REPOSITORY_URL}/releases`,
+            href: RELEASES_URL,
           },
         ],
       },
@@ -581,7 +580,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
             title: "ReportProblem",
             description: "ReportProblemDescription",
             buttonLabel: "ReportProblemButton",
-            href: `${REPOSITORY_URL}/issues/new`,
+            href: NEW_ISSUE_URL,
           },
         ],
       },

@@ -626,7 +626,12 @@
     "PeekCollapse": "折りたたむ",
     "PeekExpand": "サイドピークを表示",
     "PeekTooLongTitle": "このノートは長すぎてプレビューできません",
-    "PeekTooLongDescription": "全画面で開いて読んでください。"
+    "PeekTooLongDescription": "全画面で開いて読んでください。",
+    "BetaNoticeBadge": "ベータ · {version}",
+    "BetaNoticeTitle": "ベータ版を実行しています",
+    "BetaNoticeBody": "Mnemo の一部にはまだ荒削りな部分があるかもしれません。期待どおりに動作しない場合は、報告してください。",
+    "BetaNoticeBackupDescription": "ノート、カード、マップ、設定、ファイルを復元できる1つのファイルにまとめます。",
+    "BetaNoticeReportBug": "バグを報告"
   },
   "Chat": {
     "AssistantNoResponse": "応答がありません。",

@@ -626,7 +626,12 @@
     "PeekCollapse": "Trekk sammen",
     "PeekExpand": "Vis sidevisningen",
     "PeekTooLongTitle": "Dette notatet er for langt til å forhåndsvises",
-    "PeekTooLongDescription": "Åpne det i full størrelse for å lese alt."
+    "PeekTooLongDescription": "Åpne det i full størrelse for å lese alt.",
+    "BetaNoticeBadge": "Beta · {version}",
+    "BetaNoticeTitle": "Du kjører en betaversjon",
+    "BetaNoticeBody": "Noen deler av Mnemo kan fortsatt være litt uferdige. Hvis noe ikke virker som forventet, meld fra om det.",
+    "BetaNoticeBackupDescription": "Lag én gjenopprettbar fil med notatene, kortene, tankekartene, innstillingene og filene dine.",
+    "BetaNoticeReportBug": "Meld fra om en feil"
   },
   "Chat": {
     "AssistantNoResponse": "Ingen respons.",

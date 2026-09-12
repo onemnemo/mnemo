@@ -178,3 +178,124 @@ describe("Modal escape", () => {
     expect(closed).toBe(1)
   })
 })
+
+describe("Modal dismissal options", () => {
+  function wash(): HTMLElement {
+    return document.querySelector('[role="dialog"]')!.previousElementSibling as HTMLElement
+  }
+
+  it("closes on a wash click by default", () => {
+    let closed = 0
+    act(() =>
+      root.render(
+        <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close">
+          content
+        </Modal>,
+      ),
+    )
+
+    act(() => wash().click())
+    expect(closed).toBe(1)
+  })
+
+  it("leaves the wash inert when backdrop dismissal is off", () => {
+    let closed = 0
+    act(() =>
+      root.render(
+        <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close" dismissOnBackdrop={false}>
+          content
+        </Modal>,
+      ),
+    )
+
+    act(() => wash().click())
+    expect(closed).toBe(0)
+  })
+
+  it("leaves the close button out of the header when told to", () => {
+    act(() =>
+      root.render(
+        <Modal open onClose={() => {}} title="Export" closeButton={false}>
+          content
+        </Modal>,
+      ),
+    )
+
+    expect(document.querySelector('[role="dialog"] header button')).toBeNull()
+  })
+
+  it("puts the eyebrow in the header, above the title", () => {
+    act(() =>
+      root.render(
+        <Modal open onClose={() => {}} title="Export" closeLabel="Close" eyebrow={<span data-eyebrow>Beta</span>}>
+          content
+        </Modal>,
+      ),
+    )
+
+    const eyebrow = document.querySelector("[data-eyebrow]")!
+    const title = document.querySelector('[role="dialog"] h2')!
+    expect(document.querySelector('[role="dialog"] header')!.contains(eyebrow)).toBe(true)
+    expect(eyebrow.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+describe("Modal suspended", () => {
+  function escape() {
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+  }
+
+  it("hides, ignores Escape and takes no clicks while another surface owns the window, then comes back", () => {
+    let closed = 0
+    function Host({ suspended }: { suspended: boolean }) {
+      return (
+        <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close" suspended={suspended}>
+          content
+        </Modal>
+      )
+    }
+
+    act(() => root.render(<Host suspended />))
+    const wrapper = document.querySelector('[role="dialog"]')!.parentElement as HTMLElement
+    expect(wrapper.getAttribute("aria-hidden")).toBe("true")
+    expect(wrapper.style.opacity).toBe("0")
+    expect(wrapper.style.pointerEvents).toBe("none")
+    escape()
+    expect(closed).toBe(0)
+
+    act(() => root.render(<Host suspended={false} />))
+    expect(wrapper.getAttribute("aria-hidden")).toBeNull()
+    expect(wrapper.style.opacity).toBe("")
+    expect(wrapper.style.pointerEvents).toBe("")
+    escape()
+    expect(closed).toBe(1)
+  })
+
+  it("puts focus back on the control that had it once the other surface has let go", async () => {
+    function Host({ suspended }: { suspended: boolean }) {
+      return (
+        <Modal open onClose={() => {}} title="Export" closeLabel="Close" suspended={suspended}>
+          <button type="button">Inside</button>
+        </Modal>
+      )
+    }
+
+    act(() => root.render(<Host suspended={false} />))
+    const inside = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+      (button) => button.textContent === "Inside",
+    )!
+    act(() => inside.focus())
+
+    act(() => root.render(<Host suspended />))
+    act(() => inside.blur())
+    expect(document.activeElement).toBe(document.body)
+
+    act(() => root.render(<Host suspended={false} />))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(document.activeElement).toBe(inside)
+  })
+})

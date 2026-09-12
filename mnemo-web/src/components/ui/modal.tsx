@@ -5,18 +5,29 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { cn } from "@/lib/utils"
 import { Z_LAYERS } from "@/lib/z-layers"
 
-interface ModalProps {
+interface ModalBaseProps {
   open: boolean
   onClose: () => void
   title: string
   subtitle?: string
+  /** Sits above the title: a mark, a badge, a step counter. */
+  eyebrow?: ReactNode
   /** Sits beside the title: a scope picker, a path, a breadcrumb. */
   headerExtra?: ReactNode
   /** Sits before the close button: a search field, a mode switch for the dialog's content. */
   headerRight?: ReactNode
   footer?: ReactNode
-  /** Accessible name for the close button, localized by the caller. */
-  closeLabel: string
+  /**
+   * False keeps the wash from closing the dialog. For a surface the user did not ask for, where
+   * the click they were already making should not be the one that answers it.
+   */
+  dismissOnBackdrop?: boolean
+  /**
+   * Another surface owns the window for now, a queued confirmation say. The dialog stays mounted
+   * but fades, ignores keys and pointer input, and is hidden from assistive technology, so it
+   * comes back exactly as it was once that surface settles.
+   */
+  suspended?: boolean
   width?: number
   /**
    * Overrides the default ceiling. For a dialog whose content has a fixed aspect (a page
@@ -33,6 +44,17 @@ interface ModalProps {
   children: ReactNode
   className?: string
 }
+
+/** The close button is there by default; a dialog whose footer carries the only way out leaves it off. */
+type ModalCloseControl =
+  | {
+      closeButton?: true
+      /** Accessible name for the close button, localized by the caller. */
+      closeLabel: string
+    }
+  | { closeButton: false; closeLabel?: undefined }
+
+type ModalProps = ModalBaseProps & ModalCloseControl
 
 /**
  * The app's dialog shell: portal, wash, header, body row, footer.
@@ -55,10 +77,14 @@ export function Modal({
   onClose,
   title,
   subtitle,
+  eyebrow,
   headerExtra,
   headerRight,
   footer,
+  closeButton = true,
   closeLabel,
+  dismissOnBackdrop = true,
+  suspended = false,
   width = 720,
   maxHeight = "min(680px, 88vh)",
   surface,
@@ -70,6 +96,7 @@ export function Modal({
   useEffect(() => {
     if (!open) return
     function onKeyDown(event: KeyboardEvent) {
+      if (suspended) return
       if (event.key === "Tab") {
         trapTab(surfaceRef.current, event)
         return
@@ -87,7 +114,7 @@ export function Modal({
     }
     document.addEventListener("keydown", onKeyDown, true)
     return () => document.removeEventListener("keydown", onKeyDown, true)
-  }, [open, onClose])
+  }, [open, onClose, suspended])
 
   // Read on the way in rather than on the way out: by then focus is wherever the dialog left it.
   // Then focus moves inside, to the first control or to the surface itself, because the Tab
@@ -103,16 +130,47 @@ export function Modal({
     }
   }, [open])
 
+  // The queued dialog host has no trigger to hand focus back to, so when its question closes
+  // focus lands on the body, outside the Tab trap. Remember the control that had it before the
+  // dialog was suspended and put it back once the surface returns.
+  const focusedBeforeSuspend = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    const surface = surfaceRef.current
+    if (!open || !surface) return
+    if (suspended) {
+      const active = document.activeElement
+      focusedBeforeSuspend.current = active instanceof HTMLElement && surface.contains(active) ? active : null
+      return
+    }
+    const remembered = focusedBeforeSuspend.current
+    focusedBeforeSuspend.current = null
+    if (!remembered) return
+    // A task later, because that is when the other surface finishes moving focus itself.
+    const timer = window.setTimeout(() => {
+      if (remembered.isConnected && !surface.contains(document.activeElement)) remembered.focus()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [open, suspended])
+
   if (!open) return null
 
   return createPortal(
     <div
-      className="animate-fade-in fixed inset-0 flex items-center justify-center p-8"
-      style={{ zIndex: Z_LAYERS.modal }}
+      aria-hidden={suspended || undefined}
+      className="animate-fade-in fixed inset-0 flex items-center justify-center p-8 transition-opacity"
+      style={{
+        zIndex: Z_LAYERS.modal,
+        transitionDuration: "var(--duration-normal)",
+        opacity: suspended ? 0 : undefined,
+        pointerEvents: suspended ? "none" : undefined,
+      }}
     >
       {/* A wash rather than a heavy scrim: the app behind stays legible, which is the point of a
           dialog you opened from a specific tile. */}
-      <div className="absolute inset-0 bg-ink/25 backdrop-blur-[2px]" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-ink/25 backdrop-blur-[2px]"
+        onClick={dismissOnBackdrop ? onClose : undefined}
+      />
 
       <div
         role="dialog"
@@ -135,21 +193,24 @@ export function Modal({
           )}
         >
           <div className={cn("min-w-0", headerExtra && "shrink-0")}>
+            {eyebrow && <div className="mb-3">{eyebrow}</div>}
             <h2 className="whitespace-nowrap text-[15px] font-semibold tracking-[-0.01em] text-ink">{title}</h2>
             {subtitle && <p className="mt-0.5 truncate text-[12.5px] text-ink-3">{subtitle}</p>}
           </div>
           {headerExtra}
           {(headerExtra || headerRight) && <div className="flex-1" />}
           {headerRight}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={closeLabel}
-            className="grid size-7 shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-frame-hover hover:text-ink"
-            style={{ transitionDuration: "var(--duration-fast)" }}
-          >
-            <AppIcon name="x" size={16} strokeWidth={1.8} />
-          </button>
+          {closeButton && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={closeLabel}
+              className="grid size-7 shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-frame-hover hover:text-ink"
+              style={{ transitionDuration: "var(--duration-fast)" }}
+            >
+              <AppIcon name="x" size={16} strokeWidth={1.8} />
+            </button>
+          )}
         </header>
 
         <div className="flex min-h-0 flex-1">{children}</div>

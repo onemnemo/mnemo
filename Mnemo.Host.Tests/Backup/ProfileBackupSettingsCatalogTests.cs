@@ -22,6 +22,19 @@ public sealed class ProfileBackupSettingsCatalogTests
     }
 
     [Fact]
+    public void TheBetaNoticeAcknowledgementIsExposedAsTextAndStaysOnTheMachine()
+    {
+        Assert.True(SettingsKeyRegistry.TryGet("App.BetaNoticeSeenVersion", out var descriptor));
+        Assert.Equal(SettingValueKind.Text, descriptor.Kind);
+        Assert.False(descriptor.WriteOnly);
+
+        // A restored profile must not silence the notice on the machine that restored it.
+        Assert.Equal(
+            ProfileSettingClassification.Derived,
+            ProfileBackupSettingsCatalog.Classify("App.BetaNoticeSeenVersion"));
+    }
+
+    [Fact]
     public void EveryPersistedUpdateValueHasAnExplicitBackupClassification()
     {
         var updateKeys = typeof(UpdateSettingsKeys)

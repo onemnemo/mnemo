@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 
+import { BetaNoticeHost } from "@/app/BetaNoticeHost"
 import { reportClientInfo } from "@/app/client-info"
 import { installExitConfirm } from "@/app/exit-confirm"
 import { checkLegacyInstallWarning } from "@/app/legacy-install-warning"
@@ -96,6 +97,7 @@ function App() {
       <ReviewSettingsOverlay />
       <TransferOverlay />
       <OnboardingWizard />
+      <BetaNoticeHost />
       {/* Last, so its portal is the topmost thing in the body and a hint is never drawn
           under the overlay whose button raised it. */}
       <TooltipHost />

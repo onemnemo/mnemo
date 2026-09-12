@@ -70,6 +70,9 @@ public static class SettingsKeyRegistry
         new("App.DeveloperMode", SettingValueKind.Boolean),
         new("App.DeveloperModeGateUnlocked", SettingValueKind.Boolean),
         new("App.PerformanceDiagnostics", SettingValueKind.Boolean),
+        // The beta build whose first-launch notice has been answered, as the exact running
+        // version: the next beta asks once more, and relaunching the same one does not.
+        new("App.BetaNoticeSeenVersion", SettingValueKind.Text),
 
         new("Editor.AutoSave", SettingValueKind.Boolean),
         // Editor.Width and Markdown.BlockSpacing store the *translated* option label,

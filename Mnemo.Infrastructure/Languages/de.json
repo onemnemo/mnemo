@@ -626,7 +626,12 @@
     "PeekCollapse": "Einklappen",
     "PeekExpand": "Seitenvorschau anzeigen",
     "PeekTooLongTitle": "Diese Notiz ist zu lang für eine Vorschau",
-    "PeekTooLongDescription": "Öffne sie vollständig, um alles zu lesen."
+    "PeekTooLongDescription": "Öffne sie vollständig, um alles zu lesen.",
+    "BetaNoticeBadge": "Beta · {version}",
+    "BetaNoticeTitle": "Du verwendest eine Beta-Version",
+    "BetaNoticeBody": "Einige Teile von Mnemo können noch Ecken und Kanten haben. Wenn etwas nicht wie erwartet funktioniert, melde es bitte.",
+    "BetaNoticeBackupDescription": "Erstelle eine wiederherstellbare Datei mit deinen Notizen, Karten, Mindmaps, Einstellungen und Dateien.",
+    "BetaNoticeReportBug": "Fehler melden"
   },
   "Chat": {
     "AssistantNoResponse": "Keine Antwort.",

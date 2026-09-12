@@ -626,7 +626,12 @@
     "PeekCollapse": "Collapse",
     "PeekExpand": "Show the side peek",
     "PeekTooLongTitle": "This note is too long to preview",
-    "PeekTooLongDescription": "Open it in full to read the whole thing."
+    "PeekTooLongDescription": "Open it in full to read the whole thing.",
+    "BetaNoticeBadge": "Beta · {version}",
+    "BetaNoticeTitle": "You're running a beta build",
+    "BetaNoticeBody": "Some parts of Mnemo may still have rough edges. If something does not work as expected, please report it.",
+    "BetaNoticeBackupDescription": "Create one restorable file with your notes, cards, maps, settings, and files.",
+    "BetaNoticeReportBug": "Report a bug"
   },
   "Chat": {
     "AssistantNoResponse": "No response.",

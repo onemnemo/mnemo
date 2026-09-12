@@ -59,6 +59,7 @@ public sealed class ProfileBackupServiceTests
         Assert.Null(await StoredValueAsync(database, "AI.OpenRouter.ApiKey"));
         Assert.Null(await StoredValueAsync(database, "App.LaunchAtStartup"));
         Assert.Null(await StoredValueAsync(database, "Updates.LastCheckedUtc"));
+        Assert.Null(await StoredValueAsync(database, "App.BetaNoticeSeenVersion"));
         Assert.Null(await StoredValueAsync(database, "unknown.future.setting"));
         Assert.Null(await ScalarAsync(database, "SELECT 1 FROM AssetCleanupJobs LIMIT 1"));
         Assert.Equal("folder-1", await ScalarAsync(database, "SELECT FolderId FROM FlashcardDecks WHERE Id = 'deck-1'"));
@@ -689,6 +690,7 @@ public sealed class ProfileBackupServiceTests
                 INSERT INTO Storage VALUES ('Updates.LastCheckedUtc', '"2026-09-11T12:00:00Z"');
                 INSERT INTO Storage VALUES ('AI.OpenRouter.ApiKey', '"top-secret"');
                 INSERT INTO Storage VALUES ('App.LaunchAtStartup', 'true');
+                INSERT INTO Storage VALUES ('App.BetaNoticeSeenVersion', '"0.8.0-beta"');
                 INSERT INTO Storage VALUES ('unknown.future.setting', '"private"');
                 INSERT INTO Storage VALUES ('notes_index', '["n1"]');
                 INSERT INTO Storage VALUES ('note_folders_index', '["nf1"]');

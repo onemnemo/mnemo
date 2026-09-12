@@ -1,3 +1,4 @@
+import { RELEASES_URL } from "@/app/links"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 import { openExternally } from "@/lib/external"
@@ -6,9 +7,6 @@ import { useUpdateStore } from "@/updates/store"
 
 import { formatVersion } from "../../version"
 import { SettingRowShell } from "../SettingRowShell"
-
-/** Where a build that cannot update itself sends the user instead. */
-const RELEASES_URL = "https://github.com/onemnemo/mnemo/releases"
 
 /**
  * The whole updater in one row: the version, what the updater is doing, and the single
