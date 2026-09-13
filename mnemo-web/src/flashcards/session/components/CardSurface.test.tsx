@@ -187,7 +187,7 @@ describe("CardSurface", () => {
 
     const zoom = document.querySelector<HTMLElement>('[role="dialog"]')
     expect(zoom, "the enlarged image did not open").not.toBeNull()
-    const enlargedImage = zoom!.querySelector<HTMLImageElement>("img")
+    const enlargedImage = zoom!.querySelector<HTMLImageElement>("[data-study-image-zoom]")
     expect(enlargedImage, "the enlarged image is missing from its dialog").not.toBeNull()
     act(() => enlargedImage!.click())
 
@@ -209,5 +209,21 @@ describe("CardSurface", () => {
 
     expect(onReveal).not.toHaveBeenCalled()
     expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it("uses one viewport-bound frame for enlarged images", () => {
+    render(false, illustratedCard)
+
+    const thumbnail = host.querySelector<HTMLImageElement>('img[alt="Cell diagram"]')
+    expect(thumbnail, "the front image is not on screen").not.toBeNull()
+    act(() => thumbnail!.click())
+
+    const enlargedImage = document.querySelector<HTMLImageElement>("[data-study-image-zoom]")
+    expect(enlargedImage, "the enlarged image did not open").not.toBeNull()
+    // A ceiling only: the picture fits the frame but is never inflated past its own pixels.
+    expect(enlargedImage!.classList).toContain("max-h-[min(900px,75vh)]")
+    expect(enlargedImage!.classList).toContain("max-w-[min(1200px,75vw)]")
+    expect(enlargedImage!.classList).toContain("object-contain")
+    expect([...enlargedImage!.classList].some((name) => /^[hw]-\[/.test(name))).toBe(false)
   })
 })

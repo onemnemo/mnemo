@@ -169,8 +169,9 @@ function ImageZoomDialog({
           <img
             src={url}
             alt={attachment.displayName}
+            data-study-image-zoom
             draggable={false}
-            className="max-h-[900px] max-w-[1200px] object-contain"
+            className="max-h-[min(900px,75vh)] max-w-[min(1200px,75vw)] object-contain"
           />
         </Dialog.Content>
       </Dialog.Portal>
