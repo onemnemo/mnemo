@@ -296,46 +296,16 @@ public sealed class VelopackUpdateService : IUpdateService, IDisposable
         if (doc.RootElement.ValueKind != JsonValueKind.Array)
             return Result<AppUpdateInfo?>.Failure("GitHub returned no release list.");
 
-        var current = ResolveSemanticCurrentVersion(um);
-        SemanticVersion? bestVersion = null;
-        JsonElement best = default;
-
-        foreach (var release in doc.RootElement.EnumerateArray())
-        {
-            if (release.TryGetProperty("draft", out var draft) && draft.ValueKind == JsonValueKind.True)
-                continue;
-
-            if (!release.TryGetProperty("tag_name", out var tagEl))
-                continue;
-
-            var tag = (tagEl.GetString() ?? string.Empty).TrimStart('v', 'V');
-            if (!SemanticVersion.TryParse(tag, out var version))
-                continue;
-
-            if (!UpdateChannels.Offers(channel, UpdateChannels.ForVersion(version)))
-                continue;
-
-            if (bestVersion == null || version > bestVersion)
-            {
-                bestVersion = version;
-                best = release;
-            }
-        }
-
-        if (bestVersion == null || (current != null && bestVersion <= current))
+        var best = PortableReleaseSelector.Select(
+            doc.RootElement,
+            channel,
+            RuntimeInformation.RuntimeIdentifier,
+            ResolveSemanticCurrentVersion(um));
+        if (best is null)
             return Result<AppUpdateInfo?>.Success(null);
 
-        var notes = best.TryGetProperty("body", out var bodyEl) ? bodyEl.GetString() : null;
-        DateTime? published = null;
-        if (best.TryGetProperty("published_at", out var pubEl)
-            && pubEl.GetString() is { Length: > 0 } publishedText
-            && DateTime.TryParse(publishedText, out var parsedDate))
-        {
-            published = parsedDate;
-        }
-
         return Result<AppUpdateInfo?>.Success(
-            new AppUpdateInfo(bestVersion.ToString(), notes, published, isMandatory: false));
+            new AppUpdateInfo(best.Version.ToString(), best.Notes, best.PublishedAtUtc, isMandatory: false));
     }
 
     private static SemanticVersion? ResolveSemanticCurrentVersion(UpdateManager um)
