@@ -196,6 +196,39 @@ describe('placeBlockRun folds into a table cell', () => {
     expect(cellNode.textContent).toBe('one\ntwo');
   });
 
+  it('keeps every nested list line when the run is folded into the cell', () => {
+    const item = (text: string, sid: string, ...children: PMNode[]) =>
+      schema.nodes.bulletItem.create({ sid, id: sid }, [line(text), ...children]);
+    const nested = item('parent', 'p', item('child', 'c', item('grandchild', 'g')));
+    const slice = new Slice(Fragment.from(nested), 0, 0);
+    const doc = docOf(table(tableRow(tableCell())));
+    const state = stateWith(doc, firstCellCaret(doc));
+    const next = state.apply(placeBlockRun(state, slice));
+
+    const cellNode = next.doc.firstChild!.child(1).child(1);
+    expect(cellNode.childCount).toBe(1);
+    expect(cellNode.textContent).toBe('parent\nchild\ngrandchild');
+  });
+
+  it('walks sibling subitems and a nested paragraph in document order', () => {
+    const item = (text: string, sid: string, ...children: PMNode[]) =>
+      schema.nodes.bulletItem.create({ sid, id: sid }, [line(text), ...children]);
+    const nested = item(
+      'parent',
+      'p',
+      item('first', 'a', para('note under first', 'n')),
+      item('second', 'b'),
+    );
+    const slice = new Slice(Fragment.fromArray([nested, para('after', 'z')]), 0, 0);
+    const doc = docOf(table(tableRow(tableCell())));
+    const state = stateWith(doc, firstCellCaret(doc));
+    const next = state.apply(placeBlockRun(state, slice));
+
+    const cellNode = next.doc.firstChild!.child(1).child(1);
+    expect(cellNode.childCount).toBe(1);
+    expect(cellNode.textContent).toBe('parent\nfirst\nnote under first\nsecond\nafter');
+  });
+
   it('contributes only its separating break for a block with no text of its own', () => {
     const divider = schema.nodes.divider.create(null, line());
     const slice = new Slice(Fragment.fromArray([para('one', ''), divider, para('two', '')]), 0, 0);

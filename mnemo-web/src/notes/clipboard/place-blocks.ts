@@ -28,7 +28,7 @@ import { Fragment, Slice, type Node as PMNode, type Schema } from 'prosemirror-m
 import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
 
 import type { BlockRegistry } from '../editor/registry/build';
-import { containerBlockNames, lineOf } from '../editor/blocks/shared';
+import { blockChildrenOf, containerBlockNames, lineOf } from '../editor/blocks/shared';
 import { blockContext, isContentVisuallyEmpty } from '../editor/commands/structure';
 import { coveredBlockRanges } from '../selection/delete-selected';
 
@@ -138,7 +138,14 @@ function isBlankLineBlock(block: PMNode): boolean {
  */
 function inlineRun(schema: Schema, nodes: readonly PMNode[]): Slice {
   const inline: PMNode[] = [];
-  nodes.forEach((node, index) => {
+  const blocks: PMNode[] = [];
+  const visit = (node: PMNode) => {
+    blocks.push(node);
+    blockChildrenOf(node).forEach(visit);
+  };
+  nodes.forEach(visit);
+
+  blocks.forEach((node, index) => {
     if (index > 0) inline.push(schema.text('\n'));
     lineOf(node)?.content.forEach((child) => inline.push(child));
   });
