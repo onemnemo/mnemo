@@ -4,7 +4,9 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { DialogHost } from "@/components/shell/DialogHost"
 import { Z_LAYERS } from "@/lib/z-layers"
+import { useDialogStore } from "@/stores/dialog"
 
 import { Modal } from "./modal"
 
@@ -17,6 +19,7 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   root = createRoot(container)
+  useDialogStore.setState({ queue: [] })
 })
 
 afterEach(() => {
@@ -176,6 +179,55 @@ describe("Modal escape", () => {
     menu.remove()
     escape()
     expect(closed).toBe(1)
+  })
+
+  it("lets a queued confirmation consume Escape without closing the modal underneath", async () => {
+    let closed = 0
+    let answer: boolean | undefined
+    act(() =>
+      root.render(
+        <>
+          <Modal open onClose={() => (closed += 1)} title="Restore" closeLabel="Close">
+            content
+          </Modal>
+          <DialogHost />
+        </>,
+      ),
+    )
+
+    act(() => {
+      void useDialogStore.getState().confirm({ title: "Replace everything?" }).then((value) => {
+        answer = value
+      })
+    })
+    escape()
+    await act(async () => Promise.resolve())
+
+    expect(answer).toBe(false)
+    expect(closed).toBe(0)
+    expect(document.querySelector('[aria-label="Restore"]')).not.toBeNull()
+  })
+
+  it("closes only the dialog opened last when two modals are open", () => {
+    let closedFirst = 0
+    let closedSecond = 0
+    act(() =>
+      root.render(
+        <>
+          <Modal open onClose={() => (closedFirst += 1)} title="First" closeLabel="Close">
+            first
+          </Modal>
+          <Modal open onClose={() => (closedSecond += 1)} title="Second" closeLabel="Close">
+            second
+          </Modal>
+        </>,
+      ),
+    )
+
+    escape()
+
+    expect(closedSecond).toBe(1)
+    expect(closedFirst).toBe(0)
   })
 })
 

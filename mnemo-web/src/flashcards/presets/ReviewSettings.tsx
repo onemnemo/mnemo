@@ -9,6 +9,7 @@ import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
 
+import { useDiscardGuard } from "../useDiscardGuard"
 import {
   assignDeckPreset,
   createPreset,
@@ -208,6 +209,17 @@ export function ReviewSettings({
     selectedKey,
     originalPresetId,
   })
+  const requestClose = useDiscardGuard({
+    isDirty: () => hasUnsavedChanges({ drafts, deckId: target.deckId, selectedKey, originalPresetId }),
+    onClose,
+    confirmation: {
+      title: fc("ReviewSettingsDiscardTitle"),
+      message: fc("ReviewSettingsDiscardMessage"),
+      confirmLabel: fc("ReviewSettingsDiscardConfirm"),
+      cancelLabel: t("Common", "Cancel"),
+      destructive: true,
+    },
+  })
 
   const save = async () => {
     if (!canSave || saving) return
@@ -255,7 +267,7 @@ export function ReviewSettings({
   }
 
   return (
-    <Dialog.Root open onOpenChange={(next) => !next && onClose()}>
+    <Dialog.Root open onOpenChange={(next) => { if (!next) void requestClose() }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
         <Dialog.Content
@@ -324,7 +336,7 @@ export function ReviewSettings({
             <div className="flex-1" />
 
             <div className="flex items-center gap-2">
-              <Button variant="ghost" className="h-[34px] px-4" onClick={onClose}>
+              <Button variant="ghost" className="h-[34px] px-4" onClick={() => void requestClose()}>
                 {t("Common", "Cancel")}
               </Button>
               <Button

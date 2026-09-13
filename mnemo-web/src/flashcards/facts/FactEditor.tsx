@@ -17,6 +17,7 @@ import { deckOptions } from "../editor/deck-options"
 import { draftFromUpload, type DraftAttachment } from "../editor/draft"
 import { MAX_ATTACHMENTS_PER_SIDE } from "../editor/editor-state"
 import type { CardEditorTarget } from "../editor/store"
+import { useDiscardGuard } from "../useDiscardGuard"
 import { saveFact, useCardTypesQuery, useFactForCardQuery, useRefreshAfterFactWrite } from "./api"
 import { CardCountBar } from "./components/CardCountBar"
 import { FieldEditor } from "./components/FieldEditor"
@@ -216,22 +217,17 @@ export function FactEditor({ target, onClose }: { target: CardEditorTarget; onCl
     setFocusFirst((signal) => signal + 1)
   }
 
-  // The single funnel every dismiss path goes through: Escape, a backdrop or outside click, the
-  // header close button, and the footer's Close button all end up here. Typed content that has not
-  // been saved is confirmed rather than silently dropped.
-  const requestClose = async () => {
-    if (factDraftIsDirty(baseline.current, snapshotFactDraft(draft))) {
-      const discard = await dialog.confirm({
-        title: fc("CardEditorDiscardTitle"),
-        message: fc("CardEditorDiscardMessage"),
-        confirmLabel: fc("CardEditorDiscardConfirm"),
-        cancelLabel: t("Common", "Cancel"),
-        destructive: true,
-      })
-      if (!discard) return
-    }
-    onClose()
-  }
+  const requestClose = useDiscardGuard({
+    isDirty: () => factDraftIsDirty(baseline.current, snapshotFactDraft(draft)),
+    onClose,
+    confirmation: {
+      title: fc("CardEditorDiscardTitle"),
+      message: fc("CardEditorDiscardMessage"),
+      confirmLabel: fc("CardEditorDiscardConfirm"),
+      cancelLabel: t("Common", "Cancel"),
+      destructive: true,
+    },
+  })
 
   const sourceFieldId = type ? (type.generateFrom || type.sortFieldId) : ""
 

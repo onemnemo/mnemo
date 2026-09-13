@@ -93,6 +93,15 @@ export function Modal({
 }: ModalProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null)
 
+  // Portals do not land in the body in the order they open, so the document cannot say which of
+  // two open dialogs is on top. A number taken on open can, and it is read off the surface when
+  // Escape has to find its owner.
+  useEffect(() => {
+    if (!open) return
+    lastOpenOrder += 1
+    surfaceRef.current?.setAttribute("data-open-order", String(lastOpenOrder))
+  }, [open])
+
   useEffect(() => {
     if (!open) return
     function onKeyDown(event: KeyboardEvent) {
@@ -103,8 +112,8 @@ export function Modal({
       }
 
       if (event.key !== "Escape") return
-      // A menu or a select opened from inside owns the press first, and this listener runs in the
-      // capture phase, so without this the dialog closed out from under an open menu and took the
+      // A menu, select or dialog opened from inside owns the press first. This listener runs in the
+      // capture phase, so without this the dialog closed out from under an open layer and took the
       // press with it.
       if (layerOpenOutside(surfaceRef.current)) return
       // Stopped here so a page that also answers Escape (the board's edit session does) does not
@@ -231,12 +240,21 @@ export function Modal({
  *
  * Radix takes its menu and select surfaces out of the tree when they close, so one being in the
  * document is one being open, and they portal to the body rather than into the dialog they were
- * opened from.
+ * opened from. Another of these dialogs counts only when it opened later, which is what its open
+ * order says; an earlier one is underneath and waits its turn. Anything else that is open, a
+ * queued confirmation included, sits above by construction.
  */
 function layerOpenOutside(surface: HTMLElement | null): boolean {
-  const layers = document.querySelectorAll<HTMLElement>('[role="menu"],[role="listbox"]')
-  return [...layers].some((layer) => !surface?.contains(layer))
+  const layers = document.querySelectorAll<HTMLElement>('[role="dialog"],[role="menu"],[role="listbox"]')
+  const own = Number(surface?.dataset.openOrder ?? 0)
+  return [...layers].some((layer) => {
+    if (surface?.contains(layer)) return false
+    const order = layer.dataset.openOrder
+    return order === undefined || Number(order) > own
+  })
 }
+
+let lastOpenOrder = 0
 
 /** Anything focusable and on screen, in the order Tab would visit it. */
 function tabbable(root: HTMLElement): HTMLElement[] {

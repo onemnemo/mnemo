@@ -185,6 +185,37 @@ function typeInto(el: HTMLInputElement, value: string): void {
   })
 }
 
+function pressEscape(): void {
+  act(() => {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }))
+  })
+}
+
+function headerCloseButton(): HTMLButtonElement {
+  const button = document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')
+  expect(button, "the header close button is not on screen").not.toBeNull()
+  return button!
+}
+
+function cancelButton(): HTMLButtonElement {
+  const button = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (candidate) => candidate.textContent === "Cancel",
+  )
+  expect(button, "the footer Cancel button is not on screen").not.toBeUndefined()
+  return button!
+}
+
+function clickBackdrop(): void {
+  const overlay = document.querySelector('[role="dialog"]')?.previousElementSibling
+  expect(overlay, "the dialog backdrop is not on screen").not.toBeNull()
+  act(() => {
+    const pointerDown = new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 })
+    Object.defineProperty(pointerDown, "pointerType", { value: "mouse" })
+    overlay!.dispatchEvent(pointerDown)
+    overlay!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }))
+  })
+}
+
 describe("CardTypeOverlay gate", () => {
   it("renders nothing until the manager is opened", () => {
     mount(<CardTypeOverlay />)
@@ -255,6 +286,56 @@ describe("CardTypeOverlay", () => {
 
     expect(inputsLabelled("CardTypesFieldNamePlaceholder")).toHaveLength(3)
     expect(saveButton()?.disabled).toBe(false)
+  })
+})
+
+describe("CardTypeOverlay discard guard", () => {
+  it("closes immediately on Escape when nothing changed", async () => {
+    open()
+    await settle()
+
+    pressEscape()
+    await settle()
+
+    expect(mocks.confirm).not.toHaveBeenCalled()
+    expect(useCardTypeManager.getState().open).toBe(false)
+  })
+
+  it.each([
+    ["Escape", () => pressEscape()],
+    ["the backdrop", () => clickBackdrop()],
+    ["the header close button", () => act(() => headerCloseButton().click())],
+    ["Cancel", () => act(() => cancelButton().click())],
+  ])("keeps unsaved edits when %s dismisses and discard is refused", async (_name, dismiss) => {
+    open()
+    await settle()
+    typeInto(inputsLabelled("CardTypesNameLabel")[0], "Words")
+
+    dismiss()
+    await settle()
+
+    expect(mocks.confirm).toHaveBeenCalledTimes(1)
+    expect(mocks.confirm.mock.calls[0][0]).toMatchObject({
+      title: "CardTypesDiscardTitle",
+      message: "CardTypesDiscardMessage",
+      confirmLabel: "CardTypesDiscardConfirm",
+      destructive: true,
+    })
+    expect(useCardTypeManager.getState().open).toBe(true)
+    expect(inputsLabelled("CardTypesNameLabel")[0].value).toBe("Words")
+  })
+
+  it("closes once discarding the edit is confirmed", async () => {
+    mocks.confirm.mockResolvedValue(true)
+    open()
+    await settle()
+    typeInto(inputsLabelled("CardTypesNameLabel")[0], "Words")
+
+    act(() => cancelButton().click())
+    await settle()
+
+    expect(mocks.confirm).toHaveBeenCalledTimes(1)
+    expect(useCardTypeManager.getState().open).toBe(false)
   })
 })
 

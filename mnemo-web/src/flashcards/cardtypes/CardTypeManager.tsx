@@ -17,6 +17,7 @@ import {
   useCardTypesQuery,
   useRefreshAfterFactWrite,
 } from "../facts/api"
+import { useDiscardGuard } from "../useDiscardGuard"
 import {
   addField,
   addLayout,
@@ -142,6 +143,17 @@ export function CardTypeManager({
   }
 
   const canSave = canSaveDrafts(drafts)
+  const requestClose = useDiscardGuard({
+    isDirty: () => draftsAreDirty(drafts),
+    onClose,
+    confirmation: {
+      title: fc("CardTypesDiscardTitle"),
+      message: fc("CardTypesDiscardMessage"),
+      confirmLabel: fc("CardTypesDiscardConfirm"),
+      cancelLabel: t("Common", "Cancel"),
+      destructive: true,
+    },
+  })
 
   /**
    * Confirm every card loss before saving any type, since each save commits independently.
@@ -253,7 +265,7 @@ export function CardTypeManager({
   }
 
   return (
-    <Dialog.Root open onOpenChange={(next) => !next && onClose()}>
+    <Dialog.Root open onOpenChange={(next) => { if (!next) void requestClose() }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
         <Dialog.Content
@@ -304,7 +316,7 @@ export function CardTypeManager({
             <p className="text-[11.5px] text-ink-3">{fc("CardTypesSaveNote")}</p>
             <div className="flex-1" />
             <div className="flex items-center gap-2">
-              <Button variant="ghost" className="h-[34px] px-4" onClick={onClose}>
+              <Button variant="ghost" className="h-[34px] px-4" onClick={() => void requestClose()}>
                 {t("Common", "Cancel")}
               </Button>
               <Button className="h-[34px] px-[18px]" disabled={!canSave || saving} onClick={() => void save()}>
