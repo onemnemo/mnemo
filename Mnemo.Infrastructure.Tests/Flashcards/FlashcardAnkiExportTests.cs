@@ -100,6 +100,122 @@ public sealed class FlashcardAnkiExportTests
         }
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-10)]
+    public async Task ExportThenImport_CarriesReviewDatesAtOrBeforeTheCollectionEpoch(int dueOffsetDays)
+    {
+        var apkg = Path.Combine(Path.GetTempPath(), $"mnemo_anki_overdue_{Guid.NewGuid():N}.apkg");
+        // A fixed zone without daylight saving keeps whole-day arithmetic exact all year round.
+        var zone = TimeZoneInfo.CreateCustomTimeZone("Export+2", TimeSpan.FromHours(2), "Export+2", "Export+2");
+        var now = DateTimeOffset.UtcNow;
+
+        try
+        {
+            DateTimeOffset due;
+            DateTimeOffset lastReviewedAt;
+            await using (var source = new FlashcardStoreHarness(now, zone))
+            {
+                await source.Store.InitializeAsync();
+                var library = NewLibrary(source);
+                var cards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Facts, source.Clock);
+                var adapter = NewAdapter(source, library, cards);
+                var deck = await library.CreateDeckAsync("Overdue");
+                var card = Assert.Single(await cards.CreateCardsAsync(deck.Id, [Draft(deck.Id, "Front")]));
+                due = source.Clock.DueAfterDays(now, dueOffsetDays, FlashcardPreset.DefaultNextDayStartsAtHour);
+                lastReviewedAt = due.AddDays(-30);
+
+                await SetScheduleAsync(source, new FlashcardSchedule(
+                    card.Id,
+                    due,
+                    Stability: 30d,
+                    Difficulty: 5d,
+                    Reps: 8,
+                    Lapses: 1,
+                    FlashcardFsrsState.Review,
+                    LearningStepIndex: 0,
+                    lastReviewedAt));
+
+                var export = await adapter.ExportAsync(new ImportExportRequest { FilePath = apkg });
+                Assert.True(export.Success, export.ErrorMessage);
+            }
+
+            var contents = await AnkiPackageInspector.ReadAsync(apkg);
+            var packageCard = Assert.Single(contents.Cards);
+            var collectionCreatedAt = DateTimeOffset.FromUnixTimeSeconds(contents.CollectionCreatedAtUnixSeconds);
+            Assert.True(packageCard.Due <= 0);
+            Assert.Equal(due, collectionCreatedAt.AddDays(packageCard.Due));
+
+            await using var target = new FlashcardStoreHarness(now, zone);
+            await target.Store.InitializeAsync();
+            var targetLibrary = NewLibrary(target);
+            var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Facts, target.Clock);
+            var import = await NewAdapter(target, targetLibrary, targetCards)
+                .ImportAsync(new ImportExportRequest { FilePath = apkg });
+            Assert.True(import.Success, import.ErrorMessage);
+
+            var importedDeck = Assert.Single(await targetLibrary.ListDecksAsync());
+            var imported = Assert.Single((await targetCards.ListCardsAsync(new FlashcardCardQuery(importedDeck.Id))).Items);
+            Assert.Equal(due, imported.Schedule.DueDate);
+            Assert.Equal(lastReviewedAt, imported.Schedule.LastReviewedAt);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
+    public async Task ExportThenImport_KeepsReviewDaysWhenTheStudyDayStartsFarFromUtcMidnight()
+    {
+        var apkg = Path.Combine(Path.GetTempPath(), $"mnemo_anki_daystart_{Guid.NewGuid():N}.apkg");
+        // Eight hours behind UTC puts a four o'clock study-day start twelve hours past UTC midnight,
+        // which is where a UTC epoch rounded every review card a day late.
+        var zone = TimeZoneInfo.CreateCustomTimeZone("Export-8", TimeSpan.FromHours(-8), "Export-8", "Export-8");
+        var now = DateTimeOffset.UtcNow;
+        var dayStartHour = FlashcardPreset.DefaultNextDayStartsAtHour;
+
+        try
+        {
+            DateTimeOffset due;
+            await using (var source = new FlashcardStoreHarness(now, zone))
+            {
+                await source.Store.InitializeAsync();
+                var library = NewLibrary(source);
+                var cards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Facts, source.Clock);
+                var adapter = NewAdapter(source, library, cards);
+                var deck = await library.CreateDeckAsync("Physiology");
+                var card = Assert.Single(await cards.CreateCardsAsync(deck.Id, [Draft(deck.Id, "Front")]));
+                due = source.Clock.DueAfterDays(now, 20, dayStartHour);
+                await SetScheduleAsync(source, new FlashcardSchedule(
+                    card.Id, due, 20d, 5d, 4, 0, FlashcardFsrsState.Review, 0, due.AddDays(-20)));
+
+                var export = await adapter.ExportAsync(new ImportExportRequest { FilePath = apkg });
+                Assert.True(export.Success, export.ErrorMessage);
+            }
+
+            var contents = await AnkiPackageInspector.ReadAsync(apkg);
+            var packageCard = Assert.Single(contents.Cards);
+            Assert.Equal(20L, packageCard.Due);
+
+            await using var target = new FlashcardStoreHarness(now, zone);
+            await target.Store.InitializeAsync();
+            var targetLibrary = NewLibrary(target);
+            var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Facts, target.Clock);
+            var import = await NewAdapter(target, targetLibrary, targetCards)
+                .ImportAsync(new ImportExportRequest { FilePath = apkg });
+            Assert.True(import.Success, import.ErrorMessage);
+
+            var importedDeck = Assert.Single(await targetLibrary.ListDecksAsync());
+            var imported = Assert.Single((await targetCards.ListCardsAsync(new FlashcardCardQuery(importedDeck.Id))).Items);
+            Assert.Equal(due, imported.Schedule.DueDate);
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
     [Fact]
     public async Task Export_WritesEachSchedulePhaseWithItsAnkiTypeAndDueShape()
     {
@@ -148,6 +264,8 @@ public sealed class FlashcardAnkiExportTests
             Assert.Equal((1, 1, 0), (rows["Learning"].Interval, rows["Learning"].Reps, rows["Learning"].Lapses));
             Assert.Equal("{\"s\":2.0000,\"d\":5.000}", rows["Learning"].Data);
 
+            // Burial is a same-day pause, so the buried review card ships in the review queue rather
+            // than in one of Anki's buried queues; it is due again the day the package is opened.
             Assert.Equal((2, 2), (rows["Review"].Type, rows["Review"].Queue));
             Assert.True(rows["Review"].Due < 1_000_000_000L);
             Assert.Equal((20, 4, 0), (rows["Review"].Interval, rows["Review"].Reps, rows["Review"].Lapses));
@@ -338,7 +456,7 @@ public sealed class FlashcardAnkiExportTests
         FlashcardCardService cardSvc) =>
         new(library, cardSvc, h.FactService,
             new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock),
-            new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()));
+            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()));
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
         new(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);

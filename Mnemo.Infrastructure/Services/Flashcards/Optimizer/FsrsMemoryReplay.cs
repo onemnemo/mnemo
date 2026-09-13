@@ -29,4 +29,24 @@ public static class FsrsMemoryReplay
 
         return state;
     }
+
+    /// <summary>Replays later answers from a memory state reconstructed at an earlier answer.</summary>
+    public static FsrsForwardModel.MemoryState ReplayFrom(
+        FsrsForwardModel.MemoryState state,
+        DateTimeOffset previousReviewedAt,
+        IReadOnlyList<FlashcardReviewLog> answers,
+        double[] weights)
+    {
+        ArgumentNullException.ThrowIfNull(answers);
+        ArgumentNullException.ThrowIfNull(weights);
+
+        foreach (var answer in answers.OrderBy(answer => answer.ReviewedAt))
+        {
+            var elapsedDays = Math.Max(0d, (answer.ReviewedAt - previousReviewedAt).TotalDays);
+            state = FsrsForwardModel.Next(state, elapsedDays, answer.Grade, weights);
+            previousReviewedAt = answer.ReviewedAt;
+        }
+
+        return state;
+    }
 }

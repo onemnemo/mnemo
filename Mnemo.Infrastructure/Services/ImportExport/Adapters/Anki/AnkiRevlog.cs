@@ -12,8 +12,18 @@ namespace Mnemo.Infrastructure.Services.ImportExport.Adapters.Anki;
 /// The interval the answer set, positive in whole days and negative in seconds.
 /// </param>
 /// <param name="LastInterval">The interval the card had waited, spelled the same way.</param>
+/// <param name="Factor">
+/// The ease factor the answer left, in permille, or zero when the app never set one.
+/// </param>
 /// <param name="Type">Which queue the answer was given from.</param>
-internal sealed record AnkiRevlogRow(long Id, long CardId, int Ease, int Interval, int LastInterval, int Type);
+internal sealed record AnkiRevlogRow(
+    long Id,
+    long CardId,
+    int Ease,
+    int Interval,
+    int LastInterval,
+    int Factor,
+    int Type);
 
 /// <summary>
 /// Turns an Anki review log into review rows, and review rows back into one.
@@ -28,6 +38,12 @@ internal static class AnkiRevlog
 
     /// <summary>Answered from the relearning queue after a lapse.</summary>
     public const int TypeRelearn = 2;
+
+    /// <summary>An answer or preview from a filtered deck.</summary>
+    public const int TypeFiltered = 3;
+
+    /// <summary>An operation that changed a card without answering it.</summary>
+    public const int TypeManual = 4;
 
     /// <summary>Anki's own default ease factor, in permille, for a card nothing is known about.</summary>
     private const int DefaultFactor = 2500;
@@ -49,6 +65,44 @@ internal static class AnkiRevlog
         && row.Ease is >= 1 and <= 4
         && row.Type is TypeLearn or TypeReview or TypeRelearn;
 
+    /// <summary>Whether the row marks the card being reset to new.</summary>
+    public static bool IsReset(AnkiRevlogRow row) =>
+        row is not null && row.Type == TypeManual && row.Factor == 0;
+
+    /// <summary>
+    /// Whether the row is a filtered-deck answer that left the schedule alone. Anki writes such an
+    /// answer with no ease factor, and a filtered answer that did reschedule the card carries one.
+    /// </summary>
+    public static bool IsCramming(AnkiRevlogRow row) =>
+        row is not null && row.Type == TypeFiltered && row.Factor == 0;
+
+    /// <summary>
+    /// Whether the row is an answer that moved the card's memory in the app it came from.
+    /// </summary>
+    /// <remarks>
+    /// One case wider than <see cref="IsAnswer"/>: a filtered-deck answer that rescheduled the card
+    /// changed what that app knew about it, and Anki replays it when it derives memory from the log.
+    /// The stored history still leaves it out, so what is measured here matches what the other app
+    /// measured, while the log itself keeps only scheduled practice.
+    /// </remarks>
+    public static bool MovesMemory(AnkiRevlogRow row) =>
+        IsAnswer(row)
+        || (row is not null
+            && row.Id > 0
+            && row.Ease is >= 1 and <= 4
+            && row.Type == TypeFiltered
+            && !IsCramming(row));
+
+    /// <summary>
+    /// A stored ease factor as the multiplier SM-2 uses. A card whose factor was never set, which is
+    /// what a card another tool wrote or one that FSRS scheduled carries, reads as the default ease
+    /// rather than as zero, so every approximation from SM-2 fields starts from the same place.
+    /// Anki substitutes the default on its review-log path and reads the zero literally on its card
+    /// path, which pins that card's difficulty at the ceiling; one rule for both is the kinder one.
+    /// </summary>
+    public static double EaseFactor(int factor) =>
+        (factor > 0 ? factor : DefaultFactor) / 1000d;
+
     /// <summary>
     /// One card's answers as review rows, oldest first.
     /// </summary>
@@ -68,14 +122,28 @@ internal static class AnkiRevlog
     /// </para>
     /// </remarks>
     public static IReadOnlyList<FlashcardReviewLog> ToReviewLogs(
-        string cardId, string deckId, string sessionId, IEnumerable<AnkiRevlogRow> rows)
+        string cardId, string deckId, string sessionId, IEnumerable<AnkiRevlogRow> rows) =>
+        ToReviewLogs(cardId, deckId, sessionId, rows, IsAnswer);
+
+    /// <summary>
+    /// One card's rows as review rows, oldest first, keeping the rows <paramref name="keep"/>
+    /// accepts. The stored history keeps <see cref="IsAnswer"/>; memory replay keeps
+    /// <see cref="MovesMemory"/>.
+    /// </summary>
+    public static IReadOnlyList<FlashcardReviewLog> ToReviewLogs(
+        string cardId,
+        string deckId,
+        string sessionId,
+        IEnumerable<AnkiRevlogRow> rows,
+        Func<AnkiRevlogRow, bool> keep)
     {
         ArgumentNullException.ThrowIfNull(rows);
+        ArgumentNullException.ThrowIfNull(keep);
 
         var answers = new List<AnkiRevlogRow>();
         foreach (var row in rows)
         {
-            if (IsAnswer(row))
+            if (keep(row))
                 answers.Add(row);
         }
 
@@ -139,6 +207,7 @@ internal static class AnkiRevlog
             Ease: (int)log.Grade,
             Interval: FromDays(log.ScheduledDays),
             LastInterval: FromDays(log.ElapsedDays),
+            Factor: ExportFactor,
             Type: queue);
     }
 
@@ -151,7 +220,7 @@ internal static class AnkiRevlog
     public static int ExportFactor => DefaultFactor;
 
     /// <summary>An interval in the two units Anki spells one in, as plain days.</summary>
-    private static double ToDays(int raw) =>
+    internal static double ToDays(int raw) =>
         raw >= 0 ? raw : Math.Max(0d, -(double)raw / SecondsPerDay);
 
     /// <summary>

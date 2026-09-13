@@ -428,7 +428,7 @@ public sealed class FlashcardAnkiDeckStructureTests
         IImageAssetService? images = null) =>
         new(library, cardSvc, h.FactService,
             new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock),
-            new FlashcardReviewHistoryService(h.Store, h.Reviews),
+            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews),
             images ?? new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()));
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>

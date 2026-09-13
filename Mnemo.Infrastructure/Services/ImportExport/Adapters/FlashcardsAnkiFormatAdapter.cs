@@ -11,6 +11,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Optimizer;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.ImportExport.Adapters.Anki;
@@ -83,6 +84,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     private readonly IFlashcardCardService _cards;
     private readonly IFlashcardFactService _facts;
     private readonly IFlashcardPresetService _presets;
+    private readonly FlashcardClock _clock;
     private readonly IFlashcardReviewHistoryService _history;
     private readonly IImageAssetService _imageAssetService;
     private readonly string _importTempDirectory;
@@ -92,6 +94,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         IFlashcardCardService cards,
         IFlashcardFactService facts,
         IFlashcardPresetService presets,
+        FlashcardClock clock,
         IFlashcardReviewHistoryService history,
         IImageAssetService imageAssetService,
         string? importTempDirectory = null)
@@ -100,6 +103,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         _cards = cards;
         _facts = facts;
         _presets = presets;
+        _clock = clock;
         _history = history;
         _imageAssetService = imageAssetService;
         _importTempDirectory = importTempDirectory ?? Path.GetTempPath();
@@ -383,10 +387,14 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 var now = DateTimeOffset.UtcNow;
                 var nowMs = now.ToUnixTimeMilliseconds();
                 var nowSec = now.ToUnixTimeSeconds();
-                // Anki counts review due values from the start of the collection's first day. UTC
-                // is stable across machines; its boundary can differ from Anki's local rollover by
-                // one day near midnight, which is safer than writing an ambiguous epoch.
-                var collectionCreatedAt = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero);
+                // Anki counts review due values in whole days from the start of the collection's
+                // first day. Due dates here sit on the start of a study day, so the epoch is the
+                // current study day's start and every review offset comes out a whole number. An
+                // epoch at UTC midnight would sit hours away from that boundary and round a day
+                // off for anyone whose day starts more than twelve hours from it.
+                var standardPreset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
+                var dayStartHour = standardPreset.DayStartHour;
+                var collectionCreatedAt = _clock.StartOf(_clock.Today(dayStartHour), dayStartHour);
                 var crt = collectionCreatedAt.ToUnixTimeSeconds();
 
                 await CreateSchemaAsync(dbPath, cancellationToken).ConfigureAwait(false);
@@ -1031,7 +1039,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     }
 
     /// <summary>
-    /// The package's review log, grouped by the card row each answer was given against.
+    /// The package's review log, grouped by card row. Non-answer rows stay available so memory
+    /// reconstruction can respect reset boundaries, while history storage still filters them.
     /// </summary>
     /// <remarks>
     /// A package assembled by something other than Anki may have no such table at all, and losing
@@ -1045,7 +1054,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             return byCard;
 
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT id, cid, ease, ivl, lastIvl, type FROM revlog";
+        command.CommandText = "SELECT id, cid, ease, ivl, lastIvl, factor, type FROM revlog";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -1055,10 +1064,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 reader.IsDBNull(2) ? 0 : reader.GetInt32(2),
                 reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
                 reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
-                reader.IsDBNull(5) ? 0 : reader.GetInt32(5));
-
-            if (!AnkiRevlog.IsAnswer(row))
-                continue;
+                reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
+                reader.IsDBNull(6) ? 0 : reader.GetInt32(6));
 
             if (!byCard.TryGetValue(row.CardId, out var rows))
                 byCard[row.CardId] = rows = [];
@@ -2095,7 +2102,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         command.Parameters.AddWithValue("@ease", row.Ease);
         command.Parameters.AddWithValue("@ivl", row.Interval);
         command.Parameters.AddWithValue("@lastIvl", row.LastInterval);
-        command.Parameters.AddWithValue("@factor", AnkiRevlog.ExportFactor);
+        command.Parameters.AddWithValue("@factor", row.Factor);
         command.Parameters.AddWithValue("@type", row.Type);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -2283,7 +2290,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
         var memory = ReadAnkiMemory(card.Data)
             ?? ReplayMemory(card.Id, revlog, weights)
-            ?? FsrsSm2Memory.Approximate(card.Factor / 1000d, card.IntervalDays, 0.9d, weights);
+            ?? FsrsSm2Memory.Approximate(
+                AnkiRevlog.EaseFactor(card.Factor), card.IntervalDays, 0.9d, weights);
 
         if (memory is null)
             tally.CardsWithoutMemory++;
@@ -2308,8 +2316,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         if (!revlog.TryGetValue(cardId, out var rows))
             return null;
 
-        var logs = AnkiRevlog.ToReviewLogs(string.Empty, string.Empty, string.Empty, rows);
-        return FsrsMemoryReplay.Replay(logs, weights);
+        return AnkiMemoryState.Replay(rows, weights);
     }
 
     private static FsrsForwardModel.MemoryState? ReadAnkiMemory(string data)
@@ -2329,11 +2336,16 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 || !stabilityValue.TryGetDouble(out var stability)
                 || !difficultyValue.TryGetDouble(out var difficulty)
                 || !double.IsFinite(stability)
-                || !double.IsFinite(difficulty))
+                || !double.IsFinite(difficulty)
+                || stability <= 0d
+                || difficulty <= 0d)
             {
                 return null;
             }
 
+            // Anki only ever writes a positive pair, so a zero or negative value is not a measurement
+            // that needs clamping but a slot something else wrote, and the review log is the better
+            // witness. Values past the ceiling are real measurements the scheduler cannot hold.
             return new FsrsForwardModel.MemoryState(
                 Math.Clamp(stability, FsrsForwardModel.MinStability, FsrsForwardModel.MaxStability),
                 Math.Clamp(difficulty, 1d, 10d));
@@ -2355,7 +2367,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         DateTimeOffset now)
     {
         var raw = card.EffectiveDue;
-        if (raw <= 0)
+        if (raw <= 0 && state != FlashcardFsrsState.Review)
             return now;
 
         // Invalid timestamps must not abort an otherwise readable import.
@@ -2365,7 +2377,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             if (!TryReadUnixTimestamp(raw, out due))
                 return now;
         }
-        else if (raw > (DateTimeOffset.MaxValue - collectionCreatedAt).TotalDays)
+        else if (raw < (DateTimeOffset.MinValue - collectionCreatedAt).TotalDays
+                 || raw > (DateTimeOffset.MaxValue - collectionCreatedAt).TotalDays)
         {
             return now;
         }
@@ -2376,7 +2389,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
         // A card that is already late stays late; one dated beyond any plausible schedule is a
         // corrupt row, and burying it a century out would hide it forever.
-        if (due < collectionCreatedAt || due > now.AddDays(MaxCarriedDueDays))
+        if (due < now.AddDays(-MaxCarriedDueDays) || due > now.AddDays(MaxCarriedDueDays))
             return now;
 
         // A learning card's step is not carried, so it comes back at its next opportunity rather

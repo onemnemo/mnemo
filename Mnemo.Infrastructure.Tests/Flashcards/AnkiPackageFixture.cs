@@ -69,12 +69,14 @@ internal sealed record AnkiFixtureNoteType(
 /// <param name="Interval">The interval it set, positive in whole days and negative in seconds.</param>
 /// <param name="LastInterval">The interval the card had waited, spelled the same way.</param>
 /// <param name="Type">Which queue it came from: learn, review, relearn, or a filtered deck.</param>
+/// <param name="Factor">The SM-2 ease or FSRS difficulty stored after the answer.</param>
 internal sealed record AnkiFixtureReview(
     DateTimeOffset At,
     int Ease,
     int Interval,
     int LastInterval = 0,
-    int Type = 1);
+    int Type = 1,
+    int Factor = 2500);
 
 /// <summary>
 /// One card row of a note, for a note whose rows are not simply one per template. A cloze note
@@ -83,6 +85,7 @@ internal sealed record AnkiFixtureReview(
 /// </summary>
 /// <param name="DeckName">Which deck this one row sits in, or null for the note's own deck.</param>
 /// <param name="Reviews">What the collection's review log holds against this one row.</param>
+/// <param name="Data">The row's <c>data</c> column, where Anki keeps FSRS memory as JSON.</param>
 internal sealed record AnkiFixtureCardRow(
     int Ord,
     AnkiFixtureScheduling? Scheduling = null,
@@ -415,12 +418,13 @@ internal static class AnkiPackageFixture
         await ExecAsync(
             connection,
             "INSERT INTO revlog(id,cid,usn,ease,ivl,lastIvl,factor,time,type) " +
-            "VALUES(@id, @cid, 0, @ease, @ivl, @lastIvl, 2500, 8000, @type);",
+            "VALUES(@id, @cid, 0, @ease, @ivl, @lastIvl, @factor, 8000, @type);",
             ("@id", id),
             ("@cid", cardId),
             ("@ease", review.Ease),
             ("@ivl", review.Interval),
             ("@lastIvl", review.LastInterval),
+            ("@factor", review.Factor),
             ("@type", review.Type)).ConfigureAwait(false);
     }
 
