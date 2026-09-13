@@ -11,7 +11,18 @@ namespace Mnemo.Infrastructure.Tests.Flashcards;
 internal sealed record AnkiPackageNote(long Id, long ModelId, IReadOnlyList<string> Fields, string Tags);
 
 /// <summary>One card row as a written package holds it.</summary>
-internal sealed record AnkiPackageCard(long Id, long NoteId, int Ord);
+internal sealed record AnkiPackageCard(
+    long Id,
+    long NoteId,
+    int Ord,
+    int Type,
+    int Queue,
+    long Due,
+    int Interval,
+    int Factor,
+    int Reps,
+    int Lapses,
+    string Data);
 
 /// <summary>One answer as a written package's review log holds it.</summary>
 internal sealed record AnkiPackageReview(long Id, long CardId, int Ease, int Interval, int LastInterval, int Type);
@@ -21,7 +32,8 @@ internal sealed record AnkiPackageContents(
     IReadOnlyList<AnkiPackageNote> Notes,
     IReadOnlyList<AnkiPackageCard> Cards,
     IReadOnlyList<AnkiPackageReview> Reviews,
-    string ModelsJson);
+    string ModelsJson,
+    long CollectionCreatedAtUnixSeconds);
 
 /// <summary>
 /// Reads a package this app wrote, so an export can be asserted on as the file it produced rather
@@ -58,8 +70,21 @@ internal static class AnkiPackageInspector
                     reader.GetString(3)))).ConfigureAwait(false);
 
             var cards = new List<AnkiPackageCard>();
-            await ReadAsync(connection, "SELECT id, nid, ord FROM cards ORDER BY nid, ord", reader =>
-                cards.Add(new AnkiPackageCard(reader.GetInt64(0), reader.GetInt64(1), reader.GetInt32(2))))
+            await ReadAsync(
+                connection,
+                "SELECT id, nid, ord, type, queue, due, ivl, factor, reps, lapses, data FROM cards ORDER BY nid, ord",
+                reader => cards.Add(new AnkiPackageCard(
+                    reader.GetInt64(0),
+                    reader.GetInt64(1),
+                    reader.GetInt32(2),
+                    reader.GetInt32(3),
+                    reader.GetInt32(4),
+                    reader.GetInt64(5),
+                    reader.GetInt32(6),
+                    reader.GetInt32(7),
+                    reader.GetInt32(8),
+                    reader.GetInt32(9),
+                    reader.GetString(10))))
                 .ConfigureAwait(false);
 
             var reviews = new List<AnkiPackageReview>();
@@ -70,10 +95,15 @@ internal static class AnkiPackageInspector
                 .ConfigureAwait(false);
 
             var models = string.Empty;
-            await ReadAsync(connection, "SELECT models FROM col LIMIT 1", reader => models = reader.GetString(0))
+            var collectionCreatedAt = 0L;
+            await ReadAsync(connection, "SELECT models, crt FROM col LIMIT 1", reader =>
+            {
+                models = reader.GetString(0);
+                collectionCreatedAt = reader.GetInt64(1);
+            })
                 .ConfigureAwait(false);
 
-            return new AnkiPackageContents(notes, cards, reviews, models);
+            return new AnkiPackageContents(notes, cards, reviews, models, collectionCreatedAt);
         }
         finally
         {

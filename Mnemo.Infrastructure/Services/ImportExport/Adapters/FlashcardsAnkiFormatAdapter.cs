@@ -383,7 +383,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 var now = DateTimeOffset.UtcNow;
                 var nowMs = now.ToUnixTimeMilliseconds();
                 var nowSec = now.ToUnixTimeSeconds();
-                var crt = (long)Math.Floor(now.ToUnixTimeSeconds() / 86400d);
+                // Anki counts review due values from the start of the collection's first day. UTC
+                // is stable across machines; its boundary can differ from Anki's local rollover by
+                // one day near midnight, which is safer than writing an ambiguous epoch.
+                var collectionCreatedAt = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero);
+                var crt = collectionCreatedAt.ToUnixTimeSeconds();
 
                 await CreateSchemaAsync(dbPath, cancellationToken).ConfigureAwait(false);
                 {
@@ -425,10 +429,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                             foreach (var row in note.Rows)
                             {
                                 var cid = StableAnkiId($"card:{row.CardId}");
-                                // Content-only export: no scheduling round-trip. Every card ships as
-                                // an Anki "new" card, whatever its history says.
                                 await InsertCardAsync(
-                                    connection, cid, note.NoteId, did, mod, row.Ord, NewCardScheduling,
+                                    connection, cid, note.NoteId, did, mod, row.Ord,
+                                    BuildExportScheduling(row, collectionCreatedAt),
                                     cancellationToken).ConfigureAwait(false);
                                 exported.Add((row.CardId, cid));
                                 exportedCards++;
@@ -503,9 +506,6 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// makes one card, and a note filed under the wrong one arrives with the wrong cards.
     /// </summary>
     private static long ClozeModelId => 1_608_194_021_002L;
-
-    /// <summary>Anki scheduling for a fresh "new" card, the only state a content-only export emits.</summary>
-    private static AnkiDueData NewCardScheduling => new(Type: 0, Queue: 0, Due: 0, Interval: 0, Factor: 2500, Reps: 0, Lapses: 0);
 
     private async Task<OpenedApkg> OpenApkgAsync(string apkgPath, CancellationToken cancellationToken)
     {
@@ -1512,7 +1512,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     notes.Add(note);
                 }
 
-                note.Rows.Add(new AnkiExportRow(card.Id, ordinal - 1));
+                note.Rows.Add(new AnkiExportRow(card.Id, ordinal - 1, card.State, card.Schedule));
                 continue;
             }
 
@@ -1527,7 +1527,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 card.Attachments,
                 card.Tags,
                 card.Front,
-                [new AnkiExportRow(card.Id, 0)]));
+                [new AnkiExportRow(card.Id, 0, card.State, card.Schedule)]));
         }
 
         return notes;
@@ -1572,7 +1572,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 var card = view.Card;
                 cards.Add(new AnkiExportCard(
                     card.Id, card.Front, card.Back, card.Tags, card.Attachments, card.FrontBlocks, card.BackBlocks,
-                    card.FactId, card.LayoutKey));
+                    card.FactId, card.LayoutKey, card.State, view.Schedule));
             }
 
             offset += page.Items.Count;
@@ -1949,9 +1949,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
+        // The learning step index has no shared representation, so left stays zero. The card still
+        // carries its phase and due time and resumes at the receiving scheduler's first step.
         command.CommandText = """
                               INSERT INTO cards(id, nid, did, ord, mod, usn, type, queue, due, ivl, factor, reps, lapses, left, odue, odid, flags, data)
-                              VALUES(@id, @nid, @did, @ord, @mod, 0, @type, @queue, @due, @ivl, @factor, @reps, @lapses, 0, 0, 0, 0, '')
+                              VALUES(@id, @nid, @did, @ord, @mod, 0, @type, @queue, @due, @ivl, @factor, @reps, @lapses, 0, 0, 0, 0, @data)
                               """;
         command.Parameters.AddWithValue("@id", id);
         command.Parameters.AddWithValue("@nid", noteId);
@@ -1965,7 +1967,68 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         command.Parameters.AddWithValue("@factor", dueData.Factor);
         command.Parameters.AddWithValue("@reps", dueData.Reps);
         command.Parameters.AddWithValue("@lapses", dueData.Lapses);
+        command.Parameters.AddWithValue("@data", dueData.Data);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Maps one stored schedule onto Anki's card row fields.</summary>
+    private static AnkiDueData BuildExportScheduling(
+        AnkiExportRow row,
+        DateTimeOffset collectionCreatedAt)
+    {
+        var schedule = row.Schedule;
+        var (type, queue) = schedule.FsrsState switch
+        {
+            FlashcardFsrsState.Learning => (AnkiCardTypeLearning, 1),
+            FlashcardFsrsState.Review => (AnkiCardTypeReview, 2),
+            FlashcardFsrsState.Relearning => (AnkiCardTypeRelearning, 1),
+            _ => (0, 0),
+        };
+
+        if (row.State == FlashcardCardState.Suspended)
+            queue = AnkiQueueSuspended;
+
+        var due = schedule.FsrsState switch
+        {
+            FlashcardFsrsState.New => 0L,
+            FlashcardFsrsState.Review => (long)Math.Round(
+                (schedule.DueDate - collectionCreatedAt).TotalDays,
+                MidpointRounding.AwayFromZero),
+            _ => schedule.DueDate.ToUnixTimeSeconds(),
+        };
+
+        var interval = schedule.FsrsState == FlashcardFsrsState.New
+            ? 0
+            : Math.Max(1, (int)Math.Round(
+                (schedule.DueDate - (schedule.LastReviewedAt ?? schedule.DueDate)).TotalDays,
+                MidpointRounding.AwayFromZero));
+
+        return new AnkiDueData(
+            type,
+            queue,
+            due,
+            interval,
+            AnkiRevlog.ExportFactor,
+            Math.Max(0, schedule.Reps),
+            Math.Max(0, schedule.Lapses),
+            ExportMemoryData(schedule));
+    }
+
+    private static string ExportMemoryData(FlashcardSchedule schedule)
+    {
+        if (schedule.Stability is not { } stability
+            || schedule.Difficulty is not { } difficulty
+            || !double.IsFinite(stability)
+            || !double.IsFinite(difficulty))
+        {
+            return string.Empty;
+        }
+
+        stability = Math.Clamp(stability, FsrsForwardModel.MinStability, FsrsForwardModel.MaxStability);
+        difficulty = Math.Clamp(difficulty, 1d, 10d);
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{{\"s\":{stability:0.0000},\"d\":{difficulty:0.000}}}");
     }
 
     /// <summary>
@@ -2326,8 +2389,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         if (crtRaw <= 0)
             return DateTimeOffset.UtcNow.Date;
 
-        // Canonical Anki value: days since Unix epoch.
-        // Some packages may contain seconds or milliseconds instead.
+        if (crtRaw >= SecondsSinceEpochThreshold && TryReadUnixTimestamp(crtRaw, out var timestamp))
+            return timestamp;
+
+        // Old packages written with a day count are still accepted even though Anki's collection
+        // creation field is a Unix timestamp in seconds.
         const long maxReasonableAnkiDays = MaxUnixSeconds / 86400L; // up to year 9999
         if (crtRaw <= maxReasonableAnkiDays)
             return DateTimeOffset.FromUnixTimeSeconds(crtRaw * 86400L);
@@ -2605,16 +2671,17 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     private sealed record AnkiDueData(
         int Type,
         int Queue,
-        int Due,
+        long Due,
         int Interval,
         int Factor,
         int Reps,
-        int Lapses);
+        int Lapses,
+        string Data);
 
-    /// <summary>Content-only projection of a deck assembled from the relational store for export.</summary>
+    /// <summary>Projection of a deck assembled from the relational store for export.</summary>
     private sealed record AnkiExportDeck(string Id, string Name, string? Description, IReadOnlyList<AnkiExportNote> Notes);
 
-    /// <summary>Content-only projection of a card for export (no scheduling fields).</summary>
+    /// <summary>Card content and scheduling projected for export.</summary>
     private sealed record AnkiExportCard(
         string Id,
         string Front,
@@ -2624,7 +2691,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         IReadOnlyList<Block>? FrontBlocks,
         IReadOnlyList<Block>? BackBlocks,
         string? FactId,
-        string? LayoutKey);
+        string? LayoutKey,
+        FlashcardCardState State,
+        FlashcardSchedule Schedule);
 
     /// <summary>
     /// Material whose cards are its deletions, as the receiving app's note type wants it: the text
@@ -2659,7 +2728,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// Which of the note's cards this is. A deletion written as <c>c2</c> is row one, because the
     /// receiving app numbers them from zero while the deletion is written from one.
     /// </param>
-    private sealed record AnkiExportRow(string CardId, int Ord);
+    private sealed record AnkiExportRow(
+        string CardId,
+        int Ord,
+        FlashcardCardState State,
+        FlashcardSchedule Schedule);
 
     /// <summary>
     /// The media table being assembled for an export: which numbered file each image was copied to,
