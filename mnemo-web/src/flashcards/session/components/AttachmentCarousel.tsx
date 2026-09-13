@@ -136,20 +136,45 @@ function Frame({
         )}
       </div>
 
-      <Dialog.Root open={zoomed} onOpenChange={setZoomed}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
-          <Dialog.Content
-            aria-describedby={undefined}
-            className="fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 p-6 outline-none"
-            onClick={() => setZoomed(false)}
-          >
-            <Dialog.Title className="sr-only">{attachment.displayName}</Dialog.Title>
-            <img src={url} alt={attachment.displayName} className="max-h-[900px] max-w-[1200px] object-contain" />
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <ImageZoomDialog attachment={attachment} url={url} open={zoomed} onOpenChange={setZoomed} />
     </>
+  )
+}
+
+function ImageZoomDialog({
+  attachment,
+  url,
+  open,
+  onOpenChange,
+}: {
+  attachment: CardAttachmentDto
+  url: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-ink/50" />
+        <Dialog.Content
+          aria-describedby={undefined}
+          data-study-image-zoom-surface
+          className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center p-8 outline-none"
+          onClick={(event) => {
+            event.stopPropagation()
+            onOpenChange(false)
+          }}
+        >
+          <Dialog.Title className="sr-only">{attachment.displayName}</Dialog.Title>
+          <img
+            src={url}
+            alt={attachment.displayName}
+            draggable={false}
+            className="max-h-[900px] max-w-[1200px] object-contain"
+          />
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }
 

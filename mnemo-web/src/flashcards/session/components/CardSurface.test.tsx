@@ -29,6 +29,10 @@ vi.mock("@/components/icon/AppIcon", () => ({
   AppIcon: ({ name }: { name: string }) => <span data-icon={name} />,
 }))
 
+vi.mock("../../editor/assets", () => ({
+  useCardAssetUrl: () => "blob:study-image",
+}))
+
 // jsdom does not load built CSS. This fixture checks use of the utility class, not the production
 // stylesheet.
 beforeAll(() => {
@@ -77,6 +81,21 @@ const formattedCard: CardDto = {
   updatedAt: "2026-01-01T00:00:00Z",
 }
 
+const illustratedCard: CardDto = {
+  ...card,
+  id: "card-4",
+  attachments: [
+    {
+      id: "attachment-1",
+      side: "front",
+      displayName: "Cell diagram",
+      sizeBytes: 1234,
+      caption: null,
+      assetId: "asset-1",
+    },
+  ],
+}
+
 let host: HTMLDivElement
 let root: Root
 
@@ -91,14 +110,14 @@ afterEach(() => {
   host.remove()
 })
 
-function render(revealed: boolean, cardToRender: CardDto = card): void {
+function render(revealed: boolean, cardToRender: CardDto = card, onReveal: () => void = () => {}): void {
   act(() =>
     root.render(
       <CardSurface
         card={cardToRender}
         revealed={revealed}
         canUndo={false}
-        onReveal={() => {}}
+        onReveal={onReveal}
         onEdit={() => {}}
         onFlag={() => {}}
         onUndo={() => {}}
@@ -155,5 +174,40 @@ describe("CardSurface", () => {
     render(true, { ...card, back: "The capital of Japan is {{c1::Tokyo}}" })
 
     expect(host.querySelector("strong")?.textContent).toBe("Tokyo")
+  })
+
+  it("does not reveal the answer when the enlarged front image is clicked", () => {
+    const onReveal = vi.fn()
+    render(false, illustratedCard, onReveal)
+
+    const thumbnail = host.querySelector<HTMLImageElement>('img[alt="Cell diagram"]')
+    expect(thumbnail, "the front image is not on screen").not.toBeNull()
+    act(() => thumbnail!.click())
+    expect(onReveal).not.toHaveBeenCalled()
+
+    const zoom = document.querySelector<HTMLElement>('[role="dialog"]')
+    expect(zoom, "the enlarged image did not open").not.toBeNull()
+    const enlargedImage = zoom!.querySelector<HTMLImageElement>("img")
+    expect(enlargedImage, "the enlarged image is missing from its dialog").not.toBeNull()
+    act(() => enlargedImage!.click())
+
+    expect(onReveal).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it("does not reveal the answer when the image zoom backdrop is clicked", () => {
+    const onReveal = vi.fn()
+    render(false, illustratedCard, onReveal)
+
+    const thumbnail = host.querySelector<HTMLImageElement>('img[alt="Cell diagram"]')
+    expect(thumbnail, "the front image is not on screen").not.toBeNull()
+    act(() => thumbnail!.click())
+
+    const dismissalSurface = document.querySelector<HTMLElement>("[data-study-image-zoom-surface]")
+    expect(dismissalSurface, "the image zoom backdrop is missing").not.toBeNull()
+    act(() => dismissalSurface!.click())
+
+    expect(onReveal).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 })
