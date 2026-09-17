@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -26,9 +26,11 @@ describe("Button", () => {
   it("renders the icon slots around its children", () => {
     act(() => {
       root.render(
-        <Button icon={<span>i</span>} trailing={<span>t</span>}>
-          Study
-        </Button>,
+        <StrictMode>
+          <Button icon={<span>i</span>} trailing={<span>t</span>}>
+            Study
+          </Button>
+        </StrictMode>,
       )
     })
 
@@ -40,9 +42,11 @@ describe("Button", () => {
     // handing it [undefined, child, undefined] throws even when both are absent.
     act(() => {
       root.render(
-        <Button asChild icon={<span>i</span>}>
-          <a href="#/flashcards">Study</a>
-        </Button>,
+        <StrictMode>
+          <Button asChild icon={<span>i</span>}>
+            <a href="#/flashcards">Study</a>
+          </Button>
+        </StrictMode>,
       )
     })
 

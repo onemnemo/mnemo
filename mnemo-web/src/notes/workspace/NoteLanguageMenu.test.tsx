@@ -13,7 +13,7 @@
  * should leave the menu standing can be told apart from one that closes it.
  */
 
-import { act, useState } from 'react';
+import { act, StrictMode, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
@@ -132,9 +132,11 @@ function open(status?: ProofingStatus): void {
   if (status) queryClient.setQueryData([...PROOFING_STATUS_KEY, NOTE_ID], status);
   act(() =>
     root.render(
-      <QueryClientProvider client={queryClient}>
-        <Harness />
-      </QueryClientProvider>,
+      <StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <Harness />
+        </QueryClientProvider>
+      </StrictMode>,
     ),
   );
   act(() => {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -35,9 +35,11 @@ describe("Modal focus", () => {
 
     act(() =>
       root.render(
-        <Modal open onClose={() => {}} title="Export" closeLabel="Close">
-          <input aria-label="Name" />
-        </Modal>,
+        <StrictMode>
+          <Modal open onClose={() => {}} title="Export" closeLabel="Close">
+            <input aria-label="Name" />
+          </Modal>
+        </StrictMode>,
       ),
     )
     expect((document.activeElement as HTMLElement | null)?.getAttribute("aria-label")).toBe("Close")
@@ -50,9 +52,11 @@ describe("Modal focus", () => {
   it("takes focus itself when it has nothing to give it to", () => {
     act(() =>
       root.render(
-        <Modal open onClose={() => {}} title="Export" closeLabel="Close">
-          plain text
-        </Modal>,
+        <StrictMode>
+          <Modal open onClose={() => {}} title="Export" closeLabel="Close">
+            plain text
+          </Modal>
+        </StrictMode>,
       ),
     )
     // The close button is a control, so the surface is only the fallback once it is gone
@@ -66,9 +70,11 @@ describe("Modal stacking", () => {
   it("sits at the layer the shared order gives it", () => {
     act(() =>
       root.render(
-        <Modal open onClose={() => {}} title="Export" closeLabel="Close">
-          content
-        </Modal>,
+        <StrictMode>
+          <Modal open onClose={() => {}} title="Export" closeLabel="Close">
+            content
+          </Modal>
+        </StrictMode>,
       ),
     )
 
@@ -95,10 +101,12 @@ describe("Modal focus", () => {
   it("wraps Tab around its own controls", () => {
     act(() =>
       root.render(
-        <Modal open onClose={() => {}} title="Export" closeLabel="Close">
-          <button type="button">First</button>
-          <button type="button">Last</button>
-        </Modal>,
+        <StrictMode>
+          <Modal open onClose={() => {}} title="Export" closeLabel="Close">
+            <button type="button">First</button>
+            <button type="button">Last</button>
+          </Modal>
+        </StrictMode>,
       ),
     )
 
@@ -127,11 +135,11 @@ describe("Modal focus", () => {
       )
     }
 
-    act(() => root.render(<Host open />))
+    act(() => root.render(<StrictMode><Host open /></StrictMode>))
     act(() => document.querySelector<HTMLButtonElement>('[role="dialog"] button')?.focus())
     expect(document.activeElement).not.toBe(opener)
 
-    act(() => root.render(<Host open={false} />))
+    act(() => root.render(<StrictMode><Host open={false} /></StrictMode>))
     expect(document.activeElement).toBe(opener)
     opener.remove()
   })
@@ -148,9 +156,11 @@ describe("Modal escape", () => {
     let closed = 0
     act(() =>
       root.render(
-        <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close">
-          content
-        </Modal>,
+        <StrictMode>
+          <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close">
+            content
+          </Modal>
+        </StrictMode>,
       ),
     )
 
@@ -164,9 +174,11 @@ describe("Modal escape", () => {
     let closed = 0
     act(() =>
       root.render(
-        <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close">
-          content
-        </Modal>,
+        <StrictMode>
+          <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close">
+            content
+          </Modal>
+        </StrictMode>,
       ),
     )
 
@@ -186,12 +198,12 @@ describe("Modal escape", () => {
     let answer: boolean | undefined
     act(() =>
       root.render(
-        <>
+        <StrictMode>
           <Modal open onClose={() => (closed += 1)} title="Restore" closeLabel="Close">
             content
           </Modal>
           <DialogHost />
-        </>,
+        </StrictMode>,
       ),
     )
 
@@ -213,14 +225,14 @@ describe("Modal escape", () => {
     let closedSecond = 0
     act(() =>
       root.render(
-        <>
+        <StrictMode>
           <Modal open onClose={() => (closedFirst += 1)} title="First" closeLabel="Close">
             first
           </Modal>
           <Modal open onClose={() => (closedSecond += 1)} title="Second" closeLabel="Close">
             second
           </Modal>
-        </>,
+        </StrictMode>,
       ),
     )
 
@@ -240,9 +252,11 @@ describe("Modal dismissal options", () => {
     let closed = 0
     act(() =>
       root.render(
-        <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close">
-          content
-        </Modal>,
+        <StrictMode>
+          <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close">
+            content
+          </Modal>
+        </StrictMode>,
       ),
     )
 
@@ -254,9 +268,11 @@ describe("Modal dismissal options", () => {
     let closed = 0
     act(() =>
       root.render(
-        <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close" dismissOnBackdrop={false}>
-          content
-        </Modal>,
+        <StrictMode>
+          <Modal open onClose={() => (closed += 1)} title="Export" closeLabel="Close" dismissOnBackdrop={false}>
+            content
+          </Modal>
+        </StrictMode>,
       ),
     )
 
@@ -267,9 +283,11 @@ describe("Modal dismissal options", () => {
   it("leaves the close button out of the header when told to", () => {
     act(() =>
       root.render(
-        <Modal open onClose={() => {}} title="Export" closeButton={false}>
-          content
-        </Modal>,
+        <StrictMode>
+          <Modal open onClose={() => {}} title="Export" closeButton={false}>
+            content
+          </Modal>
+        </StrictMode>,
       ),
     )
 
@@ -279,9 +297,11 @@ describe("Modal dismissal options", () => {
   it("puts the eyebrow in the header, above the title", () => {
     act(() =>
       root.render(
-        <Modal open onClose={() => {}} title="Export" closeLabel="Close" eyebrow={<span data-eyebrow>Beta</span>}>
-          content
-        </Modal>,
+        <StrictMode>
+          <Modal open onClose={() => {}} title="Export" closeLabel="Close" eyebrow={<span data-eyebrow>Beta</span>}>
+            content
+          </Modal>
+        </StrictMode>,
       ),
     )
 
@@ -309,7 +329,7 @@ describe("Modal suspended", () => {
       )
     }
 
-    act(() => root.render(<Host suspended />))
+    act(() => root.render(<StrictMode><Host suspended /></StrictMode>))
     const wrapper = document.querySelector('[role="dialog"]')!.parentElement as HTMLElement
     expect(wrapper.getAttribute("aria-hidden")).toBe("true")
     expect(wrapper.style.opacity).toBe("0")
@@ -317,7 +337,7 @@ describe("Modal suspended", () => {
     escape()
     expect(closed).toBe(0)
 
-    act(() => root.render(<Host suspended={false} />))
+    act(() => root.render(<StrictMode><Host suspended={false} /></StrictMode>))
     expect(wrapper.getAttribute("aria-hidden")).toBeNull()
     expect(wrapper.style.opacity).toBe("")
     expect(wrapper.style.pointerEvents).toBe("")
@@ -334,17 +354,17 @@ describe("Modal suspended", () => {
       )
     }
 
-    act(() => root.render(<Host suspended={false} />))
+    act(() => root.render(<StrictMode><Host suspended={false} /></StrictMode>))
     const inside = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
       (button) => button.textContent === "Inside",
     )!
     act(() => inside.focus())
 
-    act(() => root.render(<Host suspended />))
+    act(() => root.render(<StrictMode><Host suspended /></StrictMode>))
     act(() => inside.blur())
     expect(document.activeElement).toBe(document.body)
 
-    act(() => root.render(<Host suspended={false} />))
+    act(() => root.render(<StrictMode><Host suspended={false} /></StrictMode>))
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,7 +12,7 @@ function mount(props: Parameters<typeof NoteTitle>[0]): HTMLHeadingElement {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => root!.render(<NoteTitle {...props} />));
+  act(() => root!.render(<StrictMode><NoteTitle {...props} /></StrictMode>));
   return container.querySelector('h1')!;
 }
 
@@ -83,10 +83,10 @@ describe('NoteTitle', () => {
   it('does not replace the text under a caret when the saved title changes', () => {
     const el = mount({ title: 'Cells', placeholder: '', onCommit: () => {} });
     type(el, 'Cells and');
-    act(() => root!.render(<NoteTitle title="Cells" placeholder="" onCommit={() => {}} />));
+    act(() => root!.render(<StrictMode><NoteTitle title="Cells" placeholder="" onCommit={() => {}} /></StrictMode>));
     expect(el.textContent).toBe('Cells and');
     act(() => el.blur());
-    act(() => root!.render(<NoteTitle title="Saved" placeholder="" onCommit={() => {}} />));
+    act(() => root!.render(<StrictMode><NoteTitle title="Saved" placeholder="" onCommit={() => {}} /></StrictMode>));
     expect(el.textContent).toBe('Saved');
   });
 });

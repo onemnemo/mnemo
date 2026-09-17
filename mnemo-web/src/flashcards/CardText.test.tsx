@@ -6,7 +6,7 @@
  * than in `card-format.ts`.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -34,7 +34,7 @@ afterEach(() => {
 
 function render(children: string) {
   act(() => {
-    root.render(<CardText>{children}</CardText>)
+    root.render(<StrictMode><CardText>{children}</CardText></StrictMode>)
   })
 }
 

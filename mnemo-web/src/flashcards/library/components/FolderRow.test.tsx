@@ -7,7 +7,7 @@
  * field afterwards.
  */
 
-import { act, type ReactNode } from "react"
+import { act, StrictMode, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -72,7 +72,7 @@ afterEach(() => {
 })
 
 function mount(node: ReactNode): void {
-  act(() => root.render(node))
+  act(() => root.render(<StrictMode>{node}</StrictMode>))
 }
 
 function mountRow(expanded = true): void {

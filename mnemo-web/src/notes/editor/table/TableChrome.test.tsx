@@ -21,7 +21,7 @@
  * test to the implementation that happened to set an inline style.
  */
 
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { EditorView } from 'prosemirror-view';
 import { TextSelection } from 'prosemirror-state';
@@ -123,7 +123,7 @@ function open(): Harness {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = createRoot(host);
-  act(() => root.render(<NodeViewPortals registry={registry} />));
+  act(() => root.render(<StrictMode><NodeViewPortals registry={registry} /></StrictMode>));
 
   harness = { view, root, registry, mount, host, restore };
   return harness;

@@ -4,7 +4,7 @@
  * Checks that window shutdown records effort for an unfinished test.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -82,7 +82,7 @@ afterEach(() => {
 describe("a test in progress while the window is closing", () => {
   it("records the effort even though the screen never goes away", async () => {
     await act(async () => {
-      root.render(<TestPage deckId="d1" />)
+      root.render(<StrictMode><TestPage deckId="d1" /></StrictMode>)
     })
     await act(async () => {
       await Promise.resolve()
@@ -104,7 +104,7 @@ describe("a test in progress while the window is closing", () => {
 
   it("writes nothing when no card was graded", async () => {
     await act(async () => {
-      root.render(<TestPage deckId="d1" />)
+      root.render(<StrictMode><TestPage deckId="d1" /></StrictMode>)
     })
     await act(async () => {
       await Promise.resolve()

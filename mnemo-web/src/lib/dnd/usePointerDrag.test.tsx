@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -28,7 +28,7 @@ function render(options: PointerDragOptions<Handle, Target, Plan>) {
   document.body.appendChild(container);
   root = createRoot(container);
   act(() => {
-    root!.render(<Harness options={options} />);
+    root!.render(<StrictMode><Harness options={options} /></StrictMode>);
   });
 }
 

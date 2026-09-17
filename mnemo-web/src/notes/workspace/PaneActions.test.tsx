@@ -8,7 +8,7 @@
  * the order, which is why it is pinned here rather than left to a visual read.
  */
 
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -79,9 +79,11 @@ afterEach(() => {
 function openMenu(): Element[] {
   act(() =>
     root.render(
-      <QueryClientProvider client={new QueryClient()}>
-        <PaneActions note={NOTE} measureBandAspect={() => 1} />
-      </QueryClientProvider>,
+      <StrictMode>
+        <QueryClientProvider client={new QueryClient()}>
+          <PaneActions note={NOTE} measureBandAspect={() => 1} />
+        </QueryClientProvider>
+      </StrictMode>,
     ),
   );
   const trigger = container.querySelector<HTMLElement>('button');

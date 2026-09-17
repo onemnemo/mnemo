@@ -9,7 +9,7 @@
  * rendered the masked prompt twice and never the answer.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -113,15 +113,17 @@ afterEach(() => {
 function render(revealed: boolean, cardToRender: CardDto = card, onReveal: () => void = () => {}): void {
   act(() =>
     root.render(
-      <CardSurface
-        card={cardToRender}
-        revealed={revealed}
-        canUndo={false}
-        onReveal={onReveal}
-        onEdit={() => {}}
-        onFlag={() => {}}
-        onUndo={() => {}}
-      />,
+      <StrictMode>
+        <CardSurface
+          card={cardToRender}
+          revealed={revealed}
+          canUndo={false}
+          onReveal={onReveal}
+          onEdit={() => {}}
+          onFlag={() => {}}
+          onUndo={() => {}}
+        />
+      </StrictMode>,
     ),
   )
 }

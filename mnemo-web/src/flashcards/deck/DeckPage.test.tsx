@@ -8,7 +8,7 @@
  * child components and the query hooks.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -114,7 +114,7 @@ afterEach(() => {
 })
 
 function mount(): void {
-  act(() => root.render(<DeckPage deckId="d1" />))
+  act(() => root.render(<StrictMode><DeckPage deckId="d1" /></StrictMode>))
 }
 
 /** Flushes both the mutation's own microtask and the state update `run` makes after it. */

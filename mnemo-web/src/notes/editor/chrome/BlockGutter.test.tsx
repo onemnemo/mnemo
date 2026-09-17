@@ -12,7 +12,7 @@
  * while its menu is open.
  */
 
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { EditorView } from 'prosemirror-view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -168,7 +168,13 @@ function mount(blocks: Blocks): Mounted {
   const chrome = document.createElement('div');
   document.body.appendChild(chrome);
   root = createRoot(chrome);
-  act(() => root?.render(<BlockGutter view={view} registry={built.registry} scrollRef={{ current: host }} />));
+  act(() =>
+    root?.render(
+      <StrictMode>
+        <BlockGutter view={view} registry={built.registry} scrollRef={{ current: host }} />
+      </StrictMode>,
+    ),
+  );
 
   mounted = { view, registry: built.registry, chrome };
   return mounted;

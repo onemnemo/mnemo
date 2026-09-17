@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -53,7 +53,7 @@ describe("useProfileBackup", () => {
   it("is busy, with the running label, until the backup settles", async () => {
     const backup = pending()
     command.createProfileBackup.mockReturnValue(backup.promise)
-    await act(async () => root.render(<Probe />))
+    await act(async () => root.render(<StrictMode><Probe /></StrictMode>))
     expect(button().textContent).toBe("BackUp")
     expect(button().disabled).toBe(false)
 
@@ -74,7 +74,7 @@ describe("useProfileBackup", () => {
   it("starts one backup however many presses land before the button is disabled", async () => {
     const backup = pending()
     command.createProfileBackup.mockReturnValue(backup.promise)
-    await act(async () => root.render(<Probe />))
+    await act(async () => root.render(<StrictMode><Probe /></StrictMode>))
 
     await act(async () => {
       button().click()

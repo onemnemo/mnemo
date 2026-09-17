@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -35,7 +35,7 @@ afterEach(() => {
 
 describe("useProfileIdentity", () => {
   it("leaves a missing display name blank for the translated callers to label", () => {
-    act(() => root.render(<Probe />))
+    act(() => root.render(<StrictMode><Probe /></StrictMode>))
 
     expect(name).toBe("")
   })

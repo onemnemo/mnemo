@@ -9,7 +9,7 @@
  * `replaceOpen`, comes from the active bundle rather than a literal.
  */
 
-import { act, type ReactNode } from 'react';
+import { act, StrictMode, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EditorView } from 'prosemirror-view';
@@ -97,7 +97,7 @@ afterEach(() => {
 });
 
 function mount(node: ReactNode): void {
-  act(() => root.render(node));
+  act(() => root.render(<StrictMode>{node}</StrictMode>));
 }
 
 function fakeView(): EditorView {

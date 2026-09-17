@@ -9,7 +9,7 @@
  * the document, which is the one path back to a glyph-less callout.
  */
 
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { EditorView } from 'prosemirror-view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -46,7 +46,13 @@ function mount(blocks: Blocks = note): EditorView {
   document.body.appendChild(chrome);
   root = createRoot(chrome);
   const editor = view;
-  act(() => root?.render(<CalloutIconPicker view={editor} registry={built.registry} />));
+  act(() =>
+    root?.render(
+      <StrictMode>
+        <CalloutIconPicker view={editor} registry={built.registry} />
+      </StrictMode>,
+    ),
+  );
   return editor;
 }
 

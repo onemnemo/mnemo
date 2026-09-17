@@ -7,7 +7,7 @@
  * key. That is what the assertions read, so a wrong key fails here rather than shipping.
  */
 
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { EditorView } from 'prosemirror-view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -43,14 +43,16 @@ function mount(align = 'left', options: { missingPos?: boolean } = {}) {
   root = createRoot(host);
   act(() =>
     root?.render(
-      <ImageChrome
-        view={view!}
-        registry={built.registry}
-        services={resolveServices()}
-        node={view!.state.doc.child(1)}
-        getPos={() => (options.missingPos ? undefined : pos)}
-        onAlign={onAlign}
-      />,
+      <StrictMode>
+        <ImageChrome
+          view={view!}
+          registry={built.registry}
+          services={resolveServices()}
+          node={view!.state.doc.child(1)}
+          getPos={() => (options.missingPos ? undefined : pos)}
+          onAlign={onAlign}
+        />
+      </StrictMode>,
     ),
   );
   return { host, onAlign };

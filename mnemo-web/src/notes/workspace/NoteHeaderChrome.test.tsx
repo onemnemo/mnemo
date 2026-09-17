@@ -8,7 +8,7 @@
  * what a confirmed (or cancelled) edit hands back.
  */
 
-import { act, useState, type ReactNode } from 'react';
+import { act, StrictMode, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -95,7 +95,7 @@ afterEach(() => {
 });
 
 function mount(node: ReactNode): void {
-  act(() => root.render(node));
+  act(() => root.render(<StrictMode>{node}</StrictMode>));
 }
 
 function fakeCrop(overrides: Partial<ImageCrop> = {}): ImageCrop {

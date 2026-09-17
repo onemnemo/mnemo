@@ -8,7 +8,7 @@
  * that vanishes rather than anything that throws.
  */
 
-import { act, useState } from "react"
+import { act, StrictMode, useState } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -61,7 +61,7 @@ function row(): HTMLElement | null {
 
 describe("a check item that stays put", () => {
   it("leaves the menu open across a select when closeOnSelect is false", () => {
-    act(() => root.render(<Harness closeOnSelect={false} />))
+    act(() => root.render(<StrictMode><Harness closeOnSelect={false} /></StrictMode>))
 
     act(() => row()!.click())
 
@@ -73,7 +73,7 @@ describe("a check item that stays put", () => {
   })
 
   it("closes the menu by default, as every other row does", () => {
-    act(() => root.render(<Harness />))
+    act(() => root.render(<StrictMode><Harness /></StrictMode>))
 
     act(() => row()!.click())
 
@@ -84,13 +84,13 @@ describe("a check item that stays put", () => {
 
 describe("a check item with a description", () => {
   it("puts it on a second line under the label", () => {
-    act(() => root.render(<Harness description="English, Spanish" />))
+    act(() => root.render(<StrictMode><Harness description="English, Spanish" /></StrictMode>))
 
     expect(row()!.textContent).toBe("NorwegianEnglish, Spanish")
   })
 
   it("renders one line when there is none", () => {
-    act(() => root.render(<Harness />))
+    act(() => root.render(<StrictMode><Harness /></StrictMode>))
 
     expect(row()!.textContent).toBe("Norwegian")
   })

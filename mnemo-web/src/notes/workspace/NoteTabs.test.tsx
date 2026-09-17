@@ -14,7 +14,7 @@
  * across an actual update and not just at a single fixed render.
  */
 
-import { act, useState } from 'react';
+import { act, StrictMode, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -81,7 +81,7 @@ function Harness({ initial }: { initial: string }) {
 
 function mount(initial: string): void {
   act(() => {
-    root.render(<Harness initial={initial} />);
+    root.render(<StrictMode><Harness initial={initial} /></StrictMode>);
   });
 }
 

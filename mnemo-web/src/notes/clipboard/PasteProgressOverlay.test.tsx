@@ -6,7 +6,7 @@
  * carries, by button and by Escape.
  */
 
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -22,7 +22,7 @@ beforeEach(() => {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => root.render(<PasteProgressOverlay />));
+  act(() => root.render(<StrictMode><PasteProgressOverlay /></StrictMode>));
 });
 
 afterEach(() => {

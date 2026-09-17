@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
@@ -79,12 +79,14 @@ function open(blocks: Blocks): void {
   overlayRoot = createRoot(overlayMount);
   act(() => {
     overlayRoot.render(
-      <BlockSelectionOverlay
-        view={view}
-        registry={registry}
-        paneRef={{ current: pane }}
-        scrollRef={{ current: scroll }}
-      />,
+      <StrictMode>
+        <BlockSelectionOverlay
+          view={view}
+          registry={registry}
+          paneRef={{ current: pane }}
+          scrollRef={{ current: scroll }}
+        />
+      </StrictMode>,
     );
   });
 }

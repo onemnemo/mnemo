@@ -8,7 +8,7 @@
  * happy path of a message changing.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -27,7 +27,7 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.appendChild(container)
   root = createRoot(container)
-  act(() => root.render(<Harness />))
+  act(() => root.render(<StrictMode><Harness /></StrictMode>))
 })
 
 afterEach(() => {

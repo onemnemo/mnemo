@@ -7,7 +7,7 @@
  * query keys that end up invalidated, rather than the request that goes out.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -33,9 +33,11 @@ beforeEach(() => {
   root = createRoot(container)
   act(() => {
     root.render(
-      <QueryClientProvider client={client}>
-        <Harness />
-      </QueryClientProvider>,
+      <StrictMode>
+        <QueryClientProvider client={client}>
+          <Harness />
+        </QueryClientProvider>
+      </StrictMode>,
     )
   })
 })

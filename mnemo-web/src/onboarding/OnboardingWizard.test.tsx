@@ -4,7 +4,7 @@
  * Checks onboarding layering and pointer handling while the exit confirmation is open.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -62,7 +62,7 @@ function pushExitConfirm(): void {
 
 describe("OnboardingWizard stacking", () => {
   it("sits at the layer the shared order gives it", () => {
-    act(() => root.render(<OnboardingWizard />))
+    act(() => root.render(<StrictMode><OnboardingWizard /></StrictMode>))
 
     expect(screen().style.zIndex).toBe(String(Z_LAYERS.onboarding))
   })
@@ -70,7 +70,7 @@ describe("OnboardingWizard stacking", () => {
 
 describe("OnboardingWizard yielding to a pending dialog", () => {
   it("is visible and interactive with no dialog pending", () => {
-    act(() => root.render(<OnboardingWizard />))
+    act(() => root.render(<StrictMode><OnboardingWizard /></StrictMode>))
 
     const el = screen()
     expect(el.style.opacity).toBe("1")
@@ -79,7 +79,7 @@ describe("OnboardingWizard yielding to a pending dialog", () => {
   })
 
   it("dims and stops accepting clicks while the dialog queue is non-empty", () => {
-    act(() => root.render(<OnboardingWizard />))
+    act(() => root.render(<StrictMode><OnboardingWizard /></StrictMode>))
 
     act(() => pushExitConfirm())
 
@@ -90,7 +90,7 @@ describe("OnboardingWizard yielding to a pending dialog", () => {
   })
 
   it("comes back once the dialog is settled", () => {
-    act(() => root.render(<OnboardingWizard />))
+    act(() => root.render(<StrictMode><OnboardingWizard /></StrictMode>))
     act(() => pushExitConfirm())
     expect(screen().style.opacity).toBe("0")
 
@@ -106,10 +106,10 @@ describe("the exit confirm raised over a yielded first-run screen", () => {
   it("answers the first click, with the rest of the page inert around it", async () => {
     act(() =>
       root.render(
-        <>
+        <StrictMode>
           <OnboardingWizard />
           <DialogHost />
-        </>,
+        </StrictMode>,
       ),
     )
 

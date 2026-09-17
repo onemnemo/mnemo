@@ -7,7 +7,7 @@
  * real useBrowseView store.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -116,7 +116,7 @@ afterEach(() => {
 })
 
 function mount(): void {
-  act(() => root.render(<BrowsePage />))
+  act(() => root.render(<StrictMode><BrowsePage /></StrictMode>))
 }
 
 /** Flushes both the mutation's own microtask and the state update `run` makes after it. */

@@ -8,7 +8,7 @@
  * entry behind, across churn.
  */
 
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NodeViewPortals } from './NodeViewPortal';
@@ -81,7 +81,7 @@ describe('NodeViewPortals lifecycle', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     registry = createPortalRegistry();
-    act(() => root.render(<NodeViewPortals registry={registry} />));
+    act(() => root.render(<StrictMode><NodeViewPortals registry={registry} /></StrictMode>));
   });
 
   afterEach(() => {

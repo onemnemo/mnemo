@@ -6,7 +6,7 @@
  * from the project's own SVG tree.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -27,7 +27,7 @@ afterEach(() => {
 })
 
 function render(node: React.ReactNode) {
-  act(() => root.render(node))
+  act(() => root.render(<StrictMode>{node}</StrictMode>))
   return container
 }
 

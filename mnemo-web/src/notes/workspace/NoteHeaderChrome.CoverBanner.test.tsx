@@ -7,7 +7,7 @@
  * asset fetch, since nothing in this tree yet fakes that pipeline end to end.
  */
 
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -44,7 +44,7 @@ afterEach(() => {
 
 function mount(token: string | null, crop: string | null): void {
   act(() => {
-    root.render(<CoverBanner token={token} crop={crop} />);
+    root.render(<StrictMode><CoverBanner token={token} crop={crop} /></StrictMode>);
   });
 }
 

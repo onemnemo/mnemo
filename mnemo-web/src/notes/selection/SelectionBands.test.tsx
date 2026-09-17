@@ -6,7 +6,7 @@
  * comes out the other side.
  */
 
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
@@ -107,7 +107,11 @@ function paint(
   document.body.appendChild(host);
   root = createRoot(host);
   act(() => {
-    root?.render(<SelectionBands view={view!} registry={registry} scrollRef={{ current: scroll }} />);
+    root?.render(
+      <StrictMode>
+        <SelectionBands view={view!} registry={registry} scrollRef={{ current: scroll }} />
+      </StrictMode>,
+    );
   });
   act(() => {
     view?.dispatch(

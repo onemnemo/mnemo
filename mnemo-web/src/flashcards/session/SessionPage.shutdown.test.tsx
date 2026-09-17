@@ -4,7 +4,7 @@
  * Checks that window shutdown ends the study session and records its activity.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -77,7 +77,7 @@ afterEach(() => {
 describe("a study session while the window is closing", () => {
   it("ends the session even though the screen never goes away", async () => {
     await act(async () => {
-      root.render(<SessionPage deckId="d1" mode="cram" scope="all" />)
+      root.render(<StrictMode><SessionPage deckId="d1" mode="cram" scope="all" /></StrictMode>)
     })
     await act(async () => {
       await Promise.resolve()

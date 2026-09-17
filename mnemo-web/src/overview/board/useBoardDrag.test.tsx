@@ -7,7 +7,7 @@
  * one renderer's opinion about it.
  */
 
-import { act, useRef } from "react"
+import { act, StrictMode, useRef } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -134,7 +134,7 @@ beforeEach(() => {
   tile = document.createElement("div")
   root = createRoot(container)
   act(() => {
-    root?.render(<Harness />)
+    root?.render(<StrictMode><Harness /></StrictMode>)
   })
 })
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, type ReactNode } from "react"
+import { act, StrictMode, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -58,18 +58,18 @@ describe("useMeasuredWidth", () => {
     // that ran at mount would have found nothing to observe and never looked again, leaving the
     // chart drawing itself into zero pixels.
     attachedWidth = 0
-    act(() => root.render(<Probe ready={false} />))
+    act(() => root.render(<StrictMode><Probe ready={false} /></StrictMode>))
     expect(reported.at(-1)).toBe(0)
 
     attachedWidth = 320
-    act(() => root.render(<Probe ready={true} />))
+    act(() => root.render(<StrictMode><Probe ready={true} /></StrictMode>))
 
     expect(reported.at(-1)).toBe(320)
   })
 
   it("follows the element as it resizes", () => {
     attachedWidth = 320
-    act(() => root.render(<Probe ready={true} />))
+    act(() => root.render(<StrictMode><Probe ready={true} /></StrictMode>))
 
     resizeTo(480)
 
@@ -80,7 +80,7 @@ describe("useMeasuredWidth", () => {
     // A hidden or detached element measures zero, which is not a width. Taking it would blank the
     // drawing on a route the user navigated away from and redraw it on the way back.
     attachedWidth = 320
-    act(() => root.render(<Probe ready={true} />))
+    act(() => root.render(<StrictMode><Probe ready={true} /></StrictMode>))
 
     resizeTo(0)
 
@@ -89,8 +89,8 @@ describe("useMeasuredWidth", () => {
 
   it("stops watching an element that goes away", () => {
     attachedWidth = 320
-    act(() => root.render(<Probe ready={true} />))
-    act(() => root.render(<Probe ready={false} />))
+    act(() => root.render(<StrictMode><Probe ready={true} /></StrictMode>))
+    act(() => root.render(<StrictMode><Probe ready={false} /></StrictMode>))
 
     expect(resizeObserver.observedCount).toBe(0)
   })

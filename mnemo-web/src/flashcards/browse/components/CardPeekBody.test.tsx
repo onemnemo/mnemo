@@ -6,7 +6,7 @@
  * text that is already correct.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -58,7 +58,7 @@ afterEach(() => {
 
 describe("CardPeekBody", () => {
   it("renders the format bar's markers rather than showing them", () => {
-    act(() => root.render(<CardPeekBody card={card} />))
+    act(() => root.render(<StrictMode><CardPeekBody card={card} /></StrictMode>))
 
     expect(host.querySelector("strong")?.textContent).toBe("ATP")
     expect(host.querySelectorAll("li")).toHaveLength(2)

@@ -14,7 +14,7 @@
  * keyboard, which has no press behind it at all and must not inherit the last one's.
  */
 
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
@@ -91,9 +91,11 @@ function mount(selectIndex: number | null, coordsIndex: number | null = selectIn
   root = createRoot(chrome);
   act(() =>
     root?.render(
-      <EditorContextMenu view={mountedView} registry={built.registry}>
-        <div data-testid="surface" />
-      </EditorContextMenu>,
+      <StrictMode>
+        <EditorContextMenu view={mountedView} registry={built.registry}>
+          <div data-testid="surface" />
+        </EditorContextMenu>
+      </StrictMode>,
     ),
   );
 

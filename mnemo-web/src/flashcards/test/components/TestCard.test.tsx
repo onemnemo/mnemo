@@ -4,7 +4,7 @@
  * Checks multiline prompt and answer wrappers using a local CSS fixture.
  */
 
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -68,17 +68,19 @@ afterEach(() => {
 function render(revealed: boolean, cardToRender: CardDto = multilineCard): void {
   act(() =>
     root.render(
-      <TestCard
-        card={cardToRender}
-        answer=""
-        revealed={revealed}
-        canUndo={false}
-        onAnswerChange={() => {}}
-        onReveal={() => {}}
-        onEdit={() => {}}
-        onFlag={() => {}}
-        onUndo={() => {}}
-      />,
+      <StrictMode>
+        <TestCard
+          card={cardToRender}
+          answer=""
+          revealed={revealed}
+          canUndo={false}
+          onAnswerChange={() => {}}
+          onReveal={() => {}}
+          onEdit={() => {}}
+          onFlag={() => {}}
+          onUndo={() => {}}
+        />
+      </StrictMode>,
     ),
   )
 }

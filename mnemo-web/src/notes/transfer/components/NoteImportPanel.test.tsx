@@ -10,7 +10,7 @@
 
 import { readFileSync } from "node:fs"
 import path from "node:path"
-import { act, type ReactNode } from "react"
+import { act, StrictMode, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -81,7 +81,7 @@ afterEach(() => {
 })
 
 function mount(node: ReactNode): void {
-  act(() => root.render(node))
+  act(() => root.render(<StrictMode>{node}</StrictMode>))
 }
 
 describe("the notes import panel", () => {

@@ -6,7 +6,7 @@
  * something has been edited, and that what it sends is the edited type rather than the stored one.
  */
 
-import { act, type ReactNode } from "react"
+import { act, StrictMode, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -150,7 +150,7 @@ afterEach(() => {
 })
 
 function mount(node: ReactNode): void {
-  act(() => root.render(node))
+  act(() => root.render(<StrictMode>{node}</StrictMode>))
 }
 
 async function settle(): Promise<void> {
