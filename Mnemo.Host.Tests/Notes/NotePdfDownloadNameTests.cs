@@ -15,12 +15,20 @@ public sealed class NotePdfDownloadNameTests
     [InlineData("CON")]
     [InlineData("con")]
     [InlineData("nul.backup")]
+    [InlineData("CON .")]
     public void FallsBackOnAReservedDeviceName(string title) =>
         Assert.Equal("note.pdf", NotePdfEndpoints.DownloadName(title));
 
     [Fact]
     public void KeepsAnOrdinaryTitle() =>
         Assert.Equal("Kanji stage 3.pdf", NotePdfEndpoints.DownloadName("Kanji stage 3"));
+
+    [Theory]
+    [InlineData(" report .", "report.pdf")]
+    [InlineData("report. ", "report.pdf")]
+    [InlineData("...", "note.pdf")]
+    public void TrimsTheStemTheWayTheWebBuilderDoes(string title, string expected) =>
+        Assert.Equal(expected, NotePdfEndpoints.DownloadName(title));
 
     [Fact]
     public void FallsBackOnAMissingTitle() =>

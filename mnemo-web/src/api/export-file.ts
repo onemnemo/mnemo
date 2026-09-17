@@ -73,6 +73,8 @@ export function exportSaveOptions(common: (key: string) => string): ExportSaveOp
  */
 const RESERVED_DEVICE_NAMES = new Set([
   "con",
+  "conin$",
+  "conout$",
   "prn",
   "aux",
   "nul",
@@ -83,7 +85,8 @@ const RESERVED_DEVICE_NAMES = new Set([
 function isReservedDeviceName(name: string): boolean {
   const dot = name.indexOf(".")
   const stem = dot < 0 ? name : name.slice(0, dot)
-  return RESERVED_DEVICE_NAMES.has(stem.toLowerCase())
+  // Trimmed because Windows trims it too: "CON " still opens the console.
+  return RESERVED_DEVICE_NAMES.has(stem.trim().toLowerCase())
 }
 
 /**
@@ -93,8 +96,11 @@ function isReservedDeviceName(name: string): boolean {
  * and a plain fallback when several are, or when the title alone is a reserved device name.
  */
 export function exportFileName(title: string | null, fallback: string, extension: string): string {
+  // Trim, strip the dots, trim again, in the host's order: a space after a trailing dot would
+  // otherwise hide the dot from the strip.
   const stem = (title ?? "")
     .replace(/[\\/:*?"<>|]/g, "_")
+    .trim()
     .replace(/^\.+|\.+$/g, "")
     .trim()
   const name = stem || fallback

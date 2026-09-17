@@ -18,6 +18,12 @@ public sealed class ReservedFileNamesTests
     [InlineData("com3")]
     [InlineData("LPT9")]
     [InlineData("nul.backup")]
+    [InlineData("CONIN$")]
+    [InlineData("conout$")]
+    // The builders strip a trailing dot after trimming, so "CON ." reaches here as "CON " and
+    // Windows would still strip the space and open the console device.
+    [InlineData("CON ")]
+    [InlineData(" nul .txt")]
     public void MatchesAReservedName(string name) => Assert.True(ReservedFileNames.IsReserved(name));
 
     [Theory]

@@ -378,6 +378,16 @@ describe("exportFileName", () => {
   it("leaves a title that only starts with a reserved word alone", () => {
     expect(exportFileName("Console notes", "notes", ".md")).toBe("Console notes.md")
   })
+
+  it("catches the console streams and a reserved name padded before its dot", () => {
+    expect(exportFileName("conout$", "notes", ".md")).toBe("notes.md")
+    expect(exportFileName("CON .", "notes", ".md")).toBe("notes.md")
+  })
+
+  it("strips a trailing dot that a space was hiding, as the host does", () => {
+    expect(exportFileName("report. ", "notes", ".md")).toBe("report.md")
+    expect(exportFileName(" report .", "notes", ".md")).toBe("report.md")
+  })
 })
 
 /**

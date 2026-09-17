@@ -251,7 +251,8 @@ public static class NotePdfEndpoints
         var name = string.IsNullOrWhiteSpace(title) ? "note" : title!;
         foreach (var invalid in Path.GetInvalidFileNameChars())
             name = name.Replace(invalid, '_');
-        name = name.Trim().Trim('.');
+        // Trimmed again after the dots: a space a trailing dot was hiding would otherwise stay.
+        name = name.Trim().Trim('.').Trim();
         return (string.IsNullOrWhiteSpace(name) || ReservedFileNames.IsReserved(name) ? "note" : name) + ".pdf";
     }
 }

@@ -380,7 +380,8 @@ public static class MindmapTransferEndpoints
         foreach (var invalid in Path.GetInvalidFileNameChars())
             name = name.Replace(invalid, '_');
 
-        name = name.Trim().Trim('.');
+        // Trimmed again after the dots: a space a trailing dot was hiding would otherwise stay.
+        name = name.Trim().Trim('.').Trim();
         return (string.IsNullOrWhiteSpace(name) || ReservedFileNames.IsReserved(name) ? "mindmaps" : name) + extension;
     }
 }
