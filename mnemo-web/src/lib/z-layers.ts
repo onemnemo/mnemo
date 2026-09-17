@@ -1,6 +1,6 @@
 /**
  * Stacking levels for the shell overlays. These values require compatible ancestor stacking
- * contexts. Paste and drag layers are managed separately; tooltips remain above dialogs.
+ * contexts. Drag layers are managed separately; tooltips remain above dialogs.
  */
 export const Z_LAYERS = {
   /**
@@ -28,6 +28,13 @@ export const Z_LAYERS = {
    * a utility class in components/ui/modal-menu.ts, which is pinned to this number.
    */
   modalMenu: 150,
+  /**
+   * The paste staging overlay: a scrim with a cancel in it, held up for as long as
+   * restaging a multi image paste takes. A takeover rather than feedback, so it sits
+   * above the modal band and below the toasts and the dialog queue: a progress readout
+   * must lose to a question the app asks, and the exit confirm can arrive at any moment.
+   */
+  progress: 170,
   toast: 220,
   dialog: 230,
 } as const

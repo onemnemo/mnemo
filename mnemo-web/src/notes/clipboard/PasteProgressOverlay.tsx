@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useT } from '@/i18n/useT';
+import { Z_LAYERS } from '@/lib/z-layers';
 import { pasteProgressSnapshot, subscribePasteProgress } from './paste-progress';
 
 /**
@@ -47,7 +48,8 @@ export function PasteProgressOverlay() {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[1000] grid place-items-center bg-black/30"
+      className="fixed inset-0 grid place-items-center bg-black/30"
+      style={{ zIndex: Z_LAYERS.progress }}
       role="status"
       aria-live="polite"
     >
