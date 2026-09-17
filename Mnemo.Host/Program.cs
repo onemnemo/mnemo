@@ -511,7 +511,7 @@ public static class Program
                 return;
 
             e.Cancel = true;
-            var listeners = events.Publish(new AppEvent("shutdown", new { graceMs = (int)ShutdownGrace.TotalMilliseconds }));
+            var listeners = events.Publish(new AppEvent(ShutdownGate.EventName, new { graceMs = (int)ShutdownGrace.TotalMilliseconds }));
 
             _ = Task.Run(async () =>
             {

@@ -51,6 +51,12 @@ public enum ShutdownVerdict
 /// </remarks>
 public sealed class ShutdownGate
 {
+    /// <summary>
+    /// The event the closing handler publishes to ask the client to save. The client keys its
+    /// handshake on this exact string, so it is part of the wire contract with the SPA.
+    /// </summary>
+    public const string EventName = "shutdown";
+
     private readonly Lock _sync = new();
 
     // Reassigned by Reset, so every read happens under the lock rather than
