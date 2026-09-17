@@ -95,7 +95,7 @@ internal sealed class FlashcardCollectionRestore
             var folderMap = await RestoreFoldersAsync(conn, tx, snapshot, policy, result, now, ct).ConfigureAwait(false);
             var deckMap = await RestoreDecksAsync(conn, tx, snapshot, policy, folderMap, result, now, ct).ConfigureAwait(false);
             var factMap = await RestoreFactsAsync(conn, tx, snapshot, policy, deckMap, imagesDirectory, ct).ConfigureAwait(false);
-            var cardMap = await RestoreCardsAsync(conn, tx, snapshot, policy, deckMap, factMap, imagesDirectory, now, ct).ConfigureAwait(false);
+            var cardMap = await RestoreCardsAsync(conn, tx, snapshot, policy, deckMap, factMap, imagesDirectory, result, now, ct).ConfigureAwait(false);
             await RestoreHistoryAsync(conn, tx, snapshot, deckMap, cardMap, ct).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
 
@@ -410,8 +410,23 @@ internal sealed class FlashcardCollectionRestore
                     id = NewId();
             }
 
-            map[fact.Id] = id;
             await _facts.UpsertAsync(conn, tx, ToFact(fact, id, homeDeckId, imagesDirectory), cancellationToken).ConfigureAwait(false);
+
+            // A fact id can also collide with material the trash is holding. Nothing above can see
+            // that row and the save leaves it alone, so the material is not there afterwards. Its
+            // cards keep their layout slots while it is held, so a copy needs material of its own
+            // for its cards to have slots at all, and anything else leaves the held material out
+            // rather than filing live cards under it.
+            if (await _facts.GetAsync(conn, id, cancellationToken).ConfigureAwait(false) is null)
+            {
+                if (policy != ImportConflictPolicy.KeepBoth)
+                    continue;
+
+                id = NewId();
+                await _facts.UpsertAsync(conn, tx, ToFact(fact, id, homeDeckId, imagesDirectory), cancellationToken).ConfigureAwait(false);
+            }
+
+            map[fact.Id] = id;
         }
 
         return map;
@@ -448,6 +463,7 @@ internal sealed class FlashcardCollectionRestore
         IReadOnlyDictionary<string, string> deckMap,
         IReadOnlyDictionary<string, string> factMap,
         string imagesDirectory,
+        MnemoPayloadImportResult result,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -486,8 +502,27 @@ internal sealed class FlashcardCollectionRestore
 
                 var restored = ToCard(card, cardId, targetDeckId, factId, imagesDirectory, now);
                 await _cards.UpsertAsync(conn, tx, restored, cancellationToken).ConfigureAwait(false);
-                map[card.Id] = cardId;
 
+                // A card id can also collide with one the trash is holding. Nothing above can see
+                // that row and the save leaves it alone, so the card is not there afterwards. The
+                // held card keeps the schedule it had when it was deleted, which is what a restore
+                // from the trash brings back, so the package's schedule is written only for a card
+                // the package actually wrote: a copy gets the card under a fresh id, and anything
+                // else leaves the held card where the user put it and counts it as skipped.
+                if (await _cards.GetAsync(conn, cardId, cancellationToken).ConfigureAwait(false) is null)
+                {
+                    if (policy != ImportConflictPolicy.KeepBoth)
+                    {
+                        result.SkippedCount++;
+                        continue;
+                    }
+
+                    cardId = NewId();
+                    await _cards.UpsertAsync(
+                        conn, tx, restored with { Id = cardId }, cancellationToken).ConfigureAwait(false);
+                }
+
+                map[card.Id] = cardId;
                 await _schedules.UpsertAsync(conn, tx, ToSchedule(card, cardId, now), cancellationToken).ConfigureAwait(false);
             }
         }
