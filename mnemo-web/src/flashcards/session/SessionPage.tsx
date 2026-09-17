@@ -15,7 +15,7 @@ import { useCardEditor } from "../editor/store"
 import { StudyAnnouncer, useStudyAnnouncer } from "../study-announcer"
 import { fetchCard } from "./api"
 import { isActive, isAllCaughtUp } from "./session"
-import { useSession } from "./store"
+import { shownCard, useSession } from "./store"
 import { CardSurface } from "./components/CardSurface"
 import { EndPanel } from "./components/EndPanel"
 import { GradeRow } from "./components/GradeRow"
@@ -41,7 +41,7 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
   const session = useSession((s) => s.session)
   const status = useSession((s) => s.status)
   const revealed = useSession((s) => s.revealed)
-  const overlaid = useSession((s) => s.card)
+  const card = useSession(shownCard)
   const busy = useSession((s) => s.busy)
 
   const editorTarget = useCardEditor((s) => s.target)
@@ -50,7 +50,6 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
   const actionFor = useLocalActions("flashcards-session")
   const { message: announcement, announce } = useStudyAnnouncer()
 
-  const card = overlaid ?? session?.current ?? null
   const active = isActive(session)
   const currentId = session?.current?.id
 
@@ -143,7 +142,7 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
 
   const toggleFlag = () => {
     const shown = useSession.getState()
-    const target = shown.card ?? shown.session?.current
+    const target = shownCard(shown)
     if (!deckId || !target) return
     const value = !target.isFlagged
     // Shown straight away: the session's copy of the card is frozen, so nothing will echo this

@@ -12,7 +12,7 @@ import { endSession, gradeCard, startSession, undoGrade } from "./api"
 /**
  * Drives one live study session. The server owns the queue and answers every call with the whole
  * session, so this holds that payload plus the handful of things the server has no opinion on:
- * whether the answer is showing, and the two local overlays described below.
+ * whether the answer is showing, and the local overlays described below.
  */
 interface SessionState {
   status: "idle" | "loading" | "ready" | "gone"
@@ -20,11 +20,12 @@ interface SessionState {
   /** True once the answer half is showing. Reset by every card change. */
   revealed: boolean
   /**
-   * The card as edited or flagged since the session started. `session.current` is the snapshot the
-   * queue captured at start and never changes under us, so an edit or a flag has to be layered on
-   * here - the next server response would otherwise put the stale text straight back.
+   * Cards as edited or flagged since the session started, by id. `session.current` is the
+   * snapshot the queue captured at start and never changes under us, so an edit or a flag has to
+   * be layered on here, and it has to stay for the life of the session: a card comes round again
+   * on a learning step or on an undo, and the server hands back the same snapshot each time.
    */
-  card: CardDto | null
+  overlays: Record<string, CardDto>
   /** True while a grade or undo is in flight, so a second one cannot start on top of it. */
   busy: boolean
   start: (deckId: string, mode: SessionMode, scope: SessionScope) => Promise<void>
@@ -44,26 +45,23 @@ interface SessionState {
  */
 let generation = 0
 
-/** What a newly presented card resets: the answer hides and both local overlays are dropped. */
-const PRESENTED = { revealed: false, card: null }
-
 export const useSession = create<SessionState>((set, get) => ({
   status: "idle",
   session: null,
   revealed: false,
-  card: null,
+  overlays: {},
   busy: false,
 
   start: async (deckId, mode, scope) => {
     const mine = ++generation
-    set({ status: "loading", session: null, busy: false, ...PRESENTED })
+    set({ status: "loading", session: null, busy: false, revealed: false, overlays: {} })
     try {
       const session = await startSession({ deckId, mode, scope })
       if (mine !== generation) {
         void endSession(session.sessionId)
         return
       }
-      set({ status: "ready", session, ...PRESENTED })
+      set({ status: "ready", session, revealed: false })
     } catch {
       if (mine !== generation) return
       // The desktop bounces to the deck when a session cannot be started, with no error surface.
@@ -77,8 +75,9 @@ export const useSession = create<SessionState>((set, get) => ({
   },
 
   grade: async (grade) => {
-    const { session, revealed, busy, card } = get()
-    const current = card ?? session?.current
+    const state = get()
+    const { session, revealed, busy } = state
+    const current = shownCard(state)
     if (!session || !current || !revealed || busy) return
 
     set({ busy: true })
@@ -86,7 +85,7 @@ export const useSession = create<SessionState>((set, get) => ({
       // The card id is what stops a double-tap from grading the next, unseen card. A 409 comes
       // back as the session's real state, so it lands here like any other answer.
       const next = await gradeCard(session.sessionId, { cardId: current.id, grade })
-      set({ session: next, busy: false, ...PRESENTED })
+      set({ session: next, busy: false, revealed: false })
     } catch (error) {
       // The card stays revealed. The server commits a grade before it answers, so a failed
       // request can mean the grade landed anyway; un-revealing the card would tell the reader
@@ -103,7 +102,7 @@ export const useSession = create<SessionState>((set, get) => ({
     set({ busy: true })
     try {
       const next = await undoGrade(session.sessionId)
-      set({ session: next, busy: false, ...PRESENTED })
+      set({ session: next, busy: false, revealed: false })
     } catch (error) {
       set({ busy: false })
       failed(error, "StudyUndoErrorTitle", () => void get().undo(), set)
@@ -113,18 +112,28 @@ export const useSession = create<SessionState>((set, get) => ({
   end: async () => {
     const { session } = get()
     generation++
-    set({ status: "idle", session: null, busy: false, ...PRESENTED })
+    set({ status: "idle", session: null, busy: false, revealed: false, overlays: {} })
     if (session) await endSession(session.sessionId).catch(() => undefined)
   },
 
-  overlayCard: (card) => set({ card }),
+  overlayCard: (card) => set({ overlays: { ...get().overlays, [card.id]: card } }),
 
   setFlagged: (flagged) => {
-    const current = get().card ?? get().session?.current
+    const current = shownCard(get())
     if (!current) return
-    set({ card: { ...current, isFlagged: flagged } })
+    set({ overlays: { ...get().overlays, [current.id]: { ...current, isFlagged: flagged } } })
   },
 }))
+
+/**
+ * The card the screen shows: the reader's own copy of the current card when they have edited or
+ * flagged it during this session, otherwise the snapshot the server sent.
+ */
+export function shownCard(state: Pick<SessionState, "overlays" | "session">): CardDto | null {
+  const current = state.session?.current
+  if (!current) return null
+  return state.overlays[current.id] ?? current
+}
 
 /**
  * A session the server no longer has - swept after an idle hour, or lost to a host restart -

@@ -30,7 +30,7 @@ vi.mock("@/stores/toast", () => ({
   toast: { warning: mocks.warning },
 }))
 
-import { useSession } from "./store"
+import { shownCard, useSession } from "./store"
 
 function card(id: string): CardDto {
   return {
@@ -78,7 +78,7 @@ beforeEach(() => {
     status: "ready",
     session: session(),
     revealed: true,
-    card: null,
+    overlays: {},
     busy: false,
   })
 })
@@ -144,5 +144,65 @@ describe("useSession undo failure", () => {
 
     expect(mocks.undoGrade).toHaveBeenCalledTimes(2)
     expect(useSession.getState().session).toEqual(next)
+  })
+})
+
+/**
+ * The server hands back the snapshot it queued at start on every response, so a card edited or
+ * flagged on the study screen has to keep showing the edit whenever it comes round again: on a
+ * learning step after Again, or on an undo.
+ */
+describe("useSession overlays", () => {
+  const edited = { ...card("c1"), front: "NEW", back: "NEW A" }
+  const snapshot = session({ current: { ...card("c1"), front: "OLD" }, graded: 1 })
+
+  it("shows the edited text when Again brings the same card straight back", async () => {
+    useSession.getState().overlayCard(edited)
+    mocks.gradeCard.mockResolvedValueOnce(snapshot)
+
+    await useSession.getState().grade("again")
+
+    expect(shownCard(useSession.getState())?.front).toBe("NEW")
+    expect(useSession.getState().revealed).toBe(false)
+  })
+
+  it("shows the edited text when undo brings the card back from the next one", async () => {
+    useSession.getState().overlayCard(edited)
+    mocks.gradeCard.mockResolvedValueOnce(session({ current: card("c2"), graded: 1 }))
+    mocks.undoGrade.mockResolvedValueOnce(snapshot)
+
+    await useSession.getState().grade("good")
+    expect(shownCard(useSession.getState())?.id).toBe("c2")
+    await useSession.getState().undo()
+
+    expect(shownCard(useSession.getState())?.front).toBe("NEW")
+  })
+
+  it("keeps a flag set on the study screen when the card comes round again", async () => {
+    useSession.getState().setFlagged(true)
+    mocks.gradeCard.mockResolvedValueOnce(snapshot)
+
+    await useSession.getState().grade("again")
+
+    expect(shownCard(useSession.getState())?.isFlagged).toBe(true)
+  })
+
+  it("shows the next card as the server sent it, not the previous card's edit", async () => {
+    useSession.getState().overlayCard(edited)
+    mocks.gradeCard.mockResolvedValueOnce(session({ current: card("c2"), graded: 1 }))
+
+    await useSession.getState().grade("good")
+
+    expect(shownCard(useSession.getState())).toEqual(card("c2"))
+  })
+
+  it("forgets every edit when the session ends", async () => {
+    useSession.getState().overlayCard(edited)
+    mocks.endSession.mockResolvedValueOnce(undefined)
+
+    await useSession.getState().end()
+    useSession.setState({ status: "ready", session: snapshot })
+
+    expect(shownCard(useSession.getState())?.front).toBe("OLD")
   })
 })
