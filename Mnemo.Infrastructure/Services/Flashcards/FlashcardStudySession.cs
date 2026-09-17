@@ -77,6 +77,17 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         if (current is null)
             return;
 
+        // The queue was drawn when the sitting started. A due date or a start over written since,
+        // while this card waited its turn, lives only in the store, so the grade reads the schedule
+        // back rather than building on the snapshot and writing over the change. Cram keeps its
+        // snapshot: it writes nothing, so nothing of it can be written over.
+        if (WritesSchedule)
+        {
+            var stored = await _service.GetScheduleAsync(current.Card.Id, cancellationToken).ConfigureAwait(false);
+            if (stored is not null && stored != current.Schedule)
+                current = current with { Schedule = stored };
+        }
+
         var now = _clock.Now;
         var updatedSchedule = _scheduler.ApplyGrade(current.Schedule, grade, now, _preset);
         var wasNew = current.Schedule.FsrsState == FlashcardFsrsState.New;

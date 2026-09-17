@@ -29,6 +29,13 @@ public interface IFlashcardStudyService
     Task<IFlashcardSession> StartSessionAsync(FlashcardSessionRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The schedule a card has right now, or null for a card that is gone. A live session grades
+    /// from this rather than from the queue it drew when it started, so a due date or a start over
+    /// written while the card waited its turn is what the grade builds on.
+    /// </summary>
+    Task<FlashcardSchedule?> GetScheduleAsync(string cardId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Persists one graded Review across schedule + review log + daily stats in a single transaction,
     /// returning the new review-log id and the leech mark it put on the card (for exact undo).
     /// Review only.

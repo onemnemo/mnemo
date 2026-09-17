@@ -56,6 +56,9 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         _clock = clock;
     }
 
+    public Task<FlashcardSchedule?> GetScheduleAsync(string cardId, CancellationToken cancellationToken = default) =>
+        _store.ReadAsync((conn, ct) => _schedules.GetAsync(conn, cardId, ct), cancellationToken);
+
     public Task<FlashcardDueCounts> GetDueCountsAsync(string deckId, CancellationToken cancellationToken = default) =>
         _store.ReadAsync(async (conn, ct) =>
         {
