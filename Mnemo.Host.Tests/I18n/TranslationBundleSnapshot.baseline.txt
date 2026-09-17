@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 e75af194aecf23b49d14ccf4d32f2a5b2f842e0296679fb8e6db3ce8ff84423d
+sha256 329d7170addb5917e1ed723867e8867d274c2f72749d4553dcada59abaeba5e9
 namespaces 39
-keys 2413
+keys 2418
   App 33
   Chat 132
   Common 103
@@ -17,8 +17,8 @@ keys 2413
   Flashcards 404
   GlobalSearch 18
   Hardware 2
-  Keybinds 106
-  Mindmap 335
+  Keybinds 107
+  Mindmap 339
   Notes 223
   NotesEditor 213
   Onboarding 51
@@ -47,9 +47,9 @@ keys 2413
   WidgetToday 9
 
 culture de
-sha256 c0dd9b14ecd7c28644f4875b4699e0a923e7de9cae45ab56988f3b077a9084ad
+sha256 505fd91475a6668b3a8235a4322e256353f13ba4f74d36e1b1ecf0a0573d751c
 namespaces 39
-keys 2413
+keys 2418
   App 33
   Chat 132
   Common 103
@@ -61,8 +61,8 @@ keys 2413
   Flashcards 404
   GlobalSearch 18
   Hardware 2
-  Keybinds 106
-  Mindmap 335
+  Keybinds 107
+  Mindmap 339
   Notes 223
   NotesEditor 213
   Onboarding 51
@@ -91,9 +91,9 @@ keys 2413
   WidgetToday 9
 
 culture es
-sha256 c6f2560e7d176719a4fb2c2ffccdb1c1466ec3ce4bdb6f125b99960f82eff0d9
+sha256 eccb0eab8f2c2a5bf746c7f3ef8a33454a22601148b01f20aa2e5d5bd2982cf6
 namespaces 39
-keys 2413
+keys 2418
   App 33
   Chat 132
   Common 103
@@ -105,8 +105,8 @@ keys 2413
   Flashcards 404
   GlobalSearch 18
   Hardware 2
-  Keybinds 106
-  Mindmap 335
+  Keybinds 107
+  Mindmap 339
   Notes 223
   NotesEditor 213
   Onboarding 51
@@ -135,9 +135,9 @@ keys 2413
   WidgetToday 9
 
 culture ja
-sha256 e2ab5b69468cdcf0976407c753f8f7e75344f66aede5eb784b4555b2520b3079
+sha256 4592d60e2de0c1f923f5238467e4fbcaf00823efd38386205d84f78292044c34
 namespaces 39
-keys 2413
+keys 2418
   App 33
   Chat 132
   Common 103
@@ -149,8 +149,8 @@ keys 2413
   Flashcards 404
   GlobalSearch 18
   Hardware 2
-  Keybinds 106
-  Mindmap 335
+  Keybinds 107
+  Mindmap 339
   Notes 223
   NotesEditor 213
   Onboarding 51
@@ -179,9 +179,9 @@ keys 2413
   WidgetToday 9
 
 culture nb
-sha256 4565e37c50e62287b2f023c8c7a8705da1481a763e161c27e6eba10e64ea9004
+sha256 b618d14c13c2e9441b4dd282eb219dde7a47d4880dfaf295a1acd5186b0157fd
 namespaces 39
-keys 2413
+keys 2418
   App 33
   Chat 132
   Common 103
@@ -193,8 +193,8 @@ keys 2413
   Flashcards 404
   GlobalSearch 18
   Hardware 2
-  Keybinds 106
-  Mindmap 335
+  Keybinds 107
+  Mindmap 339
   Notes 223
   NotesEditor 213
   Onboarding 51

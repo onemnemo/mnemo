@@ -322,7 +322,9 @@ export function MindmapCanvas({
       // The pane takes focus so the map answers the keyboard without a click landing on a node
       // first, and so Escape has somewhere to be heard. No focus ring: it is focused for the whole
       // time the map is open, and a permanent line across the top of the canvas is not information.
+      // The attribute is how chrome that took the focus, the find bar for one, hands it back.
       tabIndex={0}
+      data-mm-canvas
     >
       <MindmapBackground ref={background} background={scene.background} />
 

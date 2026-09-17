@@ -6,7 +6,7 @@
  * the map. Two implementations of that would drift within a week.
  */
 
-import type { ReactNode } from "react"
+import type { HTMLAttributes, ReactNode } from "react"
 
 import { Tooltip } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -17,9 +17,14 @@ import { cn } from "@/lib/utils"
  * It swallows its own pointer presses. The canvas underneath treats a press on empty space as the
  * start of a marquee, and a bar that let one through would clear the selection the bar is about.
  */
-export function FloatBar({ children, className }: { children: ReactNode; className?: string }) {
+export function FloatBar({
+  children,
+  className,
+  ...landmark
+}: { children: ReactNode; className?: string } & Pick<HTMLAttributes<HTMLDivElement>, "role" | "aria-label">) {
   return (
     <div
+      {...landmark}
       className={cn(
         "pointer-events-auto flex h-10 items-center gap-0.5 rounded-xl bg-canvas px-1.5 shadow-pop animate-pop-in",
         className,

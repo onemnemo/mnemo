@@ -33,6 +33,8 @@ import type { AlignControl } from "../chrome/AlignBar"
 import { MindmapSelectionBar } from "../chrome/SelectionBar"
 import { useMinimapShown } from "../chrome/useMinimapShown"
 import { useDrainOnExit } from "../edit/useDrainOnExit"
+import { MindmapFindBar } from "../find/MindmapFindBar"
+import { useMindmapFind } from "../find/useMindmapFind"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import { ALIGN_MIN } from "../edit/align"
 import { canDistribute, planAlign, type AlignCandidate } from "../edit/align-plan"
@@ -1268,6 +1270,17 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     [addChild, addSibling, arrange, beginEdit, deleteSelection, editor, scene, selection, t],
   )
 
+  // Selecting the match is what marks it: the ring is the canvas's one way of pointing at a node,
+  // and a found node left unselected would be centred and then indistinguishable from its neighbours.
+  const find = useMindmapFind({
+    mapId: mapId ?? null,
+    revision: map.data?.revision,
+    scene,
+    runtime,
+    pane: stage,
+    onReveal: (id) => setSelection(selectElements([id])),
+  })
+
   /**
    * The keyboard, as the catalog defines it.
    *
@@ -1380,6 +1393,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           event.preventDefault()
           runtime.current?.fit()
           return
+        case "mindmap.find":
+          event.preventDefault()
+          find.show()
+          return
         case "mindmap.zoom-in":
           event.preventDefault()
           runtime.current?.zoomBy(ZOOM_STEP)
@@ -1418,6 +1435,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       deleteSelection,
       duplicateSelection,
       editor,
+      find,
       insertImage,
       outdent,
       pasteCopy,
@@ -1610,6 +1628,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         {minimap ? (
           <MindmapMinimap scene={scene} runtime={runtime} pane={stage} sink={minimapCamera} />
         ) : null}
+
+        <MindmapFindBar find={find} />
 
         {radial ? (
           <RadialMenu

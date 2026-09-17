@@ -26,7 +26,8 @@
     "mindmap.new-frame": "Nuevo marco",
     "mindmap.shape-picker": "Nueva forma",
     "mindmap.new-image": "Añadir imagen",
-    "mindmap.radial": "Herramientas radiales"
+    "mindmap.radial": "Herramientas radiales",
+    "mindmap.find": "Buscar en el mapa"
   },
   "Mindmap": {
     "NewNode": "Nuevo nodo",
@@ -160,6 +161,10 @@
     "DistributeH": "Distribuir horizontalmente",
     "DistributeV": "Distribuir verticalmente",
     "Align": "Alinear",
-    "Distribute": "Distribuir"
+    "Distribute": "Distribuir",
+    "FindInMap": "Buscar en el mapa",
+    "FindNext": "Siguiente coincidencia",
+    "FindPrevious": "Coincidencia anterior",
+    "FindClose": "Cerrar la búsqueda"
   }
 }

@@ -26,7 +26,8 @@
     "mindmap.new-frame": "New frame",
     "mindmap.shape-picker": "New shape",
     "mindmap.new-image": "Add image",
-    "mindmap.radial": "Radial toolkit"
+    "mindmap.radial": "Radial toolkit",
+    "mindmap.find": "Find in map"
   },
   "Mindmap": {
     "NewNode": "New node",
@@ -160,6 +161,10 @@
     "DistributeH": "Distribute horizontally",
     "DistributeV": "Distribute vertically",
     "Align": "Align",
-    "Distribute": "Distribute"
+    "Distribute": "Distribute",
+    "FindInMap": "Find in map",
+    "FindNext": "Next match",
+    "FindPrevious": "Previous match",
+    "FindClose": "Close find"
   }
 }

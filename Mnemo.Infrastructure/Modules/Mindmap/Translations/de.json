@@ -26,7 +26,8 @@
     "mindmap.new-frame": "Neuer Rahmen",
     "mindmap.shape-picker": "Neue Form",
     "mindmap.new-image": "Bild hinzufügen",
-    "mindmap.radial": "Radialwerkzeuge"
+    "mindmap.radial": "Radialwerkzeuge",
+    "mindmap.find": "In der Map suchen"
   },
   "Mindmap": {
     "NewNode": "Neuer Knoten",
@@ -160,6 +161,10 @@
     "DistributeH": "Horizontal verteilen",
     "DistributeV": "Vertikal verteilen",
     "Align": "Ausrichten",
-    "Distribute": "Verteilen"
+    "Distribute": "Verteilen",
+    "FindInMap": "In der Map suchen",
+    "FindNext": "Nächster Treffer",
+    "FindPrevious": "Vorheriger Treffer",
+    "FindClose": "Suche schließen"
   }
 }

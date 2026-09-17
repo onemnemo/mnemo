@@ -26,7 +26,8 @@
     "mindmap.new-frame": "Ny ramme",
     "mindmap.shape-picker": "Ny form",
     "mindmap.new-image": "Legg til bilde",
-    "mindmap.radial": "Radialverktøy"
+    "mindmap.radial": "Radialverktøy",
+    "mindmap.find": "Finn i kartet"
   },
   "Mindmap": {
     "NewNode": "Ny node",
@@ -160,6 +161,10 @@
     "DistributeH": "Fordel vannrett",
     "DistributeV": "Fordel loddrett",
     "Align": "Juster",
-    "Distribute": "Fordel"
+    "Distribute": "Fordel",
+    "FindInMap": "Finn i kartet",
+    "FindNext": "Neste treff",
+    "FindPrevious": "Forrige treff",
+    "FindClose": "Lukk søk"
   }
 }

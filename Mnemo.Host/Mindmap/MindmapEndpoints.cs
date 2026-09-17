@@ -27,7 +27,12 @@ namespace Mnemo.Host.Mindmap;
 public static class MindmapEndpoints
 {
     private const string DefaultTitle = "Untitled map";
-    private const int FindLimit = 50;
+    /// <summary>
+    /// How many hits an in-map find answers with. The find bar walks every one and counts them, so
+    /// this is the point past which its count stops being exact; a query matching more nodes than
+    /// this is one letter long.
+    /// </summary>
+    private const int FindLimit = 500;
     private const string OutlineContentType = "text/markdown; charset=utf-8";
     private const string LogCategory = "Mindmap.Export";
 

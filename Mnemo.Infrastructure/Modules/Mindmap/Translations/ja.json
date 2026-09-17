@@ -26,7 +26,8 @@
     "mindmap.new-frame": "新しいフレーム",
     "mindmap.shape-picker": "新しいシェイプ",
     "mindmap.new-image": "画像を追加",
-    "mindmap.radial": "放射状ツール"
+    "mindmap.radial": "放射状ツール",
+    "mindmap.find": "マップ内を検索"
   },
   "Mindmap": {
     "NewNode": "新しいノード",
@@ -160,6 +161,10 @@
     "DistributeH": "左右に分布",
     "DistributeV": "上下に分布",
     "Align": "整列",
-    "Distribute": "分布"
+    "Distribute": "分布",
+    "FindInMap": "マップ内を検索",
+    "FindNext": "次の一致",
+    "FindPrevious": "前の一致",
+    "FindClose": "検索を閉じる"
   }
 }

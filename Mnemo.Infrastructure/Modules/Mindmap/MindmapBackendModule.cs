@@ -83,6 +83,7 @@ internal static class MindmapKeybindManifest
         Chords("mindmap.zoom-out", "Primary+OemMinus", "Primary+Subtract"),
         Chords("mindmap.undo", "Primary+Z"),
         Chords("mindmap.redo", "Primary+Y", "Primary+Shift+Z"),
+        Chords("mindmap.find", "Primary+F"),
         Chords("mindmap.clear-selection", "Escape"),
         Chords("mindmap.delete-selection", "Delete", "Back"),
         Chords("mindmap.select-all", "Primary+A"),
