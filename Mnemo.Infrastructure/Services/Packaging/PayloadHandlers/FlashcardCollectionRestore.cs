@@ -4,6 +4,7 @@ using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
 using Mnemo.Infrastructure.Services.Flashcards;
+using Mnemo.Infrastructure.Services.Flashcards.Optimizer;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Services.Trash;
 
@@ -125,7 +126,19 @@ internal sealed class FlashcardCollectionRestore
             if (exists && policy != ImportConflictPolicy.Replace)
                 continue;
 
-            await _presets.UpsertAsync(conn, tx, ToPreset(preset), cancellationToken).ConfigureAwait(false);
+            var restored = ToPreset(preset);
+            if (!FsrsWeightRules.TryValidate(restored.Weights, out var weightError))
+            {
+                // Every other way a vector reaches the store runs this gate, and a package is a
+                // zip anyone can edit. The profile still imports on the published defaults, so
+                // the decks under it stay studyable rather than scheduling on a vector the
+                // engine cannot run.
+                _logger.Warning("Flashcards",
+                    $"Scheduling profile '{restored.Name}' ({restored.Id}) in the package carries an FSRS weight vector that was refused: {weightError} The published defaults are used instead.");
+                restored = restored with { Weights = null };
+            }
+
+            await _presets.UpsertAsync(conn, tx, restored, cancellationToken).ConfigureAwait(false);
         }
     }
 
