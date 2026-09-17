@@ -401,9 +401,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
 
       if (typed === "") {
         // A node created for this edit and never given a label is a box nobody asked for. One that
-        // already had a label keeps it, because emptying a node is what Delete is for.
+        // already had a label keeps it, because emptying a node is what Delete is for. Taking the
+        // box away retracts the step that made it, so the pair costs no undo presses.
         if (wasBlank) {
-          return editor.apply([op.del([id])], { label: t("Mindmap", "Delete") })
+          return editor.apply([op.del([id])], { label: t("Mindmap", "Delete"), retracts: id })
         }
         return Promise.resolve()
       }

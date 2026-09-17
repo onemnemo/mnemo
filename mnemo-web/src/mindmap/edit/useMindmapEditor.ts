@@ -46,7 +46,9 @@ import {
   record,
   redo as popRedo,
   redoLabel,
+  retract,
   settle,
+  topCreated,
   undo as popUndo,
   undoLabel,
   type HistoryState,
@@ -67,6 +69,13 @@ export interface EditStep {
   label: string
   /** Consecutive steps sharing a key become one undo. Null, the default, never folds. */
   coalesceKey?: string | null
+  /**
+   * The element this step deletes, when the step before it may be the one that created it. The
+   * creation is then dropped from the stack rather than the delete pushed onto it, so a blank node
+   * abandoned with Escape costs no undo presses instead of two. When anything else has been
+   * recorded since, the delete is a step of its own.
+   */
+  retracts?: string
 }
 
 export interface MindmapEditor {
@@ -304,17 +313,20 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
           }
 
           if (open && result.undo && result.redo) {
+            const stack = historyRef.current
             setHistory(
-              record(
-                historyRef.current,
-                {
-                  undo: result.undo,
-                  redo: result.redo,
-                  label: step.label,
-                  coalesceKey: step.coalesceKey ?? null,
-                },
-                result.revision,
-              ),
+              step.retracts !== undefined && topCreated(stack, step.retracts)
+                ? retract(stack, result.revision)
+                : record(
+                    stack,
+                    {
+                      undo: result.undo,
+                      redo: result.redo,
+                      label: step.label,
+                      coalesceKey: step.coalesceKey ?? null,
+                    },
+                    result.revision,
+                  ),
             )
           }
           return result

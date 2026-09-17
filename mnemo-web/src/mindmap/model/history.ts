@@ -93,6 +93,33 @@ export function settle(state: HistoryState, revision: number): HistoryState {
 }
 
 /**
+ * Whether the step on top is the one that created element `id`.
+ *
+ * Read off the deltas rather than remembered: a creation is the one shape whose redo carries the
+ * element and whose undo removes it. A step that only changed the element, an outside fold that
+ * renamed it for instance, carries it as an upsert both ways and is not it.
+ */
+export function topCreated(state: HistoryState, id: string): boolean {
+  const top = state.past[state.past.length - 1]
+  return (
+    top !== undefined &&
+    (top.undo.removeElementIds ?? []).includes(id) &&
+    (top.redo.elements ?? []).some((element) => element.id === id)
+  )
+}
+
+/**
+ * Drops the step on top, for a write that took back exactly what it did.
+ *
+ * A blank node abandoned as soon as it was added is the case: recorded, the pair would cost two
+ * presses and bring an empty box back on the first. The write still moved the revision, so the
+ * stack adopts it, and like any write it leaves no future to return to.
+ */
+export function retract(state: HistoryState, revision: number): HistoryState {
+  return { past: state.past.slice(0, -1), future: [], revision }
+}
+
+/**
  * Hands back the entry to replay for an undo, and the state to adopt if the replay lands.
  * Null when there is nothing to undo.
  */

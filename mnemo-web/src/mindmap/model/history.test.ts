@@ -9,7 +9,9 @@ import {
   mergeDeltas,
   record,
   redo,
+  retract,
   settle,
+  topCreated,
   undo,
   undoLabel,
   type HistoryEntry,
@@ -148,6 +150,51 @@ describe("undo and redo", () => {
   it("are null at the ends", () => {
     expect(undo(emptyHistory())).toBeNull()
     expect(redo(emptyHistory())).toBeNull()
+  })
+})
+
+describe("retracting the step on top", () => {
+  /** What the server answers for a batch that created node `id` under `parent`. */
+  function added(id: string): HistoryEntry {
+    return {
+      undo: { removeElementIds: [id], removeEdgeIds: [`e-${id}`] },
+      redo: { elements: [node(id, "")], edges: [{ id: `e-${id}`, fromId: "root", toId: id }] },
+      label: "Add node",
+    }
+  }
+
+  it("recognises the step that created an element", () => {
+    const state = record(emptyHistory(3), added("n1"), 4)
+
+    expect(topCreated(state, "n1")).toBe(true)
+    expect(topCreated(state, "n2")).toBe(false)
+    expect(topCreated(emptyHistory(3), "n1")).toBe(false)
+  })
+
+  it("does not mistake a step that only changed the element for the one that created it", () => {
+    // An outside fold that renamed the blank node carries it as an upsert, not a creation, so a
+    // delete after that is a step of its own.
+    const renamed: HistoryEntry = {
+      undo: { elements: [node("n1", "")] },
+      redo: { elements: [node("n1", "assistant")] },
+      label: "External change",
+    }
+    const state = record(record(emptyHistory(3), added("n1"), 4), renamed, 5)
+
+    expect(topCreated(state, "n1")).toBe(false)
+  })
+
+  it("leaves the stack where it was before the step, at the revision the retraction landed on", () => {
+    const before = record(emptyHistory(3), entry({ label: "Rename" }), 4)
+    const state = record(before, added("n1"), 5)
+
+    const retracted = retract(state, 6)
+
+    // Tab then Escape is no undo steps, not two: the next Ctrl+Z reaches the rename.
+    expect(retracted.past).toEqual(before.past)
+    expect(undoLabel(retracted)).toBe("Rename")
+    expect(canRedo(retracted)).toBe(false)
+    expect(retracted.revision).toBe(6)
   })
 })
 
