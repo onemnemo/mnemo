@@ -10,7 +10,7 @@ namespace Mnemo.Infrastructure.Services.Statistics;
 
 /// <summary>
 /// Process-local statistics store used by tests and ephemeral scenarios. Behaviorally equivalent
-/// to <see cref="SqliteStatisticsStore"/>; semantics covered by the shared store test suite.
+/// to <see cref="SqliteStatisticsStore"/>, which has its own tests against a database on disk.
 /// </summary>
 internal sealed class InMemoryStatisticsStore : IStatisticsStore
 {
