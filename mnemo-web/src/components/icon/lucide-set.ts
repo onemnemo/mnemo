@@ -68,6 +68,7 @@ import {
   List,
   ListFilter,
   Sigma,
+  Omega,
   Underline,
   LoaderCircle,
   Maximize,
@@ -182,6 +183,8 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   code: Code,
   highlighter: Highlighter,
   sigma: Sigma,
+  // The notes editor's symbol palette row.
+  omega: Omega,
   // The library's two ways of showing the same decks.
   list: List,
   "layout-grid": LayoutGrid,

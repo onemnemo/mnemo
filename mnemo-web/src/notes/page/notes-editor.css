@@ -1799,6 +1799,14 @@
   width: 16px;
   height: 16px;
 }
+/* A symbol row's tile is the character itself, drawn in the note's own text
+ * face so what the tile shows is what the pick puts in the line. */
+.notes-slash-menu-row-glyph {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1;
+  color: var(--ink);
+}
 
 .notes-slash-menu-row-text {
   display: flex;

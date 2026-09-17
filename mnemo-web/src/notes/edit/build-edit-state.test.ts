@@ -46,16 +46,18 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry, inline } = editorSchema();
     const plugins = editorPlugins(registry, inline);
-    expect(plugins).toHaveLength(36);
+    expect(plugins).toHaveLength(37);
     // Input guards run before handlers that could claim the same event.
     expect(plugins[0].props.handleDOMEvents?.keydown).toBeTypeOf('function');
     expect(plugins[1].props.handleDOMEvents?.mousedown).toBeTypeOf('function');
     expect(plugins[2].props.handleDOMEvents?.dragstart).toBeTypeOf('function');
     expect(plugins[3].props.handlePaste).toBeTypeOf('function');
     expect(plugins[4].props.handleDOMEvents?.copy).toBeTypeOf('function');
+    // The two caret-anchored menus, the slash menu and the symbol palette.
     expect(plugins[5].props.handleKeyDown).toBeTypeOf('function');
-    expect(plugins[9].props.handleTextInput).toBeTypeOf('function');
+    expect(plugins[6].props.handleKeyDown).toBeTypeOf('function');
     expect(plugins[10].props.handleTextInput).toBeTypeOf('function');
+    expect(plugins[11].props.handleTextInput).toBeTypeOf('function');
     // The tail is two chrome layers that take no part in that precedence, the
     // toolbar and the link interaction. Behind them the history boundary is
     // still the last plugin that appends, so repairs join the transaction they

@@ -1062,7 +1062,18 @@
     "FindReplaceAll": "All",
     "FindReplaceCurrent": "Replace",
     "FormattingToolbar": "Text formatting",
-    "SlashMenuLabel": "Insert a block"
+    "SlashMenuLabel": "Insert a block",
+    "Symbol": "Symbol",
+    "SymbolDescription": "Greek letters, operators, arrows and other characters",
+    "SymbolPaletteLabel": "Insert a symbol",
+    "SymbolGroupRecent": "Recent",
+    "SymbolGroupGreek": "Greek",
+    "SymbolGroupOperators": "Operators",
+    "SymbolGroupRelations": "Relations and logic",
+    "SymbolGroupArrows": "Arrows",
+    "SymbolGroupFractions": "Fractions and letterlike symbols",
+    "SymbolGroupCurrency": "Currency",
+    "SymbolGroupTypography": "Typography"
   },
   "Mindmap": {
     "AddChild": "Child",

@@ -1062,7 +1062,18 @@
     "FindReplaceAll": "Alle",
     "FindReplaceCurrent": "Ersetzen",
     "FormattingToolbar": "Textformatierung",
-    "SlashMenuLabel": "Block einfügen"
+    "SlashMenuLabel": "Block einfügen",
+    "Symbol": "Symbol",
+    "SymbolDescription": "Griechische Buchstaben, Operatoren, Pfeile und andere Zeichen",
+    "SymbolPaletteLabel": "Symbol einfügen",
+    "SymbolGroupRecent": "Zuletzt verwendet",
+    "SymbolGroupGreek": "Griechisch",
+    "SymbolGroupOperators": "Operatoren",
+    "SymbolGroupRelations": "Relationen und Logik",
+    "SymbolGroupArrows": "Pfeile",
+    "SymbolGroupFractions": "Brüche und Buchstabensymbole",
+    "SymbolGroupCurrency": "Währungen",
+    "SymbolGroupTypography": "Typografie"
   },
   "Mindmap": {
     "AddChild": "Unterknoten",

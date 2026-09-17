@@ -272,6 +272,7 @@ describe('the rows', () => {
       'Image',
       'Table',
       'Equation',
+      'Symbol',
       'Page',
     ]);
   });

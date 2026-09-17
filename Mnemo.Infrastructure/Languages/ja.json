@@ -1062,7 +1062,18 @@
     "FindReplaceAll": "すべて",
     "FindReplaceCurrent": "置換",
     "FormattingToolbar": "テキストの書式",
-    "SlashMenuLabel": "ブロックを挿入"
+    "SlashMenuLabel": "ブロックを挿入",
+    "Symbol": "記号",
+    "SymbolDescription": "ギリシャ文字、演算子、矢印などの文字",
+    "SymbolPaletteLabel": "記号を挿入",
+    "SymbolGroupRecent": "最近使用した記号",
+    "SymbolGroupGreek": "ギリシャ文字",
+    "SymbolGroupOperators": "演算子",
+    "SymbolGroupRelations": "関係と論理",
+    "SymbolGroupArrows": "矢印",
+    "SymbolGroupFractions": "分数と文字記号",
+    "SymbolGroupCurrency": "通貨",
+    "SymbolGroupTypography": "約物"
   },
   "Mindmap": {
     "AddChild": "子",

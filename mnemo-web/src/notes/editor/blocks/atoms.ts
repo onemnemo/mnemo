@@ -20,6 +20,7 @@ import { defineBlock, metrics, type BlockDeps } from './shared';
 import { insertAtomicBlock, insertPageBlock } from './slash-insert';
 import { equationBlockView } from './equation-block-view';
 import { pageBlockView } from './page-view';
+import { symbolSlashRow } from '../symbols/slash-row';
 
 /** Spans that the C# converter force-clears, so nothing renders behind the payload. */
 const noSpans = () => [plainSpan('')];
@@ -98,6 +99,9 @@ export function equationBlockModule(deps: BlockDeps): AnyBlockModule {
           group: 'insert',
           insert: insertAtomicBlock('equationBlock'),
         },
+        // A slash row belongs to a block module, and the symbol palette's
+        // nearest neighbour is the equation: both are the maths entry points.
+        symbolSlashRow,
       ],
     },
     deps,

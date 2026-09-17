@@ -1062,7 +1062,18 @@
     "FindReplaceAll": "Alle",
     "FindReplaceCurrent": "Erstatt",
     "FormattingToolbar": "Tekstformatering",
-    "SlashMenuLabel": "Sett inn en blokk"
+    "SlashMenuLabel": "Sett inn en blokk",
+    "Symbol": "Symbol",
+    "SymbolDescription": "Greske bokstaver, operatorer, piler og andre tegn",
+    "SymbolPaletteLabel": "Sett inn et symbol",
+    "SymbolGroupRecent": "Nylig brukt",
+    "SymbolGroupGreek": "Gresk",
+    "SymbolGroupOperators": "Operatorer",
+    "SymbolGroupRelations": "Relasjoner og logikk",
+    "SymbolGroupArrows": "Piler",
+    "SymbolGroupFractions": "Brøker og bokstavsymboler",
+    "SymbolGroupCurrency": "Valuta",
+    "SymbolGroupTypography": "Typografi"
   },
   "Mindmap": {
     "AddChild": "Barn",

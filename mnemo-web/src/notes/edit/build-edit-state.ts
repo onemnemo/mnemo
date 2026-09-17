@@ -61,6 +61,7 @@ import { editorHistory, historyBoundaryPlugin } from '../editor/history';
 import { formattingToolbarPlugin } from '../editor/toolbar/formatting-toolbar';
 import { equationOpenOnInsert } from '../editor/atoms';
 import { slashMenuPlugin } from '../editor/slash';
+import { symbolPalettePlugin } from '../editor/symbols';
 import { linkInteractionPlugin } from '../editor/marks/link-interaction';
 import { autoLinkPlugin } from '../editor/marks/auto-link';
 import { scriptAssistancePlugin, scriptEscapeKeymap } from '../editor/scripts/assistance';
@@ -100,6 +101,9 @@ export type NoteEditState =
  *  - `slashMenuPlugin` takes the arrow keys and Enter, whatever modifier rides
  *    along, while its menu is open, so it has to precede every keymap. It
  *    declines every key when the menu is closed, which is almost always.
+ *  - `symbolPalettePlugin` is the same shape for the backslash palette and
+ *    sits directly after it for the same reason. The two can never be open
+ *    at once: each is raised by its own trigger character at the caret.
  *  - `blockSelectionPlugin` claims Backspace/Delete and Escape only while a
  *    block selection is live, and Ctrl+A always; it must precede the structural
  *    keymap so those win over the per-character handlers, and it declines
@@ -189,6 +193,7 @@ export function editorPlugins(
     // Given the same services the node views get: the page row creates the note
     // its card will point at before it writes anything into the document.
     slashMenuPlugin(registry, { services: resolveServices(services) }),
+    symbolPalettePlugin(),
     // Before the structural keymap so that, while a block selection is live, it
     // claims Backspace/Delete (delete the selection) and Escape (clear it)
     // before the per-character handlers see them, and so that it owns both

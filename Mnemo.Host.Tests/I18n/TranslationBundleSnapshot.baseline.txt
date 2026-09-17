@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 fe43af8ea64ecd7a94b60046b22940a81ab799e76a3a95bf2087d28ff443cbc5
+sha256 f345ef751519c9d3469fbca3d8de5f863db957c85d5c170cb0539d99b6ed7738
 namespaces 39
-keys 2425
+keys 2436
   App 35
   Chat 132
   Common 103
@@ -20,7 +20,7 @@ keys 2425
   Keybinds 107
   Mindmap 339
   Notes 223
-  NotesEditor 214
+  NotesEditor 225
   Onboarding 51
   Overview 31
   Permissions 6
@@ -47,9 +47,9 @@ keys 2425
   WidgetToday 9
 
 culture de
-sha256 34068ba74be8d97370227b93cfa87dcec0e02137c8ae449ff14d23d6d9ee4b19
+sha256 64fce04eaf2b7e40888942591fac59bc87d6fc9db916661bcc0f4507c89f0ef8
 namespaces 39
-keys 2425
+keys 2436
   App 35
   Chat 132
   Common 103
@@ -64,7 +64,7 @@ keys 2425
   Keybinds 107
   Mindmap 339
   Notes 223
-  NotesEditor 214
+  NotesEditor 225
   Onboarding 51
   Overview 31
   Permissions 6
@@ -91,9 +91,9 @@ keys 2425
   WidgetToday 9
 
 culture es
-sha256 e36953200b92672982b6a64cc63d166f6aa8bce918ef5ddb118fc92812cfb832
+sha256 f4c6d6064b501f2ffa939768225436b871ebb70dd6c904fedf93671f41c12c0a
 namespaces 39
-keys 2425
+keys 2436
   App 35
   Chat 132
   Common 103
@@ -108,7 +108,7 @@ keys 2425
   Keybinds 107
   Mindmap 339
   Notes 223
-  NotesEditor 214
+  NotesEditor 225
   Onboarding 51
   Overview 31
   Permissions 6
@@ -135,9 +135,9 @@ keys 2425
   WidgetToday 9
 
 culture ja
-sha256 37cbd8b3fd69771e36ec3caf45c9e84538b2873962a2ad97fcba280388fad5a2
+sha256 00036e24ad403c4d7aa05f63fed8152974677ddbabcb1f10af4949a8c49773b3
 namespaces 39
-keys 2425
+keys 2436
   App 35
   Chat 132
   Common 103
@@ -152,7 +152,7 @@ keys 2425
   Keybinds 107
   Mindmap 339
   Notes 223
-  NotesEditor 214
+  NotesEditor 225
   Onboarding 51
   Overview 31
   Permissions 6
@@ -179,9 +179,9 @@ keys 2425
   WidgetToday 9
 
 culture nb
-sha256 9d5aa581104d204b124d8deb627dbc434b2f9db43f3e610565fcb8fb99de94d1
+sha256 0603e6aee46831bcbc654b366fcf2b527a03ba89aa43b2d0ad82fbf84ebfa0f9
 namespaces 39
-keys 2425
+keys 2436
   App 35
   Chat 132
   Common 103
@@ -196,7 +196,7 @@ keys 2425
   Keybinds 107
   Mindmap 339
   Notes 223
-  NotesEditor 214
+  NotesEditor 225
   Onboarding 51
   Overview 31
   Permissions 6
