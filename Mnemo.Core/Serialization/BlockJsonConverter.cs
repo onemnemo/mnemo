@@ -72,8 +72,9 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
             else if (typeEl.ValueKind == JsonValueKind.String && typeEl.GetString() is { Length: > 0 } token)
                 block.UnknownType = token;
         }
-        if (TryGetPropertyCaseInsensitive(root, "order", out var orderEl))
-            block.Order = orderEl.GetInt32();
+        if (TryGetPropertyCaseInsensitive(root, "order", out var orderEl)
+            && orderEl.ValueKind == JsonValueKind.Number && orderEl.TryGetInt32(out var order))
+            block.Order = order;
 
         if (TryGetPropertyCaseInsensitive(root, "meta", out var metaEl) && metaEl.ValueKind == JsonValueKind.Object)
             block.Meta = JsonSerializer.Deserialize<Dictionary<string, object>>(metaEl.GetRawText(), options) ?? new();
@@ -155,7 +156,7 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
             "image" => new ImagePayload(
                 TryGetPropertyCaseInsensitive(el, "path", out var p) ? p.GetString() ?? string.Empty : string.Empty,
                 TryGetPropertyCaseInsensitive(el, "alt", out var a) ? a.GetString() ?? string.Empty : string.Empty,
-                TryGetPropertyCaseInsensitive(el, "width", out var w) && w.TryGetDouble(out var wd) ? wd : 0,
+                ReadDouble(el, "width", 0),
                 TryGetPropertyCaseInsensitive(el, "align", out var al) ? al.GetString() ?? "left" : "left",
                 ReadCrop(el)),
             "code" => new CodePayload(
@@ -169,10 +170,10 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
             "checklist" => new ChecklistPayload(
                 TryGetPropertyCaseInsensitive(el, "checked", out var ch) && ch.ValueKind == JsonValueKind.True),
             "twocolumn" => new TwoColumnPayload(
-                TryGetPropertyCaseInsensitive(el, "splitRatio", out var sr) && sr.TryGetDouble(out var s) ? s : 0.5),
+                ReadDouble(el, "splitRatio", 0.5)),
             "page" => new PagePayload(ReadPageReferenceNoteId(el)),
             "sketch" => new SketchPayload(
-                TryGetPropertyCaseInsensitive(el, "width", out var sw) && sw.TryGetDouble(out var swd) ? swd : 0,
+                ReadDouble(el, "width", 0),
                 TryGetPropertyCaseInsensitive(el, "align", out var sal) ? sal.GetString() ?? "left" : "left"),
             "table" => new TablePayload(
                 ReadDoubleArray(el, "columnWidths"),
@@ -244,6 +245,30 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
         return true;
     }
 
+    /// <summary>
+    /// A numeric property, or the fallback when it is absent or not a JSON number. A string-typed
+    /// number falls back rather than being parsed, matching the web reader, and never throws: one
+    /// mistyped field must not make the note unreadable.
+    /// </summary>
+    private static double ReadDouble(JsonElement el, string propertyName, double fallback)
+    {
+        return TryGetPropertyCaseInsensitive(el, propertyName, out var value)
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetDouble(out var number)
+            ? number
+            : fallback;
+    }
+
+    /// <summary>The integer counterpart of <see cref="ReadDouble"/>, with the same fallback rule.</summary>
+    private static int ReadInt32(JsonElement el, string propertyName, int fallback)
+    {
+        return TryGetPropertyCaseInsensitive(el, propertyName, out var value)
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out var number)
+            ? number
+            : fallback;
+    }
+
     /// <summary>Reads a numeric array, skipping anything in it that is not a number.</summary>
     private static List<double> ReadDoubleArray(JsonElement el, string propertyName)
     {
@@ -289,8 +314,8 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
             kind = kind?.ToLowerInvariant();
             if (kind == "fraction")
             {
-                var num = TryGetPropertyCaseInsensitive(el, "numerator", out var n) && n.TryGetInt32(out var nv) ? nv : 0;
-                var den = TryGetPropertyCaseInsensitive(el, "denominator", out var d) && d.TryGetInt32(out var dv) ? dv : 1;
+                var num = ReadInt32(el, "numerator", 0);
+                var den = ReadInt32(el, "denominator", 1);
                 list.Add(new FractionSpan(num, den <= 0 ? 1 : den, ReadTextStyle(el)));
                 continue;
             }
@@ -525,7 +550,7 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
         if (!meta.TryGetValue(key, out var v) || v == null) return 0;
         if (v is double d) return d;
         if (v is int i) return i;
-        if (v is JsonElement je && je.TryGetDouble(out var x)) return x;
+        if (v is JsonElement je && je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out var x)) return x;
         return 0;
     }
 
