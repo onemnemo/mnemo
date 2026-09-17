@@ -1637,6 +1637,7 @@
     "CsvRowSkipped": "Zeile {row} wurde übersprungen, weil die Vorderseite der Karte leer ist.",
     "CsvRowsSkippedMore": "{count} weitere Zeile(n) aus demselben Grund übersprungen.",
     "CsvUnterminatedQuote": "Die Datei endet innerhalb eines Werts in Anführungszeichen, daher ist die letzte Zeile möglicherweise unvollständig.",
+    "CsvEmpty": "Die Datei enthält keine Zeilen zum Importieren.",
     "PackageUnknownPayloadSkipped": "Unbekannter Inhaltstyp „{payloadType}“ wurde übersprungen.",
     "PackagePreviewUnknownPayload": "Unbekannter Inhaltstyp „{payloadType}“ wird übersprungen.",
     "PackagePreviewFailed": "Vorschau des Pakets nicht möglich: {error}",

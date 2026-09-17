@@ -1637,6 +1637,7 @@
     "CsvRowSkipped": "{row}行目はカードの表面が空のためスキップされました。",
     "CsvRowsSkippedMore": "同じ理由でさらに{count}行がスキップされました。",
     "CsvUnterminatedQuote": "ファイルが引用符で囲まれた値の途中で終わっているため、最後の行は不完全な可能性があります。",
+    "CsvEmpty": "このファイルには読み込める行がありません。",
     "PackageUnknownPayloadSkipped": "不明なペイロード種別「{payloadType}」はスキップされました。",
     "PackagePreviewUnknownPayload": "不明なペイロード種別「{payloadType}」はスキップされます。",
     "PackagePreviewFailed": "パッケージをプレビューできませんでした: {error}",

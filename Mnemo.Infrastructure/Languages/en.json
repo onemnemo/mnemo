@@ -1637,6 +1637,7 @@
     "CsvRowSkipped": "Row {row} was skipped because the card's front is empty.",
     "CsvRowsSkippedMore": "{count} more row(s) skipped for the same reason.",
     "CsvUnterminatedQuote": "The file ends inside a quoted value, so the last row may be incomplete.",
+    "CsvEmpty": "The file has no rows to import.",
     "PackageUnknownPayloadSkipped": "Unknown payload type '{payloadType}' was skipped.",
     "PackagePreviewUnknownPayload": "Unknown payload type '{payloadType}' will be skipped.",
     "PackagePreviewFailed": "Could not preview the package: {error}",

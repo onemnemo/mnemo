@@ -1637,6 +1637,7 @@
     "CsvRowSkipped": "Rad {row} ble hoppet over fordi forsiden av kortet er tom.",
     "CsvRowsSkippedMore": "{count} rad(er) til ble hoppet over av samme grunn.",
     "CsvUnterminatedQuote": "Filen slutter inne i en verdi i anførselstegn, så den siste raden kan være ufullstendig.",
+    "CsvEmpty": "Filen har ingen rader å importere.",
     "PackageUnknownPayloadSkipped": "Ukjent innholdstype «{payloadType}» ble hoppet over.",
     "PackagePreviewUnknownPayload": "Ukjent innholdstype «{payloadType}» blir hoppet over.",
     "PackagePreviewFailed": "Kunne ikke forhåndsvise pakken: {error}",

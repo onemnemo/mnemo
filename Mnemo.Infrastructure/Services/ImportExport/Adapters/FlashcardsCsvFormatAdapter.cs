@@ -45,124 +45,57 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
     /// <summary>A row carries no id, so nothing in a file can collide with anything already saved.</summary>
     public bool SupportsConflictPolicy => false;
 
+    /// <summary>
+    /// Reads the file the way the import will, so the two agree on what it holds: a file with no
+    /// record in it cannot be imported, and the counts name every deck the import would create,
+    /// including the one deck a header-only file makes.
+    /// </summary>
     public async Task<ImportExportPreview> PreviewImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
-        var cardCount = await CountImportableRowsAsync(request.FilePath, cancellationToken).ConfigureAwait(false);
+        var read = await ReadRowsAsync(request.FilePath, cancellationToken).ConfigureAwait(false);
+        var deckCount = read.SawRecord ? DeckNamesOf(read.Rows, FileDeckNameOf(request.FilePath)).Count : 0;
 
-        return new ImportExportPreview
+        var preview = new ImportExportPreview
         {
-            CanImport = true,
+            CanImport = read.SawRecord,
             ContentType = ContentType,
             FormatId = FormatId,
-            DiscoveredCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["flashcards"] = cardCount }
-        };
-    }
-
-    /// <summary>
-    /// Counts the rows the import would turn into a card: every non-blank record after an
-    /// optional header, excluding rows whose mapped front cell is empty. Opens its own reader,
-    /// because <see cref="CsvRecordReader"/> is forward-only and cannot be shared with the reader
-    /// <see cref="ImportAsync"/> uses.
-    /// </summary>
-    private static async Task<int> CountImportableRowsAsync(string filePath, CancellationToken cancellationToken)
-    {
-        using var text = new StreamReader(filePath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-        var reader = new CsvRecordReader(text);
-        var frontColumn = 0;
-        var atFirstRecord = true;
-        var count = 0;
-
-        await foreach (var record in reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            if (record.Fields.All(string.IsNullOrWhiteSpace))
-                continue;
-
-            if (atFirstRecord)
+            DiscoveredCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
             {
-                atFirstRecord = false;
-                if (TryReadHeader(record.Fields, out _, out var headerFront, out _))
-                {
-                    frontColumn = headerFront;
-                    continue;
-                }
+                ["decks"] = deckCount,
+                ["flashcards"] = read.Rows.Count
             }
+        };
 
-            if (!string.IsNullOrWhiteSpace(Cell(record.Fields, frontColumn)))
-                count++;
-        }
+        if (!read.SawRecord)
+            preview.Warnings.Add(TransferWarning.Of("CsvEmpty"));
 
-        return count;
+        return preview;
     }
 
     public async Task<ImportExportResult> ImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
+        var read = await ReadRowsAsync(request.FilePath, cancellationToken).ConfigureAwait(false);
         var warnings = new List<TransferWarning>();
-        var rows = new List<CsvCardRow>();
-        var sawRecord = false;
-        var skippedRows = 0;
-        var namedSkips = 0;
-        bool endedInsideQuotedValue;
 
-        using (var text = new StreamReader(request.FilePath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+        foreach (var line in read.SkippedLines)
         {
-            var reader = new CsvRecordReader(text);
-            var deckColumn = -1;
-            var frontColumn = 0;
-            var backColumn = 1;
-            var atFirstRecord = true;
-
-            await foreach (var record in reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            {
-                if (record.Fields.All(string.IsNullOrWhiteSpace))
-                    continue;
-
-                sawRecord = true;
-                if (atFirstRecord)
-                {
-                    atFirstRecord = false;
-                    if (TryReadHeader(record.Fields, out deckColumn, out frontColumn, out backColumn))
-                        continue;
-
-                    deckColumn = -1;
-                    frontColumn = 0;
-                    backColumn = 1;
-                }
-
-                var front = Cell(record.Fields, frontColumn);
-                if (string.IsNullOrWhiteSpace(front))
-                {
-                    skippedRows++;
-                    if (namedSkips < MaxSkippedRowWarnings)
-                    {
-                        namedSkips++;
-                        warnings.Add(TransferWarning.Of(
-                            "CsvRowSkipped",
-                            ("row", record.StartLine.ToString(CultureInfo.InvariantCulture))));
-                    }
-
-                    continue;
-                }
-
-                rows.Add(new CsvCardRow(
-                    Cell(record.Fields, deckColumn),
-                    front,
-                    Cell(record.Fields, backColumn)));
-            }
-
-            endedInsideQuotedValue = reader.EndedInsideQuotedValue;
+            warnings.Add(TransferWarning.Of(
+                "CsvRowSkipped",
+                ("row", line.ToString(CultureInfo.InvariantCulture))));
         }
 
-        if (skippedRows > namedSkips)
+        if (read.SkippedRows > read.SkippedLines.Count)
         {
             warnings.Add(TransferWarning.Of(
                 "CsvRowsSkippedMore",
-                ("count", (skippedRows - namedSkips).ToString(CultureInfo.InvariantCulture))));
+                ("count", (read.SkippedRows - read.SkippedLines.Count).ToString(CultureInfo.InvariantCulture))));
         }
 
-        if (endedInsideQuotedValue)
+        if (read.EndedInsideQuotedValue)
             warnings.Add(TransferWarning.Of("CsvUnterminatedQuote"));
 
-        if (!sawRecord)
+        if (!read.SawRecord)
         {
             return new ImportExportResult
             {
@@ -174,23 +107,13 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
         }
 
         var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
-        var fileDeckName = Path.GetFileNameWithoutExtension(request.FilePath) ?? string.Empty;
-
-        // Preserve exact deck names from the export; different spellings remain separate decks.
-        var deckOrder = new List<string>();
-        var byDeck = new Dictionary<string, List<FlashcardCardDraft>>(StringComparer.Ordinal);
-        foreach (var row in rows)
+        var fileDeckName = FileDeckNameOf(request.FilePath);
+        var deckNames = DeckNamesOf(read.Rows, fileDeckName);
+        var byDeck = deckNames.ToDictionary(name => name, _ => new List<FlashcardCardDraft>(), StringComparer.Ordinal);
+        foreach (var row in read.Rows)
         {
-            var deckName = string.IsNullOrWhiteSpace(row.Deck) ? fileDeckName : row.Deck;
-            if (!byDeck.TryGetValue(deckName, out var deckDrafts))
-            {
-                deckDrafts = new List<FlashcardCardDraft>();
-                byDeck[deckName] = deckDrafts;
-                deckOrder.Add(deckName);
-            }
-
             // New cards created via the store arrive FSRS-new and due now; the CSV carries content only.
-            deckDrafts.Add(new FlashcardCardDraft(
+            byDeck[DeckNameOf(row, fileDeckName)].Add(new FlashcardCardDraft(
                 DeckId: string.Empty,
                 Type: FlashcardType.Classic,
                 Front: row.Front,
@@ -199,14 +122,8 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
                 Attachments: Array.Empty<FlashcardAttachment>()));
         }
 
-        if (deckOrder.Count == 0)
-        {
-            deckOrder.Add(fileDeckName);
-            byDeck[fileDeckName] = new List<FlashcardCardDraft>();
-        }
-
         var createdCards = 0;
-        foreach (var deckName in deckOrder)
+        foreach (var deckName in deckNames)
         {
             var deck = await _library.CreateDeckAsync(
                 deckName,
@@ -229,11 +146,95 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
             FormatId = FormatId,
             ProcessedCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
             {
-                ["decks"] = deckOrder.Count,
+                ["decks"] = deckNames.Count,
                 ["flashcards"] = createdCards
             },
             Warnings = warnings
         };
+    }
+
+    /// <summary>
+    /// Every row the file would turn into a card: each non-blank record after an optional header,
+    /// minus the rows whose mapped front cell is empty. The preview and the import both read
+    /// through here, and each opens its own pass, because <see cref="CsvRecordReader"/> is
+    /// forward-only.
+    /// </summary>
+    private static async Task<CsvReadResult> ReadRowsAsync(string filePath, CancellationToken cancellationToken)
+    {
+        var rows = new List<CsvCardRow>();
+        var skippedLines = new List<int>();
+        var sawRecord = false;
+        var skippedRows = 0;
+
+        using var text = new StreamReader(filePath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        var reader = new CsvRecordReader(text);
+        var deckColumn = -1;
+        var frontColumn = 0;
+        var backColumn = 1;
+        var atFirstRecord = true;
+
+        await foreach (var record in reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (record.Fields.All(string.IsNullOrWhiteSpace))
+                continue;
+
+            sawRecord = true;
+            if (atFirstRecord)
+            {
+                atFirstRecord = false;
+                if (TryReadHeader(record.Fields, out deckColumn, out frontColumn, out backColumn))
+                    continue;
+
+                deckColumn = -1;
+                frontColumn = 0;
+                backColumn = 1;
+            }
+
+            var front = Cell(record.Fields, frontColumn);
+            if (string.IsNullOrWhiteSpace(front))
+            {
+                skippedRows++;
+                if (skippedLines.Count < MaxSkippedRowWarnings)
+                    skippedLines.Add(record.StartLine);
+                continue;
+            }
+
+            rows.Add(new CsvCardRow(
+                Cell(record.Fields, deckColumn),
+                front,
+                Cell(record.Fields, backColumn)));
+        }
+
+        return new CsvReadResult(rows, sawRecord, skippedRows, skippedLines, reader.EndedInsideQuotedValue);
+    }
+
+    private static string FileDeckNameOf(string filePath) =>
+        Path.GetFileNameWithoutExtension(filePath) ?? string.Empty;
+
+    /// <summary>A row with no deck cell goes to the deck named after the file.</summary>
+    private static string DeckNameOf(CsvCardRow row, string fileDeckName) =>
+        string.IsNullOrWhiteSpace(row.Deck) ? fileDeckName : row.Deck;
+
+    /// <summary>
+    /// The decks an import creates, in the order the file first names them. Exact spellings from
+    /// the export are kept, so two spellings stay two decks, and a file with a header and no rows
+    /// still makes the one deck the file names.
+    /// </summary>
+    private static List<string> DeckNamesOf(IReadOnlyList<CsvCardRow> rows, string fileDeckName)
+    {
+        var names = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in rows)
+        {
+            var name = DeckNameOf(row, fileDeckName);
+            if (seen.Add(name))
+                names.Add(name);
+        }
+
+        if (names.Count == 0)
+            names.Add(fileDeckName);
+
+        return names;
     }
 
     public async Task<ImportExportResult> ExportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
@@ -358,4 +359,15 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
         index >= 0 && index < fields.Count ? fields[index] : string.Empty;
 
     private sealed record CsvCardRow(string Deck, string Front, string Back);
+
+    /// <summary>
+    /// One pass over a file. <paramref name="SkippedLines"/> holds the first few skipped rows'
+    /// line numbers, for the warnings that name them; <paramref name="SkippedRows"/> counts all.
+    /// </summary>
+    private sealed record CsvReadResult(
+        IReadOnlyList<CsvCardRow> Rows,
+        bool SawRecord,
+        int SkippedRows,
+        IReadOnlyList<int> SkippedLines,
+        bool EndedInsideQuotedValue);
 }

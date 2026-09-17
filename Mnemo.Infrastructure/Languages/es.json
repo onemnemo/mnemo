@@ -1637,6 +1637,7 @@
     "CsvRowSkipped": "Se omitió la fila {row} porque el anverso de la tarjeta está vacío.",
     "CsvRowsSkippedMore": "{count} fila(s) más omitidas por el mismo motivo.",
     "CsvUnterminatedQuote": "El archivo termina dentro de un valor entrecomillado, así que la última fila puede estar incompleta.",
+    "CsvEmpty": "El archivo no tiene filas que importar.",
     "PackageUnknownPayloadSkipped": "Se omitió el tipo de contenido desconocido «{payloadType}».",
     "PackagePreviewUnknownPayload": "Se omitirá el tipo de contenido desconocido «{payloadType}».",
     "PackagePreviewFailed": "No se pudo previsualizar el paquete: {error}",
