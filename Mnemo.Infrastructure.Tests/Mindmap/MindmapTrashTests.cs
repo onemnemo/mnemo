@@ -356,7 +356,7 @@ public sealed class MindmapTrashTests
         {
             await WriteVersionThreeDatabaseAsync(dbPath);
 
-            await using var store = new MindmapStore(new Widgets.TestLogger(), dbPath);
+            await using var store = new MindmapStore(new TestLogger(), dbPath);
             await store.InitializeAsync();
 
             var loaded = await store.LoadAsync("m1");

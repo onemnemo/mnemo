@@ -1,6 +1,4 @@
-using Mnemo.Core.Enums;
 using Mnemo.Core.Models.Statistics;
-using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
 using Mnemo.Infrastructure.Services.Statistics;
 
@@ -28,7 +26,7 @@ public sealed class SqliteStatisticsStoreTests
     public async Task Every_value_type_survives_a_write_and_a_reopen_with_its_type_intact()
     {
         var ns = Namespace();
-        var logger = new RecordingLogger();
+        var logger = new TestLogger();
         var written = new StatisticsRecord
         {
             Namespace = ns,
@@ -84,7 +82,7 @@ public sealed class SqliteStatisticsStoreTests
     public async Task An_update_with_a_stale_expected_version_is_refused_and_leaves_the_row_alone()
     {
         var ns = Namespace();
-        var logger = new RecordingLogger();
+        var logger = new TestLogger();
         var store = new SqliteStatisticsStore(logger);
         await store.InsertAsync(Record(ns, version: 1, "cards_reviewed", 10));
 
@@ -104,7 +102,7 @@ public sealed class SqliteStatisticsStoreTests
     public async Task Updating_a_row_that_was_never_written_answers_null_rather_than_creating_it()
     {
         var ns = Namespace();
-        var store = new SqliteStatisticsStore(new RecordingLogger());
+        var store = new SqliteStatisticsStore(new TestLogger());
 
         Assert.Null(await store.UpdateAsync(Record(ns, version: 1, "cards_reviewed", 1), expectedVersion: null));
         Assert.False(await store.ExistsAsync(ns, "daily.summary", "2026-05-01"));
@@ -114,7 +112,7 @@ public sealed class SqliteStatisticsStoreTests
     public async Task Delete_removes_the_row_and_is_quiet_the_second_time()
     {
         var ns = Namespace();
-        var store = new SqliteStatisticsStore(new RecordingLogger());
+        var store = new SqliteStatisticsStore(new TestLogger());
         await store.InsertAsync(Record(ns, version: 1, "cards_reviewed", 1));
         Assert.True(await store.ExistsAsync(ns, "daily.summary", "2026-05-01"));
 
@@ -129,7 +127,7 @@ public sealed class SqliteStatisticsStoreTests
     public async Task A_query_narrows_by_kind_and_key_prefix_and_orders_by_update_time()
     {
         var ns = Namespace();
-        var store = new SqliteStatisticsStore(new RecordingLogger());
+        var store = new SqliteStatisticsStore(new TestLogger());
         await store.InsertAsync(Record(ns, version: 1, "cards_reviewed", 1, key: "2026-05-01", updated: Now));
         await store.InsertAsync(Record(ns, version: 1, "cards_reviewed", 2, key: "2026-05-02", updated: Now.AddDays(1)));
         await store.InsertAsync(Record(ns, version: 1, "cards_reviewed", 3, key: "2026-04-30", updated: Now.AddDays(-1)));
@@ -184,15 +182,4 @@ public sealed class SqliteStatisticsStoreTests
         SourceModule = "flashcards",
         Fields = new Dictionary<string, StatValue>(StringComparer.Ordinal) { [field] = StatValue.FromInt(value) },
     };
-
-    private sealed class RecordingLogger : ILoggerService
-    {
-        public List<string> Errors { get; } = [];
-
-        public void Log(LogLevel level, string category, string message, Exception? exception = null)
-        {
-            if (level >= LogLevel.Error)
-                Errors.Add($"{category}: {message} {exception}");
-        }
-    }
 }
