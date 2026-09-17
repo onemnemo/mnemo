@@ -199,7 +199,7 @@ public static class SettingsEndpoints
         var language = value.GetString() ?? string.Empty;
         return proofing.IsInstalled(language)
             ? null
-            : Results.BadRequest(new ErrorDto("unknown_proofing_language", $"'{language}' has no installed dictionary."));
+            : Results.BadRequest(new ErrorDto("proofing_language_unknown", $"'{language}' has no installed dictionary."));
     }
 
     /// <summary>

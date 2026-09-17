@@ -43,9 +43,10 @@ public static class ProofingEndpoints
 
     /// <summary>
     /// Longest word either list will store. Both stores are one settings value rewritten in full on
-    /// every write, so an unbounded word is an unbounded row.
+    /// every write, so an unbounded word is an unbounded row. It is the tokenizer's own bound, so a
+    /// word that can be stored is one the checker will look at, and the other way round.
     /// </summary>
-    public const int MaxWordLength = 100;
+    public const int MaxWordLength = ProofingTokenizer.MaxWordLength;
 
     /// <summary>
     /// How long a check waits for a dictionary that is still being read before giving up. Reading the

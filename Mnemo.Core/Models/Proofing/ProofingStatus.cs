@@ -46,6 +46,11 @@ public sealed record ProofingLanguageStatus(
 /// <summary>
 /// Everything a client needs to decide whether to proof, and in which languages.
 /// </summary>
+/// <param name="Enabled">
+/// The user's master switch, reported so a client can show it. It is advisory: the editor reads the
+/// setting itself and stops asking when it is off, and the check and suggest routes answer whatever
+/// they are asked regardless.
+/// </param>
 /// <param name="Active">
 /// The ordered set of languages the host will use, first one suggesting first, and empty when the
 /// user has switched them all off. Resolved here rather than read from settings by the client,

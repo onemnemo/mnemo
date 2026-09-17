@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Core.Services.Proofing;
+using Mnemo.Host.Contracts;
 using Mnemo.Host.Settings;
 using Mnemo.Infrastructure.Modules.Proofing;
 using Xunit;
@@ -82,6 +83,9 @@ public sealed class ProofingSettingsKeyTests
 
         var result = Assert.IsAssignableFrom<IStatusCodeHttpResult>(rejected);
         Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
+        // The same code the note language route answers with for the same condition.
+        var error = Assert.IsType<ErrorDto>(Assert.IsAssignableFrom<IValueHttpResult>(rejected).Value);
+        Assert.Equal("proofing_language_unknown", error.Error);
     }
 
     [Fact]
