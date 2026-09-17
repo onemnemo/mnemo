@@ -31,6 +31,7 @@
  * broken card.
  */
 
+import { endsWithBreakMarker } from '../model/hard-break';
 import { parseInlineMarkdown } from '../model/markdown';
 import { plainSpan } from '../model/spans';
 import { TABLE_COL_W } from '../editor/table/model';
@@ -41,7 +42,7 @@ const PAGE_REF = /^\[\[page:([^\]]*)\]\]\s*$/;
 /** A bullet introduced by `*` or `+`; the trailing space stops `*emphasis*` reading as a list. */
 const STAR_BULLET = /^(?:\*|\+)\s+(.*)$/;
 /** A numbered item; the index is captured but the port renumbers on render, so it is not stored. */
-const NUMBERED = /^(\d+)\.\s/;
+const NUMBERED = /^(\d{1,9})\.\s/;
 /** `![alt](target)` on a line of its own. */
 const IMAGE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/;
 
@@ -85,6 +86,21 @@ function splitPipeRow(row: string): string[] {
  * any real document, the perf gate sizes a legitimate paste in the hundreds.
  */
 export const MAX_BLOCKS = 10_000;
+
+/**
+ * A block's text with the lines it continues onto folded in: while the text ends in a
+ * hard break, the next physical line belongs to the same block. A quote or callout
+ * needs none of this, since every line of one carries its own marker. Returns the
+ * index of the first line not taken.
+ */
+function withContinuation(text: string, lines: readonly string[], index: number): { text: string; next: number } {
+  let next = index + 1;
+  while (next < lines.length && endsWithBreakMarker(text)) {
+    text += '\n' + lines[next];
+    next += 1;
+  }
+  return { text, next };
+}
 
 /** Leading indentation in columns, a tab counting as four, the CommonMark reading. */
 function indentWidth(line: string): number {
@@ -238,35 +254,38 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
     // Headings, longest fence first so `##` never matches as `#`.
     const heading = headingOf(trimmed);
     if (heading) {
-      emit(heading.type, parseInlineMarkdown(heading.content), { kind: 'empty' });
-      i++;
+      const body = withContinuation(heading.content, lines, i);
+      emit(heading.type, parseInlineMarkdown(body.text), { kind: 'empty' });
+      i = body.next;
       continue;
     }
 
     // Checklist, checked then unchecked.
     if (/^-\s*\[\s*[xX]\s*\]/.test(trimmed)) {
-      const content = trimmed.replace(/^-\s*\[\s*[xX]\s*\]\s*/, '').trim();
-      emitItem('Checklist', parseInlineMarkdown(content), { kind: 'checklist', checked: true }, indent);
-      i++;
+      const body = withContinuation(trimmed.replace(/^-\s*\[\s*[xX]\s*\]\s*/, '').trim(), lines, i);
+      emitItem('Checklist', parseInlineMarkdown(body.text), { kind: 'checklist', checked: true }, indent);
+      i = body.next;
       continue;
     }
     if (/^-\s*\[\s*\]/.test(trimmed)) {
-      const content = trimmed.replace(/^-\s*\[\s*\]\s*/, '').trim();
-      emitItem('Checklist', parseInlineMarkdown(content), { kind: 'checklist', checked: false }, indent);
-      i++;
+      const body = withContinuation(trimmed.replace(/^-\s*\[\s*\]\s*/, '').trim(), lines, i);
+      emitItem('Checklist', parseInlineMarkdown(body.text), { kind: 'checklist', checked: false }, indent);
+      i = body.next;
       continue;
     }
 
     // Bullet: `- `, then the CommonMark `*`/`+` markers.
     if (trimmed.startsWith('- ')) {
-      emitItem('BulletList', parseInlineMarkdown(trimmed.slice(2).trim()), { kind: 'empty' }, indent);
-      i++;
+      const body = withContinuation(trimmed.slice(2).trim(), lines, i);
+      emitItem('BulletList', parseInlineMarkdown(body.text), { kind: 'empty' }, indent);
+      i = body.next;
       continue;
     }
     const star = STAR_BULLET.exec(trimmed);
     if (star) {
-      emitItem('BulletList', parseInlineMarkdown(star[1].trim()), { kind: 'empty' }, indent);
-      i++;
+      const body = withContinuation(star[1].trim(), lines, i);
+      emitItem('BulletList', parseInlineMarkdown(body.text), { kind: 'empty' }, indent);
+      i = body.next;
       continue;
     }
 
@@ -292,9 +311,9 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
 
     // Numbered item. The index is read to confirm the match but not stored.
     if (NUMBERED.test(trimmed)) {
-      const content = trimmed.replace(/^\d+\.\s*/, '').trim();
-      emitItem('NumberedList', parseInlineMarkdown(content), { kind: 'empty' }, indent);
-      i++;
+      const body = withContinuation(trimmed.replace(/^\d+\.\s*/, '').trim(), lines, i);
+      emitItem('NumberedList', parseInlineMarkdown(body.text), { kind: 'empty' }, indent);
+      i = body.next;
       continue;
     }
 
@@ -325,9 +344,9 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
 
     // Plain text: the raw line, so leading indentation is not silently trimmed,
     // still through the inline parser so pasted markdown styling survives.
-
-    emit('Text', parseInlineMarkdown(line), { kind: 'empty' });
-    i++;
+    const body = withContinuation(line, lines, i);
+    emit('Text', parseInlineMarkdown(body.text), { kind: 'empty' });
+    i = body.next;
   }
 
   return out;

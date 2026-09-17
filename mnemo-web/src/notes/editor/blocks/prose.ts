@@ -58,7 +58,9 @@ export function quoteBlock(deps: BlockDeps): AnyBlockModule {
       softWrapEnter: true,
       attrsFrom: () => ({}),
       wireFrom: () => ({ type: 'Quote' as BlockType, payload: { kind: 'empty' as const } }),
-      toMarkdown: (_node, _ctx, inline) => `> ${inline}\n`,
+      // Every line carries its own marker, as the callout's do, or the tail would
+      // re-import as loose paragraphs after the quote.
+      toMarkdown: (_node, _ctx, inline) => `> ${inline.replace(/\n/g, '\n> ')}\n`,
       slash: [
         {
           label: 'Quote',

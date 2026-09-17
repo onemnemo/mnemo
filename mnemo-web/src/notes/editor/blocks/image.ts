@@ -21,6 +21,11 @@ import type { ImageCrop } from '../../../components/ui/image-editor/geometry';
 import { cropAttributeOf, readCrop, readCropAttribute } from '../../model/image-crop';
 import { plainSpan } from '../../model/spans';
 import { defineBlock, lineText, type BlockDeps } from './shared';
+
+/** The caption as the reference carries it: one line, the backslash and the bracket escaped. */
+function escapeImageAlt(alt: string): string {
+  return alt.replaceAll('\\', '\\\\').replaceAll(']', '\\]').replace(/\r\n|\r|\n/g, ' ');
+}
 import { imageView } from './image-view';
 import { insertAtomicBlock } from './slash-insert';
 
@@ -147,8 +152,11 @@ export function imageBlock(deps: BlockDeps): AnyBlockModule {
           crop: readCrop(node.attrs.crop),
         },
       }),
-      toMarkdown: (node, ctx, inline) =>
-        `![${ctx.escapeText(inline)}](${String(node.attrs.path ?? '')})\n`,
+      // The reference is one line, so a break in the caption folds to a space, and the
+      // caption is plain text with only the two characters that could end it escaped, as
+      // the desktop writer writes it; the reader on either side undoes exactly those.
+      toMarkdown: (node) =>
+        `![${escapeImageAlt(lineText(node))}](${String(node.attrs.path ?? '')})\n`,
       segmentsFor: (_node, text): readonly AiSegment[] =>
         text.length > 0 ? [{ kind: 'imageAlt', text, offset: 0 }] : [],
       estimate: (node, ctx) => {

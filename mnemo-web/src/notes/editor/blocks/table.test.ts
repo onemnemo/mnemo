@@ -165,6 +165,14 @@ describe('markdown', () => {
     if (!result.ok) return;
     expect(markdown.document(result.doc)).toContain('| a\\|b | c |');
   });
+
+  it('escapes a pipe once, whether the cell starts with it or a backslash sits before it', () => {
+    // The inline writer escapes a pipe at a line start already, and a literal backslash
+    // ahead of a pipe is escaped on its own; the cell writer must not double either.
+    const result = mapper.toDoc([wireTable([['|first', 'a\\|b']])]);
+    if (!result.ok) return;
+    expect(markdown.document(result.doc)).toContain('| \\|first | a\\\\\\|b |');
+  });
 });
 
 describe('the slash row', () => {

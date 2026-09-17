@@ -26,7 +26,10 @@ public static class InlineMarkdownParser
         if (string.IsNullOrEmpty(markdown))
             return new List<InlineSpan> { InlineSpan.Plain(string.Empty) };
 
-        var doc = global::Markdig.Markdown.Parse(markdown, Pipeline);
+        // A hard break with nothing after it is a literal backslash to CommonMark, but the writer
+        // only ever emits one for a newline, so the trailing ones are restored as such.
+        var text = MarkdownHardBreak.SplitTrailing(markdown, out var trailingBreaks);
+        var doc = global::Markdig.Markdown.Parse(text, Pipeline);
         var spans = new List<InlineSpan>();
         var firstBlock = true;
         foreach (var block in doc)
@@ -63,6 +66,9 @@ public static class InlineMarkdownParser
                     break;
             }
         }
+
+        if (trailingBreaks > 0)
+            spans.Add(InlineSpan.Plain(new string('\n', trailingBreaks)));
 
         var normalized = InlineSpanFormatApplier.Normalize(spans);
         if (normalized.Count == 0)

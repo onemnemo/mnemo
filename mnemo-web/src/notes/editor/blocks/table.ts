@@ -22,6 +22,7 @@
 
 import type { Node as PMNode } from 'prosemirror-model';
 import type { AnyBlockModule, InvariantContribution, MdContext } from '../registry/types';
+import { collapseHardBreaks } from '../../model/hard-break';
 import type { BlockType } from '../../model/types';
 import { blockChildrenOf, defineBlock, lineText, metrics, type BlockDeps } from './shared';
 import { containmentInvariant } from './containment';
@@ -96,10 +97,10 @@ function tableMarkdown(node: PMNode, ctx: MdContext): string {
       const cell = cells[index];
       if (!cell) return '';
       const line = cell.firstChild;
-      // A pipe would end the cell and a newline would end the table.
-      return (line ? ctx.serializeInline(line) : '')
-        .replace(/\|/g, '\\|')
-        .replace(/\n/g, ' ')
+      // A pipe would end the cell and a newline would end the table. One the inline writer
+      // already escaped, at a line start, sits behind an odd run of backslashes and is left alone.
+      return collapseHardBreaks(line ? ctx.serializeInline(line) : '')
+        .replace(/(\\*)\|/g, (match, run: string) => (run.length % 2 === 1 ? match : `${run}\\|`))
         .trim();
     });
     return `| ${texts.join(' | ')} |`;

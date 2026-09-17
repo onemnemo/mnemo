@@ -347,3 +347,32 @@ describe('parseMarkdownToBlocks: nested lists', () => {
     expect(total).toBe(MAX_BLOCKS + 1);
   });
 });
+
+describe('parseMarkdownToBlocks: hard breaks', () => {
+  it('folds a line ending in a hard break into the block it continues', () => {
+    expect(textOf(one('one\\\ntwo'))).toBe('one\ntwo');
+    expect(textOf(one('# a\\\nb'))).toBe('a\nb');
+    expect(textOf(one('- x\\\ny\\\nz'))).toBe('x\ny\nz');
+  });
+
+  it('reads an even run of trailing backslashes as literal text, not a break', () => {
+    const blocks = parseMarkdownToBlocks('path\\\\\nnext');
+    expect(blocks.map(textOf)).toEqual(['path\\', 'next']);
+    expect(parseMarkdownToBlocks('odd\\\\\\\nnext').map(textOf)).toEqual(['odd\\\nnext']);
+  });
+
+  it('leaves a backslash at the end of a code or equation line alone', () => {
+    const code = one('```\nline\\\n```');
+    expect(code.type).toBe('Code');
+    expect(textOf(code)).toBe('line\\');
+
+    const blocks = parseMarkdownToBlocks('$$\na \\\\\\\n$$\nafter');
+    expect(blocks.map((b) => b.type)).toEqual(['Equation', 'Text']);
+    expect(blocks[0].payload).toEqual({ kind: 'equation', latex: 'a \\\\\\' });
+  });
+
+  it('keeps a hard break at the very end of the paste as a trailing newline', () => {
+    expect(textOf(one('tail\\'))).toBe('tail\\');
+    expect(textOf(one('tail\\\n'))).toBe('tail\n');
+  });
+});

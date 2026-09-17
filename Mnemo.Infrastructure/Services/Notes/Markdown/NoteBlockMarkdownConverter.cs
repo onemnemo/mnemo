@@ -19,15 +19,14 @@ public static class NoteBlockMarkdownConverter
         var sb = new System.Text.StringBuilder();
         for (var i = 0; i < ordered.Count; i++)
         {
-            var b = ordered[i];
-            if (i > 0 && b.Type is not BlockType.Code and not BlockType.Equation and not BlockType.Sketch)
+            if (i > 0)
                 sb.AppendLine();
-            sb.Append(SerializeBlock(b));
-            if (b.Type is BlockType.Code or BlockType.Equation or BlockType.Sketch)
-                sb.AppendLine();
+            sb.Append(SerializeBlock(ordered[i]));
         }
 
-        return sb.ToString().TrimEnd();
+        // Not trimmed: a block that ends in a soft break ends in its hard break marker, newline
+        // included, and a reader given the backslash alone takes it as a literal one.
+        return sb.ToString();
     }
 
     public static string SerializeBlock(Block block)
@@ -142,13 +141,21 @@ public static class NoteBlockMarkdownConverter
             var cell = i < cells.Count ? cells[i] : null;
             var text = cell == null ? string.Empty : InlineMarkdownSerializer.SerializeSpans(cell.Spans);
             // A pipe would end the cell, and a newline would end the table.
-            texts.Add(text.Replace("|", "\\|", StringComparison.Ordinal)
-                          .Replace("\n", " ", StringComparison.Ordinal)
-                          .Trim());
+            texts.Add(EscapeCellPipes(MarkdownHardBreak.Collapse(text)).Trim());
         }
 
         return "| " + string.Join(" | ", texts) + " |";
     }
+
+    /// <summary>A pipe and the run of backslashes before it.</summary>
+    private static readonly Regex CellPipeRegex = new(@"(\\*)\|", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Escapes the pipes of a cell once: a pipe the inline writer already escaped, at a line
+    /// start, sits behind an odd run of backslashes and is left alone.
+    /// </summary>
+    private static string EscapeCellPipes(string text) =>
+        CellPipeRegex.Replace(text, m => m.Groups[1].Length % 2 == 1 ? m.Value : m.Groups[1].Value + "\\|");
 
     /// <summary>The "&gt; [!tone glyph]" head that distinguishes a callout from a plain quote.</summary>
     private static readonly Regex CalloutHeadPattern = new(@"^>\s*\[!([A-Za-z]+)(?:\s+([^\]]+))?\]\s?(.*)$");
@@ -192,6 +199,20 @@ public static class NoteBlockMarkdownConverter
                 result.Add(item);
             }
             open.Add((indent, item));
+        }
+
+        // A block's text with the lines it continues onto folded in: while the text ends in a
+        // hard break, the next physical line belongs to the same block. A quote or callout needs
+        // none of this, since every line of one carries its own marker.
+        string WithContinuation(string text)
+        {
+            while (i + 1 < lines.Length && MarkdownHardBreak.EndsWithMarker(text))
+            {
+                i++;
+                text += "\n" + lines[i];
+            }
+
+            return text;
         }
 
         while (i < lines.Length)
@@ -321,28 +342,28 @@ public static class NoteBlockMarkdownConverter
 
             if (trimmed.StartsWith("#### ", StringComparison.Ordinal))
             {
-                AddTop(CreateRichBlock(BlockType.Heading4, trimmed["#### ".Length..].Trim(), 0));
+                AddTop(CreateRichBlock(BlockType.Heading4, WithContinuation(trimmed["#### ".Length..].Trim()), 0));
                 i++;
                 continue;
             }
 
             if (trimmed.StartsWith("### ", StringComparison.Ordinal))
             {
-                AddTop(CreateRichBlock(BlockType.Heading3, trimmed["### ".Length..].Trim(), 0));
+                AddTop(CreateRichBlock(BlockType.Heading3, WithContinuation(trimmed["### ".Length..].Trim()), 0));
                 i++;
                 continue;
             }
 
             if (trimmed.StartsWith("## ", StringComparison.Ordinal))
             {
-                AddTop(CreateRichBlock(BlockType.Heading2, trimmed["## ".Length..].Trim(), 0));
+                AddTop(CreateRichBlock(BlockType.Heading2, WithContinuation(trimmed["## ".Length..].Trim()), 0));
                 i++;
                 continue;
             }
 
             if (trimmed.StartsWith("# ", StringComparison.Ordinal))
             {
-                AddTop(CreateRichBlock(BlockType.Heading1, trimmed["# ".Length..].Trim(), 0));
+                AddTop(CreateRichBlock(BlockType.Heading1, WithContinuation(trimmed["# ".Length..].Trim()), 0));
                 i++;
                 continue;
             }
@@ -350,7 +371,7 @@ public static class NoteBlockMarkdownConverter
             if (Regex.IsMatch(trimmed, @"^-\s*\[\s*[xX]\s*\]"))
             {
                 var content = Regex.Replace(trimmed, @"^-\s*\[\s*[xX]\s*\]\s*", "", RegexOptions.None).Trim();
-                var b = CreateRichBlock(BlockType.Checklist, content, 0);
+                var b = CreateRichBlock(BlockType.Checklist, WithContinuation(content), 0);
                 b.Payload = new ChecklistPayload(true);
                 AddListItem(b, indent);
                 i++;
@@ -360,7 +381,7 @@ public static class NoteBlockMarkdownConverter
             if (Regex.IsMatch(trimmed, @"^-\s*\[\s*\]"))
             {
                 var content = Regex.Replace(trimmed, @"^-\s*\[\s*\]\s*", "", RegexOptions.None).Trim();
-                var b = CreateRichBlock(BlockType.Checklist, content, 0);
+                var b = CreateRichBlock(BlockType.Checklist, WithContinuation(content), 0);
                 b.Payload = new ChecklistPayload(false);
                 AddListItem(b, indent);
                 i++;
@@ -369,7 +390,7 @@ public static class NoteBlockMarkdownConverter
 
             if (trimmed.StartsWith("- ", StringComparison.Ordinal))
             {
-                AddListItem(CreateRichBlock(BlockType.BulletList, trimmed["- ".Length..].Trim(), 0), indent);
+                AddListItem(CreateRichBlock(BlockType.BulletList, WithContinuation(trimmed["- ".Length..].Trim()), 0), indent);
                 i++;
                 continue;
             }
@@ -377,7 +398,7 @@ public static class NoteBlockMarkdownConverter
             var starOrPlusBullet = Regex.Match(trimmed, @"^(\*|\+)\s+(.*)$");
             if (starOrPlusBullet.Success)
             {
-                AddListItem(CreateRichBlock(BlockType.BulletList, starOrPlusBullet.Groups[2].Value.Trim(), 0), indent);
+                AddListItem(CreateRichBlock(BlockType.BulletList, WithContinuation(starOrPlusBullet.Groups[2].Value.Trim()), 0), indent);
                 i++;
                 continue;
             }
@@ -452,12 +473,12 @@ public static class NoteBlockMarkdownConverter
                 continue;
             }
 
-            if (Regex.IsMatch(trimmed, @"^\d+\.\s"))
+            if (Regex.IsMatch(trimmed, @"^[0-9]{1,9}\.\s"))
             {
-                var content = Regex.Replace(trimmed, @"^\d+\.\s*", "", RegexOptions.None).Trim();
+                var content = Regex.Replace(trimmed, @"^[0-9]{1,9}\.\s*", "", RegexOptions.None).Trim();
                 var m = Regex.Match(trimmed, @"^(\d+)\.\s");
                 var n = m.Success && int.TryParse(m.Groups[1].Value, out var num) ? num : 1;
-                var nb = CreateRichBlock(BlockType.NumberedList, content, 0);
+                var nb = CreateRichBlock(BlockType.NumberedList, WithContinuation(content), 0);
                 // Written under the canonical key the editor and PDF composer read. The legacy
                 // "listNumber" key nothing else looks at is never emitted again, so a numbered
                 // list imported from markdown keeps its start value instead of silently
@@ -468,7 +489,7 @@ public static class NoteBlockMarkdownConverter
                 continue;
             }
 
-            AddTop(CreateRichBlock(BlockType.Text, line, 0));
+            AddTop(CreateRichBlock(BlockType.Text, WithContinuation(line), 0));
             i++;
         }
 

@@ -63,8 +63,11 @@ export function createMarkdownSerializer(
 
   return {
     // Each module ends its block with a single newline, so the join is one line
-    // per block; the trailing one is trimmed to match the desktop serializer.
-    document: (doc) => serializeFragment(doc.content, 0).replace(/\n+$/, ''),
-    fragment: (fragment) => serializeFragment(fragment, 0).replace(/\n+$/, ''),
+    // per block; only that one is trimmed, to match the desktop serializer. A
+    // block that ends in a soft break ends in its hard break marker, newline
+    // included, and trimming further would leave a lone backslash a reader takes
+    // as literal.
+    document: (doc) => serializeFragment(doc.content, 0).replace(/\n$/, ''),
+    fragment: (fragment) => serializeFragment(fragment, 0).replace(/\n$/, ''),
   };
 }

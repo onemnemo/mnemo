@@ -58,8 +58,23 @@ public static class InlineMarkdownSerializer
         return url.Replace("\\", "\\\\", System.StringComparison.Ordinal).Replace(")", "\\)", System.StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A code span is fenced by one more backtick than its longest internal run, padded when it
+    /// holds any backtick at all. A newline cannot ride inside the span, where a backslash is
+    /// literal and CommonMark reads a line ending as a space, so the span is closed, the hard
+    /// break written, and the span reopened on the next line.
+    /// </summary>
     private static string SerializeCodeSpan(string text)
     {
+        if (text.Contains('\n') || text.Contains('\r'))
+        {
+            var lines = text.Replace("\r\n", "\n", System.StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+            var parts = new string[lines.Length];
+            for (var i = 0; i < lines.Length; i++)
+                parts[i] = lines[i].Length > 0 ? SerializeCodeSpan(lines[i]) : string.Empty;
+            return string.Join(MarkdownHardBreak.Marker, parts);
+        }
+
         var maxRun = MaxConsecutiveBackticks(text);
         var fenceLen = maxRun + 1;
         var fence = new string('`', fenceLen);
@@ -79,12 +94,54 @@ public static class InlineMarkdownSerializer
         return max;
     }
 
+    /// <summary>
+    /// Backslash-escapes markdown control characters. A newline becomes a hard break, so a reader
+    /// that splits on physical lines still knows it was inside the block.
+    /// </summary>
     private static string EscapeMarkdownText(string text)
     {
         if (text.Length == 0) return text;
-        var sb = new StringBuilder(text.Length + 8);
-        foreach (var c in text)
+        var normalized = text.Replace("\r\n", "\n", System.StringComparison.Ordinal).Replace('\r', '\n');
+        var sb = new StringBuilder(normalized.Length + 8);
+        var lineStart = true;
+        for (var i = 0; i < normalized.Length; i++)
         {
+            var c = normalized[i];
+            if (c == '\n')
+            {
+                sb.Append(MarkdownHardBreak.Marker);
+                lineStart = true;
+                continue;
+            }
+
+            // What follows a break is folded onto the same line by the reader and then handed to a
+            // document parser, so a character that opens a block at a line start is escaped there,
+            // as is the dot or bracket of an ordered list marker.
+            if (lineStart)
+            {
+                // Blanks do not end the line start: a reader trims them before it looks for a marker.
+                if (c is ' ' or '\t')
+                {
+                    sb.Append(c);
+                    continue;
+                }
+
+                lineStart = false;
+                if (LineStartSpecials.Contains(c))
+                {
+                    sb.Append('\\').Append(c);
+                    continue;
+                }
+
+                var marker = OrderedMarkerRegex.Match(normalized, i);
+                if (marker.Success && marker.Index == i)
+                {
+                    sb.Append(marker.Value, 0, marker.Length - 1).Append('\\').Append(marker.Value[^1]);
+                    i += marker.Length - 1;
+                    continue;
+                }
+            }
+
             switch (c)
             {
                 case '\\':
@@ -97,9 +154,6 @@ public static class InlineMarkdownSerializer
                     sb.Append('\\');
                     sb.Append(c);
                     break;
-                case '\n':
-                    sb.AppendLine();
-                    break;
                 default:
                     sb.Append(c);
                     break;
@@ -107,6 +161,15 @@ public static class InlineMarkdownSerializer
         }
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Characters that open a block when they start a line: a heading, a bullet, a quote, a table
+    /// row, an HTML block, a setext underline or a math fence.
+    /// </summary>
+    private static readonly HashSet<char> LineStartSpecials = ['#', '-', '+', '>', '|', '<', '=', '$'];
+
+    /// <summary>An ordered list marker at a line start; the dot or bracket is what gets escaped.</summary>
+    private static readonly Regex OrderedMarkerRegex = new(@"\G[0-9]{1,9}[.)]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static string EscapeMarkdownTextPreservingEmbeddedImages(string text)
     {

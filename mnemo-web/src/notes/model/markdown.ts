@@ -26,6 +26,7 @@ import { unified } from 'unified';
 
 import { normalizeUrl } from './autolink';
 import { setFormat } from './format';
+import { splitTrailingBreaks } from './hard-break';
 import { normalizeSpans, plainSpan } from './spans';
 import { defaultTextStyle, type InlineSpan, type TextStyle } from './types';
 
@@ -56,7 +57,10 @@ const processor = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 export function parseInlineMarkdown(markdown: string | null | undefined): InlineSpan[] {
   if (!markdown) return [plainSpan('')];
 
-  const root = processor.parse(markdown) as Root;
+  // A hard break with nothing after it is a literal backslash to CommonMark, but the
+  // writer only ever emits one for a newline, so the trailing ones are restored as such.
+  const { text, breaks } = splitTrailingBreaks(markdown);
+  const root = processor.parse(text) as Root;
   const spans: InlineSpan[] = [];
 
   root.children.forEach((block, index) => {
@@ -65,6 +69,8 @@ export function parseInlineMarkdown(markdown: string | null | undefined): Inline
     if (index > 0) spans.push(plainSpan('\n'));
     visitBlock(block, spans);
   });
+
+  if (breaks > 0) spans.push(plainSpan('\n'.repeat(breaks)));
 
   // A document that parsed to nothing at all -- whitespace, a bare thematic
   // break -- still produces one empty span, because a block with no spans has
