@@ -31,17 +31,44 @@ function targetKey(target: CardEditorTarget): string {
  * the dialog appears the instant it is asked for rather than leaving the trigger looking dead.
  * Portalled by hand rather than through Radix: there is no dialog primitive mounted until the real
  * content lands, only this placeholder.
+ *
+ * Shaped like the editor's common case, so the chunk landing swaps the contents and not the frame.
  */
 function FactEditorShell() {
   return createPortal(
     <div className="fixed inset-0 z-50 bg-black/50">
       <div className="fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] w-[724px] max-w-[calc(100vw-3rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-line-soft bg-canvas shadow-pop">
         <div className="flex items-center gap-3.5 border-b border-line-soft px-5 py-3.5">
-          <Skeleton className="h-4 w-56" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-8 w-[180px] rounded-lg" />
+          <div className="flex-1" />
+          <Skeleton className="h-8 w-[150px] rounded-lg" />
+          <Skeleton className="size-7 shrink-0 rounded-md" />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-3.5 p-5">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-20 w-full" />
+        <div className="flex shrink-0 flex-col gap-3.5 px-5 py-4">
+          <div className="flex flex-col gap-1.5">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-[84px] w-full rounded-lg" />
+            <Skeleton className="h-7 w-28 rounded-md" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-[62px] w-full rounded-lg" />
+            <Skeleton className="h-7 w-28 rounded-md" />
+          </div>
+          <Skeleton className="h-9 w-full rounded-lg" />
+          <Skeleton className="h-3 w-80" />
+          <div className="flex flex-col gap-1.5">
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="h-7 w-40 rounded-md" />
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center justify-between border-t border-line-soft px-5 py-3">
+          <Skeleton className="h-3 w-40" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-[34px] w-20" />
+            <Skeleton className="h-[34px] w-24" />
+          </div>
         </div>
       </div>
     </div>,
