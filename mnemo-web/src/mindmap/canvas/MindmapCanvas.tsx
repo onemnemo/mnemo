@@ -295,6 +295,20 @@ export function MindmapCanvas({
     wasEditing.current = editingId ?? null
   }, [editingId])
 
+  // The node under the caret stays rendered for as long as the field is open. Its box grows with
+  // every keystroke while the culler's grid still holds the size it opened at, and the resize gesture
+  // pins for exactly this reason; the edit has no gesture to pin from, so it is held here instead.
+  // Keyed on the scene as well, because an edit outlives the runtime a reprojection replaces, and
+  // the fresh culler knows nothing about a hold the old one had.
+  useEffect(() => {
+    const created = runtime.current
+    if (!editingId || !created) {
+      return
+    }
+    const index = created.index()
+    return created.hold([editingId], index.incidentEdges([editingId]))
+  }, [editingId, scene])
+
   return (
     <div
       ref={pane}

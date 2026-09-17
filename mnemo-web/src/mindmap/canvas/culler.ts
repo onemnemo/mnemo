@@ -92,6 +92,14 @@ export interface Culler {
   /** Keeps these targets rendered for the duration of a gesture, wherever they end up. */
   pin(keys: readonly string[]): void
   unpinAll(): void
+  /**
+   * Keeps these targets rendered until the returned release is called.
+   *
+   * Separate from the gesture pin because the two lifetimes overlap: the press that starts a drag
+   * is what closes a label being typed into, so the edit's release lands in the middle of the drag,
+   * and one pinned set for both would drop the dragged node with it. The release is idempotent.
+   */
+  hold(keys: readonly string[]): () => void
   setEnabled(enabled: boolean): void
   isEnabled(): boolean
   /** Targets currently rendered, so a culling dodge is visible rather than implied. */
@@ -179,6 +187,8 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
   let isEnabled = enabled
   let range: CellRange | null = null
   let pinned: readonly string[] = []
+  /** How many open holds name each key, so a rebuild can put every hold back. */
+  const held = new Map<string, number>()
   /** Maintained by retain/release rather than derived, so reading it every frame costs nothing. */
   const visibleEdges = new Set<string>()
 
@@ -323,6 +333,13 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
     rebuild() {
       index()
       setAll(isEnabled ? 'none' : '')
+      // The grid is fresh but the gesture or the edit that pinned something is still going, and a
+      // rebuild that dropped the pin would hide the node mid-drag on a substrate swap.
+      if (!isEnabled) return
+      for (const key of pinned) retain(key)
+      for (const [key, count] of held) {
+        for (let i = 0; i < count; i++) retain(key)
+      }
     },
 
     pin(keys) {
@@ -336,6 +353,26 @@ export function createCuller(targets: readonly CullTarget[], enabled: boolean): 
       if (!isEnabled) return
       for (const key of pinned) release(key)
       pinned = []
+    },
+
+    hold(keys) {
+      if (!isEnabled) return () => {}
+      const mine = [...keys]
+      for (const key of mine) {
+        held.set(key, (held.get(key) ?? 0) + 1)
+        retain(key)
+      }
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        for (const key of mine) {
+          const count = held.get(key) ?? 0
+          if (count <= 1) held.delete(key)
+          else held.set(key, count - 1)
+          release(key)
+        }
+      }
     },
 
     setEnabled(next) {

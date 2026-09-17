@@ -116,6 +116,13 @@ export interface CanvasRuntime {
    */
   pin(elementIds: readonly string[], edgeIds: readonly string[]): void
   unpin(): void
+  /**
+   * The same hazard over a lifetime no gesture owns: a label being typed into grows its box on
+   * every keystroke while the grid still holds its opening bounds, so a wheel notch during the edit
+   * can cull the node out from under the caret. Held until the returned release is called, and
+   * independently of the gesture pin, since the press that starts a drag is what ends an edit.
+   */
+  hold(elementIds: readonly string[], edgeIds: readonly string[]): () => void
   index(): SceneIndex
   /**
    * Aborts whatever pointer gesture the interaction layer has active, reverting positions and sizes
@@ -542,6 +549,14 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
     },
 
     unpin: () => culler.unpinAll(),
+
+    hold(elementIds, edgeIds) {
+      const keys = elementIds.map(nodeCullKey)
+      for (const id of edgeIds) {
+        keys.push(edgeCullKey(id))
+      }
+      return culler.hold(keys)
+    },
 
     // Overwritten by the caller once the interaction controller is installed, which knows what
     // gesture, if any, is active. This runtime has no notion of gestures at all.

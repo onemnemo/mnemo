@@ -134,6 +134,56 @@ describe('createCuller', () => {
     expect(visible(origin)).toBe(true)
   })
 
+  it('keeps a held target rendered until its own release, whatever the gesture pin does', () => {
+    // A press that starts a drag is what closes the label being typed into, so the edit's release
+    // arrives while the drag's pin is up. Neither lifetime may take the other's target with it.
+    const culler = createCuller(targets, true)
+    culler.update({ x: 0, y: 0, zoom: 1 }, VIEW.width, VIEW.height)
+    const release = culler.hold(['a'])
+
+    culler.pin(['b'])
+    culler.update({ x: 500_000, y: 500_000, zoom: 1 }, VIEW.width, VIEW.height)
+    expect(visible(origin)).toBe(true)
+    expect(visible(nearby)).toBe(true)
+
+    culler.unpinAll()
+    expect(visible(origin)).toBe(true)
+    expect(visible(nearby)).toBe(false)
+
+    culler.pin(['b'])
+    release()
+    expect(visible(origin)).toBe(false)
+    expect(visible(nearby)).toBe(true)
+  })
+
+  it('releases a hold once, so a second call cannot hide a target the camera can see', () => {
+    const culler = createCuller(targets, true)
+    culler.update({ x: 0, y: 0, zoom: 1 }, VIEW.width, VIEW.height)
+    const release = culler.hold(['a'])
+
+    release()
+    release()
+
+    expect(visible(origin)).toBe(true)
+  })
+
+  it('carries pins and holds across a rebuild, which happens mid-edit on a substrate swap', () => {
+    const culler = createCuller(targets, true)
+    culler.update({ x: 0, y: 0, zoom: 1 }, VIEW.width, VIEW.height)
+    const release = culler.hold(['a'])
+    culler.pin(['b'])
+
+    culler.rebuild()
+    culler.update({ x: 500_000, y: 500_000, zoom: 1 }, VIEW.width, VIEW.height)
+    expect(visible(origin)).toBe(true)
+    expect(visible(nearby)).toBe(true)
+
+    release()
+    culler.unpinAll()
+    expect(visible(origin)).toBe(false)
+    expect(visible(nearby)).toBe(false)
+  })
+
   it('re-indexes from live bounds, so a relayout does not leave content hidden mid-view', () => {
     let x = 400_000
     const mover = { style: { display: '' } }
