@@ -435,6 +435,8 @@
     "KeyboardResetAllMessage": "Jedes Kürzel, das du geändert hast, bekommt wieder die Taste, mit der es ausgeliefert wurde.",
     "KeyboardConflictsFormat": "{0} Aktionen teilen sich ein Kürzel mit einer anderen. Nur die erste Übereinstimmung wird ausgeführt.",
     "KeyboardAlsoBoundFormat": "Auch belegt mit {0}",
+    "KeyboardReservedFormat": "{0} ist für die App reserviert. Drücke ein anderes Kürzel.",
+    "KeyboardReservedBoundFormat": "{0} ist für die App reserviert und erreicht diese Aktion nie",
     "KeyboardNoMatchFormat": "Keine Aktion passt zu „{0}“",
     "TrashCategoryTitle": "Papierkorb",
     "TrashSubtitle": "Alles, was du löschst, wartet hier, bevor es endgültig verschwindet.",

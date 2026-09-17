@@ -6,8 +6,9 @@ import { Keycap } from "@/components/ui/keycap"
 import { useT } from "@/i18n/useT"
 import type { TranslateFn } from "@/i18n/types"
 import { deleteKeybindOverride, fetchKeybinds, putKeybindOverride, resetKeybindOverrides } from "@/keybinds/api"
-import { chordFromEvent, formatChord } from "@/keybinds/chord"
+import { chordFromEvent, formatChord, isMac } from "@/keybinds/chord"
 import { findConflicts } from "@/keybinds/conflicts"
+import { isReservedChord, isReservedEvent } from "@/keybinds/reserved"
 import { useKeybindStore } from "@/keybinds/store"
 import type { Keybind } from "@/keybinds/types"
 import { cn } from "@/lib/utils"
@@ -41,7 +42,15 @@ export function KeyboardPage() {
 
   const [query, setQuery] = useState("")
   const [recording, setRecording] = useState<string | null>(null)
+  // The chord the armed row just declined. It stays on the row, in place of the prompt,
+  // until the next press, so the reader learns why nothing was stored.
+  const [refused, setRefused] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  const arm = useCallback((actionId: string | null) => {
+    setRefused(null)
+    setRecording(actionId)
+  }, [])
 
   const conflicts = useMemo(() => findConflicts(keybinds), [keybinds])
   const labels = useMemo(() => labelsFor(keybinds, t), [keybinds, t])
@@ -85,13 +94,21 @@ export function KeyboardPage() {
       event.preventDefault()
       event.stopPropagation()
       if (event.key === "Escape") {
-        setRecording(null)
+        arm(null)
         return
       }
       const chord = chordFromEvent(event)
       // Modifiers on their own, and keys with no token, mean "still listening".
       if (!chord) return
-      setRecording(null)
+      // The window guard swallows these before the keymap runs, so a binding on one
+      // would read as set and never fire. Asked as an event, the way the guard asks, so a
+      // layout that types r or p from another physical key is refused too. The row stays
+      // armed for another try.
+      if (isReservedEvent(event, isMac)) {
+        setRefused(chord)
+        return
+      }
+      arm(null)
       void withRefresh(() => putKeybindOverride(recording, [{ kind: "Chord", chord }]))
     }
 
@@ -99,7 +116,7 @@ export function KeyboardPage() {
     // cancelling here first would leave its click to immediately re-arm.
     const onPointerDown = (event: PointerEvent) => {
       if ((event.target as Element | null)?.closest?.(`[${RECORD_ATTR}]`)) return
-      setRecording(null)
+      arm(null)
     }
 
     document.addEventListener("keydown", onKey, true)
@@ -108,7 +125,7 @@ export function KeyboardPage() {
       document.removeEventListener("keydown", onKey, true)
       document.removeEventListener("pointerdown", onPointerDown, true)
     }
-  }, [recording, withRefresh])
+  }, [recording, arm, withRefresh])
 
   const conflicted = conflicts.size
 
@@ -164,10 +181,9 @@ export function KeyboardPage() {
                   .map((id) => labels.get(id) ?? id)
                   .join(", ")}
                 recording={recording === action.actionId}
+                refused={recording === action.actionId ? refused : null}
                 busy={busy}
-                onToggleRecord={() =>
-                  setRecording((current) => (current === action.actionId ? null : action.actionId))
-                }
+                onToggleRecord={() => arm(recording === action.actionId ? null : action.actionId)}
                 onReset={() => void withRefresh(() => deleteKeybindOverride(action.actionId))}
               />
             ))}
@@ -183,6 +199,7 @@ function ActionRow({
   label,
   clashesWith,
   recording,
+  refused,
   busy,
   onToggleRecord,
   onReset,
@@ -191,12 +208,16 @@ function ActionRow({
   label: string
   clashesWith: string
   recording: boolean
+  /** The chord this row's recorder declined, while it is armed. */
+  refused: string | null
   busy: boolean
   onToggleRecord: () => void
   onReset: () => void
 }) {
   const t = useT()
   const chord = action.bindings.find((b) => b.kind === "Chord" && b.chord)?.chord ?? null
+  // An override stored before the recorder learned to refuse these still reads as bound.
+  const reserved = chord !== null && isReservedChord(chord)
 
   // The ProseMirror keymap that actually handles these chords is built once, with no
   // overrides threaded in, and always dispatches on the hardcoded default. A recorded
@@ -216,6 +237,12 @@ function ActionRow({
             {t("Settings", "KeyboardAlsoBoundFormat", { 0: clashesWith })}
           </p>
         ) : null}
+        {reserved && chord ? (
+          <p className="mt-0.5 flex items-center gap-1 text-[12px] text-danger">
+            <AppIcon name="triangle-alert" size={12} strokeWidth={2} />
+            {t("Settings", "KeyboardReservedBoundFormat", { 0: formatChord(chord) })}
+          </p>
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
@@ -232,7 +259,11 @@ function ActionRow({
           )}
           style={{ transitionDuration: "var(--duration-fast)" }}
         >
-          {recording ? (
+          {recording && refused ? (
+            <span className="px-1 text-[12.5px] font-medium text-danger">
+              {t("Settings", "KeyboardReservedFormat", { 0: formatChord(refused) })}
+            </span>
+          ) : recording ? (
             <span className="px-1 text-[12.5px] font-medium text-accent-ink">
               {t(NS, "keybindManager.editorPressShortcut")}
             </span>

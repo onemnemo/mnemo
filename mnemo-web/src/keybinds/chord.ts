@@ -72,7 +72,8 @@ export function eventKeyToken(event: KeyboardEvent): string | null {
   return code ? null : logicalKeyToken(event.key)
 }
 
-function logicalKeyToken(key: string): string | null {
+/** The token for what a press typed, which depends on the layout; null for a key the catalog cannot name. */
+export function logicalKeyToken(key: string): string | null {
   if (/^[a-zA-Z]$/.test(key)) return key.toUpperCase()
   if (/^[0-9]$/.test(key)) return `D${key}`
   if (/^F([1-9]|1[0-2])$/.test(key)) return key

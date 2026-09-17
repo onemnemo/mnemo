@@ -435,6 +435,8 @@
     "KeyboardResetAllMessage": "変更したショートカットがすべて、最初に設定されていたキーに戻ります。",
     "KeyboardConflictsFormat": "{0} 件の操作が他の操作とショートカットを共有しています。先に一致したものだけが実行されます。",
     "KeyboardAlsoBoundFormat": "{0} にも割り当て済み",
+    "KeyboardReservedFormat": "{0} はアプリが予約しています。別のショートカットを押してください。",
+    "KeyboardReservedBoundFormat": "{0} はアプリが予約しているため、この操作には届きません",
     "KeyboardNoMatchFormat": "「{0}」に一致する操作はありません",
     "TrashCategoryTitle": "ゴミ箱",
     "TrashSubtitle": "削除したものは、完全に消える前にここに残ります。",

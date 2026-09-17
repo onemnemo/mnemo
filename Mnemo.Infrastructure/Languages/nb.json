@@ -435,6 +435,8 @@
     "KeyboardResetAllMessage": "Alle snarveier du har endret går tilbake til tasten de kom med.",
     "KeyboardConflictsFormat": "{0} handlinger deler snarvei med en annen. Bare den første som treffer, kjøres.",
     "KeyboardAlsoBoundFormat": "Også tilordnet {0}",
+    "KeyboardReservedFormat": "{0} er reservert av appen. Trykk en annen snarvei.",
+    "KeyboardReservedBoundFormat": "{0} er reservert av appen og når aldri denne handlingen",
     "KeyboardNoMatchFormat": "Ingen handling passer til «{0}»",
     "TrashCategoryTitle": "Papirkurv",
     "TrashSubtitle": "Alt du sletter venter her før det er borte for godt.",

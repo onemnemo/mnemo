@@ -435,6 +435,8 @@
     "KeyboardResetAllMessage": "Todos los atajos que hayas cambiado vuelven a la tecla con la que venían.",
     "KeyboardConflictsFormat": "{0} acciones comparten atajo con otra. Solo se ejecutará la primera que coincida.",
     "KeyboardAlsoBoundFormat": "También asignado a {0}",
+    "KeyboardReservedFormat": "{0} está reservado por la aplicación. Pulsa otro atajo.",
+    "KeyboardReservedBoundFormat": "{0} está reservado por la aplicación y nunca llega a esta acción",
     "KeyboardNoMatchFormat": "Ninguna acción coincide con “{0}”",
     "TrashCategoryTitle": "Papelera",
     "TrashSubtitle": "Todo lo que eliminas espera aquí antes de desaparecer para siempre.",

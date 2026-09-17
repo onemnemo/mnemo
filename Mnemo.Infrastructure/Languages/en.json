@@ -435,6 +435,8 @@
     "KeyboardResetAllMessage": "Every shortcut you have changed goes back to the key it shipped with.",
     "KeyboardConflictsFormat": "{0} actions share a shortcut with another one. Only the first to match will run.",
     "KeyboardAlsoBoundFormat": "Also bound to {0}",
+    "KeyboardReservedFormat": "{0} is reserved by the app. Press a different shortcut.",
+    "KeyboardReservedBoundFormat": "{0} is reserved by the app and never reaches this action",
     "KeyboardNoMatchFormat": "No action matches “{0}”",
     "TrashCategoryTitle": "Trash",
     "TrashSubtitle": "Anything you delete waits here before it goes for good.",
