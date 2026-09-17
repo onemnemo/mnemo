@@ -850,6 +850,7 @@
   },
   "NotesEditor": {
     "ProofingPausedNotice": "Demasiadas marcas para una nota, así que la ortografía está en pausa aquí",
+    "ProofingTitleFlaggedFormat": "El título puede estar mal escrito: {0}",
     "ProofingMisspelledTitle": "Mal escrito",
     "ProofingUnknownWordTitle": "Palabra desconocida",
     "ProofingSuggestionsLoading": "Buscando sugerencias",

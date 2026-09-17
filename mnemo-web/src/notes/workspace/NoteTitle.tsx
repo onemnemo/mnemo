@@ -74,6 +74,9 @@ export function NoteTitle({
       // would otherwise land markup in a field the rest of the app reads as text.
       contentEditable="plaintext-only"
       suppressContentEditableWarning
+      // Off for the reason the document's is: the webview's menu is suppressed, so a
+      // browser mark would have no correction behind it. The surface asks proofing
+      // about the saved title instead and names what it flags.
       spellCheck={false}
       data-placeholder={placeholder}
       onBlur={commit}

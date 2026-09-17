@@ -850,6 +850,7 @@
   },
   "NotesEditor": {
     "ProofingPausedNotice": "For mange merker for ett notat, så stavekontrollen er satt på pause her",
+    "ProofingTitleFlaggedFormat": "Tittelen kan være feilstavet: {0}",
     "ProofingMisspelledTitle": "Feilstavet",
     "ProofingUnknownWordTitle": "Ukjent ord",
     "ProofingSuggestionsLoading": "Leter etter forslag",

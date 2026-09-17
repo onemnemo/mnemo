@@ -850,6 +850,7 @@
   },
   "NotesEditor": {
     "ProofingPausedNotice": "Too many marks for one note, so spelling is paused here",
+    "ProofingTitleFlaggedFormat": "The title may be misspelled: {0}",
     "ProofingMisspelledTitle": "Misspelled",
     "ProofingUnknownWordTitle": "Unknown word",
     "ProofingSuggestionsLoading": "Finding suggestions",

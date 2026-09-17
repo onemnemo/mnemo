@@ -850,6 +850,7 @@
   },
   "NotesEditor": {
     "ProofingPausedNotice": "Zu viele Markierungen für eine Notiz, daher pausiert die Rechtschreibprüfung hier",
+    "ProofingTitleFlaggedFormat": "Der Titel ist vielleicht falsch geschrieben: {0}",
     "ProofingMisspelledTitle": "Falsch geschrieben",
     "ProofingUnknownWordTitle": "Unbekanntes Wort",
     "ProofingSuggestionsLoading": "Vorschläge werden gesucht",

@@ -25,6 +25,7 @@ import { documentWordCount } from '../editor/projection/word-count';
 import { useNoteSession } from '../edit/useNoteSession';
 import { useSpellcheck } from '../edit/useSpellcheck';
 import { useProofing } from '../proofing/useProofing';
+import { useTitleProofing } from '../proofing/useTitleProofing';
 import { BlockGutter } from '../editor/chrome/BlockGutter';
 import { CalloutIconPicker } from '../editor/chrome/CalloutIconPicker';
 import { EditorContextMenu } from '../editor/chrome/EditorContextMenu';
@@ -138,6 +139,14 @@ export function NoteSurface({
   // a chunked mount on the spot, and proofing must never be what does that.
   const proofing = useProofing({ view, registry, noteId });
   const { spellCheck, lang } = useSpellcheck(proofing.language);
+  // The title is outside the document, so it is asked about on its own, once per saved
+  // title, and the words flagged are named in the line under it.
+  const titleIssues = useTitleProofing({
+    noteId,
+    title: note.title,
+    active: proofing.active,
+    languages: proofing.languages,
+  });
 
   return (
     <div ref={paneRef} className="group/pane relative flex h-full min-h-0 flex-col">
@@ -192,6 +201,14 @@ export function NoteSurface({
               <>
                 {' · '}
                 {t('NotesEditor', 'ProofingPausedNotice')}
+              </>
+            ) : null}
+            {titleIssues.length > 0 ? (
+              <>
+                {' · '}
+                {t('NotesEditor', 'ProofingTitleFlaggedFormat', {
+                  0: titleIssues.map((issue) => issue.text).join(', '),
+                })}
               </>
             ) : null}
           </div>

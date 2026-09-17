@@ -71,6 +71,11 @@ export interface ProofingSurface {
    * checked in nothing.
    */
   readonly language?: string;
+  /**
+   * The languages the marks are made against, in order: the note's effective set
+   * narrowed to the dictionaries that are read. What the title is checked in too.
+   */
+  readonly languages: readonly string[];
 }
 
 export function useProofing(options: UseProofingOptions): ProofingSurface {
@@ -168,8 +173,8 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
   const language = effectiveLanguages(status)[0];
 
   return useMemo(
-    () => ({ active, paused: active && paused, suppressed, language }),
-    [active, paused, suppressed, language],
+    () => ({ active, paused: active && paused, suppressed, language, languages }),
+    [active, paused, suppressed, language, languages],
   );
 }
 
