@@ -20,4 +20,11 @@ public interface IFsrsScheduler
     /// logged value can never drift from the one the scheduler graded against.
     /// </summary>
     double ElapsedDays(FlashcardSchedule current, DateTimeOffset now);
+
+    /// <summary>
+    /// The stability at which retrievability falls to the preset's desired retention after
+    /// <paramref name="intervalDays"/>: the inverse of the interval the scheduler would give a
+    /// review card with that stability. For rewriting a card's spacing without grading it.
+    /// </summary>
+    double StabilityForInterval(double intervalDays, FlashcardPreset preset);
 }

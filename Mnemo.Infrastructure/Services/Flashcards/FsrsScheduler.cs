@@ -203,6 +203,20 @@ public sealed class FsrsScheduler : IFsrsScheduler
     public double ElapsedDays(FlashcardSchedule current, DateTimeOffset now) =>
         Math.Max(0d, (now - (current.LastReviewedAt ?? current.DueDate)).TotalDays);
 
+    /// <inheritdoc />
+    public double StabilityForInterval(double intervalDays, FlashcardPreset preset)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        var weights = FsrsWeightRules.Resolve(preset);
+        var retention = Math.Clamp(preset.DesiredRetention, MinRetention, MaxRetention);
+
+        // NextInterval solved for the stability: at the desired retention the forgetting curve
+        // puts R = retention exactly intervalDays out, so the two round-trip up to the rounding
+        // the interval itself gets.
+        var stability = intervalDays * Factor(weights) / (Math.Pow(retention, 1d / Decay(weights)) - 1d);
+        return Clamp(stability, MinStability, MaxStability);
+    }
+
     // --- FSRS-6 core ---
 
     /// <summary>FSRS-6 fits the forgetting curve's decay rather than pinning it; it is -w20.</summary>

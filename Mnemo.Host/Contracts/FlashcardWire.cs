@@ -158,6 +158,18 @@ public static class FlashcardWire
         }
     }
 
+    /// <summary>Strict: a placement crosses on the write path and rewrites a deck's new queue.</summary>
+    public static bool TryParseQueuePlacement(string? value, out FlashcardQueuePlacement placement)
+    {
+        switch (value?.ToLowerInvariant())
+        {
+            case "start": placement = FlashcardQueuePlacement.Start; return true;
+            case "end": placement = FlashcardQueuePlacement.End; return true;
+            case "at": placement = FlashcardQueuePlacement.At; return true;
+            default: placement = FlashcardQueuePlacement.Start; return false;
+        }
+    }
+
     // Unrecognized filter and sort tokens fall back to the default rather than failing the
     // request, the way the model catalog treats ?scope=. A stale bookmark or a token from a
     // newer build should still render the deck instead of erroring the whole page.

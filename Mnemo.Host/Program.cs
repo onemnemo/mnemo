@@ -318,6 +318,7 @@ public static class Program
         app.MapAi();
         app.MapFlashcardLibrary();
         app.MapFlashcardCards();
+        app.MapFlashcardReschedule();
         app.MapFlashcardFacts();
         app.MapFlashcardAssets();
         app.MapFlashcardStudySessions();

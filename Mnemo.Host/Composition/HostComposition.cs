@@ -241,6 +241,7 @@ public static class HostComposition
 
         services.AddSingleton<IFlashcardLibraryService, FlashcardLibraryService>();
         services.AddSingleton<IFlashcardCardService, FlashcardCardService>();
+        services.AddSingleton<IFlashcardRescheduleService, FlashcardRescheduleService>();
         services.AddSingleton<IFlashcardFactService, FlashcardFactService>();
         services.AddSingleton<IFlashcardStudyService, FlashcardStudyService>();
         services.AddSingleton<IFlashcardReviewHistoryService, FlashcardReviewHistoryService>();

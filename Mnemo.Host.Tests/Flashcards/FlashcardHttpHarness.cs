@@ -74,6 +74,7 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         var libraryService = new FlashcardLibraryService(
             Store, folders, decks, cards, facts, schedules, reviews, dailyStats, presets, clock);
         var cardService = new FlashcardCardService(Store, cards, schedules, facts, clock);
+        var rescheduleService = new FlashcardRescheduleService(Store, cards, schedules, decks, presets, scheduler, clock);
         var presetService = new FlashcardPresetService(Store, presets, decks, clock);
         var optimizerService = new FlashcardOptimizerService(Store, presets, reviews);
         var studyService = new FlashcardStudyService(
@@ -89,6 +90,7 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         builder.Services.AddSingleton<ILoggerService>(logger);
         builder.Services.AddSingleton<IFlashcardLibraryService>(libraryService);
         builder.Services.AddSingleton<IFlashcardCardService>(cardService);
+        builder.Services.AddSingleton<IFlashcardRescheduleService>(rescheduleService);
         // Resolved rather than built above, because the material surface sweeps a card that lost
         // its layout into the trash and the trash is registered below it.
         builder.Services.AddSingleton<IFlashcardFactService>(sp => new FlashcardFactService(
@@ -125,6 +127,7 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         _app.MapFlashcardLibrary();
         _app.MapFlashcardFacts();
         _app.MapFlashcardCards();
+        _app.MapFlashcardReschedule();
         _app.MapFlashcardAssets();
         _app.MapFlashcardPresets();
         _app.MapSearch();

@@ -53,7 +53,24 @@ public interface IScheduleRepository
     /// </remarks>
     Task<IReadOnlyList<int>> GetScheduledCountsByWindowAsync(
         SqliteConnection conn, IReadOnlyList<DateTimeOffset> boundaries, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A deck's new queue in the order a session would draw it: every active new card by due date
+    /// and then id, before the daily cap and the burying, which the session applies on top. A
+    /// new card's due date is only an order, which is what makes the queue something a
+    /// reposition can rewrite.
+    /// </summary>
+    Task<IReadOnlyList<FlashcardQueueEntry>> ListNewQueueAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
+
+    /// <summary>How many cards <see cref="ListNewQueueAsync"/> would return, without reading them.</summary>
+    Task<int> CountNewQueueAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken);
+
+    /// <summary>Rewrites the due date of each named card and nothing else about it.</summary>
+    Task SetDueDatesAsync(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<FlashcardQueueEntry> entries, CancellationToken cancellationToken);
 }
+
+/// <summary>One card's place in a new queue: its id and the due date that orders it.</summary>
+public readonly record struct FlashcardQueueEntry(string CardId, DateTimeOffset DueDate);
 
 /// <inheritdoc />
 public sealed class ScheduleRepository : IScheduleRepository
@@ -209,6 +226,61 @@ public sealed class ScheduleRepository : IScheduleRepository
                 counts[idx] = reader.GetInt32(1);
         }
         return counts;
+    }
+
+    public async Task<IReadOnlyList<FlashcardQueueEntry>> ListNewQueueAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"""
+            SELECT s.CardId, s.DueDate
+            FROM FlashcardScheduling s
+            JOIN FlashcardCards c ON c.Id = s.CardId
+            {NewQueueWhere}
+            ORDER BY s.DueDate, c.Id;
+            """;
+        cmd.Parameters.AddWithValue("$deck", deckId);
+
+        var list = new List<FlashcardQueueEntry>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            list.Add(new FlashcardQueueEntry(reader.GetString(0), FlashcardSqlMap.ReadTs(reader, 1)));
+        return list;
+    }
+
+    public async Task<int> CountNewQueueAsync(SqliteConnection conn, string deckId, CancellationToken cancellationToken)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"""
+            SELECT COUNT(*)
+            FROM FlashcardScheduling s
+            JOIN FlashcardCards c ON c.Id = s.CardId
+            {NewQueueWhere};
+            """;
+        cmd.Parameters.AddWithValue("$deck", deckId);
+        var count = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(count, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>The membership the study queue's new band reads, before the daily cap and the burying.</summary>
+    private const string NewQueueWhere = "WHERE c.DeckId = $deck AND c.State = 0 AND c.TrashId IS NULL AND s.FsrsState = 0";
+
+    public async Task SetDueDatesAsync(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<FlashcardQueueEntry> entries, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        if (entries.Count == 0)
+            return;
+
+        await using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "UPDATE FlashcardScheduling SET DueDate = $due WHERE CardId = $id;";
+        var due = cmd.Parameters.Add("$due", SqliteType.Text);
+        var id = cmd.Parameters.Add("$id", SqliteType.Text);
+        foreach (var entry in entries)
+        {
+            due.Value = FlashcardSqlMap.Ts(entry.DueDate);
+            id.Value = entry.CardId;
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private static FlashcardSchedule Read(SqliteDataReader reader) => new(
