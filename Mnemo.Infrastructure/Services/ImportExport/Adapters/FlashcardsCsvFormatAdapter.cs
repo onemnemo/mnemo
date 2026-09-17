@@ -166,8 +166,9 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
         var sawRecord = false;
         var skippedRows = 0;
 
+        var delimiter = await SniffDelimiterAsync(filePath, cancellationToken).ConfigureAwait(false);
         using var text = new StreamReader(filePath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-        var reader = new CsvRecordReader(text);
+        var reader = new CsvRecordReader(text, delimiter);
         var deckColumn = -1;
         var frontColumn = 0;
         var backColumn = 1;
@@ -206,6 +207,25 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
         }
 
         return new CsvReadResult(rows, sawRecord, skippedRows, skippedLines, reader.EndedInsideQuotedValue);
+    }
+
+    /// <summary>
+    /// What the file's cells are separated by, read off its first lines. Excel writes a semicolon
+    /// wherever the comma is the decimal mark, and such a file read on commas is one card per
+    /// line with nothing on the back.
+    /// </summary>
+    private static async Task<char> SniffDelimiterAsync(string filePath, CancellationToken cancellationToken)
+    {
+        var lines = new List<string>();
+        using var text = new StreamReader(filePath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        while (lines.Count < CsvRecordReader.SniffLineCount
+            && await text.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        {
+            if (!string.IsNullOrWhiteSpace(line))
+                lines.Add(line);
+        }
+
+        return CsvRecordReader.SniffDelimiter(lines);
     }
 
     private static string FileDeckNameOf(string filePath) =>

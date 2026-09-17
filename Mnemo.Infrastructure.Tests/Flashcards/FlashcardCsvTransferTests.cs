@@ -115,6 +115,24 @@ public sealed class FlashcardCsvTransferTests
     }
 
     [Fact]
+    public async Task Import_SemicolonSeparatedFile_ReadsBothColumns()
+    {
+        // Excel writes semicolons wherever the comma is the decimal mark. Read on commas, every
+        // line was one card with the whole line on the front and nothing on the back.
+        var sides = await ImportSidesAsync("front;back\nQ1;A1\nQ2;A2\n");
+
+        Assert.Equal(new[] { ("Q1", "A1"), ("Q2", "A2") }, sides);
+    }
+
+    [Fact]
+    public async Task Import_TabSeparatedFile_ReadsBothColumns()
+    {
+        var sides = await ImportSidesAsync("front\tback\nQ1\tA1\nQ2\tA2\n");
+
+        Assert.Equal(new[] { ("Q1", "A1"), ("Q2", "A2") }, sides);
+    }
+
+    [Fact]
     public async Task Import_RowWithNoFront_IsSkippedAndSaidSo()
     {
         await using var h = new FlashcardStoreHarness();
@@ -270,6 +288,33 @@ public sealed class FlashcardCsvTransferTests
         var sides = await RoundTripAsync("Q1", "- a\n- b");
 
         Assert.Equal(("Q1", "- a\n- b"), sides);
+    }
+
+    [Fact]
+    public async Task ExportThenImport_MultiLineBacksWithSemicolons_StillReadOnCommas()
+    {
+        // Two cards are enough: the lines inside a quoted cell carry semicolons and no comma, so a
+        // sniff that lost the quote state at each line break would pick the semicolon.
+        await using var source = new FlashcardStoreHarness();
+        var library = NewLibrary(source);
+        var cards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Facts, source.Clock);
+        var deck = await library.CreateDeckAsync("Geo");
+        const string back = "Points:\n- a; b\n- c; d";
+        await cards.CreateCardsAsync(deck.Id, new[] { Draft(deck.Id, "Q1", back), Draft(deck.Id, "Q2", back) });
+
+        var csvPath = NewCsvPath();
+        try
+        {
+            await NewAdapter(source, library, cards)
+                .ExportAsync(new ImportExportRequest { FilePath = csvPath, Payload = new[] { deck.Id } });
+            var sides = await ImportSidesAsync(await File.ReadAllTextAsync(csvPath));
+
+            Assert.Equal(new[] { ("Q1", back), ("Q2", back) }, sides);
+        }
+        finally
+        {
+            File.Delete(csvPath);
+        }
     }
 
     [Fact]
