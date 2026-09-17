@@ -23,6 +23,13 @@ public interface IScheduleRepository
     Task SetBuriedAsync(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<string> cardIds, DateTimeOffset? until, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Holds back the cards among <paramref name="cardIds"/> that are not already on hold at
+    /// <paramref name="now"/>, and reports which ones it held. A hold that is still standing is
+    /// left as it is, so a caller can later lift exactly the holds it placed and no others.
+    /// </summary>
+    Task<IReadOnlyList<string>> HoldAsync(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<string> cardIds, DateTimeOffset now, DateTimeOffset until, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Raw new/learning/due bucket counts for a deck's active cards at <paramref name="now"/>, before
     /// any daily-cap logic (which the study service applies). New cards are counted regardless of due date.
     /// Buried cards are left out of every bucket, so the banner promises what the session will show.
@@ -105,6 +112,35 @@ public sealed class ScheduleRepository : IScheduleRepository
         cmd.CommandText = $"UPDATE FlashcardScheduling SET BuriedUntil = $until WHERE CardId IN ({string.Join(", ", names)});";
         cmd.Parameters.AddWithValue("$until", (object?)FlashcardSqlMap.TsN(until) ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<string>> HoldAsync(SqliteConnection conn, SqliteTransaction tx, IReadOnlyList<string> cardIds, DateTimeOffset now, DateTimeOffset until, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(cardIds);
+        if (cardIds.Count == 0)
+            return Array.Empty<string>();
+
+        await using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        var names = new string[cardIds.Count];
+        for (var i = 0; i < cardIds.Count; i++)
+        {
+            names[i] = "$c" + i.ToString(CultureInfo.InvariantCulture);
+            cmd.Parameters.AddWithValue(names[i], cardIds[i]);
+        }
+        cmd.CommandText = $"""
+            UPDATE FlashcardScheduling SET BuriedUntil = $until
+            WHERE CardId IN ({string.Join(", ", names)}) AND (BuriedUntil IS NULL OR BuriedUntil <= $now)
+            RETURNING CardId;
+            """;
+        cmd.Parameters.AddWithValue("$until", FlashcardSqlMap.Ts(until));
+        cmd.Parameters.AddWithValue("$now", FlashcardSqlMap.Ts(now));
+
+        var held = new List<string>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            held.Add(reader.GetString(0));
+        return held;
     }
 
     public async Task<FlashcardDueCounts> GetRawDueCountsAsync(SqliteConnection conn, string deckId, DateTimeOffset now, CancellationToken cancellationToken)

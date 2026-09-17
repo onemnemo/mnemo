@@ -30,22 +30,25 @@ public interface IFlashcardStudyService
 
     /// <summary>
     /// Persists one graded Review across schedule + review log + daily stats in a single transaction,
-    /// returning the new review-log id (for exact undo). Review only.
+    /// returning the new review-log id and the leech mark it put on the card (for exact undo).
+    /// Review only.
     /// </summary>
-    Task<long> RecordReviewAsync(FlashcardReviewEntry entry, CancellationToken cancellationToken = default);
+    Task<FlashcardReviewReceipt> RecordReviewAsync(FlashcardReviewEntry entry, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Reverses a review: restores the prior schedule, deletes the review-log row and decrements the
     /// daily-stats counters. Exact inverse of <see cref="RecordReviewAsync"/>.
     /// </summary>
-    /// <param name="restoredCard">
-    /// The card as it was before the grade, passed only when that grade marked it a leech. Undo has
-    /// to take the tag and the suspension back with the lapse, or the card stays punished for a
-    /// review that no longer exists.
+    /// <param name="liftLeech">
+    /// The leech mark the grade put on the card, passed only when it put one. Undo has to take the
+    /// tag and the suspension back with the lapse, or the card stays punished for a review that no
+    /// longer exists; it takes back only what the mark says was added, and nothing the card had or
+    /// gained on its own.
     /// </param>
-    /// <param name="unburySiblings">
-    /// Whether the grade being taken back had put the rest of its material on hold. Set when it did,
-    /// so undoing the answer also lets the related cards back in.
+    /// <param name="releaseSiblings">
+    /// The sibling cards the grade being taken back put on hold, as its receipt reported them.
+    /// Undo lets exactly those back in; a hold an earlier, still standing grade placed on the same
+    /// material is not this grade's to lift.
     /// </param>
-    Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, Flashcard? restoredCard = null, bool unburySiblings = false, CancellationToken cancellationToken = default);
+    Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, FlashcardLeechMark? liftLeech = null, IReadOnlyList<string>? releaseSiblings = null, CancellationToken cancellationToken = default);
 }

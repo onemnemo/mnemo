@@ -28,23 +28,21 @@ public sealed class FlashcardLeechTests
     [InlineData(1, 2, true)]
     public void ALapseIsRaised_AtTheLimitAndAtEveryHalfLimitAfterIt(int threshold, int lapses, bool raised)
     {
-        var card = FlashcardStoreHarness.Card("c1", "deck-1", "Q", "A");
         var before = Scheduled(lapses - 1);
         var after = Scheduled(lapses);
         var preset = FlashcardPreset.CreateStandard(Now) with { LeechThreshold = threshold };
 
-        Assert.Equal(raised, FlashcardLeech.Evaluate(card, before, after, preset, Now) is not null);
+        Assert.Equal(raised, FlashcardLeech.Evaluate(before, after, preset) is not null);
     }
 
     [Fact]
     public void AGradeThatCostNoLapse_RaisesNothing()
     {
-        var card = FlashcardStoreHarness.Card("c1", "deck-1", "Q", "A");
         var preset = FlashcardPreset.CreateStandard(Now) with { LeechThreshold = 3 };
 
         // Already past the limit, but this answer did not add to the count, so re-raising it would
         // mark the card again on every single answer it ever gets.
-        Assert.Null(FlashcardLeech.Evaluate(card, Scheduled(5), Scheduled(5), preset, Now));
+        Assert.Null(FlashcardLeech.Evaluate(Scheduled(5), Scheduled(5), preset));
     }
 
     [Fact]
@@ -147,6 +145,105 @@ public sealed class FlashcardLeechTests
         Assert.Equal(FlashcardCardState.Active, card.State);
         Assert.Equal(elsewhere, card.DeckId);
         Assert.Equal("rewritten", card.Front);
+    }
+
+    [Fact]
+    public async Task TheMark_LandsOnTheCardAsItIsNowRatherThanAsItWasQueued()
+    {
+        await using var h = new FlashcardStoreHarness(Now);
+        var deckId = await SeedAsync(h, threshold: 3, FlashcardLeechAction.Tag);
+        await AddLapsingCardAsync(h, deckId, lapses: 2);
+
+        var session = await Study(h).StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+
+        // Rewritten and flagged from the study screen while the session is still holding the copy
+        // it queued, which is the card the reader most wants to fix: the one they keep forgetting.
+        var edited = (await GetCardAsync(h)) with { Front = "rewritten", Back = "and answered", IsFlagged = true };
+        await h.Store.WriteAsync((conn, tx, ct) => h.Cards.UpdateAsync(conn, tx, edited, ct));
+
+        await session.GradeAsync(FlashcardReviewGrade.Again);
+
+        var card = await GetCardAsync(h);
+        Assert.Contains(FlashcardPreset.LeechTag, card.Tags);
+        Assert.Equal("rewritten", card.Front);
+        Assert.Equal("and answered", card.Back);
+        Assert.True(card.IsFlagged);
+    }
+
+    [Fact]
+    public async Task TheMark_LeavesTheCardInTheDeckItWasMovedTo()
+    {
+        await using var h = new FlashcardStoreHarness(Now);
+        var deckId = await SeedAsync(h, threshold: 3, FlashcardLeechAction.Tag);
+        await AddLapsingCardAsync(h, deckId, lapses: 2);
+        var elsewhere = await h.SeedDeckAsync("deck-2", "preset-2");
+
+        var session = await Study(h).StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        await h.Store.WriteAsync((conn, tx, ct) => h.Cards.MoveManyAsync(conn, tx, new[] { "c1" }, elsewhere, Now, ct));
+
+        await session.GradeAsync(FlashcardReviewGrade.Again);
+
+        var card = await GetCardAsync(h);
+        Assert.Contains(FlashcardPreset.LeechTag, card.Tags);
+        Assert.Equal(elsewhere, card.DeckId);
+    }
+
+    [Fact]
+    public async Task Tagging_DoesNotWakeACardSuspendedSinceItWasQueued()
+    {
+        await using var h = new FlashcardStoreHarness(Now);
+        var deckId = await SeedAsync(h, threshold: 3, FlashcardLeechAction.Tag);
+        await AddLapsingCardAsync(h, deckId, lapses: 2);
+
+        var session = await Study(h).StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        await h.Store.WriteAsync((conn, tx, ct) => h.Cards.SetSuspendedAsync(conn, tx, new[] { "c1" }, true, Now, ct));
+
+        await session.GradeAsync(FlashcardReviewGrade.Again);
+
+        var card = await GetCardAsync(h);
+        Assert.Contains(FlashcardPreset.LeechTag, card.Tags);
+        Assert.Equal(FlashcardCardState.Suspended, card.State);
+    }
+
+    [Fact]
+    public async Task Undo_LiftsTheMarkWithoutTakingBackATagAddedSinceTheCardWasQueued()
+    {
+        await using var h = new FlashcardStoreHarness(Now);
+        var deckId = await SeedAsync(h, threshold: 3, FlashcardLeechAction.Tag);
+        await AddLapsingCardAsync(h, deckId, lapses: 2);
+
+        var session = await Study(h).StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        var tagged = (await GetCardAsync(h)) with { Tags = new[] { "mine" } };
+        await h.Store.WriteAsync((conn, tx, ct) => h.Cards.UpdateAsync(conn, tx, tagged, ct));
+
+        await session.GradeAsync(FlashcardReviewGrade.Again);
+        Assert.True(await session.UndoAsync());
+
+        var card = await GetCardAsync(h);
+        Assert.Contains("mine", card.Tags);
+        Assert.DoesNotContain(FlashcardPreset.LeechTag, card.Tags);
+    }
+
+    [Fact]
+    public async Task Undo_LeavesATagTheCardCarriedBeforeTheGrade()
+    {
+        await using var h = new FlashcardStoreHarness(Now);
+        var deckId = await SeedAsync(h, threshold: 3, FlashcardLeechAction.Suspend);
+        // Raised once already and put back into study by hand, tag and all.
+        await h.AddCardAsync(
+            FlashcardStoreHarness.Card("c1", deckId, "Q", "A") with { Tags = new[] { FlashcardPreset.LeechTag } },
+            new FlashcardSchedule("c1", Now.AddMinutes(-1), 6d, 5d, 3, 2, FlashcardFsrsState.Review, 0, Now.AddDays(-3)));
+
+        var session = await Study(h).StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        await session.GradeAsync(FlashcardReviewGrade.Again);
+        Assert.Equal(FlashcardCardState.Suspended, (await GetCardAsync(h)).State);
+
+        Assert.True(await session.UndoAsync());
+
+        // The grade only suspended the card; the tag was already there, so undo leaves it there.
+        var card = await GetCardAsync(h);
+        Assert.Contains(FlashcardPreset.LeechTag, card.Tags);
+        Assert.Equal(FlashcardCardState.Active, card.State);
     }
 
     [Fact]

@@ -188,7 +188,7 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
         queue.AddRange(shuffled);
     }
 
-    public Task<long> RecordReviewAsync(FlashcardReviewEntry entry, CancellationToken cancellationToken = default)
+    public Task<FlashcardReviewReceipt> RecordReviewAsync(FlashcardReviewEntry entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
         return _store.WriteAsync(async (conn, tx, ct) =>
@@ -198,64 +198,87 @@ public sealed class FlashcardStudyService : IFlashcardStudyService
             await _dailyStats.IncrementAsync(conn, tx, entry.Review.DeckId, entry.LocalDay,
                 entry.IntroducedNewCard ? 1 : 0, ChargesReviewCap(entry.Review.StateBefore) ? 1 : 0, ct).ConfigureAwait(false);
             await _decks.SetLastStudiedAsync(conn, tx, entry.Review.DeckId, entry.Review.ReviewedAt, ct).ConfigureAwait(false);
-            if (entry.LeechedCard is { } leeched)
-                await _cards.UpdateAsync(conn, tx, leeched, ct).ConfigureAwait(false);
-            if (entry.BurySiblingsUntil is { } until)
-                await SetSiblingsBuriedAsync(conn, tx, entry.Review.CardId, until, ct).ConfigureAwait(false);
-            return reviewId;
+            var mark = entry.Leech is { } action
+                ? await MarkLeechAsync(conn, tx, entry.Review.CardId, action, entry.Review.ReviewedAt, ct).ConfigureAwait(false)
+                : null;
+            var held = entry.BurySiblingsUntil is { } until
+                ? await HoldSiblingsAsync(conn, tx, entry.Review.CardId, entry.Review.ReviewedAt, until, ct).ConfigureAwait(false)
+                : Array.Empty<string>();
+            return new FlashcardReviewReceipt(reviewId, mark, held);
         }, cancellationToken);
     }
 
-    public Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, Flashcard? restoredCard = null, bool unburySiblings = false, CancellationToken cancellationToken = default)
+    public Task UndoReviewAsync(string deckId, FlashcardSchedule restoredSchedule, long reviewId, string localDay, bool wasNewIntroduction, FlashcardLeechMark? liftLeech = null, IReadOnlyList<string>? releaseSiblings = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(restoredSchedule);
         return _store.WriteAsync(async (conn, tx, ct) =>
         {
             await _schedules.UpsertAsync(conn, tx, restoredSchedule, ct).ConfigureAwait(false);
             await _reviews.DeleteAsync(conn, tx, reviewId, ct).ConfigureAwait(false);
-            if (unburySiblings)
-                await SetSiblingsBuriedAsync(conn, tx, restoredSchedule.CardId, null, ct).ConfigureAwait(false);
+            if (releaseSiblings is { Count: > 0 })
+                await _schedules.SetBuriedAsync(conn, tx, releaseSiblings, null, ct).ConfigureAwait(false);
             // restoredSchedule is the card as it was before the grade, so its state is the same
             // one the grade was charged against.
             await _dailyStats.IncrementAsync(conn, tx, deckId, localDay,
                 wasNewIntroduction ? -1 : 0, ChargesReviewCap(restoredSchedule.FsrsState) ? -1 : 0, ct).ConfigureAwait(false);
-            if (restoredCard is not null)
-                await LiftLeechAsync(conn, tx, restoredCard, ct).ConfigureAwait(false);
+            if (liftLeech is not null)
+                await LiftLeechAsync(conn, tx, restoredSchedule.CardId, liftLeech, ct).ConfigureAwait(false);
         }, cancellationToken);
     }
 
     /// <summary>
-    /// Puts back the tags and the state a leech took, and nothing else.
+    /// Puts the leech mark on the card as it is stored right now, and reports which parts of it
+    /// were new. Null when the card is gone or already carries the whole mark.
     /// </summary>
     /// <remarks>
-    /// The card handed here is the copy the session queued, which can be a whole session old by the
-    /// time the reader undoes anything. Writing all of it would carry that copy's deck, text and
-    /// attachments back over whatever the card has become since, so an edit or a deck move made
-    /// during the session would quietly disappear on an undo. Only the two fields marking a leech
-    /// are restored; the modified time stays as it is, because the row really did change twice.
+    /// The session only ever holds the copy of the card it queued, which can be a whole sitting old
+    /// by the time a grade crosses the threshold. Writing that copy back would carry its text, deck,
+    /// flag and attachments over whatever the card has become since, so the mark is applied to the
+    /// stored row inside the same transaction as the grade and nothing else on the row moves.
     /// </remarks>
-    private async Task LiftLeechAsync(SqliteConnection conn, SqliteTransaction tx, Flashcard restoredCard, CancellationToken ct)
+    private async Task<FlashcardLeechMark?> MarkLeechAsync(SqliteConnection conn, SqliteTransaction tx, string cardId, FlashcardLeechAction action, DateTimeOffset now, CancellationToken ct)
     {
-        var current = await _cards.GetAsync(conn, restoredCard.Id, ct).ConfigureAwait(false);
+        var current = await _cards.GetAsync(conn, cardId, ct).ConfigureAwait(false);
         if (current is null)
-            return;
+            return null;
 
-        await _cards.UpdateAsync(conn, tx, current with
-        {
-            Tags = restoredCard.Tags,
-            State = restoredCard.State,
-        }, ct).ConfigureAwait(false);
+        var applied = FlashcardLeech.Apply(current, action, now);
+        if (applied is null)
+            return null;
+
+        await _cards.UpdateAsync(conn, tx, applied.Value.Card, ct).ConfigureAwait(false);
+        return applied.Value.Mark;
     }
 
     /// <summary>
-    /// Puts the rest of a card's material on hold, or lets it back in when <paramref name="until"/>
-    /// is null. A card with no material has no siblings and nothing happens.
+    /// Takes the parts of a leech mark the grade added back off the card as it is stored right now,
+    /// and nothing else.
     /// </summary>
-    private async Task SetSiblingsBuriedAsync(SqliteConnection conn, SqliteTransaction tx, string cardId, DateTimeOffset? until, CancellationToken ct)
+    /// <remarks>
+    /// Undo can come a whole sitting after the grade, so the card is read again rather than restored
+    /// from the copy the session queued; an edit, a deck move or a tag added in between stays. The
+    /// modified time stays as it is too, because the row really did change twice.
+    /// </remarks>
+    private async Task LiftLeechAsync(SqliteConnection conn, SqliteTransaction tx, string cardId, FlashcardLeechMark mark, CancellationToken ct)
+    {
+        var current = await _cards.GetAsync(conn, cardId, ct).ConfigureAwait(false);
+        if (current is null)
+            return;
+
+        await _cards.UpdateAsync(conn, tx, FlashcardLeech.Lift(current, mark), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Puts the rest of a card's material on hold and reports which siblings the hold is new for.
+    /// A sibling an earlier grade already holds keeps that hold, so an undo of this grade cannot
+    /// lift it. A card with no material has no siblings and nothing happens.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> HoldSiblingsAsync(SqliteConnection conn, SqliteTransaction tx, string cardId, DateTimeOffset now, DateTimeOffset until, CancellationToken ct)
     {
         var siblings = await _facts.GetSiblingIdsAsync(conn, cardId, ct).ConfigureAwait(false);
-        if (siblings.Count > 0)
-            await _schedules.SetBuriedAsync(conn, tx, siblings, until, ct).ConfigureAwait(false);
+        return siblings.Count > 0
+            ? await _schedules.HoldAsync(conn, tx, siblings, now, until, ct).ConfigureAwait(false)
+            : Array.Empty<string>();
     }
 
     /// <summary>

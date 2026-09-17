@@ -171,6 +171,49 @@ public sealed class FlashcardBuryTests
     }
 
     [Fact]
+    public async Task Undo_lets_a_held_card_back_in_even_when_the_sitting_never_had_it()
+    {
+        await using var h = new FlashcardStoreHarness(Now);
+        var deckId = await SeedAsync(h);
+        await AddPairAsync(h, deckId, "fact-1", "a1", "a2");
+        // a2 is on a learning step half an hour out, so the sitting draws a1 alone.
+        await h.Store.WriteAsync((conn, tx, ct) => h.Schedules.UpsertAsync(conn, tx,
+            new FlashcardSchedule("a2", Now.AddMinutes(30), null, null, 1, 0, FlashcardFsrsState.Learning, 1, Now.AddMinutes(-1)), ct));
+
+        var session = await Study(h).StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        Assert.Equal(1, session.Progress.Total);
+        await session.GradeAsync(FlashcardReviewGrade.Good);
+        Assert.True((await ScheduleOfAsync(h, "a2")).IsBuriedAt(Now.AddMinutes(31)));
+
+        Assert.True(await session.UndoAsync());
+
+        // The hold was written by a grade that no longer exists, so a2 is back on its step.
+        Assert.False((await ScheduleOfAsync(h, "a2")).IsBuriedAt(Now.AddMinutes(31)));
+    }
+
+    [Fact]
+    public async Task Undo_of_a_later_grade_keeps_the_hold_an_earlier_grade_placed()
+    {
+        await using var h = new FlashcardStoreHarness(Now);
+        var deckId = await SeedAsync(h);
+        await AddPairAsync(h, deckId, "fact-1", "a1", "a2");
+
+        var session = await Study(h).StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Review));
+        // The first grade takes a1 to its learning step and holds a2 back.
+        await session.GradeAsync(FlashcardReviewGrade.Good);
+        Assert.Equal("a1", session.Current!.Card.Id);
+        Assert.True((await ScheduleOfAsync(h, "a2")).IsBuriedAt(Now.AddMinutes(31)));
+
+        // The second grade on the same card finds a2 already held and adds no hold of its own.
+        await session.GradeAsync(FlashcardReviewGrade.Good);
+        Assert.True(await session.UndoAsync());
+
+        // The first grade still stands, and so does the hold it placed.
+        Assert.True((await ScheduleOfAsync(h, "a2")).IsBuriedAt(Now.AddMinutes(31)));
+        Assert.Equal("a1", session.Current!.Card.Id);
+    }
+
+    [Fact]
     public async Task A_card_with_no_material_behind_it_holds_nothing_back()
     {
         await using var h = new FlashcardStoreHarness(Now);
@@ -228,6 +271,9 @@ public sealed class FlashcardBuryTests
             order++;
         }
     }
+
+    private static async Task<FlashcardSchedule> ScheduleOfAsync(FlashcardStoreHarness h, string cardId) =>
+        (await h.Store.ReadAsync((conn, ct) => h.Schedules.GetAsync(conn, cardId, ct)))!;
 
     private static FlashcardStudyService Study(FlashcardStoreHarness h) =>
         new(h.Store, h.Decks, h.Schedules, h.Presets, h.Reviews, h.DailyStats, h.Cards, h.Facts, new FsrsScheduler(h.Clock), h.Clock);

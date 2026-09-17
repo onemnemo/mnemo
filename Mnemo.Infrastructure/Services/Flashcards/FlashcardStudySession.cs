@@ -83,8 +83,8 @@ internal sealed class FlashcardStudySession : IFlashcardSession
 
         // Cram writes nothing, so it cannot mark a leech either. A card the reader is drilling
         // outside its schedule has not lapsed in any sense the scheduler tracks.
-        var leeched = WritesSchedule
-            ? FlashcardLeech.Evaluate(current.Card, current.Schedule, updatedSchedule, _preset, now)
+        var leech = WritesSchedule
+            ? FlashcardLeech.Evaluate(current.Schedule, updatedSchedule, _preset)
             : null;
 
         // Answering one card off a piece of material is enough for one day: the rest of it would
@@ -94,7 +94,7 @@ internal sealed class FlashcardStudySession : IFlashcardSession
             ? _clock.DueAfterDays(now, 1, _preset.DayStartHour)
             : (DateTimeOffset?)null;
 
-        long reviewId = 0;
+        FlashcardReviewReceipt? receipt = null;
         var localDay = _clock.KeyFor(now, _preset.DayStartHour);
         if (WritesSchedule)
         {
@@ -106,7 +106,7 @@ internal sealed class FlashcardStudySession : IFlashcardSession
             var log = new FlashcardReviewLog(FlashcardReviewLog.Unassigned, current.Card.Id, DeckId, _sessionId,
                 grade, now, elapsedDays, scheduledDays, updatedSchedule.Stability, updatedSchedule.Difficulty,
                 current.Schedule.FsrsState, updatedSchedule.FsrsState);
-            reviewId = await _service.RecordReviewAsync(new FlashcardReviewEntry(updatedSchedule, log, wasNew, localDay, leeched, buryUntil), cancellationToken).ConfigureAwait(false);
+            receipt = await _service.RecordReviewAsync(new FlashcardReviewEntry(updatedSchedule, log, wasNew, localDay, leech, buryUntil), cancellationToken).ConfigureAwait(false);
         }
 
         _queue.RemoveAt(0);
@@ -116,9 +116,12 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         var stepping = updatedSchedule.FsrsState is FlashcardFsrsState.Learning or FlashcardFsrsState.Relearning;
         // A card just suspended for lapsing too often does not come back on its relearning step:
         // the whole point of suspending it was that another repetition is not the answer.
-        var suspended = leeched?.State == FlashcardCardState.Suspended;
+        var suspended = leech == FlashcardLeechAction.Suspend;
         var requeued = stepping && !suspended && updatedSchedule.DueDate - now <= LearnAhead;
-        var updatedView = current with { Schedule = updatedSchedule, Card = leeched ?? current.Card };
+        // The copy this sitting keeps showing carries the mark too, so a requeued card reads the
+        // way the stored one now does.
+        var markedCard = leech is { } action ? FlashcardLeech.Apply(current.Card, action, now)?.Card : null;
+        var updatedView = current with { Schedule = updatedSchedule, Card = markedCard ?? current.Card };
         if (requeued)
             _queue.Insert(NextStepPosition(updatedSchedule.DueDate, now), updatedView);
         else
@@ -128,7 +131,7 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         // rather than one that can never finish.
         _total -= buried.Length;
 
-        _undo.Push(new UndoRecord(current, reviewId, wasNew, localDay, requeued, leeched is not null, buried));
+        _undo.Push(new UndoRecord(current, receipt?.ReviewId ?? 0, wasNew, localDay, requeued, receipt?.Leech, receipt?.SiblingsHeld ?? Array.Empty<string>(), buried));
     }
 
     /// <summary>
@@ -179,9 +182,11 @@ internal sealed class FlashcardStudySession : IFlashcardSession
             return false;
 
         var record = _undo.Pop();
+        // The store's hold covers every card off the material, whether or not this sitting had
+        // it in the queue, so the lift follows the receipt rather than the queue.
         if (WritesSchedule && record.ReviewId > 0)
             await _service.UndoReviewAsync(DeckId, record.Before.Schedule, record.ReviewId, record.LocalDay, record.WasNew,
-                record.Leeched ? record.Before.Card : null, record.Buried.Length > 0, cancellationToken).ConfigureAwait(false);
+                record.Leech, record.SiblingsHeld, cancellationToken).ConfigureAwait(false);
 
         // Remove the post-grade copy of the card (if it was requeued) and restore the pre-grade card to the front.
         var idx = _queue.FindIndex(v => string.Equals(v.Card.Id, record.Before.Card.Id, StringComparison.Ordinal));
@@ -203,5 +208,12 @@ internal sealed class FlashcardStudySession : IFlashcardSession
     /// <summary>A card taken out of the queue for its material, and the place it came out of.</summary>
     private readonly record struct BuriedCard(int Position, FlashcardView View);
 
-    private sealed record UndoRecord(FlashcardView Before, long ReviewId, bool WasNew, string LocalDay, bool Requeued, bool Leeched, BuriedCard[] Buried);
+    /// <summary>
+    /// One grade as it has to be taken back. <paramref name="Leech"/> is the mark the store put on
+    /// the card, if any. <paramref name="SiblingsHeld"/> is the siblings the store put on hold for
+    /// this grade, which is independent of <paramref name="Buried"/>: a sibling on a step later in
+    /// the day, or past a daily cap, is held in the store without ever being in the queue, and a
+    /// sibling an earlier grade already held is out of the queue but not in this list.
+    /// </summary>
+    private sealed record UndoRecord(FlashcardView Before, long ReviewId, bool WasNew, string LocalDay, bool Requeued, FlashcardLeechMark? Leech, IReadOnlyList<string> SiblingsHeld, BuriedCard[] Buried);
 }

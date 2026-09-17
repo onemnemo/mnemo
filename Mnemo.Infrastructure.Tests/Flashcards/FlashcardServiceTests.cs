@@ -145,7 +145,7 @@ public sealed class FlashcardServiceTests
                 FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review, FlashcardFsrsState.Review),
             IntroducedNewCard: true,
             LocalDay: "2026-07-06");
-        var id = await study.RecordReviewAsync(entry);
+        var id = (await study.RecordReviewAsync(entry)).ReviewId;
 
         Assert.True(id > 0);
         var sched = await h.Store.ReadAsync((c, ct) => h.Schedules.GetAsync(c, card.Id, ct));
@@ -225,7 +225,7 @@ public sealed class FlashcardServiceTests
             new FlashcardSchedule(card.Id, now.AddDays(3), 6, 5, 3, 0, FlashcardFsrsState.Review, 0, now),
             new FlashcardReviewLog(FlashcardReviewLog.Unassigned, card.Id, deckId, "s1", FlashcardReviewGrade.Good, now, 0, 3, 6, 5, FlashcardFsrsState.Review, FlashcardFsrsState.Review),
             true, "2026-07-06");
-        var id = await study.RecordReviewAsync(entry);
+        var id = (await study.RecordReviewAsync(entry)).ReviewId;
         var afterGrade = await h.Store.ReadAsync((c, ct) => h.DailyStats.GetAsync(c, deckId, "2026-07-06", ct));
         Assert.Equal(1, afterGrade.ReviewsDone);
 
