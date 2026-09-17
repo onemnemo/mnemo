@@ -84,6 +84,7 @@ describe("a card from the browse table", () => {
       onFlag: () => {},
       onSuspend: () => {},
       onMove: () => {},
+      onReschedule: () => {},
       onDelete: () => {},
     } satisfies BrowseRowActions
 

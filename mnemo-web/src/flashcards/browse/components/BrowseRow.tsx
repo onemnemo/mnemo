@@ -24,6 +24,7 @@ export interface BrowseRowActions {
   onFlag: (id: string, value: boolean) => void
   onSuspend: (id: string, value: boolean) => void
   onMove: (id: string, targetDeckId: string) => void
+  onReschedule: (id: string) => void
   onDelete: (id: string) => void
 }
 
@@ -183,6 +184,9 @@ export function BrowseRow({
         </ContextMenuItem>
         <ContextMenuItem icon="common/pause" onSelect={() => actions.onSuspend(card.id, !suspended)}>
           {fc("RowSuspendToggle")}
+        </ContextMenuItem>
+        <ContextMenuItem icon="clock" onSelect={() => actions.onReschedule(card.id)}>
+          {fc("RowReschedule")}
         </ContextMenuItem>
         {rowMoveTargets.length > 0 ? (
           <ContextMenuSubMenu label={fc("MoveToDeck")} icon="common/folder">

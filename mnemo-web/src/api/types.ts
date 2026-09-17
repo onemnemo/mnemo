@@ -282,6 +282,36 @@ export interface CardPageDto {
   limit: number
 }
 
+// The reschedule batch bodies. Mirror Mnemo.Host/Contracts/FlashcardRescheduleDto.cs.
+
+/** Mirrors SetCardsDueDto. `days` counts study days from today, zero being today. */
+export interface SetCardsDueDto {
+  cardIds: string[]
+  days: number
+  /** Also rewrite each card's stability so the new spacing is the one the scheduler believes in. */
+  matchInterval: boolean
+}
+
+/** Mirrors ResetCardsDto. With `keepCounts` off the reps and lapses are zeroed; the review log is kept either way. */
+export interface ResetCardsDto {
+  cardIds: string[]
+  keepCounts: boolean
+}
+
+export type QueuePlace = "start" | "end" | "at"
+
+/** Mirrors RepositionCardsDto. `position` is one-based and read only for "at". */
+export interface RepositionCardsDto {
+  cardIds: string[]
+  place: QueuePlace
+  position: number | null
+}
+
+/** Mirrors NewQueueDto: how many active new cards a deck's queue holds. */
+export interface NewQueueDto {
+  count: number
+}
+
 // Study session shapes. The session lives on the server; the client names it by id and
 // re-renders from the whole state every call returns.
 

@@ -67,6 +67,7 @@ import {
   Library,
   List,
   ListFilter,
+  ListOrdered,
   Sigma,
   Omega,
   Underline,
@@ -216,6 +217,8 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   flame: Flame,
   "calendar-days": CalendarDays,
   "calendar-clock": CalendarClock,
+  // A place in the new queue, in the reschedule dialog's mode switch.
+  "list-ordered": ListOrdered,
   target: Target,
   "trending-up": TrendingUp,
   "trending-down": TrendingDown,

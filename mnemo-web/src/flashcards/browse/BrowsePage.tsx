@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react"
 
+import type { CardViewDto } from "@/api/types"
 import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useT } from "@/i18n/useT"
+import { toast } from "@/stores/toast"
 import { useUndoDelete } from "@/trash/undo"
 
 import { useDecksQuery, useFoldersQuery } from "../api"
@@ -14,6 +16,7 @@ import { useCardTypesQuery } from "../facts/api"
 import { PAGE_SIZE, SEARCH_DEBOUNCE_MS } from "../deck/cards"
 import { lapsesBounds } from "../deck/filters"
 import { SelectionBar } from "../deck/components/SelectionBar"
+import { RescheduleDialog } from "../reschedule/RescheduleDialog"
 import {
   useBrowseCardsQuery,
   useBrowseDeleteCards,
@@ -54,6 +57,8 @@ export function BrowsePage() {
   const openEdit = useCardEditor((s) => s.openEdit)
 
   const [peekId, setPeekId] = useState<string | null>(null)
+  // The cards the reschedule dialog is open for, or null while it is closed.
+  const [rescheduling, setRescheduling] = useState<CardViewDto[] | null>(null)
 
   // Debounced so a fast typist issues one request, not one per keystroke.
   useEffect(() => {
@@ -123,6 +128,18 @@ export function BrowsePage() {
     undo(action)
   }
 
+  const rescheduleRow = (cardId: string) => {
+    const view = page?.items.find((item) => item.card.id === cardId)
+    if (view) setRescheduling([view])
+  }
+
+  // The toast repeats the dialog's own sentence rather than inventing a second, shorter one
+  // that could drift out of agreement with it.
+  const rescheduled = (summary: string) => {
+    toast.success(fc("RescheduleDoneTitle"), { description: summary })
+    if (rescheduling?.some((view) => selected.has(view.card.id))) clearSelection()
+  }
+
   const filtered =
     stateFilter !== "all" ||
     tagFilter !== null ||
@@ -184,6 +201,7 @@ export function BrowsePage() {
                   void run([cardId], suspendCards.mutateAsync({ cardIds: [cardId], value })),
                 onMove: (cardId, targetDeckId) =>
                   void run([cardId], moveCards.mutateAsync({ cardIds: [cardId], targetDeckId })),
+                onReschedule: rescheduleRow,
                 onDelete: (cardId) => void removeCards([cardId]),
               }}
             />
@@ -233,9 +251,14 @@ export function BrowsePage() {
           onTag={(tag) => void run(selectedIds, tagCards.mutateAsync({ cardIds: selectedIds, tag }))}
           onSuspend={(value) => void run(selectedIds, suspendCards.mutateAsync({ cardIds: selectedIds, value }))}
           onFlag={(value) => void run(selectedIds, flagCards.mutateAsync({ cardIds: selectedIds, value }))}
+          onReschedule={() => setRescheduling(selectedViews)}
           onDelete={() => void removeCards(selectedIds)}
           onClear={clearSelection}
         />
+      ) : null}
+
+      {rescheduling ? (
+        <RescheduleDialog views={rescheduling} onClose={() => setRescheduling(null)} onApplied={rescheduled} />
       ) : null}
     </div>
   )

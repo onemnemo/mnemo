@@ -23,6 +23,7 @@ export function SelectionBar({
   onTag,
   onSuspend,
   onFlag,
+  onReschedule,
   onDelete,
   onClear,
 }: {
@@ -34,6 +35,7 @@ export function SelectionBar({
   onTag: (tag: string) => void
   onSuspend: (value: boolean) => void
   onFlag: (value: boolean) => void
+  onReschedule: () => void
   onDelete: () => void
   onClear: () => void
 }) {
@@ -117,6 +119,14 @@ export function SelectionBar({
           onClick={() => onFlag(!allFlagged)}
         >
           {fc(allFlagged ? "BatchUnflag" : "BatchFlag")}
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-7"
+          icon={<AppIcon name="clock" size={14} strokeWidth={1.7} />}
+          onClick={onReschedule}
+        >
+          {fc("BatchReschedule")}
         </Button>
 
         <Divider />
