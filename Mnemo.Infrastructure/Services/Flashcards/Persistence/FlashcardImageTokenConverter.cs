@@ -13,8 +13,8 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 /// text again.
 /// </summary>
 /// <remarks>
-/// Per the migration spec: a token whose path resolves to an existing file on disk becomes an
-/// attachment and is stripped from the text; a token whose path does not resolve is left inline
+/// A token whose path resolves to an existing file on disk becomes an attachment and is
+/// stripped from the text; a token whose path does not resolve is left inline
 /// (never silently dropped) and reported via <see cref="FlashcardImageTokenConversionResult.Warnings"/>.
 /// Each side is capped at <see cref="MaxAttachmentsPerSide"/> attachments, matching
 /// <c>IFlashcardCardService.MaxAttachmentsPerSide</c>, so callers can pass the result straight into
@@ -27,10 +27,12 @@ public static class FlashcardImageTokenConverter
 
     /// <summary>
     /// Matches <c>![alt](path){align=left|center|right}</c>, the legacy embedded-image token grammar
-    /// injected by <c>RichDocumentEditor</c> into blob-era card text.
+    /// injected by <c>RichDocumentEditor</c> into blob-era card text. The path may hold one level
+    /// of balanced brackets: a Windows profile directory such as <c>alice (2)</c> is ordinary, and
+    /// closing the token on the first bracket would leave the tail of such a path loose in the text.
     /// </summary>
     private static readonly Regex ImageTokenPattern = new(
-        @"!\[(?<alt>[^\]]*)\]\((?<path>[^)]+)\)(?:\{align=(?<align>left|center|right)\})?",
+        @"!\[(?<alt>[^\]]*)\]\((?<path>(?:[^()]|\([^()]*\))+)\)(?:\{align=(?<align>left|center|right)\})?",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     /// <summary>Collapses runs of 3+ blank lines left behind after a token is stripped down to at most one.</summary>
