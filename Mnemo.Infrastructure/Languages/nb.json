@@ -608,6 +608,8 @@
     "CrashReturnToOverview": "Tilbake til oversikten",
     "CrashShowDetails": "Vis detaljer",
     "CrashHideDetails": "Skjul detaljer",
+    "RouteCrashTitle": "Denne siden støtte på et problem",
+    "RouteCrashHint": "Resten av Mnemo virker fortsatt. Velg en annen side i sidepanelet, eller last inn på nytt.",
     "UnhandledFaultTitle": "Noe gikk galt",
     "MutationErrorTitle": "Denne endringen kunne ikke lagres",
     "LegacyInstallWarningTitle": "En eldre versjon av Mnemo er fortsatt installert",

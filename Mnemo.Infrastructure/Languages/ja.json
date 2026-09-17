@@ -608,6 +608,8 @@
     "CrashReturnToOverview": "概要に戻る",
     "CrashShowDetails": "詳細を表示",
     "CrashHideDetails": "詳細を隠す",
+    "RouteCrashTitle": "このページで問題が発生しました",
+    "RouteCrashHint": "Mnemoの他の部分は引き続き使えます。サイドバーから別のページを選ぶか、再読み込みしてください。",
     "UnhandledFaultTitle": "問題が発生しました",
     "MutationErrorTitle": "この変更を保存できませんでした",
     "LegacyInstallWarningTitle": "以前のMnemoがまだインストールされています",

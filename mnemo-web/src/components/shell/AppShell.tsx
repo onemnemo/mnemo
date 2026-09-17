@@ -1,5 +1,7 @@
+import { forgetRouteMemory } from "@/app/route-memory"
 import { useHashRoute } from "@/app/router"
 import { resolveRoute } from "@/app/routes"
+import { RouteErrorBoundary } from "@/components/error/RouteErrorBoundary"
 import { SomaDock } from "@/components/shell/dock/SomaDock"
 import { ResizeEdges } from "@/components/shell/chrome/ResizeEdges"
 import { Sidebar } from "@/components/shell/sidebar/Sidebar"
@@ -51,7 +53,11 @@ export function AppShell() {
               content, and anything absolutely positioned inside it inherits the
               overflow and runs off the bottom of the window. */}
           <div className="relative min-h-0 min-w-0 flex-1">
-            <main className="h-full overflow-y-auto">{resolved.element}</main>
+            <main className="h-full overflow-y-auto">
+              <RouteErrorBoundary hash={hash} routeKey={resolved.key} onCatch={forgetRouteMemory}>
+                {resolved.element}
+              </RouteErrorBoundary>
+            </main>
             {/* Scoped to the canvas rather than the window, so a toast can only
                 ever cover a module's own content, never the rail, the titlebar
                 or the dock. */}

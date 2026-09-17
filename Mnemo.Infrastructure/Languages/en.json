@@ -608,6 +608,8 @@
     "CrashReturnToOverview": "Return to overview",
     "CrashShowDetails": "Show details",
     "CrashHideDetails": "Hide details",
+    "RouteCrashTitle": "This page ran into a problem",
+    "RouteCrashHint": "The rest of Mnemo still works. Pick another page from the sidebar, or reload.",
     "UnhandledFaultTitle": "Something went wrong",
     "MutationErrorTitle": "That change could not be saved",
     "LegacyInstallWarningTitle": "An older Mnemo is still installed",
