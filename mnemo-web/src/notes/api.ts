@@ -36,12 +36,17 @@ function json(body: unknown): RequestInit {
  *
  * `enabled` is for the surfaces that only sometimes need the list: a mindmap resolves note
  * references against it, and a map with no note nodes should not be paying for the whole corpus.
+ *
+ * `staleTime` is for the surfaces that read the list rather than own it: with it set, a
+ * mount reuses whatever the tree has kept warm instead of fetching the corpus again, and a
+ * mutation's invalidation still refetches. A cold cache asks once either way.
  */
-export function useNotesQuery(enabled = true) {
+export function useNotesQuery(enabled = true, options: { staleTime?: number } = {}) {
   return useQuery<NoteSummaryDto[], ApiError>({
     queryKey: noteListKey,
     queryFn: () => apiFetch<NoteSummaryDto[]>("/notes"),
     enabled,
+    staleTime: options.staleTime,
   })
 }
 

@@ -24,11 +24,18 @@ import { PEEK_MAX_WIDTH, usePeekStore } from "./store"
 
 const mocks = vi.hoisted(() => ({
   notes: [] as { id: string; title: string }[],
+  // The list's age, which the subject compares to tell a refreshed list from the one it opened on.
+  updatedAt: 1,
   bodyKeys: [] as string[],
 }))
 
 vi.mock("@/notes/api", () => ({
-  useNotesQuery: () => ({ data: mocks.notes, isSuccess: true }),
+  useNotesQuery: () => ({
+    data: mocks.notes,
+    isSuccess: true,
+    dataUpdatedAt: mocks.updatedAt,
+    refetch: () => Promise.resolve(),
+  }),
 }))
 
 // The renderers are lazily loaded and each pulls a module's whole world. What the panel
@@ -294,6 +301,7 @@ describe("an item that changes underneath the reader", () => {
     expect(panel()).not.toBeNull()
 
     mocks.notes = []
+    mocks.updatedAt += 1
     act(() => usePeekStore.getState().refreshPeek())
 
     expect(usePeekStore.getState().item).toBeNull()
@@ -386,6 +394,7 @@ describe("focus on the way out", () => {
     expect(document.activeElement).toBe(editor)
 
     mocks.notes = []
+    mocks.updatedAt += 1
     act(() => usePeekStore.getState().refreshPeek())
 
     expect(usePeekStore.getState().item).toBeNull()
