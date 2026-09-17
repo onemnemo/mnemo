@@ -16,6 +16,11 @@ class NoopResizeObserver implements ResizeObserver {
 
 globalThis.ResizeObserver ??= NoopResizeObserver as unknown as typeof ResizeObserver
 
+// Component tests drive React through `act`, which only guarantees to flush effects and
+// microtasks when the environment declares itself one. Without the flag React stays quiet while
+// a file is green and prints its warning under the first failing test, where it reads as a cause.
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
 // Most test files run in vitest's default node environment and never load jsdom at all, so this
 // guards against the DOM globals not existing rather than assuming every file opts into jsdom.
 if (typeof HTMLElement !== "undefined") {
