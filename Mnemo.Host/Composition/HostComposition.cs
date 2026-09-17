@@ -35,7 +35,6 @@ using Mnemo.Infrastructure.Services.ProfileBackup;
 using Mnemo.Infrastructure.Services.Search;
 using Mnemo.Infrastructure.Services.Spellcheck;
 using Mnemo.Infrastructure.Services.Statistics;
-using Mnemo.Infrastructure.Services.TextShortcuts;
 using Mnemo.Infrastructure.Services.Tools;
 using Mnemo.Infrastructure.Services.Trash;
 using Mnemo.Infrastructure.Services.Updates;
@@ -135,7 +134,6 @@ public static class HostComposition
         // highlighting and clipboard handling.
         services.AddSingleton<INoteClipboardPayloadCodec, NoteClipboardPayloadCodec>();
         services.AddSingleton<IImageAssetService, ImageAssetService>();
-        services.AddSingleton<ITextShortcutService, TextShortcutService>();
         services.AddSingleton<ISpellDictionaryCatalogService, SpellDictionaryCatalogService>();
         services.AddSingleton<IUserSpellbookService, UserSpellbookService>();
         services.AddSingleton<ISpellcheckService, HunspellSpellcheckService>();
