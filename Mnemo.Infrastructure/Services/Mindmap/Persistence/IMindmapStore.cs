@@ -38,6 +38,13 @@ public interface IMindmapStore
     /// <summary>Full-text search within one map, returning matching element ids and their indexed text.</summary>
     Task<IReadOnlyList<MindmapSearchHit>> SearchAsync(string mapId, string query, int limit, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Full-text search across every live map, for the global search. Answers one hit per map that
+    /// holds any of the query's words, the first matching node of each, and nothing for a held map
+    /// or an empty query. The limit bounds maps.
+    /// </summary>
+    Task<IReadOnlyList<MindmapSearchMatch>> SearchAllAsync(string query, int limit, CancellationToken cancellationToken = default);
+
     /// <summary>Loads every map's full document plus its library metadata (folder + linked decks).</summary>
     Task<IReadOnlyList<MindmapLibraryEntry>> GetLibraryAsync(CancellationToken cancellationToken = default);
 

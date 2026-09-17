@@ -3,6 +3,7 @@ using System.Linq;
 using Mnemo.Core.Models.Keybinds;
 using Mnemo.Core.Services;
 using Mnemo.Core.Services.Keybinds;
+using Mnemo.Core.Services.Search;
 using Microsoft.Extensions.DependencyInjection;
 using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Mindmap;
@@ -10,14 +11,15 @@ using Mnemo.Infrastructure.Services.Mindmap.Layout;
 using Mnemo.Infrastructure.Services.Mindmap.Persistence;
 using Mnemo.Infrastructure.Services.Mindmap.Style;
 using Mnemo.Infrastructure.Services.Mindmap.Tools;
+using Mnemo.Infrastructure.Services.Search;
 using Mnemo.Infrastructure.Services.Tools;
 
 namespace Mnemo.Infrastructure.Modules.Mindmap;
 
 /// <summary>
 /// Schema v2 mindmap module: registers the document store and service, the layout engine, the
-/// style cascade, the translations, the navigation entry, the assistant's map tools and the
-/// canvas chords. The canvas editor itself is registered by the Avalonia half of this module.
+/// style cascade, the search provider, the translations, the navigation entry, the assistant's map
+/// tools and the canvas chords.
 /// </summary>
 public sealed class MindmapBackendModule : IModule
 {
@@ -25,6 +27,7 @@ public sealed class MindmapBackendModule : IModule
     {
         services.AddSingleton<IMindmapStore, MindmapStore>();
         services.AddSingleton<IMindmapService, MindmapDocumentService>();
+        services.AddSingleton<ISearchProvider, MindmapSearchProvider>();
 
         // Layout engine: the six built-in algorithms plus the dispatching service.
         services.AddSingleton<IMindmapLayoutProvider, BalancedLayoutProvider>();

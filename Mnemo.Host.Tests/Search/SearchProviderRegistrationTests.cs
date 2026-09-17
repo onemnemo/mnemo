@@ -7,18 +7,32 @@ using Mnemo.Infrastructure.Services.Search;
 namespace Mnemo.Host.Tests.Search;
 
 /// <summary>
-/// <see cref="FlashcardsSearchProvider"/> and <see cref="DecksSearchProvider"/> are not
-/// registered by the Host directly. They come in through <c>FlashcardsModule.ConfigureServices</c>,
-/// replayed by the same module-discovery loop <c>HostWidgetRegistryTests</c> exercises for
-/// widgets (see <c>HostComposition.AddMnemoBackend</c> section 3). A change to the module, or to
-/// which assemblies discovery scans, would silently drop the flashcards and decks groups from
-/// every search result without any endpoint failing, since <c>NavigationSearchProvider</c> alone
-/// is enough to keep <c>/api/search</c> returning 200s.
+/// <see cref="FlashcardsSearchProvider"/>, <see cref="DecksSearchProvider"/> and
+/// <see cref="MindmapSearchProvider"/> are not registered by the Host directly. They come in through
+/// their modules' <c>ConfigureServices</c>, replayed by the same module-discovery loop
+/// <c>HostWidgetRegistryTests</c> exercises for widgets (the module loop in
+/// <c>HostComposition.AddMnemoBackend</c>). A change to a module, or to which assemblies discovery scans, would silently drop
+/// that group from every search result without any endpoint failing, since
+/// <c>NavigationSearchProvider</c> alone is enough to keep <c>/api/search</c> returning 200s.
 /// </summary>
 public sealed class SearchProviderRegistrationTests
 {
     [Fact]
     public void TheModuleReplayRegistersFlashcardsAndDecksSearchProviders()
+    {
+        var providerTypes = RegisteredProviderTypes();
+
+        Assert.Contains(typeof(FlashcardsSearchProvider), providerTypes);
+        Assert.Contains(typeof(DecksSearchProvider), providerTypes);
+    }
+
+    [Fact]
+    public void TheModuleReplayRegistersTheMindmapSearchProvider()
+    {
+        Assert.Contains(typeof(MindmapSearchProvider), RegisteredProviderTypes());
+    }
+
+    private static List<Type?> RegisteredProviderTypes()
     {
         var modules = HostComposition.DiscoverModules(out var failures);
         Assert.Empty(failures);
@@ -28,12 +42,9 @@ public sealed class SearchProviderRegistrationTests
         foreach (var module in modules)
             module.ConfigureServices(registrar);
 
-        var providerTypes = services
+        return services
             .Where(d => d.ServiceType == typeof(ISearchProvider))
             .Select(d => d.ImplementationType)
             .ToList();
-
-        Assert.Contains(typeof(FlashcardsSearchProvider), providerTypes);
-        Assert.Contains(typeof(DecksSearchProvider), providerTypes);
     }
 }

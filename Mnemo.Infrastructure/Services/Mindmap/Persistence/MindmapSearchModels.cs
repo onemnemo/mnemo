@@ -9,6 +9,9 @@ public sealed record MindmapSearchEntry(string ElementId, string Text);
 /// <summary>A match returned from an in-map FTS query.</summary>
 public sealed record MindmapSearchHit(string ElementId, string Text);
 
+/// <summary>A match returned from a cross-map FTS query, which has to say which map it came from.</summary>
+public sealed record MindmapSearchMatch(string MapId, string ElementId, string Text);
+
 /// <summary>
 /// The incremental change to a document's FTS mirror produced by one commit. For a full document write
 /// (create, import, repair) set <see cref="FullReplace"/> and list every element in <see cref="Upserts"/>;

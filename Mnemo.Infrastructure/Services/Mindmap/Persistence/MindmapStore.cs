@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -195,39 +194,6 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
             cmd.Parameters.AddWithValue("$id", id);
             await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }, cancellationToken);
-
-    public async Task<IReadOnlyList<MindmapSearchHit>> SearchAsync(string mapId, string query, int limit, CancellationToken cancellationToken = default)
-    {
-        await InitializeAsync(cancellationToken).ConfigureAwait(false);
-
-        var match = BuildMatchQuery(query);
-        if (match is null)
-            return Array.Empty<MindmapSearchHit>();
-
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await ApplyPragmasAsync(connection, isWriter: false, cancellationToken).ConfigureAwait(false);
-
-        await using var cmd = connection.CreateCommand();
-        // The FTS mirror keeps a held map's rows so that restoring one does not have to rebuild the
-        // index, so search joins the document row to answer only for a map the library still shows.
-        cmd.CommandText = """
-            SELECT s.ElementId, s.Text FROM MindmapSearch s
-            JOIN Mindmaps m ON m.Id = s.MapId
-            WHERE s.MapId = $map AND s.Text MATCH $q AND m.TrashId IS NULL
-            LIMIT $limit;
-            """;
-        cmd.Parameters.AddWithValue("$map", mapId);
-        cmd.Parameters.AddWithValue("$q", match);
-        cmd.Parameters.AddWithValue("$limit", limit <= 0 ? 50 : limit);
-
-        var hits = new List<MindmapSearchHit>();
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            hits.Add(new MindmapSearchHit(reader.GetString(0), reader.GetString(1)));
-
-        return hits;
-    }
 
     // ---- Library organization (folders, folder membership, linked decks) ------------------------
 
@@ -636,44 +602,6 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = sql;
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Turns a user query into a safe FTS5 MATCH expression: each whitespace token becomes a quoted phrase
-    /// (embedded quotes doubled) joined by implicit AND, so punctuation can never break FTS5 syntax.
-    /// Returns null when the query has no searchable tokens.
-    /// </summary>
-    private static string? BuildMatchQuery(string query)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            return null;
-
-        var tokens = query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-
-        var builder = new StringBuilder();
-        foreach (var token in tokens)
-        {
-            // Skip pure-punctuation tokens: the FTS5 tokenizer would reduce them to an empty phrase.
-            if (!ContainsLetterOrDigit(token))
-                continue;
-
-            if (builder.Length > 0)
-                builder.Append(' ');
-            builder.Append('"').Append(token.Replace("\"", "\"\"")).Append('"');
-        }
-
-        return builder.Length == 0 ? null : builder.ToString();
-    }
-
-    private static bool ContainsLetterOrDigit(string token)
-    {
-        foreach (var c in token)
-        {
-            if (char.IsLetterOrDigit(c))
-                return true;
-        }
-
-        return false;
     }
 
     /// <summary>
