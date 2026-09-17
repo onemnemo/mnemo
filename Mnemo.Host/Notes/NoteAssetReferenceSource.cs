@@ -55,20 +55,23 @@ public sealed class NoteAssetReferenceSource : IAssetReferenceSource
 
     public async Task<IReadOnlyCollection<string>> CollectReferencedIdsAsync(CancellationToken cancellationToken = default)
     {
+        // The store answers an absent key with a failure carrying no exception and a read it could
+        // not make with the exception attached. No index means no note was ever saved: an empty
+        // corpus, which references nothing, rather than an unknown one.
         var index = await _storage.LoadAsync<List<string>>(NoteCommitStore.IndexKey).ConfigureAwait(false);
-        if (!index.IsSuccess)
-            throw new InvalidOperationException("The note index could not be read; refusing to sweep against an unknown corpus.");
+        if (!index.IsSuccess && index.Exception is not null)
+            throw new InvalidOperationException("The note index could not be read; refusing to sweep against an unknown corpus.", index.Exception);
 
         var referenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var noteId in index.Value ?? [])
+        foreach (var noteId in (index.IsSuccess ? index.Value : null) ?? [])
         {
             cancellationToken.ThrowIfCancellationRequested();
             var note = await _storage.LoadAsync<Note>(NoteCommitStore.NoteKey(noteId)).ConfigureAwait(false);
-            if (!note.IsSuccess)
-                throw new InvalidOperationException($"Note '{noteId}' could not be read; refusing to sweep against a partly read corpus.");
+            if (!note.IsSuccess && note.Exception is not null)
+                throw new InvalidOperationException($"Note '{noteId}' could not be read; refusing to sweep against a partly read corpus.", note.Exception);
             // Indexed but absent: a delete committed between the two reads, or a torn index.
             // Either way the next sweep sees a consistent state; this one stands down.
-            if (note.Value is null)
+            if (!note.IsSuccess || note.Value is null)
                 throw new InvalidOperationException($"Note '{noteId}' is indexed but missing; refusing to sweep until the corpus reads consistently.");
 
             CollectFromNote(note.Value, referenced);

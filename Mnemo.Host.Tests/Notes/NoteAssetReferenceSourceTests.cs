@@ -152,8 +152,9 @@ public sealed class NoteAssetReferenceSourceTests
     [Fact]
     public async Task ToleratesNotesWithoutBlocksAndAMissingIndex()
     {
-        // A profile with no notes yet has no index row at all; that is a real empty corpus,
-        // not a read failure.
+        // A profile with no notes yet has no index row at all, since the first note save writes
+        // it; a profile whose only uploads belong to mind maps is one. That is a real empty
+        // corpus, not a read failure, and a sweep that refused it would never clean those uploads.
         Assert.Empty(await Source().CollectReferencedIdsAsync());
 
         AddNote("n1");
@@ -191,6 +192,10 @@ public sealed class NoteAssetReferenceSourceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => Source().CollectReferencedIdsAsync());
     }
 
+    /// <summary>
+    /// Keeps the provider's read contract: an absent key fails with no exception, an unreadable
+    /// one fails with the exception attached. The source tells the two apart on exactly that.
+    /// </summary>
     private sealed class FakeStorage : IStorageProvider
     {
         public Dictionary<string, object?> Rows { get; } = [];
@@ -199,9 +204,10 @@ public sealed class NoteAssetReferenceSourceTests
         public Task<Result<T?>> LoadAsync<T>(string key)
         {
             if (FailingKeys.Contains(key))
-                return Task.FromResult(Result<T?>.Failure("simulated read failure"));
-            var value = Rows.TryGetValue(key, out var row) ? (T?)row : default;
-            return Task.FromResult(Result<T?>.Success(value));
+                return Task.FromResult(Result<T?>.Failure("simulated read failure", new IOException("simulated")));
+            return Task.FromResult(Rows.TryGetValue(key, out var row)
+                ? Result<T?>.Success((T?)row)
+                : Result<T?>.Failure("Key not found"));
         }
 
         public Task<Result> SaveAsync<T>(string key, T data) => throw new NotSupportedException();
