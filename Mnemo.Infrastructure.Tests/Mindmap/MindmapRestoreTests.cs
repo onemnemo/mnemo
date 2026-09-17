@@ -76,16 +76,125 @@ public sealed class MindmapRestoreTests
         var undo = MindmapRestoreDelta.Between(after, before);
         Assert.True((await h.Service.RestoreAsync(map.Id, after.Revision, undo)).IsSuccess);
 
+        // Exact order, not a sorted comparison: element order is root order and edge order is sibling
+        // order, so a restore that put the subtree back at the end would be a different document.
         var reverted = await DocAsync(h, map.Id);
-        Assert.Equal(before.Elements.Count, reverted.Elements.Count);
-        Assert.Equal(
-            before.Elements.Select(e => e.Id).OrderBy(x => x),
-            reverted.Elements.Select(e => e.Id).OrderBy(x => x));
-        Assert.Equal(
-            before.Edges.Select(e => e.Id).OrderBy(x => x),
-            reverted.Edges.Select(e => e.Id).OrderBy(x => x));
+        Assert.Equal(before.Elements.Select(e => e.Id), reverted.Elements.Select(e => e.Id));
+        Assert.Equal(before.Edges.Select(e => e.Id), reverted.Edges.Select(e => e.Id));
         // Content survives the round-trip.
         Assert.Equal("Alpha-1", Text(reverted.Elements.Single(e => e.Id != alphaId && Text(e) == "Alpha-1")));
+    }
+
+    [Fact]
+    public async Task Undo_OfDeletingTheFirstChild_PutsItBackAsTheFirstChild()
+    {
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("M", RootWithChildren("A", "B", "C"))).Value!;
+        var before = await DocAsync(h, map.Id);
+        var a = before.Elements.Single(e => Text(e) == "A").Id;
+
+        var del = (await h.Service.ApplyAsync(map.Id, before.Revision, new MindmapEditOp[] { new DeleteOp { Ids = new[] { a } } })).Value!;
+        Assert.True(del.Success);
+        Assert.Equal(new[] { "B", "C" }, ChildTexts(await DocAsync(h, map.Id)));
+
+        Assert.True((await h.Service.RestoreAsync(map.Id, del.Revision, del.Undo!)).Value!.Success);
+
+        // A branch's colour and its place in the next arrange are both its index among the siblings,
+        // so the restored node has to come back first, not last.
+        var reverted = await DocAsync(h, map.Id);
+        Assert.Equal(new[] { "A", "B", "C" }, ChildTexts(reverted));
+        Assert.Equal(before.Elements.Select(e => e.Id), reverted.Elements.Select(e => e.Id));
+        Assert.Equal(before.Edges.Select(e => e.Id), reverted.Edges.Select(e => e.Id));
+    }
+
+    [Fact]
+    public async Task UndoRedoUndo_OfDeletingTheFirstChild_KeepsTheSiblingOrder()
+    {
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("M", RootWithChildren("A", "B", "C"))).Value!;
+        var before = await DocAsync(h, map.Id);
+        var a = before.Elements.Single(e => Text(e) == "A").Id;
+
+        var del = (await h.Service.ApplyAsync(map.Id, before.Revision, new MindmapEditOp[] { new DeleteOp { Ids = new[] { a } } })).Value!;
+        var undone = (await h.Service.RestoreAsync(map.Id, del.Revision, del.Undo!)).Value!;
+        Assert.True(undone.Success);
+        var redone = (await h.Service.RestoreAsync(map.Id, undone.Revision, del.Redo!)).Value!;
+        Assert.True(redone.Success);
+        Assert.Equal(new[] { "B", "C" }, ChildTexts(await DocAsync(h, map.Id)));
+
+        Assert.True((await h.Service.RestoreAsync(map.Id, redone.Revision, del.Undo!)).Value!.Success);
+
+        Assert.Equal(new[] { "A", "B", "C" }, ChildTexts(await DocAsync(h, map.Id)));
+    }
+
+    [Fact]
+    public async Task Undo_OfReparent_PutsTheNodeBackUnderItsOldParentAtItsOldPlace()
+    {
+        await using var h = new MindmapTestHarness();
+        var outline = new List<MindmapNodeSpec>
+        {
+            new()
+            {
+                Ref = "root", Text = "Root",
+                Children = new List<MindmapNodeSpec>
+                {
+                    new()
+                    {
+                        Ref = "a", Text = "A",
+                        Children = new List<MindmapNodeSpec> { new() { Ref = "g", Text = "G" }, new() { Ref = "h", Text = "H" } },
+                    },
+                    new() { Ref = "d", Text = "D" },
+                },
+            },
+        };
+        var map = (await h.Service.CreateAsync("M", outline)).Value!;
+        var before = await DocAsync(h, map.Id);
+        var root = before.Elements.Single(e => Text(e) == "Root").Id;
+        var a = before.Elements.Single(e => Text(e) == "A").Id;
+        var g = before.Elements.Single(e => Text(e) == "G").Id;
+        var edgesBefore = before.Edges.Select(e => (e.FromId, e.ToId)).ToList();
+
+        // Outdent G: it becomes a child of the root, between A and D.
+        var move = (await h.Service.ApplyAsync(map.Id, before.Revision, new MindmapEditOp[]
+        {
+            new MoveOp { Id = g, Under = root, After = a },
+        })).Value!;
+        Assert.True(move.Success);
+        Assert.Equal(new[] { "A", "G", "D" }, ChildTexts(await DocAsync(h, map.Id)));
+
+        Assert.True((await h.Service.RestoreAsync(map.Id, move.Revision, move.Undo!)).Value!.Success);
+
+        // The hierarchy edge that puts G back under A has to return to where it was in the edge
+        // array, ahead of A's edge to H, or G comes back as A's last child instead of its first.
+        var reverted = await DocAsync(h, map.Id);
+        Assert.Equal(edgesBefore, reverted.Edges.Select(e => (e.FromId, e.ToId)));
+        Assert.Equal(before.Edges.Select(e => e.Id), reverted.Edges.Select(e => e.Id));
+    }
+
+    [Fact]
+    public async Task Undo_OfDeletingTheFirstRootCluster_PutsItBackAsTheFirstRoot()
+    {
+        await using var h = new MindmapTestHarness();
+        var outline = new List<MindmapNodeSpec>
+        {
+            new() { Ref = "r1", Text = "R1", Children = new List<MindmapNodeSpec> { new() { Ref = "r1a", Text = "R1A" } } },
+            new() { Ref = "r2", Text = "R2" },
+        };
+        var map = (await h.Service.CreateAsync("M", outline)).Value!;
+        var before = await DocAsync(h, map.Id);
+        var r1 = before.Elements.Single(e => Text(e) == "R1").Id;
+
+        var del = (await h.Service.ApplyAsync(map.Id, before.Revision, new MindmapEditOp[] { new DeleteOp { Ids = new[] { r1 } } })).Value!;
+        Assert.True(del.Success);
+        Assert.Equal(new[] { "R2" }, (await DocAsync(h, map.Id)).Elements.Select(Text));
+
+        Assert.True((await h.Service.RestoreAsync(map.Id, del.Revision, del.Undo!)).Value!.Success);
+
+        // Root order is element order, so the cluster has to come back ahead of R2.
+        var reverted = await DocAsync(h, map.Id);
+        Assert.Equal(new[] { "R1", "R1A", "R2" }, reverted.Elements.Select(Text));
+        Assert.Equal(before.Elements.Select(e => e.Id), reverted.Elements.Select(e => e.Id));
+        Assert.Equal(before.Edges.Select(e => e.Id), reverted.Edges.Select(e => e.Id));
     }
 
     [Fact]
@@ -212,6 +321,64 @@ public sealed class MindmapRestoreTests
 
         Assert.True(MindmapRestoreDelta.Between(doc, doc).IsEmpty);
     }
+
+    [Fact]
+    public void Between_PlacesEachRestoredRowAfterTheOneBeforeItInTheTarget()
+    {
+        var root = Node("root");
+        var a = Node("a");
+        var b = Node("b");
+        var rootA = Edge("ra", "root", "a");
+        var rootB = Edge("rb", "root", "b");
+        var from = Doc(new[] { root, b }, new[] { rootB });
+        var to = Doc(new[] { root, a, b }, new[] { rootA, rootB });
+
+        var delta = MindmapRestoreDelta.Between(from, to);
+
+        Assert.Equal(new[] { new MindmapRestorePlacement("a", "root") }, delta.ElementPlacements);
+        // The first edge has nothing before it, and null is how the delta says "first" rather than "last".
+        Assert.Equal(new[] { new MindmapRestorePlacement("ra", null) }, delta.EdgePlacements);
+    }
+
+    [Fact]
+    public void Between_DoesNotPlaceARowThatIsOnlyChanged()
+    {
+        var from = Doc(new[] { Node("a"), Node("b") }, new[] { Edge("ab", "a", "b") });
+        var to = Doc(new[] { Node("a"), Node("b") with { X = 10 } }, new[] { Edge("ab", "a", "b") with { Label = "l" } });
+
+        var delta = MindmapRestoreDelta.Between(from, to);
+
+        Assert.Single(delta.Elements);
+        Assert.Single(delta.Edges);
+        Assert.Empty(delta.ElementPlacements);
+        Assert.Empty(delta.EdgePlacements);
+    }
+
+    private static List<MindmapNodeSpec> RootWithChildren(params string[] texts) => new()
+    {
+        new() { Text = "Root", Children = texts.Select(t => new MindmapNodeSpec { Text = t }).ToList() },
+    };
+
+    /// <summary>The root's children in sibling order, which is the order of the hierarchy edges.</summary>
+    private static IEnumerable<string> ChildTexts(MindmapDocument document)
+    {
+        var byId = document.Elements.ToDictionary(e => e.Id);
+        var root = document.Elements.Single(e => Text(e) == "Root").Id;
+        return document.Edges.Where(e => e.Kind == EdgeKind.Hierarchy && e.FromId == root).Select(e => Text(byId[e.ToId])).ToList();
+    }
+
+    private static MindmapElement Node(string id) =>
+        new() { Id = id, Kind = ElementKind.Node, Content = new TextContent { Text = id } };
+
+    private static MindmapEdge Edge(string id, string from, string to) =>
+        new() { Id = id, FromId = from, ToId = to, Kind = EdgeKind.Hierarchy };
+
+    private static MindmapDocument Doc(MindmapElement[] elements, MindmapEdge[] edges) => new()
+    {
+        Id = "d", Title = "T", SchemaVersion = 2, Revision = 1,
+        Elements = elements,
+        Edges = edges,
+    };
 
     private static string Text(MindmapElement element) => element.Content is TextContent t ? t.Text : string.Empty;
 }

@@ -30,6 +30,20 @@ public sealed record MindmapRestoreDelta
     public IReadOnlyList<string> RemoveEdgeIds { get; init; } = Array.Empty<string>();
 
     /// <summary>
+    /// Where each element in <see cref="Elements"/> that the target does not already hold goes. A row
+    /// with no placement is appended, which is also where a changed row that is still present stays.
+    /// Ordered so that a placement's anchor is either already in the document or placed earlier in this
+    /// list, so applying them in order never meets an anchor that is not there yet.
+    /// </summary>
+    public IReadOnlyList<MindmapRestorePlacement> ElementPlacements { get; init; } = Array.Empty<MindmapRestorePlacement>();
+
+    /// <summary>
+    /// The same for <see cref="Edges"/>. Edge order is sibling order, so this is what puts a deleted
+    /// first child back first.
+    /// </summary>
+    public IReadOnlyList<MindmapRestorePlacement> EdgePlacements { get; init; } = Array.Empty<MindmapRestorePlacement>();
+
+    /// <summary>
     /// The whole canvas, when the batch changed any part of it; null when it did not.
     /// <para>
     /// Whole rather than per-property because it is one small record and there is nothing to save by
@@ -59,25 +73,15 @@ public sealed record MindmapRestoreDelta
     /// element/edge/cluster present-and-changed or added in <paramref name="to"/> is captured verbatim, and
     /// every id dropped between the two is queued for removal. Value equality on the immutable records means
     /// unchanged rows are skipped (record list members may over-capture, which is safe, never missed).
+    /// A row <paramref name="from"/> lacks is placed after the row before it in <paramref name="to"/>.
     /// </summary>
     public static MindmapRestoreDelta Between(MindmapDocument from, MindmapDocument to)
     {
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(to);
 
-        var fromElements = from.Elements.ToDictionary(e => e.Id);
-        var toElements = to.Elements.ToDictionary(e => e.Id);
-        var elements = toElements.Values
-            .Where(e => !fromElements.TryGetValue(e.Id, out var prev) || !prev.Equals(e))
-            .ToList();
-        var removeElementIds = fromElements.Keys.Where(id => !toElements.ContainsKey(id)).ToList();
-
-        var fromEdges = from.Edges.ToDictionary(e => e.Id);
-        var toEdges = to.Edges.ToDictionary(e => e.Id);
-        var edges = toEdges.Values
-            .Where(e => !fromEdges.TryGetValue(e.Id, out var prev) || !prev.Equals(e))
-            .ToList();
-        var removeEdgeIds = fromEdges.Keys.Where(id => !toEdges.ContainsKey(id)).ToList();
+        var (elements, elementPlacements, removeElementIds) = Diff(from.Elements, to.Elements, e => e.Id);
+        var (edges, edgePlacements, removeEdgeIds) = Diff(from.Edges, to.Edges, e => e.Id);
 
         var fromClusters = from.Clusters.ToDictionary(c => c.RootId);
         var toClusters = to.Clusters.ToDictionary(c => c.RootId);
@@ -92,8 +96,44 @@ public sealed record MindmapRestoreDelta
             Clusters = clusters,
             RemoveElementIds = removeElementIds,
             RemoveEdgeIds = removeEdgeIds,
+            ElementPlacements = elementPlacements,
+            EdgePlacements = edgePlacements,
             Canvas = to.Canvas.Equals(from.Canvas) ? null : to.Canvas,
             Title = string.Equals(to.Title, from.Title, StringComparison.Ordinal) ? null : to.Title,
         };
+    }
+
+    /// <summary>
+    /// Walks <paramref name="to"/> in its own order, so the changed rows come out in target order and each
+    /// added row's anchor is a row that is either untouched or listed before it.
+    /// </summary>
+    private static (List<T> Changed, List<MindmapRestorePlacement> Placements, List<string> Removed) Diff<T>(
+        IReadOnlyList<T> from, IReadOnlyList<T> to, Func<T, string> id)
+        where T : IEquatable<T>
+    {
+        var fromById = from.ToDictionary(id);
+        var toIds = new HashSet<string>(to.Select(id));
+        var changed = new List<T>();
+        var placements = new List<MindmapRestorePlacement>();
+
+        string? previous = null;
+        foreach (var row in to)
+        {
+            var rowId = id(row);
+            if (!fromById.TryGetValue(rowId, out var prev))
+            {
+                changed.Add(row);
+                placements.Add(new MindmapRestorePlacement(rowId, previous));
+            }
+            else if (!prev.Equals(row))
+            {
+                changed.Add(row);
+            }
+
+            previous = rowId;
+        }
+
+        var removed = from.Select(id).Where(rowId => !toIds.Contains(rowId)).ToList();
+        return (changed, placements, removed);
     }
 }

@@ -533,22 +533,28 @@ public sealed class MindmapDocumentService : IMindmapService
             foreach (var elementId in delta.RemoveElementIds)
                 working.RemoveElement(elementId);
 
+            // Position matters on both arrays: element order is root order and edge order is the sibling
+            // order that the branch colours and the layout both read. A row that is still there is
+            // replaced in place, and a row that is not goes back where the delta says it was, so an undo
+            // of deleting the first child puts it back first rather than last.
+            var elementPlacements = PlacementsById(delta.ElementPlacements);
             foreach (var element in delta.Elements)
             {
                 if (working.ContainsElement(element.Id))
                     working.ReplaceElement(element);
+                else if (elementPlacements.TryGetValue(element.Id, out var afterId))
+                    working.InsertElement(element, afterId);
                 else
                     working.AddElement(element);
             }
 
-            // In place for an edge that is still there, the same way elements are. An edge's position in
-            // the array is the sibling order that the branch colours and the layout both read, so
-            // re-adding a restyled edge would send it to the end and recolour the map that the undo was
-            // supposed to be putting back.
+            var edgePlacements = PlacementsById(delta.EdgePlacements);
             foreach (var edge in delta.Edges)
             {
                 if (working.TryGetEdge(edge.Id, out _))
                     working.ReplaceEdge(edge);
+                else if (edgePlacements.TryGetValue(edge.Id, out var afterId))
+                    working.InsertEdge(edge, afterId);
                 else
                     working.AddEdge(edge, insertAfterEdgeId: null);
             }
@@ -587,6 +593,18 @@ public sealed class MindmapDocumentService : IMindmapService
             if (committed is not null)
                 RaiseChanged(mapId, committed.Revision, MindmapChangeKind.Edited, committed);
         }
+    }
+
+    /// <summary>
+    /// Restored row id to the id it follows. Built by assignment rather than <c>ToDictionary</c> so a
+    /// delta that names a row twice is a last-one-wins rather than a thrown restore.
+    /// </summary>
+    private static Dictionary<string, string?> PlacementsById(IReadOnlyList<MindmapRestorePlacement> placements)
+    {
+        var byId = new Dictionary<string, string?>(placements.Count, StringComparer.Ordinal);
+        foreach (var placement in placements)
+            byId[placement.Id] = placement.AfterId;
+        return byId;
     }
 
     // ---- Write results --------------------------------------------------------------------------

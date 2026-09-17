@@ -21,6 +21,16 @@ import type {
   MindmapElement,
 } from "./document"
 
+/**
+ * Where a row the delta puts back belongs: right after `afterId`, or first when that is null. One
+ * per restored row, so a delta stays proportional to the change while still saying where a deleted
+ * first child goes on undo.
+ */
+export interface MindmapRestorePlacement {
+  id: string
+  afterId?: string | null
+}
+
 /** The touched subset of a document: what to upsert, and what to drop. */
 export interface MindmapRestoreDelta {
   elements?: MindmapElement[]
@@ -28,6 +38,13 @@ export interface MindmapRestoreDelta {
   clusters?: ClusterSettings[]
   removeElementIds?: string[]
   removeEdgeIds?: string[]
+  /**
+   * Positions for the rows in `elements` and `edges` that the target document does not hold. The
+   * server reads these on a restore; this side only carries them through, since a fold sorts to
+   * the `order` the server reports instead.
+   */
+  elementPlacements?: MindmapRestorePlacement[]
+  edgePlacements?: MindmapRestorePlacement[]
   /**
    * The whole canvas, when the batch changed any part of it.
    *

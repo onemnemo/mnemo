@@ -141,7 +141,8 @@ export function redoLabel(state: HistoryState): string | undefined {
  * dropped from `first`'s upserts entirely rather than being restored and then removed again. The
  * two document-level fields follow the same rule: whichever delta names one last is the state being
  * reached, and dropping them here would make a coalesced group of edits lose the background it is
- * undoing back to.
+ * undoing back to. Placements ride along with the rows they position, and the merged rows keep the
+ * order the server resolves anchors in: `first`'s rows, then what `second` added.
  */
 export function mergeDeltas(first: MindmapRestoreDelta, second: MindmapRestoreDelta): MindmapRestoreDelta {
   const removedElements = new Set(second.removeElementIds ?? [])
@@ -153,6 +154,8 @@ export function mergeDeltas(first: MindmapRestoreDelta, second: MindmapRestoreDe
     clusters: mergeBy(first.clusters ?? [], second.clusters ?? [], (c) => c.rootId),
     removeElementIds: union(first.removeElementIds, second.removeElementIds),
     removeEdgeIds: union(first.removeEdgeIds, second.removeEdgeIds),
+    elementPlacements: mergeById(first.elementPlacements ?? [], second.elementPlacements ?? [], removedElements),
+    edgePlacements: mergeById(first.edgePlacements ?? [], second.edgePlacements ?? [], removedEdges),
     canvas: second.canvas ?? first.canvas,
     title: second.title ?? first.title,
   }

@@ -88,10 +88,20 @@ internal sealed class MindmapWorkingDocument
         return id;
     }
 
-    public void AddElement(MindmapElement element)
+    public void AddElement(MindmapElement element) => InsertElementAt(element, _elementOrder.Count);
+
+    /// <summary>
+    /// Adds an element at a restored position: after <paramref name="afterId"/>, or first when that is
+    /// null. An anchor the document does not hold falls back to the end, the same place
+    /// <see cref="AddElement"/> puts everything, so a delta that is wrong about the document still lands.
+    /// </summary>
+    public void InsertElement(MindmapElement element, string? afterId) =>
+        InsertElementAt(element, IndexAfter(_elementOrder, afterId));
+
+    private void InsertElementAt(MindmapElement element, int index)
     {
         _elements[element.Id] = element;
-        _elementOrder.Add(element.Id);
+        _elementOrder.Insert(index, element.Id);
         _allIds.Add(element.Id);
         _touched.Add(element.Id);
         _changeTouched.Add(element.Id);
@@ -144,23 +154,39 @@ internal sealed class MindmapWorkingDocument
             _elementOrder.RemoveAll(id => !_elements.ContainsKey(id));
     }
 
-    public void AddEdge(MindmapEdge edge, string? insertAfterEdgeId)
+    /// <summary>
+    /// Adds an edge after <paramref name="insertAfterEdgeId"/>, or at the end when that is null or not in
+    /// the document. Null means "no sibling anchor" here, which is why a restore that has to say "first"
+    /// goes through <see cref="InsertEdge"/> instead.
+    /// </summary>
+    public void AddEdge(MindmapEdge edge, string? insertAfterEdgeId) =>
+        InsertEdgeAt(edge, insertAfterEdgeId is null ? _edgeOrder.Count : IndexAfter(_edgeOrder, insertAfterEdgeId));
+
+    /// <summary>
+    /// Adds an edge at a restored position: after <paramref name="afterId"/>, or first when that is null.
+    /// An anchor the document does not hold falls back to the end.
+    /// </summary>
+    public void InsertEdge(MindmapEdge edge, string? afterId) => InsertEdgeAt(edge, IndexAfter(_edgeOrder, afterId));
+
+    private void InsertEdgeAt(MindmapEdge edge, int index)
     {
         _edges[edge.Id] = edge;
+        _edgeOrder.Insert(index, edge.Id);
         _allIds.Add(edge.Id);
         _changeTouched.Add(edge.Id);
+    }
 
-        if (insertAfterEdgeId is null)
-        {
-            _edgeOrder.Add(edge.Id);
-            return;
-        }
+    /// <summary>
+    /// The slot right after <paramref name="afterId"/>: the first slot for null, the end for an id that is
+    /// not in the list.
+    /// </summary>
+    private static int IndexAfter(List<string> order, string? afterId)
+    {
+        if (afterId is null)
+            return 0;
 
-        var index = _edgeOrder.IndexOf(insertAfterEdgeId);
-        if (index < 0)
-            _edgeOrder.Add(edge.Id);
-        else
-            _edgeOrder.Insert(index + 1, edge.Id);
+        var anchor = order.IndexOf(afterId);
+        return anchor < 0 ? order.Count : anchor + 1;
     }
 
     public void RemoveEdge(string id)

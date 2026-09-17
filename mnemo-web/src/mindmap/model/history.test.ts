@@ -182,4 +182,32 @@ describe("merging deltas", () => {
     expect(merged.canvas).toEqual({ background: "grid" })
     expect(mergeDeltas({ title: "before" }, { title: "after" }).title).toBe("after")
   })
+
+  it("carries a restored row's placement through the group, dropping it with the row", () => {
+    // The server reads placements to put a row back where it was, so a coalesced group that lost
+    // them would undo a delete by appending the node as the last sibling.
+    const first: MindmapRestoreDelta = {
+      elements: [node("a", "one"), node("b", "two")],
+      elementPlacements: [
+        { id: "a", afterId: null },
+        { id: "b", afterId: "a" },
+      ],
+      edges: [{ id: "ab", fromId: "a", toId: "b", kind: "hierarchy" }],
+      edgePlacements: [{ id: "ab", afterId: "root-edge" }],
+    }
+    const second: MindmapRestoreDelta = {
+      elements: [node("b", "two, edited"), node("c", "three")],
+      elementPlacements: [{ id: "c", afterId: "b" }],
+      removeElementIds: ["a"],
+      removeEdgeIds: ["ab"],
+    }
+
+    const merged = mergeDeltas(first, second)
+
+    expect(merged.elementPlacements).toEqual([
+      { id: "b", afterId: "a" },
+      { id: "c", afterId: "b" },
+    ])
+    expect(merged.edgePlacements).toEqual([])
+  })
 })

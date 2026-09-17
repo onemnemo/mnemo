@@ -140,6 +140,33 @@ public sealed class MindmapOpsHttpTests
     }
 
     [Fact]
+    public async Task RestoringADeletedFirstChildOverTheWirePutsItBackFirst()
+    {
+        await using var h = new MindmapHostHarness();
+        var map = (await h.Service.CreateAsync("M")).Value!;
+        var seeded = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ApplyOpsAsync(map.Id, Body($$"""
+            { "expectedRevision": {{map.Revision}}, "ops": [
+              { "op": "add", "nodes": [ { "ref": "root", "t": "Root", "c": [ { "ref": "a", "t": "A" }, { "t": "B" }, { "t": "C" } ] } ] }
+            ] }
+            """), h.Service))).Body);
+        var before = (await h.Service.GetAsync(map.Id)).Value!;
+
+        var del = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ApplyOpsAsync(map.Id, Body($$"""
+            { "expectedRevision": {{seeded.Revision}}, "ops": [ { "op": "del", "ids": [ "{{seeded.CreatedIds["a"]}}" ] } ] }
+            """), h.Service))).Body);
+
+        // The undo delta says where the node and its edge belong, and that has to survive the trip to
+        // the client and back: a placement lost in serialization would put A back as the last child.
+        var restoreBody = JsonSerializer.Serialize(new RestoreMindmapDto(del.Revision, del.Undo!), MindmapJson.Options);
+        var response = await Execute(await MindmapEndpoints.RestoreAsync(map.Id, Body(restoreBody), h.Service));
+
+        Assert.Equal(StatusCodes.Status200OK, response.Status);
+        var reverted = (await h.Service.GetAsync(map.Id)).Value!;
+        Assert.Equal(before.Elements.Select(e => e.Id), reverted.Elements.Select(e => e.Id));
+        Assert.Equal(before.Edges.Select(e => e.Id), reverted.Edges.Select(e => e.Id));
+    }
+
+    [Fact]
     public async Task ARestoreAgainstAMovedRevisionIsA409()
     {
         await using var h = new MindmapHostHarness();
