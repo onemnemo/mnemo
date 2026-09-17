@@ -59,8 +59,18 @@ internal static class FlashcardCardMaterial
             CreatedAt: card.CreatedAt == default ? now : card.CreatedAt,
             UpdatedAt: card.UpdatedAt == default ? now : card.UpdatedAt);
 
+        // The card's type follows the material it was given, as it does for every card the material
+        // later regenerates; a cloze-typed card on basic material would show cloze chrome over a
+        // plain answer.
         if (!asCloze)
-            return (fact, card with { FactId = fact.Id, LayoutKey = FlashcardCardType.RecognitionLayoutId });
+        {
+            return (fact, card with
+            {
+                FactId = fact.Id,
+                LayoutKey = FlashcardCardType.RecognitionLayoutId,
+                Type = FlashcardType.Classic,
+            });
+        }
 
         var lowest = ordinals[0];
         var extra = card.Back.Trim();

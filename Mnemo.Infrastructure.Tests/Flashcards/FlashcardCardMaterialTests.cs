@@ -116,6 +116,23 @@ public sealed class FlashcardCardMaterialTests
     }
 
     [Fact]
+    public async Task a_cloze_card_with_no_deletion_is_stored_as_a_classic_card()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var deckId = await h.SeedDeckAsync();
+
+        var card = await Cards(h).CreateCardAsync(
+            Draft("nothing is deleted here", "back", FlashcardType.Cloze) with { DeckId = deckId });
+
+        // The card's type follows the material it was given, the way every regenerated card's
+        // does. A cloze-typed card on basic material would show cloze chrome over a plain answer.
+        Assert.Equal(FlashcardType.Classic, card.Type);
+        var stored = await Cards(h).GetCardAsync(card.Id);
+        Assert.NotNull(stored);
+        Assert.Equal(FlashcardType.Classic, stored.Type);
+    }
+
+    [Fact]
     public async Task a_cloze_card_lands_as_one_card_rather_than_one_per_deletion()
     {
         await using var h = new FlashcardStoreHarness();

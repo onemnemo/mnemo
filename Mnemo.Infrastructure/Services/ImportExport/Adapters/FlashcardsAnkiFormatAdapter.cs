@@ -42,6 +42,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// template, so its card ordinals name deletions rather than templates.
     /// </summary>
     private const int AnkiClozeModelType = 1;
+    private const string AnkiClozeFilter = "cloze";
 
     /// <summary>
     /// Above this a due value is an absolute second rather than a day offset. Day offsets are
@@ -677,12 +678,15 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 ? o.GetInt32()
                 : position;
             var name = entry.TryGetProperty("name", out var n) ? n.GetString() ?? string.Empty : string.Empty;
-            var front = FieldPositions(ReadString(entry, "qfmt"), fieldNames);
+            var question = ReadString(entry, "qfmt");
+            var answer = ReadString(entry, "afmt");
+            var front = FieldPositions(question, fieldNames);
             // Anki repeats the question on the answer through FrontSide, so a field the question
             // already showed is not counted again.
-            var back = FieldPositions(ReadString(entry, "afmt"), fieldNames).Except(front).ToArray();
+            var back = FieldPositions(answer, fieldNames).Except(front).ToArray();
+            var clozeField = ClozeFieldPosition(question, fieldNames) ?? ClozeFieldPosition(answer, fieldNames);
 
-            templates.Add(new AnkiTemplate(ord, name, front, back));
+            templates.Add(new AnkiTemplate(ord, name, front, back, clozeField));
             position++;
         }
 
@@ -729,6 +733,38 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     }
 
     /// <summary>
+    /// The field a template runs the cloze filter over, which is the one its deletions live in.
+    /// Null when the template names none.
+    /// </summary>
+    private static int? ClozeFieldPosition(string template, IReadOnlyList<string> fieldNames)
+    {
+        if (string.IsNullOrEmpty(template))
+            return null;
+
+        foreach (Match match in AnkiTemplateFieldRegex.Matches(template))
+        {
+            var token = match.Groups[1].Value.Trim();
+            var colon = token.LastIndexOf(':');
+            if (colon < 0)
+                continue;
+
+            // Filters stack ahead of the field name, as in "{{type:cloze:Text}}".
+            var filters = token[..colon].Split(':', StringSplitOptions.TrimEntries);
+            if (!filters.Any(f => string.Equals(f, AnkiClozeFilter, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            var name = token[(colon + 1)..].Trim();
+            for (var i = 0; i < fieldNames.Count; i++)
+            {
+                if (string.Equals(fieldNames[i], name, StringComparison.OrdinalIgnoreCase))
+                    return i;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// The question and answer HTML one card row stands for. Falls back to the note's first two
     /// fields when nothing is known about the template, which is the shape every note had before
     /// templates were read at all.
@@ -740,12 +776,69 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             fields.Length > 0 ? fields[0] : string.Empty,
             fields.Length > 1 ? fields[1] : string.Empty);
 
-        if (!noteTypes.TryGetValue(note.ModelId, out var noteType) || noteType.IsCloze)
+        noteTypes.TryGetValue(note.ModelId, out var noteType);
+        if (ClozeFieldFor(fields, noteType) is { } clozeField)
+            return ClozeSides(fields, clozeField, noteType);
+        if (noteType is null)
             return fallback;
         if (noteType.TemplateFor(ord) is not { } template || template.FrontFields.Count == 0)
             return fallback;
 
         return (JoinFields(fields, template.FrontFields), JoinFields(fields, template.BackFields));
+    }
+
+    /// <summary>
+    /// The deletion text and, as the extra, whatever else the note shows: every other field its
+    /// template lays out, or, when no template can say, the field after the text and failing
+    /// that the one before it. After rather than before because Anki's own cloze type puts the
+    /// extra after the text, and a note with a title ahead of its text keeps its explanation
+    /// rather than its heading.
+    /// </summary>
+    private static (string Front, string Back) ClozeSides(string[] fields, int clozeField, AnkiNoteType? noteType)
+    {
+        var text = clozeField < fields.Length ? fields[clozeField] : string.Empty;
+        var shown = noteType?.Templates.FirstOrDefault(t => t.FrontFields.Count > 0 || t.BackFields.Count > 0);
+        if (shown is null)
+        {
+            var other = clozeField + 1 < fields.Length ? clozeField + 1 : clozeField - 1;
+            return (text, other >= 0 && other < fields.Length ? fields[other] : string.Empty);
+        }
+
+        return (text, JoinFields(fields, [.. shown.FrontFields.Concat(shown.BackFields).Where(i => i != clozeField)]));
+    }
+
+    /// <summary>
+    /// Which of a note's fields holds its deletions: the field the cloze template names, or, when
+    /// no template can say, the first field a deletion appears in. Null for a note that is not
+    /// cloze at all.
+    /// </summary>
+    /// <remarks>
+    /// A cloze note type says so outright, and its named field is taken even when the note has no
+    /// deletion in it, since that is the field the other app would have made cards from. A
+    /// collection that keeps its note types in an encoded config says nothing about any of them,
+    /// so there the deletions in the note's own fields are the only signal left.
+    /// </remarks>
+    private static int? ClozeFieldFor(string[] fields, AnkiNoteType? noteType)
+    {
+        if (noteType is null)
+            return FirstFieldWithDeletion(fields);
+        if (!noteType.IsCloze)
+            return null;
+        if (noteType.ClozeField is { } named && named < fields.Length)
+            return named;
+
+        return FirstFieldWithDeletion(fields) ?? 0;
+    }
+
+    private static int? FirstFieldWithDeletion(string[] fields)
+    {
+        for (var i = 0; i < fields.Length; i++)
+        {
+            if (ClozeRegex.IsMatch(fields[i]))
+                return i;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -813,17 +906,13 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     }
 
     /// <summary>
-    /// Whether a note's card rows stand for its deletions rather than for its templates. A cloze
-    /// note type says so outright. A collection that keeps its note types in an encoded config says
-    /// nothing about any of them, so there the deletions in the note's own first field are the only
-    /// signal left, and they are also the only way such a note came to have a row per ordinal.
+    /// Whether a note's card rows stand for its deletions rather than for its templates, which is
+    /// so exactly when the note has a field its deletions live in.
     /// </summary>
     private static bool MakesOneCardPerDeletion(NoteRow note, IReadOnlyDictionary<long, AnkiNoteType> noteTypes)
     {
-        if (noteTypes.TryGetValue(note.ModelId, out var noteType))
-            return noteType.IsCloze;
-
-        return note.Fields.Length > 0 && ClozeRegex.IsMatch(note.Fields[0]);
+        noteTypes.TryGetValue(note.ModelId, out var noteType);
+        return ClozeFieldFor(note.Fields, noteType) is not null;
     }
 
     /// <summary>
@@ -2643,12 +2732,21 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// shows and which the answer adds. Anki repeats the question on the answer through
     /// <c>FrontSide</c>, so a field already asked is not counted again on the back.
     /// </remarks>
-    private sealed record AnkiTemplate(int Ord, string Name, IReadOnlyList<int> FrontFields, IReadOnlyList<int> BackFields);
+    /// <param name="ClozeField">The field the template runs the cloze filter over, when it does.</param>
+    private sealed record AnkiTemplate(
+        int Ord,
+        string Name,
+        IReadOnlyList<int> FrontFields,
+        IReadOnlyList<int> BackFields,
+        int? ClozeField);
 
     /// <summary>A note type's field names and the templates it makes cards from.</summary>
     private sealed record AnkiNoteType(bool IsCloze, IReadOnlyList<string> FieldNames, IReadOnlyList<AnkiTemplate> Templates)
     {
         public AnkiTemplate? TemplateFor(int ord) => Templates.FirstOrDefault(t => t.Ord == ord);
+
+        /// <summary>The field the deletions live in, as the first template that names one says.</summary>
+        public int? ClozeField => Templates.Select(t => t.ClozeField).FirstOrDefault(f => f is not null);
     }
 
     private sealed record NoteRow(long Id, string Tags, string[] Fields, long ModelId)

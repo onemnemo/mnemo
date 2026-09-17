@@ -184,6 +184,7 @@ public sealed class FlashcardAnkiClozeImportTests
             var card = Assert.Single(world.Cards);
             Assert.Equal("Nothing is deleted here", card.Front);
             Assert.Equal(FlashcardCardType.RecognitionLayoutId, card.LayoutKey);
+            Assert.Equal(FlashcardType.Classic, card.Type);
         }
         finally
         {
