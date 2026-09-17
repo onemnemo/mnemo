@@ -86,8 +86,11 @@ export type LiveRevisionAction = "ignore" | "fold" | "reload" | "closed"
  * one first would leave the answer to ours describing a revision it never saw.
  *
  * The one thing this deliberately does not do is drop a notice that arrives while a write is in
- * flight but describes a *different, higher* revision. That is a real interleave, and the write's
- * own response will report an interleave too, so both paths agree the client has to refetch.
+ * flight but describes a *different, higher* revision. That is a real interleave, and the client
+ * has to refetch. The write's own answer will not say so: a stranger's commit right behind ours
+ * lands after ours applied cleanly, so the answer reports the base revision we sent and folds
+ * without complaint. The editor keeps its own count of reloads to tell an answer that was
+ * overtaken from one that was not.
  */
 export function classify(
   state: LiveRevisionState,

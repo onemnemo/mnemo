@@ -104,7 +104,8 @@ export interface MindmapEditor {
   /**
    * Set when the map moved under this editor and the document had to be refetched, so the loss of
    * the undo stack is something the user is told about rather than something they discover by
-   * pressing Ctrl+Z and watching nothing happen. Cleared by the next write that lands.
+   * pressing Ctrl+Z and watching nothing happen. Cleared by the next write sent after the reload
+   * that lands; one that was already in the air says nothing about the document that replaced it.
    */
   reloaded: boolean
   /** The map was deleted while it was open. There is no document to edit and none coming. */
@@ -133,6 +134,9 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
   // Every write chains onto the one before it, so a batch is never composed against a revision that
   // a batch already in flight is about to move past.
   const queueRef = useRef<Promise<unknown>>(Promise.resolve())
+  // Counts reloads, so a write whose answer lands after one can tell that the stack it was sent
+  // from is gone and the document it would fold into is being replaced.
+  const reloadEpochRef = useRef(0)
 
   const setHistory = useCallback((next: HistoryState) => {
     historyRef.current = next
@@ -182,6 +186,7 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
    */
   const reload = useCallback(
     (id: string) => {
+      reloadEpochRef.current += 1
       setHistory(emptyHistory())
       setReloaded(true)
       void client.invalidateQueries({ queryKey: mapKey(id) })
@@ -232,6 +237,7 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
         }
 
         const before = revisionOf(mapId)
+        const epoch = reloadEpochRef.current
         // Counted only while this is the map on screen. Counting a write against a document it has
         // nothing to do with leaves that document with an in-flight write that never comes back.
         const counted = openRef.current === mapId
@@ -245,6 +251,11 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
           // still ours to patch, keyed by the id the write named, but the undo stack and the notice
           // filter now describe another document and must not be told about this one.
           const open = counted && openRef.current === mapId
+          // A notice can reach the editor before the write's own answer does, and when the notice
+          // was somebody else's commit right behind ours it has already dropped the stack and started
+          // a refetch. The answer still applied cleanly, at the revision it was sent from, so nothing
+          // on it says so; only the count does.
+          const overtaken = open && reloadEpochRef.current !== epoch
 
           if (outcome.status !== "applied") {
             if (open) {
@@ -265,7 +276,16 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
           if (open) {
             liveRef.current = endWrite(liveRef.current, result.revision)
             setRejected(null)
-            setReloaded(false)
+            if (!overtaken) {
+              setReloaded(false)
+            }
+          }
+
+          // The refetch is bringing the document this answer is a step towards, and the stack it
+          // would go on was dropped for a reason: recording it would offer an undo for a revision
+          // the server has already moved past.
+          if (overtaken) {
+            return result
           }
 
           // A write that did not move the revision changed nothing, so there is nothing to fold and
@@ -357,6 +377,7 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
         }
 
         const delta = direction === "undo" ? step.entry.undo : step.entry.redo
+        const epoch = reloadEpochRef.current
         liveRef.current = beginWrite(liveRef.current)
         let outcome
         try {
@@ -386,6 +407,13 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
 
         if (open) {
           liveRef.current = endWrite(liveRef.current, outcome.result.revision)
+          // A reload while the replay was in the air has already dropped the stack this step was
+          // popped from and started a refetch. Settling the popped stack would put every entry
+          // back, at a revision the server has moved past, and the fold would patch a document the
+          // refetch is replacing.
+          if (reloadEpochRef.current !== epoch) {
+            return
+          }
         }
         if (!foldRestoreIntoCache(client, mapId, delta, outcome.result)) {
           if (open) {
