@@ -166,7 +166,11 @@ describe('two-column rendering', () => {
 
 // --- slash-menu creation ----------------------------------------------------
 
-/** Runs the two-column slash insert with the caret at the start of the one block. */
+/**
+ * Runs the two-column slash insert with the caret at the start of the one
+ * block. The menu has already taken the typed query out of the line by the
+ * time a row runs, so the block is handed over empty.
+ */
 function insertFrom(document: PMNode): EditorState {
   const base = stateWith(document);
   const placed = base.apply(base.tr.setSelection(TextSelection.create(base.doc, 2)));
@@ -179,10 +183,10 @@ function insertFrom(document: PMNode): EditorState {
 
 describe('two-column slash creation', () => {
   it('replaces the block with a split holding an empty text block in each cell', () => {
-    const next = insertFrom(doc(para('/col')));
+    const next = insertFrom(doc(para('')));
     const tc = next.doc.firstChild!;
     expect(tc.type.name).toBe('twoColumn');
-    // Two cells, each an empty paragraph. The slash query text is gone.
+    // Two cells, each an empty paragraph.
     for (const side of [1, 2]) {
       const cell = tc.child(side);
       expect(cell.type.name).toBe('columnGroup');
@@ -195,14 +199,14 @@ describe('two-column slash creation', () => {
   });
 
   it('keeps the block identity and marks the split as menu-made', () => {
-    const next = insertFrom(doc(para('/columns', 'keepme')));
+    const next = insertFrom(doc(para('', 'keepme')));
     const tc = next.doc.firstChild!;
     expect(tc.attrs.sid).toBe('keepme'); // converted in place, not re-minted
     expect((tc.attrs.meta as Record<string, unknown>).nativeTwoColumn).toBe(true);
   });
 
   it('lands the caret in the left cell', () => {
-    const next = insertFrom(doc(para('/columns')));
+    const next = insertFrom(doc(para('')));
     const tc = next.doc.firstChild!;
     const leftBlock = blockChildrenOf(tc.child(1))[0];
     // The caret sits in that left-cell paragraph's line.

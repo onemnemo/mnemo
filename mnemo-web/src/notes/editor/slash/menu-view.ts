@@ -1,38 +1,39 @@
 /**
- * The slash menu's DOM: a floating palette of rows, its group headings and its
- * selection, and nothing else. It knows what to draw and which row is current;
- * when to open, what the query is and what a pick does all belong to the plugin.
+ * The DOM of a caret-anchored menu: a floating palette of rows, its group
+ * headings and its selection, and nothing else. It knows what to draw and
+ * which row is current; when to open, what the query is and what a pick does
+ * all belong to the plugin that owns the rows.
  *
- * Each row is an icon tile, the block's name and a one-line description, filed
- * under its section heading, so the menu reads like a palette of what a block
- * can become rather than a bare list of words.
+ * Each row is a tile, a name and an optional one-line description, filed
+ * under its section heading, so the menu reads like a palette rather than a
+ * bare list of words. The tile is a project icon for a block row and a glyph
+ * for a symbol row; both draw the same way otherwise, which is what lets the
+ * slash menu and the symbol palette share one view and one stylesheet.
  */
 
-import type { SlashEntry } from '../registry/build';
-import type { SlashGroup } from '../registry/types';
+import type { IconName } from '../../../components/icon/icon-registry';
 import { getIconMarkup } from '../../../components/icon/icon-registry';
 
 const ROOT = 'notes-slash-menu';
 
-/** Section heading text, resolved from the group the entry declares. */
-const GROUP_LABEL_KEY: Readonly<Record<SlashGroup, string>> = {
-  text: 'SlashGroupBasic',
-  insert: 'SlashGroupInsert',
-};
-
 /** Distinguishes one editor's rows from another's on the same page. */
 let instanceCount = 0;
 
+export type MenuTile = { readonly icon: IconName } | { readonly glyph: string };
+
 export interface MenuRow {
-  readonly entry: SlashEntry;
+  /** Stable name of the row, written to `data-row` so a test finds it without its text. */
+  readonly key: string;
+  /** i18n key of the section heading the row files under. */
+  readonly group: string;
+  readonly tile: MenuTile;
   /** Resolved once, so the language is read at build and matching agrees with it. */
   readonly label: string;
-  /** The one-line description, resolved in the same pass as the label. */
+  /** The one-line description, resolved in the same pass; empty draws nothing. */
   readonly description: string;
-  readonly candidates: readonly string[];
 }
 
-export interface SlashMenuView {
+export interface MenuView {
   readonly root: HTMLElement;
   /**
    * The list's own id. DOM focus stays in the editor while the menu is open, so
@@ -66,7 +67,11 @@ function element(tag: string, className: string, text?: string): HTMLElement {
   return el;
 }
 
-export function createSlashMenuView(translate: (key: string) => string): SlashMenuView {
+/**
+ * @param translate resolves the group headings and the list's name
+ * @param listLabel i18n key naming the list for a screen reader
+ */
+export function createMenuView(translate: (key: string) => string, listLabel: string): MenuView {
   // `scroll-thin` is the app's own scrollbar; the menu is the one place in the
   // note that scrolls without it otherwise, and a system scrollbar down the side
   // of a floating palette is the loudest thing in it. The pop-in replays on
@@ -83,7 +88,7 @@ export function createSlashMenuView(translate: (key: string) => string): SlashMe
   const list = element('div', `${ROOT}-list`);
   list.id = listId;
   list.setAttribute('role', 'listbox');
-  list.setAttribute('aria-label', translate('SlashMenuLabel'));
+  list.setAttribute('aria-label', translate(listLabel));
   const empty = element('div', `${ROOT}-empty`, translate('NoSuggestions'));
   empty.setAttribute('data-hidden', '');
 
@@ -107,9 +112,14 @@ export function createSlashMenuView(translate: (key: string) => string): SlashMe
     }
   }
 
-  function tile(icon: string): HTMLElement {
+  function tile(kind: MenuTile): HTMLElement {
     const span = element('span', `${ROOT}-row-tile`);
-    const markup = getIconMarkup(icon);
+    if ('glyph' in kind) {
+      span.classList.add(`${ROOT}-row-glyph`);
+      span.textContent = kind.glyph;
+      return span;
+    }
+    const markup = getIconMarkup(kind.icon);
     if (markup) span.innerHTML = markup;
     return span;
   }
@@ -121,29 +131,26 @@ export function createSlashMenuView(translate: (key: string) => string): SlashMe
     onHover: (i: number) => void,
   ): void {
     list.replaceChildren();
-    let lastGroup: SlashGroup | null = null;
+    let lastGroup: string | null = null;
     rowElements = rows.map((row, i) => {
       // A heading over the first row of each new section, drawn as its own
       // element so a hovered or selected row cannot pick it up.
-      if (row.entry.group !== lastGroup) {
-        lastGroup = row.entry.group;
-        list.appendChild(
-          element('div', `${ROOT}-group`, translate(GROUP_LABEL_KEY[row.entry.group])),
-        );
+      if (row.group !== lastGroup) {
+        lastGroup = row.group;
+        list.appendChild(element('div', `${ROOT}-group`, translate(row.group)));
       }
 
       const el = element('div', `${ROOT}-row`);
       el.id = `${listId}-row-${String(i)}`;
       el.setAttribute('role', 'option');
-      el.dataset.node = row.entry.nodeName;
-      el.dataset.label = row.entry.label;
+      el.dataset.row = row.key;
 
       const text = element('span', `${ROOT}-row-text`);
-      text.append(
-        element('span', `${ROOT}-row-name`, row.label),
-        element('span', `${ROOT}-row-desc`, row.description),
-      );
-      el.append(tile(row.entry.icon), text);
+      text.appendChild(element('span', `${ROOT}-row-name`, row.label));
+      if (row.description.length > 0) {
+        text.appendChild(element('span', `${ROOT}-row-desc`, row.description));
+      }
+      el.append(tile(row.tile), text);
 
       el.addEventListener('mousedown', () => {
         onPick(i);

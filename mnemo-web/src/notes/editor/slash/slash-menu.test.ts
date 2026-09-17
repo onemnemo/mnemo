@@ -27,7 +27,7 @@ const mapper = createDocumentMapper(schema, registry);
  * "Heading 3" the way the shipped string does. Matching runs against the
  * resolved label, so a key jammed into one word would make queries like
  * "heading 3" miss for a reason the shipped app does not have. Rows are still
- * asserted by their key, through `data-label`, so a translation edit cannot
+ * asserted by their key, through `data-row`, so a translation edit cannot
  * break a test about behaviour.
  */
 function translate(key: string): string {
@@ -76,16 +76,22 @@ function rows(): HTMLElement[] {
 }
 
 function rowLabels(): string[] {
-  return rows().map((row) => row.dataset.label ?? '');
+  return rows().map((row) => row.dataset.row ?? '');
 }
 
 function selectedLabel(): string | undefined {
-  return menuEl().querySelector<HTMLElement>('.notes-slash-menu-row.is-selected')?.dataset.label;
+  return menuEl().querySelector<HTMLElement>('.notes-slash-menu-row.is-selected')?.dataset.row;
 }
 
-/** Types `text` at the caret, the way the trigger is really produced. */
+/** Types `text` one character at a time, the way the trigger really sees it. */
 function type(view: EditorView, text: string): void {
-  view.dispatch(view.state.tr.insertText(text));
+  for (const character of text) {
+    const { from, to } = view.state.selection;
+    const handled = view.someProp('handleTextInput', (handler) =>
+      handler(view, from, to, character, () => view.state.tr),
+    );
+    if (!handled) view.dispatch(view.state.tr.insertText(character, from, to));
+  }
 }
 
 function press(view: EditorView, key: string): boolean {
@@ -96,6 +102,13 @@ function press(view: EditorView, key: string): boolean {
 /** Caret at the first offset inside the first block's line. */
 function caretAtStart(view: EditorView): void {
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2)));
+}
+
+/** Caret at the end of the first block's line. */
+function caretAtEnd(view: EditorView): void {
+  const line = view.state.doc.child(0).firstChild;
+  const end = 2 + (line ? line.content.size : 0);
+  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, end)));
 }
 
 function firstBlock(view: EditorView): PMNode {
@@ -129,11 +142,32 @@ describe('when the menu opens', () => {
     expect(isOpen()).toBe(false);
   });
 
-  it('stays closed when the slash is not the first character', () => {
+  it('stays closed when the slash follows a letter', () => {
     const view = mount([block('Text', [span('and')])]);
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 5)));
+    caretAtEnd(view);
     type(view, '/');
     expect(isOpen()).toBe(false);
+  });
+
+  it('stays closed when the slash follows punctuation, so a URL stays a URL', () => {
+    const view = mount([block('Text', [span('http:')])]);
+    caretAtEnd(view);
+    type(view, '/');
+    expect(isOpen()).toBe(false);
+  });
+
+  it('opens after a space anywhere in the line', () => {
+    const view = mount([block('Text', [span('some text ')])]);
+    caretAtEnd(view);
+    type(view, '/');
+    expect(isOpen()).toBe(true);
+  });
+
+  it('opens after an opening bracket', () => {
+    const view = mount([block('Text', [span('note (')])]);
+    caretAtEnd(view);
+    type(view, '/');
+    expect(isOpen()).toBe(true);
   });
 
   it('stays closed inside a code block, where a slash is ordinary source', () => {
@@ -188,10 +222,19 @@ describe('when the menu opens', () => {
   });
 
   /**
-   * Picking a row clears the line. An inline atom holds a position but no
-   * text, so nothing in the query would have hinted it was about to go.
+   * An inline atom holds a position but no text. A pick replaces only its own
+   * token, so an equation earlier in the line is no reason to refuse.
    */
-  it('stays closed on a line holding an inline equation', () => {
+  it('opens when the slash is typed after an inline equation', () => {
+    const view = mount([
+      block('Text', [span(''), { kind: 'equation', latex: 'x^2', style: styled({}) }, span(' ')]),
+    ]);
+    caretAtEnd(view);
+    type(view, '/');
+    expect(isOpen()).toBe(true);
+  });
+
+  it('stays closed when the caret is merely placed after a slash beside an equation', () => {
     const view = mount([
       block('Text', [span('/'), { kind: 'equation', latex: 'x^2', style: styled({}) }]),
     ]);
@@ -248,7 +291,6 @@ describe('the rows', () => {
 
   it('goes away when nothing matches, rather than standing over the line empty', () => {
     openMenu('zzz');
-    expect(rowLabels()).toEqual([]);
     expect(menuEl().hasAttribute('data-hidden')).toBe(true);
   });
 
@@ -423,9 +465,80 @@ describe('picking a row', () => {
 
   it('a mouse press on a row picks that row, not the highlighted one', () => {
     const view = openMenu('');
-    const quote = rows().find((row) => row.dataset.label === 'Quote');
+    const quote = rows().find((row) => row.dataset.row === 'Quote');
     quote?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     expect(firstBlock(view).type.name).toBe('quote');
+  });
+});
+
+/**
+ * The query typed after a sentence is a command about that sentence's block.
+ * A pick replaces exactly the token, so the sentence stays where it was.
+ */
+describe('picking a row from a query typed mid-line', () => {
+  function openMidLine(query: string, text = 'some text '): EditorView {
+    const view = mount([block('Text', [span(text)])]);
+    caretAtEnd(view);
+    type(view, `/${query}`);
+    expect(isOpen()).toBe(true);
+    return view;
+  }
+
+  it('converts the block around the text and takes only the token', () => {
+    const view = openMidLine('quo');
+    press(view, 'Enter');
+    expect(firstBlock(view).type.name).toBe('quote');
+    expect(lineText(firstBlock(view))).toBe('some text ');
+  });
+
+  it('leaves the caret where the token was', () => {
+    const view = openMidLine('heading 2');
+    press(view, 'Enter');
+    expect(view.state.selection.empty).toBe(true);
+    expect(view.state.selection.from).toBe(2 + 'some text '.length);
+  });
+
+  it('keeps an equation earlier in the line', () => {
+    const view = mount([
+      block('Text', [span(''), { kind: 'equation', latex: 'x^2', style: styled({}) }, span(' ')]),
+    ]);
+    caretAtEnd(view);
+    type(view, '/quo');
+    press(view, 'Enter');
+    expect(firstBlock(view).type.name).toBe('quote');
+    expect(firstBlock(view).firstChild?.firstChild?.type.name).toBe('equationSpan');
+  });
+
+  it('puts a block with nowhere to type after the text rather than over it', () => {
+    const view = openMidLine('divider');
+    press(view, 'Enter');
+    expect(firstBlock(view).type.name).toBe('paragraph');
+    expect(lineText(firstBlock(view))).toBe('some text ');
+    expect(view.state.doc.child(1).type.name).toBe('divider');
+    // And a place to carry on typing below it, as an empty-line pick gets.
+    expect(view.state.doc.child(2).type.name).toBe('paragraph');
+    expect(view.state.selection.$from.node(view.state.selection.$from.depth - 1).type.name).toBe(
+      'paragraph',
+    );
+  });
+
+  it('does the same for a table', () => {
+    const view = openMidLine('table');
+    press(view, 'Enter');
+    expect(firstBlock(view).type.name).toBe('paragraph');
+    expect(lineText(firstBlock(view))).toBe('some text ');
+    expect(view.state.doc.child(1).type.name).toBe('table');
+    expect(view.state.selection.$from.node(view.state.selection.$from.depth - 1).type.name).toBe(
+      'tableCell',
+    );
+  });
+
+  it('is one undo step, giving the token back in place', () => {
+    const view = openMidLine('quo');
+    press(view, 'Enter');
+    undo(view.state, view.dispatch);
+    expect(firstBlock(view).type.name).toBe('paragraph');
+    expect(lineText(firstBlock(view))).toBe('some text /quo');
   });
 });
 
@@ -540,16 +653,16 @@ describe('what the menu tells a screen reader', () => {
 
   it('the active descendant is the highlighted row, and follows the arrows', () => {
     const view = openMenu();
-    expect(activeRow(view)?.dataset.label).toBe('Text');
+    expect(activeRow(view)?.dataset.row).toBe('Text');
     press(view, 'ArrowDown');
-    expect(activeRow(view)?.dataset.label).toBe('Heading1');
+    expect(activeRow(view)?.dataset.row).toBe('Heading1');
     press(view, 'End');
-    expect(activeRow(view)?.dataset.label).toBe('Page');
+    expect(activeRow(view)?.dataset.row).toBe('Page');
   });
 
   it('follows a filter down to the row it leaves standing', () => {
     const view = openMenu('quo');
-    expect(activeRow(view)?.dataset.label).toBe('Quote');
+    expect(activeRow(view)?.dataset.row).toBe('Quote');
   });
 
   /** Announcing an open list with nothing in it is worse than announcing none. */

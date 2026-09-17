@@ -176,8 +176,10 @@ describe('markdown', () => {
 });
 
 describe('the slash row', () => {
+  // The menu takes the typed query out before the row runs, so the block the
+  // row is handed is empty.
   it('replaces the block in place and lands the caret in the first cell', () => {
-    const state = buildNoteEditState([block('Text', '/table')]);
+    const state = buildNoteEditState([block('Text', '')]);
     expect(state.ok).toBe(true);
     if (!state.ok) return;
 
