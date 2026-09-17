@@ -13,14 +13,8 @@ import { clampDockWidth, useSomaStore } from "@/stores/soma"
 import { PeekBody } from "./PeekBody"
 import { PeekHeader } from "./PeekHeader"
 import { escapeContextOf, escapeShouldClosePeek } from "./escape"
-import {
-  escapeClosesPeek,
-  PEEK_CANVAS_STRIP,
-  PEEK_MAX_WIDTH,
-  PEEK_MIN_WIDTH,
-  PEEK_RAIL_WIDTH,
-  usePeekStore,
-} from "./store"
+import { overlayGeometry } from "./overlay-geometry"
+import { escapeClosesPeek, PEEK_MAX_WIDTH, PEEK_MIN_WIDTH, PEEK_RAIL_WIDTH, usePeekStore } from "./store"
 import { usePeekSubject } from "./usePeekSubject"
 
 /**
@@ -116,7 +110,8 @@ export function SidePeek() {
    * `max-width: calc(100% - 96px)` against a minimum width settles, between 400 and
    * 496px of canvas, on a one to ninety-five pixel ribbon of module, which is the exact
    * outcome the strip exists to prevent. There is no conditional in CSS for "and if
-   * that leaves less than a strip, take all of it", so the row is measured instead.
+   * that leaves less than a strip, take all of it", so the row is measured instead and
+   * overlayGeometry decides.
    */
   useLayoutEffect(() => {
     const parent = panel.current?.parentElement
@@ -134,14 +129,9 @@ export function SidePeek() {
 
   if (!item) return null
 
-  const canvas = Math.max(0, row - neighbour)
-  const overlayWidth =
-    row === 0
-      ? width
-      : canvas - PEEK_CANVAS_STRIP < PEEK_MIN_WIDTH
-        ? canvas
-        : Math.min(width, canvas - PEEK_CANVAS_STRIP)
-  const shown = collapsed ? PEEK_RAIL_WIDTH : docked ? width : overlayWidth
+  const overlay = overlayGeometry(row, neighbour, width)
+  const expanded = docked ? width : overlay.width
+  const shown = collapsed ? PEEK_RAIL_WIDTH : expanded
 
   const railLabel = subject.title
     ? `${t("App", "PeekExpand")} · ${subject.title}`
@@ -173,7 +163,7 @@ export function SidePeek() {
     order: docked && side === "left" ? -1 : 0,
     ...(docked
       ? {}
-      : { zIndex: Z_LAYERS.peek, ...(side === "right" ? { right: neighbour } : { left: 0 }) }),
+      : { zIndex: Z_LAYERS.peek, ...(side === "right" ? { right: overlay.inset } : { left: 0 }) }),
     ["--peek-surface-alpha" as string]: alpha / 100,
   }
 
@@ -201,8 +191,8 @@ export function SidePeek() {
       {collapsed ? (
         // Collapsed keeps the item alive and shows only enough of the panel to be found
         // again. Swapping the content out for a rail is the obvious way to write it and
-        // it throws away whatever was going on: hiding costs a scroll position,
-        // unmounting costs the whole read.
+        // it throws away the whole read. The content is hidden instead, and the engine
+        // keeps a hidden scroller's offset, so expanding lands where the reader was.
         <button
           type="button"
           // The header is hidden while collapsed, so without the subject here the rail
@@ -223,7 +213,8 @@ export function SidePeek() {
         role="separator"
         aria-orientation="vertical"
         aria-label={t("App", "PeekResize")}
-        aria-valuenow={width}
+        // The rendered width, not the stored one: an overlay is clamped by its canvas.
+        aria-valuenow={expanded}
         aria-valuemin={PEEK_MIN_WIDTH}
         aria-valuemax={PEEK_MAX_WIDTH}
         tabIndex={0}
