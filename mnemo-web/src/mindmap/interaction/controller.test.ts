@@ -519,6 +519,31 @@ describe("installInteraction", () => {
     h.uninstall()
   })
 
+  it("leaves a press inside an open label field to the caret", () => {
+    // The field is a textarea inside the node's host. Its own stop runs at React's root, after
+    // the pane's listener, so the pane has to recognise the field itself or it takes the focus
+    // and the field closes on the click that meant to place the caret.
+    const h = harness()
+    let focused = 0
+    h.pane.focus = () => {
+      focused += 1
+    }
+    const field = document.createElement("textarea")
+    h.hosts.get("a")!.appendChild(field)
+
+    h.press(null, { x: 210, y: -50 })
+    h.release({ x: 210, y: -50 })
+    expect(focused).toBe(1)
+
+    field.dispatchEvent(Object.assign(new MouseEvent("pointerdown", { bubbles: true, clientX: 210, clientY: -50 }), { pointerId: 1 }))
+    h.move({ x: 310, y: 40 })
+
+    expect(focused).toBe(1)
+    expect(h.selection().elements.size).toBe(0)
+    expect(h.positions.get("a")).toEqual({ x: 200, y: -60 })
+    h.uninstall()
+  })
+
   it("ignores a press that belongs to the runtime's pan", () => {
     const h = harness()
     h.press("a", { x: 210, y: -50 }, { altKey: true })

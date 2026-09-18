@@ -13,6 +13,7 @@
 
 import { planDrag, positionAt, type DragPlan } from "../canvas/drag-plan"
 import { panModifier } from "../canvas/pan-gesture"
+import { isEditableTarget } from "@/keybinds/chord"
 import type { SceneIndex } from "../canvas/scene-index"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import { EDGE_HIT_PIXELS, hitEdge } from "./hit-test"
@@ -231,6 +232,12 @@ export function installInteraction(
     })
 
   const onPointerDown = (event: PointerEvent): void => {
+    // A press inside an open label field is the caret's, placing it or dragging a selection.
+    // Taking the focus below would close the field on the very click that meant to edit in it,
+    // and the field's own stop runs at React's root, after this listener has already had the event.
+    if (isEditableTarget(event.target)) {
+      return
+    }
     // Middle, alt-left and space-left are the runtime's pan, and a secondary click opens a menu
     // rather than moving anything. None of them are this module's business.
     if (event.button !== 0 || event.altKey || surface.spacePan?.() || gesture.kind !== "none") {
