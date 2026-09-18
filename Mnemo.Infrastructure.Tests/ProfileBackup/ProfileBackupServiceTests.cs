@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
@@ -195,6 +196,32 @@ public sealed class ProfileBackupServiceTests
             service.InspectAsync(archive, "0.8.0-beta"));
 
         Assert.Equal("backup_manifest_invalid", refused.Code);
+    }
+
+    [Fact]
+    public async Task CreateAsync_RefusesWhileAnotherWriterHoldsTheDatabase()
+    {
+        using var profile = await TestProfile.CreateAsync();
+        var archive = Path.Combine(profile.Parent, "busy.mnemo-backup");
+        var service = profile.Service(barrierTimeout: TimeSpan.FromSeconds(1));
+        await using var writer = new SqliteConnection($"Data Source={profile.DatabasePath};Pooling=False");
+        await writer.OpenAsync();
+        await ScalarAsync(writer, "BEGIN IMMEDIATE;");
+
+        var clock = Stopwatch.StartNew();
+        var refused = await Assert.ThrowsAsync<ProfileBackupException>(() =>
+            service.CreateAsync(archive, "0.8.0-beta"));
+        clock.Stop();
+
+        Assert.Equal("backup_database_busy", refused.Code);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(10), $"Refused after {clock.Elapsed}.");
+        Assert.False(File.Exists(archive));
+        Assert.Empty(Directory.EnumerateFiles(profile.Parent, "*.building", SearchOption.AllDirectories));
+        Assert.Empty(Directory.EnumerateDirectories(profile.Root, ".backup-create-*"));
+
+        await ScalarAsync(writer, "ROLLBACK;");
+        await service.CreateAsync(archive, "0.8.0-beta");
+        Assert.True(File.Exists(archive));
     }
 
     [Fact]
@@ -788,8 +815,10 @@ public sealed class ProfileBackupServiceTests
         public static readonly ProfileBackupArchive.ReadLimits Limits =
             new(100, 16 * 1024 * 1024, 64 * 1024 * 1024, 3);
 
-        public ProfileBackupService Service(Action<ProfileBackupService.BackupCheckpoint>? checkpoint = null) =>
-            new(Root, Limits, checkpoint: checkpoint);
+        public ProfileBackupService Service(
+            Action<ProfileBackupService.BackupCheckpoint>? checkpoint = null,
+            TimeSpan? barrierTimeout = null) =>
+            new(Root, Limits, checkpoint: checkpoint, barrierTimeout: barrierTimeout);
 
         public async Task SetStorageAsync(string key, string value)
         {

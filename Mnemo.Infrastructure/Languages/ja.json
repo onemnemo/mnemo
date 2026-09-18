@@ -1608,6 +1608,7 @@
     "BackupTooLarge": "そのバックアップは大きすぎるか、Mnemo が安全に復元できる数を超えるファイルが含まれています。",
     "BackupDatabaseInvalid": "そのバックアップには有効な Mnemo プロフィールデータベースが含まれていません。",
     "CurrentDataUnavailable": "現在のデータを読み取れませんでした。",
+    "BackupDatabaseBusy": "データはまだ保存中です。しばらくしてからもう一度お試しください。",
     "BackupDamaged": "そのバックアップは不完全か破損しています。",
     "BackupFailed": "Mnemo はバックアップを作成できませんでした。",
     "RestoreFailed": "Mnemo はバックアップを復元用に準備できませんでした。",

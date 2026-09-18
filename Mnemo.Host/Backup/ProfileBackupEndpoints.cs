@@ -65,7 +65,7 @@ public static class ProfileBackupEndpoints
             logger.Warning(LogCategory, $"Backup failed with {ex.Code}: {ex.Message}");
             return Results.Json(new ErrorDto(ex.Code, ex.Message), statusCode: StatusCodes.Status409Conflict);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             if (target is not null)
                 return ExportDestination.Failed(target, path, logger, LogCategory, ex);

@@ -1608,6 +1608,7 @@
     "BackupTooLarge": "Esa copia es más grande o contiene más archivos de los que Mnemo puede restaurar de forma segura.",
     "BackupDatabaseInvalid": "Esa copia no contiene una base de datos de perfil de Mnemo válida.",
     "CurrentDataUnavailable": "Mnemo no pudo leer los datos actuales.",
+    "BackupDatabaseBusy": "Tus datos aún se están guardando. Inténtalo de nuevo en un momento.",
     "BackupDamaged": "Esa copia está incompleta o dañada.",
     "BackupFailed": "Mnemo no pudo crear la copia.",
     "RestoreFailed": "Mnemo no pudo preparar la copia para restaurarla.",

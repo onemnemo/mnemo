@@ -16,10 +16,15 @@ public sealed class ProfileBackupService : IProfileBackupService
 
     internal static IReadOnlyList<string> ManagedDirectoryNames => MnemoAppPaths.ManagedProfileDirectoryNames;
 
+    private const int SqliteBusy = 5;
+    private const int SqliteLocked = 6;
+    private static readonly TimeSpan DefaultBarrierTimeout = TimeSpan.FromSeconds(15);
+
     private readonly string _dataRoot;
     private readonly ProfileBackupArchive.ReadLimits _limits;
     private readonly ILoggerService _logger;
     private readonly Action<BackupCheckpoint>? _checkpoint;
+    private readonly TimeSpan _barrierTimeout;
 
     public ProfileBackupService(ILoggerService logger)
         : this(MnemoAppPaths.GetLocalUserDataRoot(), ProfileBackupArchive.ReadLimits.Default, logger)
@@ -30,12 +35,14 @@ public sealed class ProfileBackupService : IProfileBackupService
         string dataRoot,
         ProfileBackupArchive.ReadLimits limits,
         ILoggerService? logger = null,
-        Action<BackupCheckpoint>? checkpoint = null)
+        Action<BackupCheckpoint>? checkpoint = null,
+        TimeSpan? barrierTimeout = null)
     {
         _dataRoot = Path.GetFullPath(dataRoot);
         _limits = limits;
         _logger = logger ?? DiscardLogger.Instance;
         _checkpoint = checkpoint;
+        _barrierTimeout = barrierTimeout ?? DefaultBarrierTimeout;
     }
 
     public async Task<ProfileBackupManifest> CreateAsync(
@@ -83,10 +90,15 @@ public sealed class ProfileBackupService : IProfileBackupService
             _logger.Info(LogCategory, $"Created profile backup at {output}.");
             return manifest;
         }
+        catch (SqliteException ex)
+        {
+            AbandonBuild(building, ex);
+            throw new ProfileBackupException(
+                "backup_database_unavailable", "The current profile database could not be read.", ex);
+        }
         catch (Exception ex)
         {
-            TryDeleteFile(building, _logger);
-            _logger.Error(LogCategory, "Profile backup creation failed.", ex);
+            AbandonBuild(building, ex);
             throw;
         }
         finally
@@ -218,6 +230,16 @@ public sealed class ProfileBackupService : IProfileBackupService
         return Task.FromResult(true);
     }
 
+    private void AbandonBuild(string building, Exception cause)
+    {
+        TryDeleteFile(building, _logger);
+        // A coded refusal, a busy database say, is a routine answer the user sees, not a fault.
+        if (cause is ProfileBackupException refused)
+            _logger.Warning(LogCategory, $"Profile backup refused: {refused.Code}. {refused.Message}");
+        else
+            _logger.Error(LogCategory, "Profile backup creation failed.", cause);
+    }
+
     private async Task CaptureConsistentProfileAsync(
         string snapshotPath,
         string assetsPath,
@@ -231,8 +253,26 @@ public sealed class ProfileBackupService : IProfileBackupService
         await barrier.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using (var pragma = barrier.CreateCommand())
         {
-            pragma.CommandText = "PRAGMA busy_timeout=15000; BEGIN IMMEDIATE;";
+            pragma.CommandText = $"PRAGMA busy_timeout={(long)_barrierTimeout.TotalMilliseconds};";
             await pragma.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        // Its own command, because a BEGIN that fails behind the pragma's result row is dropped
+        // and the snapshot runs with no barrier. The two timeouts match: SQLite waits busy_timeout
+        // inside a step and the driver retries a busy step until CommandTimeout.
+        await using (var begin = barrier.CreateCommand())
+        {
+            begin.CommandText = "BEGIN IMMEDIATE;";
+            begin.CommandTimeout = (int)Math.Ceiling(_barrierTimeout.TotalSeconds);
+            try
+            {
+                await begin.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (SqliteException ex) when (ex.SqliteErrorCode is SqliteBusy or SqliteLocked)
+            {
+                throw new ProfileBackupException(
+                    "backup_database_busy", "The profile database is busy. Try again in a moment.", ex);
+            }
         }
 
         try

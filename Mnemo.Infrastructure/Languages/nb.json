@@ -1608,6 +1608,7 @@
     "BackupTooLarge": "Sikkerhetskopien er større eller inneholder flere filer enn Mnemo trygt kan gjenopprette.",
     "BackupDatabaseInvalid": "Sikkerhetskopien inneholder ikke en gyldig Mnemo-profildatabase.",
     "CurrentDataUnavailable": "Mnemo kunne ikke lese dataene som er her nå.",
+    "BackupDatabaseBusy": "Dataene dine lagres fortsatt. Prøv igjen om et øyeblikk.",
     "BackupDamaged": "Sikkerhetskopien er ufullstendig eller skadet.",
     "BackupFailed": "Mnemo kunne ikke opprette sikkerhetskopien.",
     "RestoreFailed": "Mnemo kunne ikke forberede sikkerhetskopien for gjenoppretting.",

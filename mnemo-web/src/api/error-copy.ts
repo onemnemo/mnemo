@@ -81,6 +81,7 @@ export const ERROR_KEYS: Readonly<Record<string, string>> = {
   backup_database_missing: "BackupDatabaseInvalid",
   backup_database_invalid: "BackupDatabaseInvalid",
   backup_database_unavailable: "CurrentDataUnavailable",
+  backup_database_busy: "BackupDatabaseBusy",
   backup_inspection_failed: "BackupInvalid",
   backup_file_missing: "BackupDamaged",
   backup_size_mismatch: "BackupDamaged",
