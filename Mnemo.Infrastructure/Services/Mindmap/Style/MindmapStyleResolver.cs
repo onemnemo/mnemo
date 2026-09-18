@@ -12,6 +12,14 @@ namespace Mnemo.Infrastructure.Services.Mindmap.Style;
 /// </summary>
 public sealed class MindmapStyleResolver : IMindmapStyleResolver
 {
+    /// <summary>The fills that are the canvas's own paper rather than a colour laid on it.</summary>
+    private static readonly HashSet<string> PaperFills = new(StringComparer.Ordinal)
+    {
+        MindmapStyleTokens.Surface,
+        MindmapStyleTokens.SurfaceAlt,
+        MindmapStyleTokens.Stroke,
+    };
+
     public ResolvedStyle Resolve(ElementStyle? own, StyleContext context, IReadOnlyList<StyleTemplate> templateChain)
     {
         var chain = templateChain ?? Array.Empty<StyleTemplate>();
@@ -61,6 +69,19 @@ public sealed class MindmapStyleResolver : IMindmapStyleResolver
 
         if (branchColor is not null)
             stroke ??= branchColor;
+
+        // A root card paints its fill, so a stroke chosen for the root is meant as that fill and
+        // replaces any colour fill, whether the template or the element itself named it. A paper
+        // fill is not a colour and keeps the ring. Only on the card: a pill washes over its fill and
+        // the other rungs paint none, so there the fill stays the accent the ink was paired with.
+        if (context.IsRoot
+            && own?.Stroke is not null
+            && (shape ?? NodeShape.Card) == NodeShape.Card
+            && fill is not null
+            && !PaperFills.Contains(fill))
+        {
+            fill = own.Stroke;
+        }
 
         return new ResolvedStyle
         {

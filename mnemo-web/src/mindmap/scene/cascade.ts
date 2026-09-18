@@ -38,6 +38,9 @@ export interface ResolvedStyle {
 
 const NO_TEMPLATES: readonly StyleTemplate[] = []
 
+/** The fills that are the canvas's own paper rather than a colour laid on it. */
+const PAPER_FILLS: ReadonlySet<string> = new Set(["surface", "surfaceAlt", "stroke"])
+
 export function resolveStyle(
   own: ElementStyle | null | undefined,
   context: StyleContext,
@@ -85,6 +88,20 @@ export function resolveStyle(
 
   if (branchColor !== null) {
     stroke ??= branchColor
+  }
+
+  // A root card paints its fill, so a colour chosen for the root is meant as that fill and
+  // replaces any colour fill, whether the template or the element itself named it. A paper fill
+  // is not a colour and keeps the ring. Only on the card: a pill washes over its fill and the
+  // other rungs paint none, so there the fill stays the accent the ink was paired with.
+  if (
+    context.isRoot &&
+    own?.stroke != null &&
+    (nodeShape ?? "card") === "card" &&
+    fill !== null &&
+    !PAPER_FILLS.has(fill)
+  ) {
+    fill = own.stroke
   }
 
   return {

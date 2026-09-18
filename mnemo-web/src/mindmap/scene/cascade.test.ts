@@ -53,6 +53,44 @@ describe("what wins", () => {
   })
 })
 
+describe("a colour chosen for the root", () => {
+  it("becomes the root's fill in place of the template's accent", () => {
+    const style = resolveStyle({ stroke: "palette.3" }, at(0), [plainAtDepthOne])
+
+    expect(style.fill).toBe("palette.3")
+    expect(style.stroke).toBe("palette.3")
+    // The ink stays the accent's, since the fill is still a full colour under it.
+    expect(style.textColor).toBe("onAccent")
+  })
+
+  it("replaces a colour the root element names itself, which is how an assistant-written map arrives", () => {
+    // Every element of such a map carries `fill: accent` on the element, not on a template.
+    expect(resolveStyle({ stroke: "palette.3", fill: "accent" }, at(0), [plainAtDepthOne]).fill).toBe("palette.3")
+    expect(resolveStyle({ stroke: "palette.3", fill: "palette.5" }, at(0), [plainAtDepthOne]).fill).toBe("palette.3")
+    expect(resolveStyle({ stroke: "palette.3", fill: "#112233" }, at(0), []).fill).toBe("palette.3")
+  })
+
+  it("leaves a paper fill, whether the root or a neutral template names it", () => {
+    expect(resolveStyle({ stroke: "palette.3", fill: "surfaceAlt" }, at(0), [plainAtDepthOne]).fill).toBe("surfaceAlt")
+
+    const neutral: StyleTemplate = { ...plainAtDepthOne, rootStyle: { fill: "surfaceAlt" } }
+    expect(resolveStyle({ stroke: "palette.3" }, at(0), [neutral]).fill).toBe("surfaceAlt")
+    // No template at all is the same answer: the theme's surface is paper.
+    expect(resolveStyle({ stroke: "palette.3" }, at(0), []).fill).toBe("surface")
+  })
+
+  it("stays the template's accent on a pill, which washes over its fill and keeps the paired ink", () => {
+    expect(resolveStyle({ stroke: "palette.3", nodeShape: "pill" }, at(0), [plainAtDepthOne]).fill).toBe("accent")
+    expect(resolveStyle({ stroke: "palette.3", nodeShape: "outline" }, at(0), [plainAtDepthOne]).fill).toBe("accent")
+  })
+
+  it("does not reach a child, whose stroke is a ring on its own card", () => {
+    const style = resolveStyle({ stroke: "palette.3" }, at(1, 0), [plainAtDepthOne])
+
+    expect(style.fill).toBe("surface")
+  })
+})
+
 describe("depth rules", () => {
   it("apply the root style to a root and a depth rule to everything else", () => {
     expect(resolveStyle(null, at(0), [plainAtDepthOne]).fontScale).toBe("l")

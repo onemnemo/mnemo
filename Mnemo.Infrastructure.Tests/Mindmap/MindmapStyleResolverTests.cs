@@ -55,6 +55,60 @@ public sealed class MindmapStyleResolverTests
     }
 
     [Fact]
+    public void Resolve_StrokeChosenForTheRoot_BecomesItsFill()
+    {
+        var own = new ElementStyle { Stroke = MindmapStyleTokens.Palette(3) };
+
+        var style = _resolver.Resolve(own, StyleContext.Root, Chain(MindmapBuiltInTemplates.DawnClassic));
+
+        Assert.Equal(MindmapStyleTokens.Palette(3), style.Fill);
+        Assert.Equal(MindmapStyleTokens.Palette(3), style.Stroke);
+        Assert.Equal(MindmapStyleTokens.OnAccent, style.TextColor);
+    }
+
+    [Theory]
+    [InlineData(MindmapStyleTokens.Accent)]
+    [InlineData("palette.5")]
+    [InlineData("#112233")]
+    public void Resolve_StrokeChosenForTheRoot_ReplacesAColourTheRootNamesItself(string fill)
+    {
+        // A map the assistant writes carries `accent` on the root element rather than on a template.
+        var own = new ElementStyle { Stroke = MindmapStyleTokens.Palette(3), Fill = fill };
+
+        var style = _resolver.Resolve(own, StyleContext.Root, Chain(MindmapBuiltInTemplates.DawnClassic));
+
+        Assert.Equal(MindmapStyleTokens.Palette(3), style.Fill);
+    }
+
+    [Theory]
+    [InlineData(NodeShape.Pill)]
+    [InlineData(NodeShape.Outline)]
+    [InlineData(NodeShape.Plain)]
+    public void Resolve_StrokeChosenForTheRoot_LeavesTheFillOnARungThatDoesNotPaintIt(NodeShape shape)
+    {
+        var own = new ElementStyle { Stroke = MindmapStyleTokens.Palette(3), NodeShape = shape };
+
+        var style = _resolver.Resolve(own, StyleContext.Root, Chain(MindmapBuiltInTemplates.DawnClassic));
+
+        Assert.Equal(MindmapStyleTokens.Accent, style.Fill);
+        Assert.Equal(MindmapStyleTokens.Palette(3), style.Stroke);
+    }
+
+    [Fact]
+    public void Resolve_StrokeChosenForTheRoot_LeavesAPaperFill()
+    {
+        var own = new ElementStyle { Stroke = MindmapStyleTokens.Palette(3), Fill = MindmapStyleTokens.SurfaceAlt };
+
+        var style = _resolver.Resolve(own, StyleContext.Root, Chain(MindmapBuiltInTemplates.DawnClassic));
+
+        Assert.Equal(MindmapStyleTokens.SurfaceAlt, style.Fill);
+
+        // No template at all is the same answer: the theme's surface is paper.
+        var bare = _resolver.Resolve(new ElementStyle { Stroke = MindmapStyleTokens.Palette(3) }, StyleContext.Root, Chain());
+        Assert.Equal(MindmapStyleTokens.Surface, bare.Fill);
+    }
+
+    [Fact]
     public void Resolve_DepthRules_ApplyByBand()
     {
         var template = MindmapBuiltInTemplates.DawnClassic;
