@@ -147,6 +147,14 @@ public static class NoteBlockMarkdownConverter
         return "| " + string.Join(" | ", texts) + " |";
     }
 
+    /// <summary>Whether a "$$" line follows, so the opener at hand is a fence rather than text.</summary>
+    private static bool HasFenceClose(string[] lines, int from)
+    {
+        for (var j = from; j < lines.Length; j++)
+            if (lines[j].TrimStart() == "$$") return true;
+        return false;
+    }
+
     /// <summary>A pipe and the run of backslashes before it.</summary>
     private static readonly Regex CellPipeRegex = new(@"(\\*)\|", RegexOptions.Compiled);
 
@@ -228,7 +236,9 @@ public static class NoteBlockMarkdownConverter
                 continue;
             }
 
-            if (trimmed == "$$" || (trimmed.StartsWith("$$") && trimmed.EndsWith("$$") && trimmed.Length > 2))
+            // An opener with no closer below it is a line of text; read as a fence it would take every
+            // line after it into one equation.
+            if ((trimmed == "$$" && HasFenceClose(lines, i + 1)) || (trimmed.StartsWith("$$") && trimmed.EndsWith("$$") && trimmed.Length > 2))
             {
                 if (trimmed == "$$")
                 {

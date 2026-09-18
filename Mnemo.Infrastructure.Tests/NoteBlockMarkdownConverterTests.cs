@@ -79,6 +79,25 @@ public class NoteBlockMarkdownConverterTests
     }
 
     [Fact]
+    public void Deserialize_EquationOpenerWithNoCloser_IsText()
+    {
+        var blocks = NoteBlockMarkdownConverter.Deserialize("before\n$$\nafter\n# Title");
+
+        Assert.Equal(new[] { BlockType.Text, BlockType.Text, BlockType.Text, BlockType.Heading1 }, blocks.Select(b => b.Type));
+        // The opener itself reads as an empty inline equation, which is what two dollars are to the
+        // inline parser; what matters is that the lines after it are still their own blocks.
+        Assert.Equal("after", blocks[2].Content);
+    }
+
+    [Fact]
+    public void InlineMarkdownSerializer_EmptyEquationSpan_EmitsNothing()
+    {
+        var md = InlineMarkdownSerializer.SerializeSpans(new List<InlineSpan> { InlineSpan.Plain("a"), new EquationSpan(""), InlineSpan.Plain("b") });
+
+        Assert.Equal("ab", md);
+    }
+
+    [Fact]
     public void InlineMarkdownSerializer_EquationSpan_EmitsDollar()
     {
         var spans = new List<InlineSpan>

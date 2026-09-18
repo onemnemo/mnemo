@@ -66,6 +66,11 @@ describe('serializeInlineMarkdown', () => {
     expect(serializeInlineMarkdown([text('b\nold', { bold: true })])).toBe('**b\\\nold**');
   });
 
+  it('writes nothing for an empty equation chip, whose token would be a fence', () => {
+    expect(serializeInlineMarkdown([text('a'), { kind: 'equation', latex: '', style: style() }, text('b')])).toBe('ab');
+    expect(serializeInlineMarkdown([{ kind: 'equation', latex: '', style: style() }])).toBe('');
+  });
+
   it('renders inline atoms as their Mnemo markdown tokens', () => {
     expect(serializeInlineMarkdown([{ kind: 'equation', latex: 'mc^2', style: style() }])).toBe('$mc^2$');
     expect(

@@ -106,6 +106,14 @@ describe('parseMarkdownToBlocks: atomic blocks', () => {
     expect(eq.payload).toEqual({ kind: 'equation', latex: 'x^2' });
   });
 
+  it('reads an opener with no closer as text rather than as a fence to the end', () => {
+    const blocks = parseMarkdownToBlocks('before\n$$\nafter\n# Title');
+    expect(blocks.map((b) => b.type)).toEqual(['Text', 'Text', 'Text', 'Heading1']);
+    // The opener itself reads as an empty inline equation, which is what two dollars are to the
+    // inline parser; what matters is that the lines after it are still their own blocks.
+    expect(textOf(blocks[2])).toBe('after');
+  });
+
   it('reads a multi-line equation fence and trims it', () => {
     const eq = one('$$\n  a + b\n$$');
     expect(eq.type).toBe('Equation');

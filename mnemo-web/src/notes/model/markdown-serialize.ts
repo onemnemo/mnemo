@@ -42,7 +42,9 @@ export function serializeInlineMarkdown(spans: readonly InlineSpan[]): string {
 function serializeSpan(span: InlineSpan): string {
   switch (span.kind) {
     case 'equation':
-      return `$${span.latex}$`;
+      // An empty chip is a placeholder with nothing to say, and the `$$` it would write
+      // is a fence to every reader, which swallows the rest of the document into one equation.
+      return span.latex.length === 0 ? '' : `$${span.latex}$`;
     case 'fraction':
       return `\\${span.numerator}/${span.denominator}`;
     default:

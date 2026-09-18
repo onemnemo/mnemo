@@ -206,8 +206,13 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
       continue;
     }
 
-    // Equation: a `$$` fence, either the whole line or a block opened on its own.
-    if (trimmed === '$$' || (trimmed.startsWith('$$') && trimmed.endsWith('$$') && trimmed.length > 2)) {
+    // Equation: a `$$` fence, either the whole line or a block opened on its own. An opener
+    // with no closer below it is a line of text; read as a fence it would take every line after
+    // it into one equation.
+    if (
+      (trimmed === '$$' && lines.slice(i + 1).some((line) => line.replace(/^\s+/, '') === '$$')) ||
+      (trimmed.startsWith('$$') && trimmed.endsWith('$$') && trimmed.length > 2)
+    ) {
       if (trimmed === '$$') {
         const body: string[] = [];
         i++;

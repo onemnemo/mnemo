@@ -23,7 +23,9 @@ public static class InlineMarkdownSerializer
 
     private static string SerializeSpan(InlineSpan s) => s switch
     {
-        EquationSpan e => "$" + e.Latex + "$",
+        // An empty chip is a placeholder with nothing to say, and the "$$" it would write is a
+        // fence to every reader, which swallows the rest of the document into one equation.
+        EquationSpan e => e.Latex.Length == 0 ? string.Empty : "$" + e.Latex + "$",
         FractionSpan f => $"\\{f.Numerator}/{f.Denominator}",
         TextSpan t => SerializeTextSpan(t),
         _ => string.Empty
