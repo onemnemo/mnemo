@@ -153,6 +153,51 @@ public sealed class ProfileBackupServiceTests
     }
 
     [Fact]
+    public async Task WriteAsync_BoundsTheManifestByTheEntryLimitNotAFixedSize()
+    {
+        using var profile = await TestProfile.CreateAsync();
+        var assets = Path.Combine(profile.Parent, "assets");
+        var images = Path.Combine(assets, "images");
+        Directory.CreateDirectory(images);
+        const int fileCount = 6_000;
+        for (var index = 0; index < fileCount; index++)
+            await File.WriteAllBytesAsync(Path.Combine(images, $"{Guid.NewGuid():N}.png"), [1]);
+        var limits = new ProfileBackupArchive.ReadLimits(10_000, 16 * 1024 * 1024, 64 * 1024 * 1024, 3);
+        var manifest = new Mnemo.Core.Models.ProfileBackupManifest
+        {
+            FormatVersion = ProfileBackupArchive.FormatVersion,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            CreatedByAppVersion = "0.8.0-beta",
+            CollectionId = "collection",
+        };
+        var archive = Path.Combine(profile.Parent, "crowded.mnemo-backup");
+
+        await ProfileBackupWriter.WriteAsync(
+            archive, profile.DatabasePath, assets, manifest, limits, CancellationToken.None);
+
+        using (var zip = ZipFile.OpenRead(archive))
+            Assert.True(zip.GetEntry("manifest.json")!.Length > 1024 * 1024);
+        var read = await ProfileBackupArchive.ValidateAsync(archive, "0.8.0-beta", limits);
+        Assert.Equal(fileCount + 1, read.Entries.Count);
+        Assert.Equal(fileCount, read.Contents.ManagedFiles);
+    }
+
+    [Fact]
+    public async Task InspectAsync_RefusesAManifestLargerThanTheEntryLimitCanDescribe()
+    {
+        using var profile = await TestProfile.CreateAsync();
+        var archive = Path.Combine(profile.Parent, "padded.mnemo-backup");
+        var service = profile.Service();
+        await service.CreateAsync(archive, "0.8.0-beta");
+        await PadManifestAsync(archive, TestProfile.Limits.MaxManifestBytes + 1);
+
+        var refused = await Assert.ThrowsAsync<ProfileBackupException>(() =>
+            service.InspectAsync(archive, "0.8.0-beta"));
+
+        Assert.Equal("backup_manifest_invalid", refused.Code);
+    }
+
+    [Fact]
     public async Task InspectAsync_IdentifiesABackupFromAnotherCollection()
     {
         using var source = await TestProfile.CreateAsync("source");
@@ -620,6 +665,24 @@ public sealed class ProfileBackupServiceTests
         await JsonSerializer.SerializeAsync(output, manifest, ProfileBackupArchive.SerializerOptions);
     }
 
+    private static async Task PadManifestAsync(string archivePath, long totalBytes)
+    {
+        using var archive = ZipFile.Open(archivePath, ZipArchiveMode.Update);
+        var entry = archive.GetEntry("manifest.json")!;
+        byte[] manifest;
+        await using (var stream = entry.Open())
+        using (var buffer = new MemoryStream())
+        {
+            await stream.CopyToAsync(buffer);
+            manifest = buffer.ToArray();
+        }
+        entry.Delete();
+        var replacement = archive.CreateEntry("manifest.json");
+        await using var output = replacement.Open();
+        await output.WriteAsync(manifest);
+        await output.WriteAsync(Encoding.ASCII.GetBytes(new string(' ', (int)(totalBytes - manifest.Length))));
+    }
+
     private static async Task<string?> StoredValueAsync(SqliteConnection database, string key)
     {
         await using var command = database.CreateCommand();
@@ -722,10 +785,11 @@ public sealed class ProfileBackupServiceTests
             return profile;
         }
 
-        public ProfileBackupService Service(Action<ProfileBackupService.BackupCheckpoint>? checkpoint = null) => new(
-            Root,
-            new ProfileBackupArchive.ReadLimits(100, 16 * 1024 * 1024, 64 * 1024 * 1024, 3),
-            checkpoint: checkpoint);
+        public static readonly ProfileBackupArchive.ReadLimits Limits =
+            new(100, 16 * 1024 * 1024, 64 * 1024 * 1024, 3);
+
+        public ProfileBackupService Service(Action<ProfileBackupService.BackupCheckpoint>? checkpoint = null) =>
+            new(Root, Limits, checkpoint: checkpoint);
 
         public async Task SetStorageAsync(string key, string value)
         {

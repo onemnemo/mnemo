@@ -49,7 +49,7 @@ internal static class ProfileBackupWriter
             }
 
             var manifestBytes = JsonSerializer.SerializeToUtf8Bytes(manifest, ProfileBackupArchive.SerializerOptions);
-            if (manifestBytes.Length > 1024 * 1024 || manifestBytes.Length > limits.MaxTotalBytes - totalSize)
+            if (manifestBytes.Length > limits.MaxTotalBytes - totalSize)
                 throw new ProfileBackupException("backup_too_large", "The profile is too large to back up safely.");
             var manifestEntry = archive.CreateEntry(ProfileBackupArchive.ManifestPath, CompressionLevel.Optimal);
             await using var manifestStream = manifestEntry.Open();

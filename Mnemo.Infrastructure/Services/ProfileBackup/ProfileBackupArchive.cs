@@ -30,11 +30,20 @@ internal static class ProfileBackupArchive
         long MaxTotalBytes,
         int MaxPathDepth)
     {
+        // Room for one entry at the longest path the layout allows, escaped, plus its fields.
+        private const int ManifestBytesPerEntry = 2048;
+
         public static readonly ReadLimits Default = new(
             MaxEntryCount: 100_000,
             MaxEntryBytes: 2L * 1024 * 1024 * 1024,
             MaxTotalBytes: 20L * 1024 * 1024 * 1024,
             MaxPathDepth: 3);
+
+        /// <summary>
+        /// The largest manifest the entry limit can describe. A bound on untrusted input before
+        /// it is parsed, so it follows the entry limit rather than a size of its own.
+        /// </summary>
+        public long MaxManifestBytes => (long)MaxEntryCount * ManifestBytesPerEntry;
     }
 
     public static JsonSerializerOptions SerializerOptions => JsonOptions;
@@ -79,7 +88,7 @@ internal static class ProfileBackupArchive
 
         if (!entries.TryGetValue(ManifestPath, out var manifestEntry))
             throw Error("backup_manifest_missing", "The backup manifest is missing.");
-        if (manifestEntry.Length > 1024 * 1024)
+        if (manifestEntry.Length > limits.MaxManifestBytes)
             throw Error("backup_manifest_invalid", "The backup manifest is too large.");
 
         ProfileBackupManifest? manifest;
