@@ -71,10 +71,20 @@ describe("a label closing as runs", () => {
 
   it("keeps the rest of the content beside the runs", () => {
     const task: ElementContent = { $type: "task", text: "old", done: true, due: "2026-01-01" }
-    expect(labelCommit(task, false, { runs: [text("new")] })).toEqual({
+    expect(labelCommit(task, false, { runs: [text("new", { italic: true })] })).toEqual({
       kind: "set",
-      patch: { content: { $type: "task", text: "new", done: true, due: "2026-01-01", runs: [text("new")] } },
+      patch: { content: { $type: "task", text: "new", done: true, due: "2026-01-01", runs: [text("new", { italic: true })] } },
     })
+  })
+
+  it("writes words with nothing on them as words, so a node stays plain until it is formatted", () => {
+    expect(labelCommit(plain, false, { runs: [text("new words")] })).toEqual({ kind: "set", patch: { t: "new words" } })
+    expect(labelCommit(plain, false, { runs: [text("two\nlines")] })).toEqual({ kind: "set", patch: { t: "two\nlines" } })
+  })
+
+  it("takes a node back to plain once every mark is gone", () => {
+    const formatted: ElementContent = { $type: "text", text: "hi", runs: [text("hi", { bold: true })] }
+    expect(labelCommit(formatted, false, { runs: [text("hi")] })).toEqual({ kind: "set", patch: { t: "hi" } })
   })
 
   it("trims the whitespace the label opened and closed on, atoms untouched", () => {

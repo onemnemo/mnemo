@@ -7,7 +7,7 @@
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { defaultTextStyle, type InlineSpan, type TextStyle } from "@/notes/model/types"
 
@@ -63,6 +63,35 @@ afterEach(() => {
 })
 
 const label = (): HTMLElement => container.querySelector<HTMLElement>(".mm-rich")!
+
+const { openExternally } = vi.hoisted(() => ({ openExternally: vi.fn() }))
+vi.mock("@/lib/external", () => ({ openExternally }))
+
+describe("a link in a drawn label", () => {
+  const linked = (): SceneElement =>
+    node({ content: { $type: "text", text: "see docs", runs: [text("see "), text("docs", { linkUrl: "https://x.test/" })] } })
+
+  it("never follows its address on a click, since the window has no way back", () => {
+    act(() => root.render(<MindmapNode element={linked()} />))
+    const anchor = label().querySelector("a[href]")!
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true })
+    act(() => {
+      anchor.dispatchEvent(click)
+    })
+    expect(click.defaultPrevented).toBe(true)
+    expect(openExternally).not.toHaveBeenCalled()
+    expect(anchor.getAttribute("draggable")).toBe("false")
+  })
+
+  it("opens in the system browser with the modifier, the way a link in a note does", () => {
+    act(() => root.render(<MindmapNode element={linked()} />))
+    const anchor = label().querySelector("a[href]")!
+    act(() => {
+      anchor.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true }))
+    })
+    expect(openExternally).toHaveBeenCalledWith("https://x.test/")
+  })
+})
 
 describe("a formatted label", () => {
   it("draws its runs as marked-up DOM rather than as its plain lines", () => {

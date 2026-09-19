@@ -249,6 +249,54 @@ public sealed class MindmapMarkdownExporterTests
     }
 
     [Fact]
+    public void FormattedLabel_DropsABreakWithNothingAfterIt()
+    {
+        var doc = new MindmapDocument
+        {
+            Id = "d",
+            Title = "T",
+            Elements = new[]
+            {
+                new MindmapElement
+                {
+                    Id = "b",
+                    Kind = ElementKind.Node,
+                    Content = new TextContent
+                    {
+                        Text = "a\n\nb\n",
+                        Runs = new InlineSpan[] { new TextSpan("a\n\nb\n") },
+                    },
+                },
+            },
+        };
+
+        var md = MindmapMarkdownExporter.ExportOutline(doc, InlineMarkdownSerializer.SerializeSpans);
+
+        Assert.EndsWith("- a\\\n  b", md);
+        Assert.DoesNotContain("\\\n\n", md);
+    }
+
+    [Fact]
+    public void PlainLabel_KeepsALineBreak_AsAHardBreak()
+    {
+        var doc = new MindmapDocument
+        {
+            Id = "d",
+            Title = "T",
+            Elements = new[]
+            {
+                Node("r", "Root"),
+                new MindmapElement { Id = "i", Kind = ElementKind.Node, Content = new TextContent { Text = "Iconic memory\n_visual input_" } },
+            },
+            Edges = new[] { Hierarchy("e1", "r", "i") },
+        };
+
+        var md = MindmapMarkdownExporter.ExportOutline(doc);
+
+        Assert.Contains("- Root\n  - Iconic memory\\\n    _visual input_", md);
+    }
+
+    [Fact]
     public void FormattedLabel_WithoutAnInlineWriter_KeepsTheEquationFences()
     {
         var doc = new MindmapDocument

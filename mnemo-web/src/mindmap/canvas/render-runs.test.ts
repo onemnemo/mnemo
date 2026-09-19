@@ -54,7 +54,7 @@ describe("each mark", () => {
 
   it("draws a link as an anchor with the address", () => {
     expect(draw([text("a", { linkUrl: "https://example.com" })]).innerHTML).toBe(
-      '<a href="https://example.com" rel="noopener noreferrer">a</a>',
+      '<a href="https://example.com" rel="noopener noreferrer" draggable="false">a</a>',
     )
   })
 
@@ -91,7 +91,7 @@ describe("marks together", () => {
     ])
     expect(host.innerHTML).toBe(
       "<strong><em><sub><sup><u><s><code><mark>" +
-        '<span data-bg-swatch="swatch1"><span data-fg-swatch="swatch2"><a href="https://x" rel="noopener noreferrer">a</a></span></span>' +
+        '<span data-bg-swatch="swatch1"><span data-fg-swatch="swatch2"><a href="https://x" rel="noopener noreferrer" draggable="false">a</a></span></span>' +
         "</mark></code></s></u></sup></sub></em></strong>",
     )
   })

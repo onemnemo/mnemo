@@ -211,11 +211,14 @@ public static class InlineSpanJson
 /// </summary>
 public sealed class InlineSpanJsonConverter : JsonConverter<InlineSpan>
 {
-    public override InlineSpan? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override bool HandleNull => true;
+
+    // A value that is not a span object reads as an empty run, the way the block reader skips one,
+    // so a single damaged entry never keeps the whole document from loading.
+    public override InlineSpan Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         using var doc = JsonDocument.ParseValue(ref reader);
-        return InlineSpanJson.ReadSpan(doc.RootElement)
-            ?? throw new JsonException("An inline span must be a JSON object.");
+        return InlineSpanJson.ReadSpan(doc.RootElement) ?? InlineSpan.Plain(string.Empty);
     }
 
     public override void Write(Utf8JsonWriter writer, InlineSpan value, JsonSerializerOptions options) =>

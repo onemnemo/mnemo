@@ -61,6 +61,9 @@ function wrapMarks(leaf: Node, style: TextStyle): Node {
       anchor.setAttribute("href", style.linkUrl)
     }
     anchor.setAttribute("rel", "noopener noreferrer")
+    // An anchor is natively draggable, and a press on a linked word has to start the node's drag,
+    // not a drag of its address.
+    anchor.setAttribute("draggable", "false")
     node = wrap(anchor, node)
   }
   if (style.foregroundColor) {

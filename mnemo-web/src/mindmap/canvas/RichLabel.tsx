@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from "react"
 
 import "@/notes/editor/marks/inline-marks.css"
 
+import { openExternally } from "@/lib/external"
 import { cn } from "@/lib/utils"
 import type { InlineSpan } from "@/notes/model/types"
 
@@ -58,6 +59,22 @@ export function RichLabel({
   return (
     <span
       ref={host}
+      // A link in a drawn label is a real anchor, and the shipped window is chromeless: following
+      // it would replace the application with a web page and leave no way back. So a click on one
+      // never navigates; with the modifier it goes to the system browser, the way a link in a note
+      // does, and a plain click is the click on the node it always was.
+      onClickCapture={(event) => {
+        const anchor = (event.target as Element | null)?.closest?.("a[href]")
+        if (!anchor || !host.current?.contains(anchor)) {
+          return
+        }
+        event.preventDefault()
+        const href = anchor.getAttribute("href") ?? ""
+        if ((event.ctrlKey || event.metaKey) && /^https?:/i.test(href)) {
+          event.stopPropagation()
+          openExternally(href)
+        }
+      }}
       className={cn(
         RICH_BOX_CLASS,
         "block shrink-0",

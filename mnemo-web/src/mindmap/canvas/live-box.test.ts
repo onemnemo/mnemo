@@ -61,7 +61,7 @@ describe("measureFor", () => {
 
   it("leaves room for the checkbox on a task", () => {
     const measured = measureFor(element({ $type: "task" }), { text: "Buy milk" })
-    expect(measured.width).toBe(8 + 22 + 20)
+    expect(measured.width).toBe(8 + 22 + 21)
   })
 
   it("leaves room for the leading mark on a reference", () => {

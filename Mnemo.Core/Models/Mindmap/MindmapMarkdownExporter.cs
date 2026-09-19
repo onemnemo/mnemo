@@ -199,15 +199,26 @@ public static class MindmapMarkdownExporter
         _ => string.Empty,
     };
 
-    // A label: its runs as inline Markdown when it has them, else its text on one line. The inline
-    // writer spells a hard break as a backslash before the newline; what this adds is the item's
-    // continuation indent after it, so the second line still belongs to the list item above it.
+    // A label: its runs as inline Markdown when it has them, else its text as typed. A line break
+    // is kept as one, spelled the way the inline writer spells a hard break (a backslash before the
+    // newline) and followed by the item's continuation indent, so the second line still belongs to
+    // the list item above it.
     private static string Label(string text, IReadOnlyList<InlineSpan>? runs, Func<IReadOnlyList<InlineSpan>, string> inline, string continuation)
     {
-        if (runs is null)
-            return SingleLine(text);
-        var rendered = inline(runs).Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+        var rendered = runs is null
+            ? Lines(text).Replace("\n", "\\\n")
+            : Lines(inline(runs));
         return rendered.Replace("\n", "\n" + continuation);
+    }
+
+    // Breaks with nothing after them, or nothing between them, are dropped: a hard break at the end
+    // of an item is a dangling backslash, and two in a row is a line holding only one.
+    private static string Lines(string value)
+    {
+        var lines = value.Replace("\r\n", "\n").Replace('\r', '\n').Trim().Split('\n');
+        var kept = lines.Where(static line => line != "\\").ToList();
+        var joined = string.Join("\n", kept);
+        return joined.EndsWith('\\') ? joined[..^1].TrimEnd() : joined;
     }
 
     // The fallback renderer for runs: the words, a hard break the way the inline writer spells one,

@@ -129,6 +129,20 @@ public sealed class MindmapDocumentSerializerTests
     }
 
     [Fact]
+    public void ADamagedRun_ReadsAsAnEmptyOne_RatherThanFailingTheDocument()
+    {
+        const string json = """
+            {"schemaVersion":2,"id":"m1","title":"T","elements":[
+              {"id":"e1","kind":"node","content":{"$type":"text","text":"a","runs":[null,7,{"kind":"text","text":"a"}]}}]}
+            """;
+
+        var document = MindmapDocumentSerializer.Deserialize(json)!;
+
+        var content = Assert.IsType<TextContent>(document.Elements[0].Content);
+        Assert.Equal(new InlineSpan[] { new TextSpan(""), new TextSpan(""), new TextSpan("a") }, content.Runs);
+    }
+
+    [Fact]
     public void UnknownDiscriminator_RoundTripsAsPlaceholder_WithoutDataLoss()
     {
         const string json = """

@@ -35,6 +35,7 @@ import { cameraSignal } from "./camera-signal"
 import type { ElementBox } from "./edge-paths"
 import { loadLabelEditor, loadedLabelEditor, type LabelEditorModule } from "./label-editor-chunk"
 import { useFieldFlush, type FieldFlush } from "./useFieldFlush"
+import { richBoxStyle } from "../scene/rich-box"
 import { useLiveBox, type LiveResize } from "./useLiveBox"
 
 export interface NodeEditorProps {
@@ -149,11 +150,15 @@ function RunsField({ element, onEditEnd, onEditResize }: NodeEditorProps) {
       return
     }
     let live = true
-    void loadLabelEditor().then((chunk) => {
-      if (live) {
-        setModule(chunk)
-      }
-    })
+    loadLabelEditor().then(
+      (chunk) => {
+        if (live) {
+          setModule(chunk)
+        }
+      },
+      // A chunk that will not load leaves the plain field standing, which still commits the words.
+      () => {},
+    )
     return () => {
       live = false
     }
@@ -288,7 +293,7 @@ function RichField({
   resize: LiveResize
 }) {
   const mount = useRef<HTMLDivElement>(null)
-  const { text, padding } = element
+  const { text } = element
   const centred = element.isRoot || element.kind === "shape"
 
   useLayoutEffect(() => {
@@ -319,10 +324,15 @@ function RichField({
     <div
       ref={mount}
       data-mm-editor=""
-      className="mm-editor inline-marks block w-full select-text whitespace-pre-wrap"
+      // The same box the label is drawn and measured in: it shrinks to what is typed under the
+      // rung's ceiling, and never takes the row's width, which the checkbox or a mark shares.
+      className="mm-editor inline-marks block shrink-0 select-text"
       style={{
+        ...richBoxStyle({
+          font: { ...FONTS[fontScaleOf(text.fontSize)], size: text.fontSize, weight: text.fontWeight, letterSpacing: text.letterSpacing },
+          lineHeight: text.lineHeight,
+        }),
         ...fieldStyle(element, undefined, centred),
-        maxWidth: FONTS[fontScaleOf(text.fontSize)].maxWidth + padding.x * 2,
       }}
       // A press inside the field is not a press on the canvas, which would clear the selection and
       // unmount the field before the caret ever moved.

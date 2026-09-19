@@ -64,6 +64,16 @@ function runsCommit(content: ElementContent | undefined, wasBlank: boolean, runs
   if (content && sameRuns(runs, runsOf(content) ?? plainRuns(contentText(content) ?? ""))) {
     return NONE
   }
+  // Words with nothing on them are written as words. A node stays plain until something is
+  // formatted in it, so the cost of a rendered measurement lands only on the labels that need one,
+  // and a label whose formatting was all taken off goes back to being plain.
+  if (isPlain(runs)) {
+    return { kind: "set", patch: { t: text.trim() } }
+  }
   const next = content ? withRuns(content, runs) : null
   return { kind: "set", patch: next ? { content: next } : { t: text.trim() } }
+}
+
+function isPlain(runs: readonly InlineSpan[]): boolean {
+  return runs.length === 1 && runs[0].kind === "text" && sameRuns(runs, plainRuns(runs[0].text))
 }

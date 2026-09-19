@@ -34,6 +34,9 @@ export function richBoxStyle({ font, lineHeight }: RichBoxMetrics): Record<strin
     boxSizing: "content-box",
     maxWidth: `${font.maxWidth}px`,
     whiteSpace: "pre-wrap",
+    // A word wider than the ceiling breaks inside itself, as a plain label's does, rather than
+    // painting past the box it was measured for.
+    overflowWrap: "anywhere",
     fontSize: `${font.size}px`,
     fontWeight: String(font.weight),
     lineHeight: `${lineHeight}px`,
