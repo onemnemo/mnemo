@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef } from "react"
+import { memo } from "react"
 import "katex/dist/katex.min.css"
 
 import { AppIcon } from "@/components/icon/AppIcon"
@@ -10,11 +10,12 @@ import { bodyOf, imageRefOf, refGlyphOf, runsOf, type ImageRef } from "../scene/
 import { accentOf } from "../scene/branch"
 import { FRAME_HEAD } from "../scene/project"
 import { mixColor, washOf } from "../scene/tokens"
-import { contentText, type CodeContent, type FrameContent } from "../model/document"
+import type { FieldResult } from "../edit/label-commit"
+import type { CodeContent, FrameContent } from "../model/document"
 import type { ShapeContent, ShapeType } from "../model/document"
 import type { SceneElement } from "../model/scene"
 import type { ElementBox } from "./edge-paths"
-import { isAutoSized, liveBodyOf, measureFor, type LiveLabel } from "./live-box"
+import { NodeEditor } from "./NodeEditor"
 import { RichLabel } from "./RichLabel"
 import { isOpenShape, shapePath, shapeTextInset } from "./shape-path"
 import { useFieldFlush } from "./useFieldFlush"
@@ -23,8 +24,11 @@ export interface MindmapNodeProps {
   element: SceneElement
   /** This node's label is being typed into. Only ever true for one node at a time. */
   editing?: boolean
-  /** The typed text, or null when the edit was abandoned. Any promise it returns is the write. */
-  onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
+  /**
+   * How the field closed: a label's runs, a title's or a source's text, or null when the edit was
+   * abandoned. Any promise it returns is the write.
+   */
+  onEditEnd?: (id: string, result: FieldResult) => void | Promise<unknown>
   /** The box this node is taking while it is typed into, so the branches meeting it can follow. */
   onEditResize?: (id: string, box: ElementBox) => void
 }
@@ -567,9 +571,11 @@ function FrameTitle({
 }: {
   element: SceneElement
   title: string
-  onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
+  onEditEnd?: (id: string, result: FieldResult) => void | Promise<unknown>
 }) {
-  const { finish, track } = useFieldFlush(title, (value) => onEditEnd?.(element.id, value))
+  const { finish, track } = useFieldFlush<string>(title, (value) =>
+    onEditEnd?.(element.id, value === null ? null : { text: value }),
+  )
 
   return (
     <input
@@ -641,193 +647,6 @@ function ShapeOutline({ element, stroke }: { element: SceneElement; stroke: stri
 const DEFAULT_SHAPE: ShapeType = "rectangle"
 
 /**
- * The label, as a field.
- *
- * Rendered in the label's own place inside the node rather than as an overlay positioned to match
- * it, so "nothing jumps when you start typing" is true by construction rather than by two sets of
- * numbers agreeing. It carries the same metrics the projector measured the box with, which is why
- * the caret lands exactly where the text was.
- *
- * Uncontrolled on purpose: a controlled value would cost a render of the canvas subtree per
- * keystroke to move a caret, and nothing outside this field needs to see the text until it is done.
- */
-function NodeEditor({
-  element,
-  onEditEnd,
-  onEditResize,
-}: {
-  element: SceneElement
-  onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
-  onEditResize?: (id: string, box: ElementBox) => void
-}) {
-  const { text, isRoot } = element
-  const body = bodyOf(element.content)
-  const { finish, track } = useFieldFlush(plainText(element), (value) => onEditEnd?.(element.id, value))
-  const resize = useLiveBox(element, onEditResize)
-
-  const mount = useCallback(
-    (node: HTMLTextAreaElement | null) => {
-      if (!node) {
-        return
-      }
-      node.focus({ preventScroll: true })
-      node.select()
-      resize(node, { text: node.value })
-    },
-    [resize],
-  )
-
-  return (
-    <textarea
-      ref={mount}
-      // select-text against the pane's select-none, or the caret cannot select what it is editing.
-      className={cn(
-        "mm-editor block w-full select-text resize-none overflow-hidden bg-transparent outline-none",
-        // Source and LaTeX are both typed as characters in fixed columns, and both are read back by
-        // eye against what they will render as, so neither is set in the label's proportional face.
-        body !== "label" && "whitespace-pre font-mono",
-      )}
-      defaultValue={plainText(element)}
-      rows={1}
-      spellCheck={false}
-      style={{
-        fontSize: text.fontSize,
-        fontWeight: text.fontWeight,
-        lineHeight: `${text.lineHeight}px`,
-        letterSpacing: text.letterSpacing,
-        color: element.textColor,
-        paddingLeft: element.padding.x,
-        paddingRight: element.padding.x,
-        height: text.lines.length * text.lineHeight,
-        textAlign: isRoot ? "center" : undefined,
-      }}
-      onInput={(event) => {
-        resize(event.currentTarget, { text: event.currentTarget.value })
-        track(event.currentTarget.value)
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" && !event.shiftKey) {
-          // A composing Enter confirms the IME's candidate, not the label; let the IME answer it.
-          if (event.nativeEvent.isComposing) {
-            return
-          }
-          // Source is lines by definition, so Enter opens one rather than finishing the edit. A code
-          // node is left with the modifier, with Escape, or by clicking away.
-          if (body === "code" && !(event.ctrlKey || event.metaKey)) {
-            event.stopPropagation()
-            return
-          }
-          event.preventDefault()
-          event.stopPropagation()
-          finish(event.currentTarget.value)
-          return
-        }
-        if (event.key === "Escape") {
-          event.stopPropagation()
-          finish(null)
-          return
-        }
-        // Nothing to indent and nowhere to tab to. Left alone it would move focus out of the map.
-        if (event.key === "Tab") {
-          event.preventDefault()
-        }
-      }}
-      onBlur={(event) => finish(event.currentTarget.value)}
-      // A press inside the field is not a press on the canvas, which would clear the selection and
-      // unmount the field before the caret ever moved.
-      onPointerDown={(event) => event.stopPropagation()}
-    />
-  )
-}
-
-/** The field grows with what is typed, since the box itself is only remeasured on commit. */
-function grow(node: HTMLElement): void {
-  node.style.height = "0px"
-  node.style.height = `${node.scrollHeight}px`
-}
-
-/**
- * Keeps the node's box the size of what is being typed into it.
- *
- * Written to the host directly rather than held as state, for the reason the field itself is
- * uncontrolled: a keystroke that re-renders the canvas subtree costs more than the box is worth.
- *
- * Only for a box that is still the size its own text measures to. One given a size by hand keeps
- * it, because the projector prefers that size and growing it here would be undone by the commit.
- */
-function useLiveBox(
-  element: SceneElement,
-  onResize?: (id: string, box: ElementBox) => void,
-): (field: HTMLElement, live: LiveLabel) => void {
-  const host = useRef<HTMLElement | null>(null)
-  const auto = useRef(false)
-  const last = useRef<{ width: number; height: number } | null>(null)
-  const opened = useRef(element)
-  opened.current = element
-  const report = useRef(onResize)
-  report.current = onResize
-
-  useEffect(() => {
-    const box = host.current
-    return () => {
-      // Escape leaves the document untouched, so nothing re-renders this node and the size typing
-      // wrote would otherwise stay on a box whose label went back to what it was. The branches are
-      // told as well, for the same reason they are told while it grows.
-      if (box && auto.current) {
-        const { id, x, y, width, height } = opened.current
-        box.style.width = `${width}px`
-        box.style.height = `${height}px`
-        report.current?.(id, { x, y, width, height })
-      }
-    }
-  }, [])
-
-  return useCallback((field: HTMLElement, live: LiveLabel) => {
-    if (!host.current) {
-      host.current = field.closest<HTMLElement>(".mm-node")
-      auto.current = isAutoSized(opened.current)
-    }
-    const box = host.current
-    if (!box || !auto.current) {
-      // A box that cannot grow leaves the field the only thing that can.
-      grow(field)
-      return
-    }
-
-    // Width first, and from the projector, so the field re-wraps at the width the box is keeping.
-    const measured = measureFor(opened.current, live)
-    box.style.width = `${measured.width}px`
-
-    // Only then the height, and from the field itself. Read before the width lands it answers for
-    // the width the box had a keystroke ago, which is a line count that disagrees with what is on
-    // screen. Taken from the field rather than from the measurement so the box holds the text even
-    // where the two wrap differently. Only a plain label, though: source is drawn capped at its
-    // eight lines and a formatted label as the rendering the measurer laid out, so for those the
-    // measurement is the height the commit lands on and the field is free to run past it.
-    grow(field)
-    const height =
-      liveBodyOf(opened.current, live) === "label"
-        ? field.scrollHeight + opened.current.padding.y * 2
-        : measured.height
-    box.style.height = `${height}px`
-
-    // Once a label has wrapped, most keystrokes land on the width it is clamped to and the line
-    // count it already had, and the branches only need telling when the box actually moved.
-    if (last.current?.width === measured.width && last.current?.height === height) {
-      return
-    }
-    last.current = { width: measured.width, height }
-
-    report.current?.(opened.current.id, {
-      x: opened.current.x,
-      y: opened.current.y,
-      width: measured.width,
-      height,
-    })
-  }, [])
-}
-
-/**
  * How far a label has to come in from the box before the outline stops cutting through it.
  *
  * Zero for everything but a shape, where the box is a bounding box rather than the drawn area: a
@@ -840,18 +659,6 @@ function labelInset(element: SceneElement): number {
   }
   const shape = (element.content as ShapeContent).shape ?? DEFAULT_SHAPE
   return shapeTextInset(shape, element.width, element.height).x
-}
-
-/**
- * What the field opens on: the content's own text slot, not what was drawn.
- *
- * The two are different for more kinds than they are the same. Code is drawn capped at eight lines
- * and has to be edited whole; a link is drawn as its address and edited as its title; an equation is
- * drawn as a rendering and edited as its source. Falling back to the drawn lines only covers the
- * kinds that carry no text at all, which are the ones this field never opens on.
- */
-function plainText(element: SceneElement): string {
-  return contentText(element.content) ?? element.text.lines.join(" ")
 }
 
 /** What holds the root above the rest of the map. Every other box sits flat on the canvas. */

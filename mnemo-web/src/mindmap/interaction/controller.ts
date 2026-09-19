@@ -231,11 +231,17 @@ export function installInteraction(
       tolerance: EDGE_HIT_PIXELS / surface.zoom(),
     })
 
+  // The open label editor's mount. An equation or a fraction atom inside it is a span that is not
+  // editable, so a press on one is not an editable target, and it would otherwise start a drag of
+  // the node being typed into.
+  const inLabelEditor = (target: EventTarget | null): boolean =>
+    (target as HTMLElement | null)?.closest?.("[data-mm-editor]") != null
+
   const onPointerDown = (event: PointerEvent): void => {
     // A press inside an open label field is the caret's, placing it or dragging a selection.
     // Taking the focus below would close the field on the very click that meant to edit in it,
     // and the field's own stop runs at React's root, after this listener has already had the event.
-    if (isEditableTarget(event.target)) {
+    if (isEditableTarget(event.target) || inLabelEditor(event.target)) {
       return
     }
     // Middle, alt-left and space-left are the runtime's pan, and a secondary click opens a menu

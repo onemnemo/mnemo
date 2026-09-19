@@ -3,6 +3,9 @@
 /**
  * Checks that node and frame edits flush on blur, unmount, and window shutdown, that opening one
  * does not close it, and that a root is drawn as the rung it resolved to.
+ *
+ * A node label here is the textarea that stands in until the editor chunk arrives, which is what a
+ * synchronous render sees; the editor itself is NodeEditor.test.tsx's.
  */
 
 import { StrictMode, act } from "react"
@@ -13,6 +16,7 @@ import { resetShutdownForTests, runShutdown } from "@/app/shutdown"
 
 import { measureFor } from "./live-box"
 import { MindmapNode } from "./MindmapNode"
+import { plainRuns } from "../model/runs"
 import type { SceneElement } from "../model/scene"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -97,7 +101,7 @@ describe("a node label being edited", () => {
 
     await act(async () => root.unmount())
 
-    expect(onEditEnd).toHaveBeenCalledWith("a", "goodbye")
+    expect(onEditEnd).toHaveBeenCalledWith("a", { runs: plainRuns("goodbye") })
   })
 
   it("stays open when React tears the mount effect down and sets it back up", async () => {
@@ -136,7 +140,7 @@ describe("a node label being edited", () => {
     const field = container.querySelector("textarea")!
     pressKey(field, "Enter")
 
-    expect(onEditEnd).toHaveBeenCalledWith("a", "hello")
+    expect(onEditEnd).toHaveBeenCalledWith("a", { runs: plainRuns("hello") })
   })
 
   it("commits what is in the field when the window closes and nothing unmounts", async () => {
@@ -150,7 +154,7 @@ describe("a node label being edited", () => {
       await runShutdown()
     })
 
-    expect(onEditEnd).toHaveBeenCalledWith("a", "goodbye")
+    expect(onEditEnd).toHaveBeenCalledWith("a", { runs: plainRuns("goodbye") })
   })
 
   it("waits for the write before letting the exit go through", async () => {
@@ -196,7 +200,7 @@ describe("a frame title being edited", () => {
 
     await act(async () => root.unmount())
 
-    expect(onEditEnd).toHaveBeenCalledWith("f", "Renamed")
+    expect(onEditEnd).toHaveBeenCalledWith("f", { text: "Renamed" })
   })
 
   it("stays open when React tears the mount effect down and sets it back up", async () => {
@@ -235,7 +239,7 @@ describe("a frame title being edited", () => {
       await runShutdown()
     })
 
-    expect(onEditEnd).toHaveBeenCalledWith("f", "Renamed")
+    expect(onEditEnd).toHaveBeenCalledWith("f", { text: "Renamed" })
   })
 })
 

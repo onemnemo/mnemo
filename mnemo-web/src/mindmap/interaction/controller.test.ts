@@ -544,6 +544,31 @@ describe("installInteraction", () => {
     h.uninstall()
   })
 
+  it("leaves a press on an atom inside the open label editor alone too", () => {
+    // An equation or a fraction inside the editor is a span that is not editable, so it is not an
+    // editable target; without the mount's own attribute the press would start a drag of the node
+    // being typed into.
+    const h = harness()
+    let focused = 0
+    h.pane.focus = () => {
+      focused += 1
+    }
+    const mount = document.createElement("div")
+    mount.setAttribute("data-mm-editor", "")
+    const atom = document.createElement("span")
+    atom.setAttribute("contenteditable", "false")
+    mount.appendChild(atom)
+    h.hosts.get("a")!.appendChild(mount)
+
+    atom.dispatchEvent(Object.assign(new MouseEvent("pointerdown", { bubbles: true, clientX: 210, clientY: -50 }), { pointerId: 1 }))
+    h.move({ x: 310, y: 40 })
+
+    expect(focused).toBe(0)
+    expect(h.selection().elements.size).toBe(0)
+    expect(h.positions.get("a")).toEqual({ x: 200, y: -60 })
+    h.uninstall()
+  })
+
   it("ignores a press that belongs to the runtime's pan", () => {
     const h = harness()
     h.press("a", { x: 210, y: -50 }, { altKey: true })

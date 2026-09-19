@@ -4,30 +4,32 @@
  * A node label, a frame title and an edge label all end the same four ways: Enter, Escape, a blur,
  * or the field simply going away. The first three are events the field can answer. The fourth is
  * not, and a component being taken apart has one moment to hand over what was typed.
+ *
+ * Generic over what the field holds: a title is a string, a label is its runs.
  */
 
 import { useCallback, useEffect, useRef } from "react"
 
 import { onShutdown } from "@/app/shutdown"
 
-export interface FieldFlush {
+export interface FieldFlush<T> {
   /**
-   * Closes the field: the typed text, or null to abandon it. Only the first call is the answer,
+   * Closes the field: what was typed, or null to abandon it. Only the first call is the answer,
    * because a cancel blurs the field and the blur must not then commit what the cancel threw away.
    */
-  finish(value: string | null): void | Promise<unknown>
+  finish(value: T | null): void | Promise<unknown>
   /** Records what is in the field, since an uncontrolled one leaves nothing else to flush. */
-  track(value: string): void
+  track(value: T): void
 }
 
 /**
  * @param initial what the field opened on, which is what a teardown commits if nothing was typed.
  * @param commit the write. Any promise it returns is what the shutdown handshake waits on.
  */
-export function useFieldFlush(
-  initial: string,
-  commit: (value: string | null) => void | Promise<unknown>,
-): FieldFlush {
+export function useFieldFlush<T>(
+  initial: T,
+  commit: (value: T | null) => void | Promise<unknown>,
+): FieldFlush<T> {
   const done = useRef(false)
   // Tracked alongside the uncontrolled field so a teardown before Enter, Escape or a blur closed it
   // (navigating away, or the scene rebuilding under an open field) has something to flush. A blur
@@ -38,7 +40,7 @@ export function useFieldFlush(
   const write = useRef(commit)
   write.current = commit
 
-  const finish = useCallback((value: string | null): void | Promise<unknown> => {
+  const finish = useCallback((value: T | null): void | Promise<unknown> => {
     if (done.current) {
       return
     }
@@ -80,7 +82,7 @@ export function useFieldFlush(
 
   return {
     finish,
-    track: useCallback((value: string) => {
+    track: useCallback((value: T) => {
       latest.current = value
     }, []),
   }

@@ -14,6 +14,7 @@ import { createSelectionRepainter } from "./edge-highlight"
 import { MindmapSelectionLayer } from "./MindmapSelectionLayer"
 import { MindmapNode } from "./MindmapNode"
 import { createCanvasRuntime, type CanvasRuntime } from "./runtime"
+import type { FieldResult } from "../edit/label-commit"
 import { installInteraction, type MovedElement, type NodeChrome } from "../interaction/controller"
 import type { ResizeBox } from "../interaction/resize"
 import { EMPTY_SELECTION, isEmpty, type Selection } from "../interaction/selection"
@@ -40,8 +41,8 @@ export interface MindmapCanvasProps {
   onActivate?: (id: string) => void
   /** The node whose label is currently a field. */
   editingId?: string | null
-  /** The field closed: the typed text, or null when the edit was abandoned. Any promise it returns is the write. */
-  onEditEnd?: (id: string, text: string | null) => void | Promise<unknown>
+  /** The field closed: its runs or its text, or null when the edit was abandoned. Any promise it returns is the write. */
+  onEditEnd?: (id: string, result: FieldResult) => void | Promise<unknown>
   /** The edge whose label is currently a field. */
   editingEdgeId?: string | null
   onEdgeLabelEnd?: (id: string, text: string | null) => void | Promise<unknown>

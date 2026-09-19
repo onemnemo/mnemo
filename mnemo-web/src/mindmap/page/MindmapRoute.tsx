@@ -19,6 +19,7 @@ import {
   type MindmapTemplates,
 } from "../api"
 import { IMAGE_ACCEPT, imageFilesOf, measureImageFile, uploadMindmapImage } from "../assets"
+import { cameraSignal } from "../canvas/camera-signal"
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
 import { ExportMenu } from "../chrome/ExportMenu"
@@ -48,6 +49,7 @@ import {
   unpinned,
 } from "../edit/clipboard"
 import { carriedText, isPlainKind, linkContent, plainContent } from "../edit/convert"
+import { labelCommit, type FieldResult } from "../edit/label-commit"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import { palettePlan } from "../edit/palette"
 import { clearsAnything, restyled } from "../edit/restyle"
@@ -59,7 +61,6 @@ import { MapStyleMenu } from "../chrome/MapStyleMenu"
 import { edgeDefaultsFor, materialOf } from "../chrome/material"
 import { exportMap, type MapExportFormat } from "../export/save"
 import {
-  contentText,
   edgeKind,
   LAYOUT_ALGORITHMS,
   type EdgeStyle,
@@ -393,25 +394,22 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
 
   // Require a promise so shutdown callers can await persistence instead of discarding the write.
   const endEdit = useCallback(
-    (id: string, text: string | null): Promise<unknown> => {
+    (id: string, result: FieldResult): Promise<unknown> => {
       setEditing(null)
       const wasBlank = blank.current === id
       blank.current = null
-      const typed = text?.trim() ?? ""
 
-      if (typed === "") {
-        // A node created for this edit and never given a label is a box nobody asked for. One that
-        // already had a label keeps it, because emptying a node is what Delete is for. Taking the
-        // box away retracts the step that made it, so the pair costs no undo presses.
-        if (wasBlank) {
+      const content = scene?.elements.find((candidate) => candidate.id === id)?.content
+      const commit = labelCommit(content, wasBlank, result)
+      switch (commit.kind) {
+        case "none":
+          return Promise.resolve()
+        case "delete":
+          // Taking the box away retracts the step that made it, so the pair costs no undo presses.
           return editor.apply([op.del([id])], { label: t("Mindmap", "Delete"), retracts: id })
-        }
-        return Promise.resolve()
+        case "set":
+          return editor.apply([op.set(id, commit.patch)], { label: t("Mindmap", "Rename") })
       }
-      if (typed === currentText(scene, id)) {
-        return Promise.resolve()
-      }
-      return editor.apply([op.set(id, { t: typed })], { label: t("Mindmap", "Rename") })
     },
     [editor, scene, t],
   )
@@ -1589,7 +1587,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           onPlant={(armed, at) => void plant(armed, at)}
           onGroup={(ids) => void group(ids)}
           onConnect={connect}
-          onCamera={(viewport) => minimapCamera.current?.(viewport)}
+          onCamera={(viewport) => {
+            minimapCamera.current?.(viewport)
+            cameraSignal.emit()
+          }}
           onCameraSettled={(viewport) => setZoom(viewport.zoom)}
           onFitClamped={() => toast.info(t("Mindmap", "FitClamped"))}
         />
@@ -1717,15 +1718,6 @@ function Notice({ icon, title, spinning }: { icon: string; title: string; spinni
 /** Whether this node is already collapsed, so the ring's one control toggles rather than only closes. */
 function collapsed(scene: { elements: readonly { id: string; collapsed?: boolean }[] } | null, id: string): boolean {
   return scene?.elements.find((element) => element.id === id)?.collapsed === true
-}
-
-/** The text slot as it stands, so an edit that changed nothing costs no revision and no undo step. */
-function currentText(scene: Scene | null, id: string): string {
-  const element = scene?.elements.find((candidate) => candidate.id === id)
-  // The same slot `t` writes back into: a code node's source, a link's title, a frame's heading.
-  // Reading `text` alone answered "" for half the kinds, so an edit that changed nothing still cost
-  // a revision on every one of them.
-  return element ? (contentText(element.content) ?? "") : ""
 }
 
 /**
