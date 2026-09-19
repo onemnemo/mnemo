@@ -8,6 +8,8 @@
  * an error.
  */
 
+import type { InlineSpan } from "@/notes/model/types"
+
 /** What an element *is*. Only `node` participates in the hierarchy. */
 export type ElementKind = "node" | "shape" | "text" | "image" | "frame"
 
@@ -38,14 +40,21 @@ export type ElementContent =
   | FrameContent
   | UnknownContent
 
+/**
+ * A label with formatting carries it as `runs`, the notes inline span model, and `text` is then the
+ * plain projection the server rewrites from the runs on every write. Read `runs` when it is there
+ * and `text` otherwise; never write one without the other.
+ */
 export interface TextContent {
   $type: "text"
   text?: string
+  runs?: InlineSpan[]
 }
 
 export interface TaskContent {
   $type: "task"
   text?: string
+  runs?: InlineSpan[]
   done?: boolean
   due?: string | null
 }
@@ -56,6 +65,11 @@ export interface CodeContent {
   source?: string
 }
 
+/**
+ * Retired. The server reads a stored `math` row as a text node holding one equation run, so no
+ * document this build loads carries one; the type stays so a row that somehow does is drawn rather
+ * than crashed on.
+ */
 export interface MathContent {
   $type: "math"
   latex?: string
@@ -99,11 +113,13 @@ export interface ShapeContent {
   $type: "shape"
   shape?: ShapeType
   text?: string | null
+  runs?: InlineSpan[]
 }
 
 export interface FreeTextContent {
   $type: "freeText"
   text?: string
+  runs?: InlineSpan[]
 }
 
 export interface CanvasImageContent {

@@ -422,7 +422,7 @@ function emitBody(element: SceneElement, paint: Paint): string {
   const done = isDone(element)
   const faded = done || element.refMissing === true
   const fill = paint.color(faded ? "var(--ink-3)" : (element.textColor ?? "var(--ink)"))
-  const centred = element.isRoot || element.kind === "shape" || body === "math"
+  const centred = element.isRoot || element.kind === "shape"
 
   // The rule a plain node draws sits inside its box, so the text is centred in what is left above it.
   const inner = element.nodeShape === "plain" ? element.height - (element.underline ?? 2) : element.height
@@ -435,7 +435,7 @@ function emitBody(element: SceneElement, paint: Paint): string {
     fill,
     letterSpacing: body === "code" ? undefined : text.letterSpacing,
     strike: done,
-    italic: body === "math" || element.refMissing === true,
+    italic: element.refMissing === true,
   }
 
   const anchor = centred ? "middle" : "start"

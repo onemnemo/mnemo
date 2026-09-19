@@ -19,23 +19,8 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
     /// </summary>
     private const double MinFraction = 1e-6;
 
-    private static bool TryGetPropertyCaseInsensitive(JsonElement element, string propertyName, out JsonElement value)
-    {
-        if (element.TryGetProperty(propertyName, out value))
-            return true;
-
-        foreach (var candidate in element.EnumerateObject())
-        {
-            if (string.Equals(candidate.Name, propertyName, StringComparison.OrdinalIgnoreCase))
-            {
-                value = candidate.Value;
-                return true;
-            }
-        }
-
-        value = default;
-        return false;
-    }
+    private static bool TryGetPropertyCaseInsensitive(JsonElement element, string propertyName, out JsonElement value) =>
+        InlineSpanJson.TryGetPropertyCaseInsensitive(element, propertyName, out value);
 
     private static bool TryReadBlockType(JsonElement typeEl, out BlockType blockType)
     {
@@ -305,102 +290,8 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
 
     private static List<InlineSpan> ReadSpans(JsonElement arr)
     {
-        var list = new List<InlineSpan>();
-        foreach (var el in arr.EnumerateArray())
-        {
-            if (el.ValueKind != JsonValueKind.Object)
-                continue;
-            var kind = TryGetPropertyCaseInsensitive(el, "kind", out var kEl) ? kEl.GetString() : null;
-            kind = kind?.ToLowerInvariant();
-            if (kind == "fraction")
-            {
-                var num = ReadInt32(el, "numerator", 0);
-                var den = ReadInt32(el, "denominator", 1);
-                list.Add(new FractionSpan(num, den <= 0 ? 1 : den, ReadTextStyle(el)));
-                continue;
-            }
-            var isEquation = kind == "equation"
-                || (kind != "text" && TryGetPropertyCaseInsensitive(el, "latex", out _) && !TryGetPropertyCaseInsensitive(el, "text", out _));
-            if (isEquation)
-            {
-                var latex = TryGetPropertyCaseInsensitive(el, "latex", out var lx) ? lx.GetString() ?? string.Empty : string.Empty;
-                list.Add(new EquationSpan(latex, ReadTextStyle(el)));
-            }
-            else
-            {
-                var text = TryGetPropertyCaseInsensitive(el, "text", out var t) ? t.GetString() ?? string.Empty : string.Empty;
-                list.Add(new TextSpan(text, ReadTextStyle(el)));
-            }
-        }
-
+        var list = InlineSpanJson.ReadSpans(arr);
         return list.Count == 0 ? new List<InlineSpan> { InlineSpan.Plain(string.Empty) } : list;
-    }
-
-    private static TextStyle ReadTextStyle(JsonElement spanEl)
-    {
-        if (!TryGetPropertyCaseInsensitive(spanEl, "style", out var st) || st.ValueKind != JsonValueKind.Object)
-            return TextStyle.Default;
-        return LegacyStyleFromJson(st, out _);
-    }
-
-    private static void WriteSpans(Utf8JsonWriter writer, IReadOnlyList<InlineSpan> spans)
-    {
-        writer.WriteStartArray();
-        foreach (var s in spans)
-        {
-            writer.WriteStartObject();
-            switch (s)
-            {
-                case TextSpan t:
-                    writer.WriteString("kind", "text");
-                    writer.WriteString("text", t.Text);
-                    writer.WritePropertyName("style");
-                    WriteTextStyle(writer, t.Style);
-                    break;
-                case EquationSpan e:
-                    writer.WriteString("kind", "equation");
-                    writer.WriteString("latex", e.Latex);
-                    writer.WritePropertyName("style");
-                    WriteTextStyle(writer, e.Style);
-                    break;
-                case FractionSpan f:
-                    writer.WriteString("kind", "fraction");
-                    writer.WriteNumber("numerator", f.Numerator);
-                    writer.WriteNumber("denominator", f.Denominator);
-                    writer.WritePropertyName("style");
-                    WriteTextStyle(writer, f.Style);
-                    break;
-                default:
-                    throw new UnreachableException($"Unknown inline span type: {s.GetType().Name}");
-            }
-
-            writer.WriteEndObject();
-        }
-
-        writer.WriteEndArray();
-    }
-
-    private static void WriteTextStyle(Utf8JsonWriter writer, TextStyle st)
-    {
-        writer.WriteStartObject();
-        writer.WriteBoolean("bold", st.Bold);
-        writer.WriteBoolean("italic", st.Italic);
-        writer.WriteBoolean("underline", st.Underline);
-        writer.WriteBoolean("strikethrough", st.Strikethrough);
-        writer.WriteBoolean("code", st.Code);
-        writer.WriteBoolean("highlight", st.Highlight);
-        if (st.BackgroundColor != null)
-            writer.WriteString("backgroundColor", st.BackgroundColor);
-        if (st.ForegroundColor != null)
-            writer.WriteString("foregroundColor", st.ForegroundColor);
-        if (st.LinkUrl != null)
-            writer.WriteString("linkUrl", st.LinkUrl);
-        writer.WriteBoolean("suppressAutoLink", st.SuppressAutoLink);
-        if (st.Subscript)
-            writer.WriteBoolean("subscript", true);
-        if (st.Superscript)
-            writer.WriteBoolean("superscript", true);
-        writer.WriteEndObject();
     }
 
     private static void WriteBoolArray(Utf8JsonWriter writer, string propertyName, IReadOnlyList<bool>? values)
@@ -582,7 +473,7 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
             string? eq = null;
             if (TryGetPropertyCaseInsensitive(el, "style", out var st) && st.ValueKind == JsonValueKind.Object)
             {
-                style = LegacyStyleFromJson(st, out eq);
+                style = InlineSpanJson.ReadStyleObject(st, out eq);
             }
 
             if (!string.IsNullOrEmpty(eq))
@@ -592,55 +483,6 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
         }
 
         return list.Count == 0 ? new List<InlineSpan> { InlineSpan.Plain(string.Empty) } : list;
-    }
-
-    private static TextStyle LegacyStyleFromJson(JsonElement st, out string? equationLatex)
-    {
-        equationLatex = null;
-        if (TryGetPropertyCaseInsensitive(st, "equationLatex", out var eqEl))
-        {
-            if (eqEl.ValueKind == JsonValueKind.String)
-                equationLatex = eqEl.GetString();
-        }
-
-        bool B(string n)
-        {
-            if (!TryGetPropertyCaseInsensitive(st, n, out var x)) return false;
-            return x.ValueKind switch
-            {
-                JsonValueKind.True => true,
-                JsonValueKind.False => false,
-                _ => false
-            };
-        }
-        string? S(string n) =>
-            TryGetPropertyCaseInsensitive(st, n, out var x) && x.ValueKind == JsonValueKind.String ? x.GetString() : null;
-
-        var highlight = B("highlight");
-        var backgroundColor = S("backgroundColor");
-        // Backward compatibility: earlier builds persisted highlight by only storing a themed backgroundColor.
-        if (!highlight && backgroundColor is not null
-            && (string.Equals(backgroundColor, "#FFD7AA", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(backgroundColor, "#5B3717", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(backgroundColor, "#FFFF00", StringComparison.OrdinalIgnoreCase)))
-        {
-            highlight = true;
-            backgroundColor = null;
-        }
-
-        return new TextStyle(
-            Bold: B("bold"),
-            Italic: B("italic"),
-            Underline: B("underline"),
-            Strikethrough: B("strikethrough"),
-            Code: B("code"),
-            Highlight: highlight,
-            BackgroundColor: backgroundColor,
-            ForegroundColor: S("foregroundColor"),
-            LinkUrl: S("linkUrl"),
-            SuppressAutoLink: B("suppressAutoLink"),
-            Subscript: B("subscript"),
-            Superscript: B("superscript"));
     }
 
     public override void Write(Utf8JsonWriter writer, Block value, JsonSerializerOptions options)
@@ -659,7 +501,7 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
         writer.WriteNumber("order", value.Order);
 
         writer.WritePropertyName("spans");
-        WriteSpans(writer, value.Spans);
+        InlineSpanJson.WriteSpans(writer, value.Spans);
 
         writer.WritePropertyName("payload");
         if (value.UnknownPayloadJson is { Length: > 0 } rawPayload)

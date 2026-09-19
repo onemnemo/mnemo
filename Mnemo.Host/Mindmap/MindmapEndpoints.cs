@@ -11,6 +11,7 @@ using Mnemo.Host.Lifecycle;
 using Mnemo.Host.Trash;
 using Mnemo.Infrastructure.Services.Mindmap.Tools;
 using Mnemo.Infrastructure.Services.Mindmap.Trash;
+using Mnemo.Infrastructure.Services.Notes.Markdown;
 
 namespace Mnemo.Host.Mindmap;
 
@@ -210,7 +211,7 @@ public static class MindmapEndpoints
         if (ExportDestination.Claim(grant, grants, out var target) is { } refusal)
             return refusal;
 
-        var outline = Encoding.UTF8.GetBytes(MindmapMarkdownExporter.ExportOutline(loaded.Value));
+        var outline = Encoding.UTF8.GetBytes(MindmapMarkdownExporter.ExportOutline(loaded.Value, InlineMarkdownSerializer.SerializeSpans));
         if (target is null)
             return Results.File(outline, OutlineContentType, OutlineFileName(loaded.Value.Title));
 

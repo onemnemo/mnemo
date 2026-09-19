@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using Mnemo.Core.Models;
 using Mnemo.Core.Models.Mindmap;
+using Mnemo.Infrastructure.Services.Notes.Markdown;
 using Xunit;
 
 namespace Mnemo.Infrastructure.Tests.Mindmap;
@@ -210,6 +212,63 @@ public sealed class MindmapMarkdownExporterTests
         };
 
         Assert.Equal(MindmapMarkdownExporter.ExportOutline(doc), MindmapMarkdownExporter.ExportOutline(doc));
+    }
+
+    [Fact]
+    public void FormattedLabel_ExportsItsRuns_AndKeepsAHardBreak()
+    {
+        var doc = new MindmapDocument
+        {
+            Id = "d",
+            Title = "T",
+            Elements = new[]
+            {
+                Node("r", "Root"),
+                new MindmapElement
+                {
+                    Id = "b",
+                    Kind = ElementKind.Node,
+                    Content = new TextContent
+                    {
+                        Text = "bold\nplain x",
+                        Runs = new InlineSpan[]
+                        {
+                            new TextSpan("bold", new TextStyle(Bold: true)),
+                            new TextSpan("\nplain "),
+                            new EquationSpan("x"),
+                        },
+                    },
+                },
+            },
+            Edges = new[] { Hierarchy("e1", "r", "b") },
+        };
+
+        var md = MindmapMarkdownExporter.ExportOutline(doc, InlineMarkdownSerializer.SerializeSpans);
+
+        Assert.Contains("- Root\n  - **bold**\\\n    plain $x$", md);
+    }
+
+    [Fact]
+    public void FormattedLabel_WithoutAnInlineWriter_KeepsTheEquationFences()
+    {
+        var doc = new MindmapDocument
+        {
+            Id = "d",
+            Title = "T",
+            Elements = new[]
+            {
+                new MindmapElement
+                {
+                    Id = "m",
+                    Kind = ElementKind.Node,
+                    Content = new TextContent { Text = "E=mc^2", Runs = new InlineSpan[] { new EquationSpan("E=mc^2") } },
+                },
+            },
+        };
+
+        var md = MindmapMarkdownExporter.ExportOutline(doc);
+
+        Assert.Contains("- $E=mc^2$", md);
     }
 
     private static MindmapElement Node(string id, string text) => new()

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 
+import { defaultTextStyle } from "@/notes/model/types"
+
 import type { ElementContent } from "../model/document"
 import type { NodeKind, RefInfo } from "../scene/content"
 import { carriedText, isPlainKind, linkContent, plainContent } from "./convert"
@@ -7,8 +9,8 @@ import { carriedText, isPlainKind, linkContent, plainContent } from "./convert"
 const NO_REFS: ReadonlyMap<string, RefInfo> = new Map()
 
 describe("which kinds a node can become on its own", () => {
-  it("is the four that are made of words", () => {
-    const kinds: NodeKind[] = ["text", "task", "code", "math"]
+  it("is the three that are made of words", () => {
+    const kinds: NodeKind[] = ["text", "task", "code"]
     expect(kinds.every(isPlainKind)).toBe(true)
   })
 
@@ -56,7 +58,13 @@ describe("the content a node becomes", () => {
     expect(plainContent("text", "hi")).toEqual({ $type: "text", text: "hi" })
     expect(plainContent("task", "hi")).toEqual({ $type: "task", text: "hi" })
     expect(plainContent("code", "hi")).toEqual({ $type: "code", source: "hi" })
-    expect(plainContent("math", "hi")).toEqual({ $type: "math", latex: "hi" })
+  })
+
+  it("carries formatting between text and task, and drops it into code", () => {
+    const runs = [{ kind: "text" as const, text: "hi", style: { ...defaultTextStyle, bold: true } }]
+    expect(plainContent("task", "hi", runs)).toEqual({ $type: "task", text: "hi", runs })
+    expect(plainContent("text", "hi", runs)).toEqual({ $type: "text", text: "hi", runs })
+    expect(plainContent("code", "hi", runs)).toEqual({ $type: "code", source: "hi" })
   })
 
   it("starts a new task unticked", () => {

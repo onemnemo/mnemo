@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Mnemo.Core.Models;
 using Mnemo.Core.Models.Mindmap;
 
 namespace Mnemo.Infrastructure.Services.Mindmap;
@@ -11,6 +12,12 @@ namespace Mnemo.Infrastructure.Services.Mindmap;
 /// alongside the concrete payload and reads it back to the matching type. An unrecognized discriminator
 /// deserializes to <see cref="PlaceholderContent"/>, capturing the raw JSON so documents from newer
 /// versions (or removed plugins) round-trip losslessly instead of throwing or dropping data.
+/// <para>
+/// A stored <c>math</c> row is read as a text node holding one equation run. The math kind is retired
+/// in favour of the inline equation atom, and reading it here, on the way in, is what makes every path
+/// (the store, the trash, a package, a template, an edit op) see the one shape; the row is rewritten
+/// as <c>text</c> the next time the document is saved. The discriminator itself is never renamed.
+/// </para>
 /// </summary>
 public sealed class ElementContentJsonConverter : JsonConverter<IElementContent>
 {
@@ -50,12 +57,27 @@ public sealed class ElementContentJsonConverter : JsonConverter<IElementContent>
         if (ByDiscriminator.TryGetValue(discriminator, out var clrType))
         {
             var payload = (IElementContent?)JsonSerializer.Deserialize(root.GetRawText(), clrType, options);
-            return payload ?? throw new JsonException($"Element content \"{discriminator}\" deserialized to null.");
+            return payload switch
+            {
+                MathContent math => AsEquationNode(math),
+                not null => payload,
+                null => throw new JsonException($"Element content \"{discriminator}\" deserialized to null."),
+            };
         }
 
         // Unknown discriminator: preserve verbatim. Clone() detaches the element from the disposed document.
         return new PlaceholderContent { OriginalType = discriminator, Raw = root.Clone() };
     }
+
+    /// <summary>
+    /// The text node a math row becomes: its LaTeX as one equation run, and as the plain text, since
+    /// the source is what the row searched and exported as before.
+    /// </summary>
+    private static TextContent AsEquationNode(MathContent math) => new()
+    {
+        Text = math.Latex,
+        Runs = new InlineSpan[] { new EquationSpan(math.Latex) },
+    };
 
     public override void Write(Utf8JsonWriter writer, IElementContent value, JsonSerializerOptions options)
     {

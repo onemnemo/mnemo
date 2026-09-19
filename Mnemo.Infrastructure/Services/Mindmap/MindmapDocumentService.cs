@@ -937,7 +937,9 @@ public sealed class MindmapDocumentService : IMindmapService
     {
         createdEdgeId = null;
 
-        var content = spec.Content ?? new TextContent { Text = spec.Text ?? string.Empty };
+        var content = spec.Content is null
+            ? new TextContent { Text = spec.Text ?? string.Empty }
+            : MindmapContentNormalizer.Normalize(spec.Content);
         if (!IsNodeContent(content))
             return Err(MindmapEditErrorCode.BadContentType, $"Content '{content.TypeDiscriminator}' is not valid for a node (use add_el for shapes/text/images/frames).");
 
@@ -985,7 +987,7 @@ public sealed class MindmapDocumentService : IMindmapService
         {
             if (!ContentMatchesKind(element.Kind, op.Content))
                 return Err(MindmapEditErrorCode.BadContentType, $"Content '{op.Content.TypeDiscriminator}' does not match element kind {element.Kind}.");
-            updated = updated with { Content = op.Content };
+            updated = updated with { Content = MindmapContentNormalizer.Normalize(op.Content) };
         }
         else if (op.Text is not null)
         {
@@ -1263,7 +1265,7 @@ public sealed class MindmapDocumentService : IMindmapService
         {
             Id = id,
             Kind = op.Kind,
-            Content = op.Content,
+            Content = MindmapContentNormalizer.Normalize(op.Content),
             X = op.X,
             Y = op.Y,
             Width = op.Width,
@@ -1440,17 +1442,19 @@ public sealed class MindmapDocumentService : IMindmapService
     private static IElementContent? BuildTextContent(MindmapElement element, string text) => element.Kind switch
     {
         // Write the text into the node's own kind so editing a task/code/math label keeps its type
-        // (Done, Language, ...) instead of silently reverting the node to plain text.
+        // (Done, Language, ...) instead of silently reverting the node to plain text. Plain text is
+        // the whole label, so any runs the node carried go with it: keeping them would leave a
+        // formatted label the text no longer spells.
         ElementKind.Node => element.Content switch
         {
-            TaskContent task => task with { Text = text },
+            TaskContent task => task with { Text = text, Runs = null },
             CodeContent code => code with { Source = text },
             MathContent math => math with { Latex = text },
             LinkContent link => link with { Title = text },
             _ => new TextContent { Text = text },
         },
         ElementKind.Text => new FreeTextContent { Text = text },
-        ElementKind.Shape when element.Content is ShapeContent shape => shape with { Text = text },
+        ElementKind.Shape when element.Content is ShapeContent shape => shape with { Text = text, Runs = null },
         ElementKind.Frame when element.Content is FrameContent frame => frame with { Title = text },
         _ => null,
     };

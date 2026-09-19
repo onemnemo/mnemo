@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Mnemo.Core.Models;
 using Mnemo.Core.Models.Mindmap;
 using Xunit;
 
@@ -76,6 +77,91 @@ public sealed class MindmapDocumentServiceTests
         var node = (await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == ids["n"]);
         Assert.Equal("new", ((TextContent)node.Content).Text);
         Assert.Equal("accent", node.Style!.Fill);
+    }
+
+    [Fact]
+    public async Task Set_Content_WithRuns_RewritesTextFromTheRuns()
+    {
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h, new MindmapNodeSpec { Ref = "n", Text = "old" });
+
+        await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new SetOp
+            {
+                Id = ids["n"],
+                Content = new TextContent
+                {
+                    Text = "whatever the client said",
+                    Runs = new InlineSpan[] { new TextSpan("bo", new TextStyle(Bold: true)), new TextSpan("ld", new TextStyle(Bold: true)), new EquationSpan("x") },
+                },
+            },
+        });
+
+        var node = (await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == ids["n"]);
+        var content = Assert.IsType<TextContent>(node.Content);
+        Assert.Equal("boldx", content.Text);
+        // Adjacent runs of one style merge on the way in, the way a note's spans do.
+        Assert.Equal(new InlineSpan[] { new TextSpan("bold", new TextStyle(Bold: true)), new EquationSpan("x") }, content.Runs);
+    }
+
+    [Fact]
+    public async Task Set_Text_DropsTheRuns()
+    {
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h, new MindmapNodeSpec
+        {
+            Ref = "n",
+            Content = new TaskContent { Runs = new InlineSpan[] { new TextSpan("bold", new TextStyle(Bold: true)) } },
+        });
+
+        var seeded = (await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == ids["n"]);
+        Assert.Equal("bold", ((TaskContent)seeded.Content).Text);
+
+        await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[] { new SetOp { Id = ids["n"], Text = "plain" } });
+
+        var node = (await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == ids["n"]);
+        var content = Assert.IsType<TaskContent>(node.Content);
+        Assert.Equal("plain", content.Text);
+        Assert.Null(content.Runs);
+    }
+
+    [Fact]
+    public async Task Set_Content_WithEmptyRuns_GoesBackToPlain()
+    {
+        await using var h = new MindmapTestHarness();
+        var (map, ids) = await SeedAsync(h, new MindmapNodeSpec { Ref = "n", Text = "old" });
+
+        await h.Service.ApplyAsync(map.Id, 2, new MindmapEditOp[]
+        {
+            new SetOp { Id = ids["n"], Content = new TextContent { Text = "stale", Runs = new InlineSpan[] { new TextSpan("") } } },
+        });
+
+        var content = Assert.IsType<TextContent>((await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == ids["n"]).Content);
+        Assert.Equal(string.Empty, content.Text);
+        Assert.Null(content.Runs);
+    }
+
+    [Fact]
+    public async Task AddElement_WithRuns_RewritesText()
+    {
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("M")).Value!;
+
+        var result = (await h.Service.ApplyAsync(map.Id, map.Revision, new MindmapEditOp[]
+        {
+            new AddElementOp
+            {
+                Ref = "s",
+                Kind = ElementKind.Shape,
+                X = 0,
+                Y = 0,
+                Content = new ShapeContent { Text = "", Runs = new InlineSpan[] { new TextSpan("if", new TextStyle(Italic: true)) } },
+            },
+        })).Value!;
+
+        var shape = (await h.Service.GetAsync(map.Id)).Value!.Elements.Single(e => e.Id == result.CreatedIds["s"]);
+        Assert.Equal("if", ((ShapeContent)shape.Content).Text);
     }
 
     [Fact]

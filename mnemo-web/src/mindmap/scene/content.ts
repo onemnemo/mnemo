@@ -1,14 +1,17 @@
 /**
  * What a content kind costs its box, and what it puts in it.
  *
- * A node is its text for five of the seven kinds. The other two are not: code keeps the line breaks
- * it was typed with and is set in a monospace face, and math is a rendered equation whose size no
- * text measurement can predict. Both of those change how the box is sized, which happens before
- * layout, so the answer has to be available to the projector and not only to the renderer.
+ * A node is its text for most kinds. Two are not: code keeps the line breaks it was typed with and
+ * is set in a monospace face, and a label that carries formatting is a run of styled pieces and
+ * atoms whose size only a rendering can answer. Both of those change how the box is sized, which
+ * happens before layout, so the answer has to be available to the projector and not only to the
+ * renderer.
  *
  * One module rather than a switch in each, because the projector and the renderer have to agree
  * about which kind draws what. Two switches drift the first time a kind is added to one of them.
  */
+
+import type { InlineSpan } from "@/notes/model/types"
 
 import type {
   CanvasImageContent,
@@ -16,22 +19,56 @@ import type {
   FlashcardContent,
   ImageContent,
   LinkContent,
+  MathContent,
   NoteContent,
 } from "../model/document"
 import { contentText } from "../model/document"
 
-/** How a box is built: from a wrapped label, from preformatted source, or from a rendered equation. */
-export type ContentBody = "label" | "code" | "math"
+/** How a box is built: from a wrapped label, from preformatted source, or from rendered runs. */
+export type ContentBody = "label" | "code" | "rich"
 
 export function bodyOf(content: ElementContent): ContentBody {
-  switch (content.$type) {
-    case "code":
-      return "code"
-    case "math":
-      return "math"
-    default:
-      return "label"
+  if (content.$type === "code") {
+    return "code"
   }
+  return runsOf(content) ? "rich" : "label"
+}
+
+/**
+ * The formatted label a content carries, or null for one that is plain.
+ *
+ * A stored math node is the one legacy shape that answers here without a `runs` field: it was an
+ * inline equation all along, and reading it as one equation run is what lets the math kind retire
+ * without a rewrite of anything on disk. The server does the same on load, so this only ever fires
+ * for a row that reached the client some other way.
+ */
+export function runsOf(content: ElementContent): readonly InlineSpan[] | null {
+  switch (content.$type) {
+    case "text":
+    case "task":
+    case "shape":
+    case "freeText":
+      return (content as { runs?: InlineSpan[] }).runs ?? null
+    case "math":
+      return [{ kind: "equation", latex: (content as MathContent).latex ?? "", style: { ...defaultStyle } }]
+    default:
+      return null
+  }
+}
+
+const defaultStyle: InlineSpan["style"] = {
+  bold: false,
+  italic: false,
+  underline: false,
+  strikethrough: false,
+  code: false,
+  highlight: false,
+  backgroundColor: null,
+  foregroundColor: null,
+  linkUrl: null,
+  suppressAutoLink: false,
+  subscript: false,
+  superscript: false,
 }
 
 /**
@@ -140,7 +177,7 @@ export function displayText(content: ElementContent): string {
  * Free elements are absent on purpose: a shape or a caption is not in the tree, and converting one
  * into a task would be converting it into something the tree is the only place for.
  */
-export const NODE_KINDS = ["text", "task", "code", "math", "link", "note", "flashcard"] as const
+export const NODE_KINDS = ["text", "task", "code", "link", "note", "flashcard"] as const
 
 export type NodeKind = (typeof NODE_KINDS)[number]
 
@@ -149,7 +186,6 @@ export const KIND_ICON: Record<NodeKind, string> = {
   text: "notes/text",
   task: "notes/todo",
   code: "notes/code",
-  math: "notes/equation",
   link: "external-link",
   note: "sidebar/notes",
   flashcard: "sidebar/flashcard",
@@ -160,13 +196,12 @@ export const KIND_LABEL: Record<NodeKind, string> = {
   text: "KindText",
   task: "KindTask",
   code: "KindCode",
-  math: "KindMath",
   link: "KindLink",
   note: "KindNote",
   flashcard: "KindFlashcard",
 }
 
-/** Which of the seven a content is, for lighting the one a node is already on. */
+/** Which of the six a content is, for lighting the one a node is already on. */
 export function nodeKindOf(content: ElementContent): NodeKind | null {
   return (NODE_KINDS as readonly string[]).includes(content.$type) ? (content.$type as NodeKind) : null
 }

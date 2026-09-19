@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using Mnemo.Core.Models;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.Infrastructure.Services.Mindmap.Tools;
 using Xunit;
@@ -238,7 +239,9 @@ public sealed class MindmapToolOpParserTests
             """);
 
         Assert.IsType<CodeContent>(((AddNodesOp)ops[1]).Nodes[0].Content);
-        Assert.IsType<MathContent>(((AddNodesOp)ops[2]).Nodes[0].Content);
+        var math = Assert.IsType<TextContent>(((AddNodesOp)ops[2]).Nodes[0].Content);
+        Assert.Equal("x^2", math.Text);
+        Assert.Equal(new EquationSpan("x^2"), Assert.Single(math.Runs!));
         Assert.IsType<LinkContent>(((AddNodesOp)ops[3]).Nodes[0].Content);
         Assert.IsType<NoteContent>(((AddNodesOp)ops[4]).Nodes[0].Content);
         Assert.IsType<FlashcardContent>(((AddNodesOp)ops[5]).Nodes[0].Content);

@@ -1,6 +1,9 @@
+using System.Text.Json.Serialization;
+
 namespace Mnemo.Core.Models;
 
 /// <summary>One segment of inline content in a rich text block.</summary>
+[JsonConverter(typeof(Serialization.InlineSpanJsonConverter))]
 public abstract record InlineSpan
 {
     /// <summary>Logical character used only in transient flat strings for caret/diff (never stored in <see cref="TextSpan.Text"/>).</summary>

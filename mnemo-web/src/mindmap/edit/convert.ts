@@ -11,13 +11,15 @@
  * goes and asks; the four that can are the ones this module builds outright.
  */
 
+import type { InlineSpan } from "@/notes/model/types"
+
 import type { ElementContent, LinkContent } from "../model/document"
 import { displayText, refKey, type NodeKind, type RefInfo } from "../scene/content"
 
 /** The kinds a node can become from its own text, with nothing else asked for. */
-export type PlainKind = "text" | "task" | "code" | "math"
+export type PlainKind = "text" | "task" | "code"
 
-const PLAIN: ReadonlySet<string> = new Set<PlainKind>(["text", "task", "code", "math"])
+const PLAIN: ReadonlySet<string> = new Set<PlainKind>(["text", "task", "code"])
 
 export function isPlainKind(kind: NodeKind): kind is PlainKind {
   return PLAIN.has(kind)
@@ -40,17 +42,20 @@ export function carriedText(content: ElementContent, refs: ReadonlyMap<string, R
   return displayText(content)
 }
 
-/** What the node becomes, for the kinds that need nothing but its words. */
-export function plainContent(kind: PlainKind, text: string): ElementContent {
+/**
+ * What the node becomes, for the kinds that need nothing but its words.
+ *
+ * A formatted label keeps its formatting across a text to task conversion, since both draw the same
+ * label; code is source and takes the words alone.
+ */
+export function plainContent(kind: PlainKind, text: string, runs: readonly InlineSpan[] | null = null): ElementContent {
   switch (kind) {
     case "task":
-      return { $type: "task", text }
+      return runs ? { $type: "task", text, runs: [...runs] } : { $type: "task", text }
     case "code":
       return { $type: "code", source: text }
-    case "math":
-      return { $type: "math", latex: text }
     default:
-      return { $type: "text", text }
+      return runs ? { $type: "text", text, runs: [...runs] } : { $type: "text", text }
   }
 }
 

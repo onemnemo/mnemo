@@ -75,7 +75,7 @@ import { absoluteUrl, followRef, isFollowable } from "./follow"
 import { isChromeControl, isTyping } from "./route-guards"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import { accentOf, branchSwatchOf } from "../scene/branch"
-import { imageRefOf, nodeKindOf, type NodeKind } from "../scene/content"
+import { imageRefOf, nodeKindOf, runsOf, type NodeKind } from "../scene/content"
 import {
   analyzeHierarchy,
   childrenIds,
@@ -510,7 +510,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       const step = { label: t("Mindmap", "ChangeType") }
 
       if (isPlainKind(kind)) {
-        void editor.apply([op.set(id, { content: plainContent(kind, carried) })], step)
+        void editor.apply([op.set(id, { content: plainContent(kind, carried, runsOf(element.content)) })], step)
         return
       }
       if (kind !== "link") {

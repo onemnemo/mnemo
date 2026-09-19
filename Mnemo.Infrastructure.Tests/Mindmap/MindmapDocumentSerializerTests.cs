@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Mnemo.Core.Models;
 using Mnemo.Core.Models.Mindmap;
 using Mnemo.Infrastructure.Services.Mindmap;
 using Xunit;
@@ -27,7 +28,15 @@ public sealed class MindmapDocumentSerializerTests
                 Node("n5", new NoteContent { NoteId = "no1" }),
                 Node("n6", new TaskContent { Text = "todo", Done = true, Due = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc) }),
                 Node("n7", new CodeContent { Language = "csharp", Source = "x();" }),
-                Node("n8", new MathContent { Latex = "e=mc^2" }),
+                Node("n8", new TextContent
+                {
+                    Text = "bold e=mc^2",
+                    Runs = new InlineSpan[]
+                    {
+                        new TextSpan("bold ", new TextStyle(Bold: true)),
+                        new EquationSpan("e=mc^2"),
+                    },
+                }),
                 Free("s1", ElementKind.Shape, new ShapeContent { Shape = ShapeType.Diamond, Text = "if" }),
                 Free("t1", ElementKind.Text, new FreeTextContent { Text = "label" }),
                 Free("i1", ElementKind.Image, new CanvasImageContent { AssetId = "a2" }),
@@ -49,6 +58,74 @@ public sealed class MindmapDocumentSerializerTests
 
         // A stable re-serialization proves every field (and each polymorphic content payload) round-trips.
         Assert.Equal(json, reserialized);
+    }
+
+    [Fact]
+    public void Runs_AreOmittedWhenAbsent_SoUnformattedRowsKeepTheirBytes()
+    {
+        var document = new MindmapDocument
+        {
+            Id = "m1",
+            Title = "T",
+            Elements = new List<MindmapElement>
+            {
+                Node("n1", new TextContent { Text = "plain" }),
+                Node("n2", new TaskContent { Text = "todo" }),
+                Free("s1", ElementKind.Shape, new ShapeContent { Text = "if" }),
+                Free("t1", ElementKind.Text, new FreeTextContent { Text = "label" }),
+            },
+        };
+
+        var json = MindmapDocumentSerializer.Serialize(document);
+
+        Assert.DoesNotContain("runs", json);
+        Assert.Contains("{\"$type\":\"text\",\"text\":\"plain\"}", json);
+    }
+
+    [Fact]
+    public void Runs_RoundTrip_EveryMarkAndAtom()
+    {
+        var runs = new InlineSpan[]
+        {
+            new TextSpan("a", new TextStyle(Bold: true, Italic: true, Underline: true, Strikethrough: true, Code: true, Highlight: true)),
+            new TextSpan("b", new TextStyle(BackgroundColor: "swatch2", ForegroundColor: "swatch3", LinkUrl: "https://x.test", Subscript: true)),
+            new TextSpan("c\nd", new TextStyle(Superscript: true, SuppressAutoLink: true)),
+            new EquationSpan("x^2", new TextStyle(Bold: true)),
+            new FractionSpan(1, 2),
+        };
+        var document = new MindmapDocument
+        {
+            Id = "m1",
+            Title = "T",
+            Elements = new List<MindmapElement> { Node("n1", new TextContent { Text = "abc\ndx^21/2", Runs = runs }) },
+        };
+
+        var json = MindmapDocumentSerializer.Serialize(document);
+        var read = MindmapDocumentSerializer.Deserialize(json)!;
+
+        var content = Assert.IsType<TextContent>(read.Elements[0].Content);
+        Assert.Equal(runs, content.Runs);
+        Assert.Equal(json, MindmapDocumentSerializer.Serialize(read));
+    }
+
+    [Fact]
+    public void StoredMathRow_ReadsAsTextWithOneEquationRun()
+    {
+        const string json = """
+            {"schemaVersion":2,"id":"m1","title":"Old","elements":[
+              {"id":"e1","kind":"node","content":{"$type":"math","latex":"\\frac{a}{b}"}}]}
+            """;
+
+        var document = MindmapDocumentSerializer.Deserialize(json)!;
+
+        var content = Assert.IsType<TextContent>(document.Elements[0].Content);
+        Assert.Equal("\\frac{a}{b}", content.Text);
+        var run = Assert.Single(content.Runs!);
+        Assert.Equal(new EquationSpan("\\frac{a}{b}"), run);
+
+        var reserialized = MindmapDocumentSerializer.Serialize(document);
+        Assert.Contains("\"$type\":\"text\"", reserialized);
+        Assert.DoesNotContain("\"$type\":\"math\"", reserialized);
     }
 
     [Fact]

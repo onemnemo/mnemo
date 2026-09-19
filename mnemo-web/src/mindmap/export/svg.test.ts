@@ -229,7 +229,6 @@ describe("what a node is drawn as", () => {
       }),
     )
 
-    expect(picture!.markup).toContain("font-style=\"italic\"")
     expect(picture!.markup).toContain("a^2 + b^2")
   })
 })

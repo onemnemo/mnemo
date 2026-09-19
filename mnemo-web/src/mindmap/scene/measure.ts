@@ -328,9 +328,6 @@ export function measureNode(request: MeasureRequest, measurers: Measurers): Meas
   if (request.body === "code") {
     return measureCode(request.text, font, measurers.mono)
   }
-  if (request.body === "math") {
-    return measureMath(request.text, font, measurers.math)
-  }
 
   const padding = request.isRoot ? ROOT_PAD : (PAD[request.shape] ?? PAD.card)
   const lineHeight = Math.round(font.size * LINE_RATIO)
@@ -389,17 +386,3 @@ function measureCode(source: string, font: Font, mono: TextMeasurer): MeasuredNo
   }
 }
 
-/** A math body: whatever the equation rendered to, in the same air a card gives its label. */
-function measureMath(latex: string, font: Font, math: MathMeasurer): MeasuredNode {
-  const padding = PAD.card
-  const box = latex.trim() ? math(latex, font.size) : { width: EMPTY_WIDTH - padding.x * 2, height: font.size }
-
-  return {
-    width: Math.max(box.width + padding.x * 2, MIN_WIDTH),
-    height: box.height + padding.y * 2,
-    lines: [latex],
-    font,
-    lineHeight: box.height,
-    padding,
-  }
-}

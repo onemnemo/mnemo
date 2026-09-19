@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using Mnemo.Core.Formatting;
 
 namespace Mnemo.Core.Models.Mindmap;
 
@@ -26,9 +27,18 @@ public static class MindmapMarkdownExporter
     private const string FreeElementsHeading = "Canvas elements";
     private const string UntitledFrameHeading = "Frame";
 
-    public static string ExportOutline(MindmapDocument document)
+    /// <summary>
+    /// The outline as Markdown.
+    /// </summary>
+    /// <param name="inline">
+    /// How a formatted label's runs become inline Markdown. Core has no Markdown writer of its own, so the
+    /// caller that has one passes it; without one the runs are flattened, with an equation kept in its
+    /// dollar fences so the export reads the way a math node always exported.
+    /// </param>
+    public static string ExportOutline(MindmapDocument document, Func<IReadOnlyList<InlineSpan>, string>? inline = null)
     {
         ArgumentNullException.ThrowIfNull(document);
+        inline ??= FlattenRuns;
 
         var byId = new Dictionary<string, MindmapElement>(StringComparer.Ordinal);
         foreach (var element in document.Elements)
@@ -75,7 +85,7 @@ public static class MindmapMarkdownExporter
         {
             if (element.Kind != ElementKind.Node || hasParent.Contains(element.Id))
                 continue;
-            WriteNode(treeLines, element.Id, 0, byId, childrenOf, markersByElement, visited);
+            WriteNode(treeLines, element.Id, 0, byId, childrenOf, markersByElement, visited, inline);
         }
         if (treeLines.Count > 0)
             blocks.Add(string.Join("\n", treeLines));
@@ -87,11 +97,11 @@ public static class MindmapMarkdownExporter
         {
             if (element.Kind is ElementKind.Node or ElementKind.Frame)
                 continue;
-            var inline = InlineContent(element);
+            var content = InlineContent(element, inline, "  ");
             var hasMarker = markersByElement.ContainsKey(element.Id);
-            if (string.IsNullOrWhiteSpace(inline) && !hasMarker)
+            if (string.IsNullOrWhiteSpace(content) && !hasMarker)
                 continue;
-            freeLines.Add(("- " + inline + Markers(markersByElement, element.Id)).TrimEnd());
+            freeLines.Add(("- " + content + Markers(markersByElement, element.Id)).TrimEnd());
         }
         if (freeLines.Count > 0)
             blocks.Add("## " + FreeElementsHeading + "\n" + string.Join("\n", freeLines));
@@ -135,7 +145,8 @@ public static class MindmapMarkdownExporter
         IReadOnlyDictionary<string, MindmapElement> byId,
         IReadOnlyDictionary<string, List<string>> childrenOf,
         IReadOnlyDictionary<string, List<int>> markersByElement,
-        HashSet<string> visited)
+        HashSet<string> visited,
+        Func<IReadOnlyList<InlineSpan>, string> inline)
     {
         if (!visited.Add(id))
             return; // guards a malformed hierarchy cycle
@@ -161,31 +172,53 @@ public static class MindmapMarkdownExporter
         }
         else
         {
-            lines.Add((indent + "- " + InlineContent(element) + markers).TrimEnd());
+            lines.Add((indent + "- " + InlineContent(element, inline, indent + "  ") + markers).TrimEnd());
         }
 
         if (childrenOf.TryGetValue(id, out var children))
             foreach (var child in children)
-                WriteNode(lines, child, depth + 1, byId, childrenOf, markersByElement, visited);
+                WriteNode(lines, child, depth + 1, byId, childrenOf, markersByElement, visited, inline);
     }
 
-    // The Markdown rendering of an element's content, for a primary list line.
-    private static string InlineContent(MindmapElement element) => element.Content switch
+    // The Markdown rendering of an element's content, for a primary list line. `continuation` is the
+    // indent a second line of the same item takes, for a label with a hard break in it.
+    private static string InlineContent(MindmapElement element, Func<IReadOnlyList<InlineSpan>, string> inline, string continuation) => element.Content switch
     {
-        TextContent text => SingleLine(text.Text),
-        TaskContent task => "[" + (task.Done ? "x" : " ") + "]" + Suffix(SingleLine(task.Text)),
+        TextContent text => Label(text.Text, text.Runs, inline, continuation),
+        TaskContent task => "[" + (task.Done ? "x" : " ") + "]" + Suffix(Label(task.Text, task.Runs, inline, continuation)),
         CodeContent code => "`" + SingleLine(FirstLine(code.Source)) + "`",
         MathContent math => "$" + SingleLine(math.Latex) + "$",
         LinkContent link => "[" + SingleLine(LinkText(link)) + "](" + SingleLine(link.Url) + ")",
         ImageContent image => "![" + SingleLine(image.Caption ?? string.Empty) + "](" + SingleLine(image.AssetId) + ")",
         FlashcardContent card => SingleLine(card.DeckId) + " (deck)",
         NoteContent note => SingleLine(note.NoteId) + " (note)",
-        ShapeContent shape => SingleLine(shape.Text ?? string.Empty),
-        FreeTextContent free => SingleLine(free.Text),
+        ShapeContent shape => Label(shape.Text ?? string.Empty, shape.Runs, inline, continuation),
+        FreeTextContent free => Label(free.Text, free.Runs, inline, continuation),
         CanvasImageContent image => "![](" + SingleLine(image.AssetId) + ")",
         FrameContent frame => SingleLine(frame.Title),
         _ => string.Empty,
     };
+
+    // A label: its runs as inline Markdown when it has them, else its text on one line. The inline
+    // writer spells a hard break as a backslash before the newline; what this adds is the item's
+    // continuation indent after it, so the second line still belongs to the list item above it.
+    private static string Label(string text, IReadOnlyList<InlineSpan>? runs, Func<IReadOnlyList<InlineSpan>, string> inline, string continuation)
+    {
+        if (runs is null)
+            return SingleLine(text);
+        var rendered = inline(runs).Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+        return rendered.Replace("\n", "\n" + continuation);
+    }
+
+    // The fallback renderer for runs: the words, a hard break the way the inline writer spells one,
+    // and an equation in the fences a math node exported in.
+    private static string FlattenRuns(IReadOnlyList<InlineSpan> runs) =>
+        string.Concat(runs.Select(static run => run switch
+        {
+            EquationSpan equation => equation.Latex.Length == 0 ? string.Empty : "$" + equation.Latex + "$",
+            TextSpan span => span.Text.Replace("\n", "\\\n"),
+            _ => InlineSpanText.FlattenDisplay(new[] { run }),
+        }));
 
     // A plain single-line label (no Markdown decoration) for footnote targets and frame members; falls back
     // to the element id so a label is never blank.

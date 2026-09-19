@@ -28,6 +28,9 @@ public sealed record ShapeContent : IElementContent
 
     public string? Text { get; init; }
 
+    /// <summary>Formatted label; see <see cref="TextContent.Runs"/>.</summary>
+    public IReadOnlyList<InlineSpan>? Runs { get; init; }
+
     public string TypeDiscriminator => ElementContentDiscriminators.Shape;
 }
 
@@ -35,6 +38,9 @@ public sealed record ShapeContent : IElementContent
 public sealed record FreeTextContent : IElementContent
 {
     public string Text { get; init; } = string.Empty;
+
+    /// <summary>Formatted label; see <see cref="TextContent.Runs"/>.</summary>
+    public IReadOnlyList<InlineSpan>? Runs { get; init; }
 
     public string TypeDiscriminator => ElementContentDiscriminators.FreeText;
 }

@@ -4,19 +4,13 @@ import "katex/dist/katex.min.css"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
-import { renderMath } from "@/notes/editor/atoms/katex"
 
 import { useMindmapImage } from "../assets"
 import { bodyOf, imageRefOf, refGlyphOf, type ImageRef } from "../scene/content"
 import { accentOf } from "../scene/branch"
 import { FRAME_HEAD } from "../scene/project"
 import { mixColor, washOf } from "../scene/tokens"
-import {
-  contentText,
-  type CodeContent,
-  type FrameContent,
-  type MathContent,
-} from "../model/document"
+import { contentText, type CodeContent, type FrameContent } from "../model/document"
 import type { ShapeContent, ShapeType } from "../model/document"
 import type { SceneElement } from "../model/scene"
 import type { ElementBox } from "./edge-paths"
@@ -247,8 +241,6 @@ function NodeBody({ element }: { element: SceneElement }) {
   switch (bodyOf(element.content)) {
     case "code":
       return <CodeBody element={element} />
-    case "math":
-      return <MathBody element={element} />
     default:
       return <NodeLabel element={element} />
   }
@@ -326,40 +318,6 @@ function CodeBody({ element }: { element: SceneElement }) {
         </span>
       ))}
     </span>
-  )
-}
-
-/**
- * An equation, rendered.
- *
- * Written to the DOM by KaTeX rather than described as JSX, so this is one of the few places on the
- * canvas React does not own the subtree. It carries the same class and the same font size the
- * measurer used on its offscreen host, which is what makes the box the layout packed match the box
- * that lands in it.
- */
-function MathBody({ element }: { element: SceneElement }) {
-  const host = useRef<HTMLSpanElement>(null)
-  const latex = (element.content as MathContent).latex ?? ""
-
-  useEffect(() => {
-    if (host.current) {
-      // The source doubles as the accessible label, which is what a screen reader should hear: it is
-      // what the user wrote, and the rendering is a picture of it.
-      renderMath(host.current, latex, latex)
-    }
-  }, [latex])
-
-  return (
-    <span
-      ref={host}
-      className="mm-math mm-label block w-full overflow-hidden whitespace-nowrap text-center"
-      style={{
-        fontSize: element.text.fontSize,
-        color: element.textColor,
-        paddingLeft: element.padding.x,
-        paddingRight: element.padding.x,
-      }}
-    />
   )
 }
 
