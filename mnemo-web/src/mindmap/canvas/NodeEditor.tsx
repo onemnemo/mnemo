@@ -26,16 +26,17 @@ import { cn } from "@/lib/utils"
 import type { InlineSpan } from "@/notes/model/types"
 
 import type { FieldResult } from "../edit/label-commit"
+import type { LabelEditor } from "../edit/label-editor"
 import { contentText } from "../model/document"
 import { canHoldRuns, flattenRuns, plainRuns } from "../model/runs"
 import type { SceneElement } from "../model/scene"
 import { bodyOf, runsOf } from "../scene/content"
 import { FONTS, fontScaleOf } from "../scene/measure"
+import { richBoxStyle } from "../scene/rich-box"
 import { cameraSignal } from "./camera-signal"
 import type { ElementBox } from "./edge-paths"
 import { loadLabelEditor, loadedLabelEditor, type LabelEditorModule } from "./label-editor-chunk"
 import { useFieldFlush, type FieldFlush } from "./useFieldFlush"
-import { richBoxStyle } from "../scene/rich-box"
 import { useLiveBox, type LiveResize } from "./useLiveBox"
 
 export interface NodeEditorProps {
@@ -293,7 +294,8 @@ function RichField({
   resize: LiveResize
 }) {
   const mount = useRef<HTMLDivElement>(null)
-  const { text } = element
+  const open = useRef<LabelEditor | null>(null)
+  const { text, padding } = element
   const centred = element.isRoot || element.kind === "shape"
 
   useLayoutEffect(() => {
@@ -315,29 +317,54 @@ function RichField({
       },
     })
     resize(host, { text: flattenRuns(runs), runs })
-    return () => editor.destroy()
+    open.current = editor
+    return () => {
+      open.current = null
+      editor.destroy()
+    }
     // Every dependency is fixed for the life of the field, so this opens the editor once; a
     // re-render under the open field (the branches following its box) never reopens it.
   }, [module, runs, caret, finish, track, resize])
 
   return (
+    // The field is the whole label column, padding included, not only the words: a node's box is
+    // its words plus a thin margin, so a press anywhere in it still means the label. It keeps the
+    // editor and puts the caret at the nearest position instead of blurring into a press on the
+    // node, which is what the plain field always did. Enter and Escape close the field with the
+    // node still selected.
     <div
-      ref={mount}
       data-mm-editor=""
-      // The same box the label is drawn and measured in: it shrinks to what is typed under the
-      // rung's ceiling, and never takes the row's width, which the checkbox or a mark shares.
-      className="mm-editor inline-marks block shrink-0 select-text"
-      style={{
-        ...richBoxStyle({
-          font: { ...FONTS[fontScaleOf(text.fontSize)], size: text.fontSize, weight: text.fontWeight, letterSpacing: text.letterSpacing },
-          lineHeight: text.lineHeight,
-        }),
-        ...fieldStyle(element, undefined, centred),
-      }}
+      className={cn("flex min-w-0 flex-1 items-center self-stretch", centred && "justify-center")}
+      style={{ padding: `${padding.y}px ${padding.x}px` }}
       // A press inside the field is not a press on the canvas, which would clear the selection and
       // unmount the field before the caret ever moved.
       onPointerDown={(event) => event.stopPropagation()}
-    />
+      onMouseDown={(event) => {
+        const editor = open.current
+        if (!editor || (event.target instanceof Node && editor.view.dom.contains(event.target))) {
+          return
+        }
+        // Beside the words. Keeping the default would move the focus to this box and blur the
+        // editor on the very press that meant to type into it.
+        event.preventDefault()
+        editor.placeCaretNear({ left: event.clientX, top: event.clientY })
+      }}
+    >
+      <div
+        ref={mount}
+        // The same box the label is drawn and measured in: it shrinks to what is typed under the
+        // rung's ceiling, and never takes the column's width.
+        className="mm-editor inline-marks block shrink-0 select-text"
+        style={{
+          ...richBoxStyle({
+            font: { ...FONTS[fontScaleOf(text.fontSize)], size: text.fontSize, weight: text.fontWeight, letterSpacing: text.letterSpacing },
+            lineHeight: text.lineHeight,
+          }),
+          color: element.textColor,
+          textAlign: centred ? "center" : undefined,
+        }}
+      />
+    </div>
   )
 }
 

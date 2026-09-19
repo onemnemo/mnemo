@@ -178,22 +178,44 @@ describe("a label that is its own to format", () => {
     expect(onEditEnd).toHaveBeenCalledWith("a", null)
   })
 
-  it("carries the label's metrics and the attribute the controller leaves alone", async () => {
+  it("carries the label's metrics on the words and the attribute the controller leaves alone on the field", async () => {
     const element = node({ $type: "text", text: "hello" }, { isRoot: true, textColor: "var(--ink)" })
     await act(async () => {
       root.render(<MindmapNode element={element} editing onEditEnd={vi.fn()} />)
     })
-    const mount = container.querySelector<HTMLElement>("[data-mm-editor]")!
-    expect(mount.className).toContain("mm-editor")
+    const field = container.querySelector<HTMLElement>("[data-mm-editor]")!
+    const mount = field.querySelector<HTMLElement>(".mm-editor")!
+    // The field is the label's whole column, the node's padding included.
+    expect(field.className).toContain("flex-1")
+    expect(field.className).toContain("self-stretch")
+    expect(field.style.padding).toBe("7px 11px")
     expect(mount.className).toContain("inline-marks")
     expect(mount.className).toContain("select-text")
     expect(mount.style.fontSize).toBe("14px")
     expect(mount.style.fontWeight).toBe("500")
     expect(mount.style.lineHeight).toBe("19px")
     expect(mount.style.letterSpacing).toBe("-0.005em")
-    expect(mount.style.paddingLeft).toBe("11px")
     expect(mount.style.textAlign).toBe("center")
     expect(mount.style.maxWidth).not.toBe("")
+  })
+
+  it("keeps the editor on a press beside the words and puts the caret near it", async () => {
+    const element = node({ $type: "text", text: "hello" })
+    await act(async () => {
+      root.render(<MindmapNode element={element} editing onEditEnd={vi.fn()} />)
+    })
+    const field = container.querySelector<HTMLElement>("[data-mm-editor]")!
+    // The label opens selected whole; a press beside it collapses that to a caret.
+    expect(window.getSelection()?.toString()).toBe("hello")
+
+    const press = new MouseEvent("mousedown", { bubbles: true, cancelable: true, clientX: 500, clientY: 5 })
+    act(() => {
+      field.dispatchEvent(press)
+    })
+
+    expect(press.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(editorDom())
+    expect(window.getSelection()?.isCollapsed).toBe(true)
   })
 
   it("sizes the box from the measurement of what the field holds, so the commit lands on it", async () => {

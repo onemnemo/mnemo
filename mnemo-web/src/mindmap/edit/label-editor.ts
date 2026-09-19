@@ -42,6 +42,12 @@ export interface LabelEditor {
   readonly view: EditorView
   /** The runs as they stand. */
   runs(): InlineSpan[]
+  /**
+   * Puts the caret at the position nearest a point, which may lie outside the text: the field is
+   * wider than its words so a press beside them still means "here", and the nearest edge of the
+   * nearest line is what "here" is.
+   */
+  placeCaretNear(point: { readonly left: number; readonly top: number }): void
   /** Idempotent. Takes the view, its DOM and every body-level surface it opened with it. */
   destroy(): void
 }
@@ -119,6 +125,17 @@ export function openLabelEditor(options: LabelEditorOptions): LabelEditor {
   return {
     view,
     runs: current,
+    placeCaretNear(point) {
+      const box = view.dom.getBoundingClientRect()
+      const inside = {
+        left: Math.min(Math.max(point.left, box.left + 1), box.right - 1),
+        top: Math.min(Math.max(point.top, box.top + 1), box.bottom - 1),
+      }
+      const found = view.posAtCoords(inside)
+      const pos = found ? found.pos : point.left < box.left ? Selection.atStart(view.state.doc).from : Selection.atEnd(view.state.doc).from
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)))
+      view.focus()
+    },
     destroy() {
       if (destroyed) {
         return

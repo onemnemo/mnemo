@@ -178,6 +178,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const imageInput = useRef<HTMLInputElement>(null)
   /** The node this edit created. Abandoning the edit takes it away again. */
   const blank = useRef<string | null>(null)
+  /** Bumped when a label opens, so a commit that comes back late does not close the field that replaced it. */
+  const editSession = useRef(0)
   /** The node whose branch is being saved as a template, for as long as the dialog is up. */
   const [capturing, setCapturing] = useState<string | null>(null)
   /** The node waiting on a reference to point at, and which library it is being picked from. */
@@ -395,7 +397,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   // Require a promise so shutdown callers can await persistence instead of discarding the write.
   const endEdit = useCallback(
     (id: string, result: FieldResult): Promise<unknown> => {
-      setEditing(null)
       const wasBlank = blank.current === id
       blank.current = null
 
@@ -403,12 +404,24 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       const commit = labelCommit(content, wasBlank, result)
       switch (commit.kind) {
         case "none":
+          setEditing(null)
           return Promise.resolve()
         case "delete":
+          setEditing(null)
           // Taking the box away retracts the step that made it, so the pair costs no undo presses.
           return editor.apply([op.del([id])], { label: t("Mindmap", "Delete"), retracts: id })
-        case "set":
-          return editor.apply([op.set(id, commit.patch)], { label: t("Mindmap", "Rename") })
+        case "set": {
+          // The field stays up until the document carries what it committed. Closed first, the node
+          // would draw its old label for the round trip and then snap to the new one, a flicker on
+          // every commit; the field already shows the new one, so it is the thing to keep on screen.
+          // Only this field is closed: a label opened on another node meanwhile stays open.
+          const session = editSession.current
+          return editor.apply([op.set(id, commit.patch)], { label: t("Mindmap", "Rename") }).finally(() => {
+            if (editSession.current === session) {
+              setEditing((current) => (current === id ? null : current))
+            }
+          })
+        }
       }
     },
     [editor, scene, t],
@@ -434,6 +447,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       if (imageRefOf(content)) {
         return
       }
+      editSession.current += 1
       setEditing(id)
     },
     [scene],
