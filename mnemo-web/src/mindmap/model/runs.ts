@@ -9,6 +9,8 @@
 
 import type { InlineSpan } from "@/notes/model/types"
 
+import type { ElementContent } from "./document"
+
 export function flattenRuns(runs: readonly InlineSpan[]): string {
   let out = ""
   for (const run of runs) {
@@ -114,4 +116,71 @@ const defaultStyle: InlineSpan["style"] = {
   suppressAutoLink: false,
   subscript: false,
   superscript: false,
+}
+
+/**
+ * The runs without the whitespace a label opens and closes on, the way a plain label is trimmed
+ * when it is committed. A run that was only whitespace goes; an atom is never touched.
+ */
+export function trimRuns(runs: readonly InlineSpan[]): InlineSpan[] {
+  const out = runs.map((run) => ({ ...run }))
+  while (out.length > 0) {
+    const first = out[0]
+    if (first.kind !== "text") {
+      break
+    }
+    first.text = first.text.replace(/^\s+/u, "")
+    if (first.text.length > 0) {
+      break
+    }
+    out.shift()
+  }
+  while (out.length > 0) {
+    const last = out[out.length - 1]
+    if (last.kind !== "text") {
+      break
+    }
+    last.text = last.text.replace(/\s+$/u, "")
+    if (last.text.length > 0) {
+      break
+    }
+    out.pop()
+  }
+  return out
+}
+
+/** Whether a kind's label is its own to format. A link's title and a code node's source are not. */
+export function canHoldRuns(content: ElementContent): boolean {
+  switch (content.$type) {
+    case "text":
+    case "task":
+    case "shape":
+    case "freeText":
+    case "math":
+      return true
+    default:
+      return false
+  }
+}
+
+/**
+ * The content to write for a label edited as runs, or null for a kind that cannot hold them, which
+ * keeps writing plain text.
+ *
+ * The text goes along with the runs even though the server recomputes it, so a reader of the op
+ * that only knows text still sees the words. A stored math row, which reads as one equation run,
+ * is written back as the text node it has become.
+ */
+export function withRuns(content: ElementContent, runs: InlineSpan[]): ElementContent | null {
+  switch (content.$type) {
+    case "text":
+    case "task":
+    case "shape":
+    case "freeText":
+      return { ...content, runs, text: flattenRuns(runs) }
+    case "math":
+      return { $type: "text", runs, text: flattenRuns(runs) }
+    default:
+      return null
+  }
 }

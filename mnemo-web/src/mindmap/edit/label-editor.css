@@ -1,0 +1,11 @@
+/* The editable root ProseMirror appends inside the label's mount. It inherits the label's own
+ * metrics from the mount; what it needs of its own is to wrap the way the label does and to
+ * show no focus ring, since the node's halo already says which one is open. */
+.mm-editor .ProseMirror {
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.mm-editor .ProseMirror p {
+  margin: 0;
+}

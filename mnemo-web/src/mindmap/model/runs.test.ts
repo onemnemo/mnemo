@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { defaultTextStyle, type InlineSpan } from "@/notes/model/types"
 
-import { flattenRuns, plainRuns, runsKey, sameRuns } from "./runs"
+import { canHoldRuns, flattenRuns, plainRuns, runsKey, sameRuns, trimRuns, withRuns } from "./runs"
 
 const text = (value: string, style: Partial<InlineSpan["style"]> = {}): InlineSpan => ({
   kind: "text",
@@ -81,5 +81,56 @@ describe("runsKey", () => {
   it("treats a field left out as the default it stands for", () => {
     const sparse = { kind: "text", text: "a", style: { bold: true } } as unknown as InlineSpan
     expect(runsKey([sparse])).toBe(runsKey([text("a", { bold: true })]))
+  })
+})
+
+describe("trimRuns", () => {
+  it("strips the whitespace a label opens and closes on, and drops a run that was only that", () => {
+    expect(trimRuns([text(" "), text(" a ", { bold: true }), text("b "), text("\n")])).toEqual([
+      text("a ", { bold: true }),
+      text("b"),
+    ])
+  })
+
+  it("never touches an atom or the inside of the label", () => {
+    const eq: InlineSpan = { kind: "equation", latex: "x", style: { ...defaultTextStyle } }
+    expect(trimRuns([text(" "), eq, text(" a b "), eq])).toEqual([eq, text(" a b "), eq])
+  })
+
+  it("leaves the runs it was given alone", () => {
+    const runs = [text(" a ")]
+    trimRuns(runs)
+    expect(runs).toEqual([text(" a ")])
+  })
+})
+
+describe("canHoldRuns and withRuns", () => {
+  it("is the four label kinds and the math row that reads as one", () => {
+    expect(canHoldRuns({ $type: "text" })).toBe(true)
+    expect(canHoldRuns({ $type: "task" })).toBe(true)
+    expect(canHoldRuns({ $type: "shape" })).toBe(true)
+    expect(canHoldRuns({ $type: "freeText" })).toBe(true)
+    expect(canHoldRuns({ $type: "math" })).toBe(true)
+    expect(canHoldRuns({ $type: "code" })).toBe(false)
+    expect(canHoldRuns({ $type: "link", url: "https://a" })).toBe(false)
+    expect(canHoldRuns({ $type: "frame" })).toBe(false)
+  })
+
+  it("writes the runs beside their plain projection and keeps the rest", () => {
+    expect(withRuns({ $type: "shape", shape: "diamond", text: "old" }, [text("new", { italic: true })])).toEqual({
+      $type: "shape",
+      shape: "diamond",
+      text: "new",
+      runs: [text("new", { italic: true })],
+    })
+  })
+
+  it("turns a math row into the text node it reads as", () => {
+    const eq: InlineSpan = { kind: "equation", latex: "y", style: { ...defaultTextStyle } }
+    expect(withRuns({ $type: "math", latex: "x" }, [eq])).toEqual({ $type: "text", text: "y", runs: [eq] })
+  })
+
+  it("answers null for a kind that cannot hold runs", () => {
+    expect(withRuns({ $type: "code", source: "x" }, [text("x")])).toBeNull()
   })
 })
