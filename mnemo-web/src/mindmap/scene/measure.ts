@@ -10,8 +10,12 @@
  * needs the same numbers this produces, which means they have to be producible without a document.
  */
 
+import type { InlineSpan } from "@/notes/model/types"
+
 import type { FontScale, NodeShape } from "../model/document"
+import { flattenRuns, runsKey } from "../model/runs"
 import type { ContentBody } from "./content"
+import { RICH_BOX_CLASS, richBoxStyle } from "./rich-box"
 
 export interface Font {
   readonly size: number
@@ -96,8 +100,19 @@ const CODE_LINES = 8
 
 export type TextMeasurer = (text: string, size: number, weight: number, letterSpacing?: string) => number
 
-/** A rendered equation's box. Only KaTeX can answer this, and only by rendering it. */
-export type MathMeasurer = (latex: string, size: number) => { width: number; height: number }
+/**
+ * A formatted label's box at a rung: the runs laid out under the rung's ceiling, as wide as their
+ * widest line and as tall as their lines. Only a rendering can answer this, since a bold word, a
+ * superscript and an equation each take a room no character count knows.
+ */
+export type RichMeasurer = (runs: readonly InlineSpan[], font: Font) => { width: number; height: number }
+
+/** Writes a run list into a host as the marked-up DOM the canvas draws it as. */
+export type RunRenderer = (host: HTMLElement, runs: readonly InlineSpan[]) => void
+
+export function lineHeightOf(font: Font): number {
+  return Math.round(font.size * LINE_RATIO)
+}
 
 // The app's own two faces, spelled the way the stylesheet spells them. A measurement taken in a face
 // the page does not load is a box sized for text nobody will see: the label still draws in Inter and
@@ -156,81 +171,98 @@ export function canvasMeasurer(family: string = FONT_FAMILY): TextMeasurer {
 }
 
 /**
- * How big a rendered equation is.
+ * The one offscreen box formatted labels are measured in.
  *
- * By rendering it. There is no shortcut: the box of `\sum_{i=1}^{n}` has nothing to do with the
- * length of that string, and the layout packs boxes, so a guess here is a tree that overlaps itself
- * around every math node.
- *
- * One detached host, reused and memoized. It is offscreen rather than hidden, because a display of
- * none has no box to read, and it carries the same class the canvas draws math under so the two are
- * measuring and drawing the same thing.
+ * Module level rather than per measurer, since a measurer is rebuilt on every font epoch and a host
+ * left behind by each would be a leak the size of the session. Offscreen rather than hidden, because
+ * a display of none has no box to read. It carries the class list and the style the canvas label
+ * carries, so the box read here is the box that lands on the canvas.
  */
-export function katexMeasurer(render: (host: HTMLElement, latex: string) => void): MathMeasurer {
-  let host: HTMLElement | null = null
+let richHost: HTMLElement | null = null
+
+function richHostFor(font: Font): HTMLElement {
+  if (!richHost) {
+    richHost = document.createElement("span")
+    richHost.className = RICH_BOX_CLASS
+    richHost.setAttribute("aria-hidden", "true")
+    richHost.style.cssText = "position:absolute;left:-99999px;top:0;visibility:hidden"
+    document.body.appendChild(richHost)
+  }
+  Object.assign(richHost.style, richBoxStyle({ font, lineHeight: lineHeightOf(font) }))
+  return richHost
+}
+
+/**
+ * How big a formatted label is: by rendering it and reading the box, memoized.
+ *
+ * The rect rather than the offset size, since the offset size is rounded to the nearest pixel and a
+ * line that measured 100.4 wide would be handed a box of 100, which is one pixel short and one wrap
+ * different from what was measured. The ceiling of the rect is never short.
+ */
+export function richMeasurer(render: RunRenderer): RichMeasurer {
   const cache = new Map<string, { width: number; height: number }>()
 
-  return (latex, size) => {
-    const key = `${size}|${latex}`
+  return (runs, font) => {
+    const key = `${font.size}|${font.weight}|${font.letterSpacing}|${runsKey(runs)}`
     const hit = cache.get(key)
     if (hit !== undefined) {
       return hit
     }
 
     try {
-      if (!host) {
-        host = document.createElement("div")
-        host.className = "mm-math"
-        host.setAttribute("aria-hidden", "true")
-        host.style.cssText = "position:absolute;left:-99999px;top:0;visibility:hidden;white-space:nowrap"
-        document.body.appendChild(host)
-      }
-      host.style.fontSize = `${size}px`
-      render(host, latex)
-      const box = { width: Math.ceil(host.offsetWidth), height: Math.ceil(host.offsetHeight) }
-      if (cache.size > 500) {
+      const host = richHostFor(font)
+      render(host, runs)
+      const rect = host.getBoundingClientRect()
+      const box = { width: Math.ceil(rect.width), height: Math.ceil(rect.height) }
+      if (cache.size > 2000) {
         cache.clear()
       }
       cache.set(key, box)
       return box
     } catch {
-      return estimateMath(latex, size)
+      return estimateRuns(estimateWidth)(runs, font)
     }
   }
 }
 
-/** Width by character count, for a test with no DOM and for a render that would not run. */
-export const estimateMath: MathMeasurer = (latex, size) => ({
-  width: Math.ceil(latex.length * size * 0.5),
-  height: Math.ceil(size * 1.6),
-})
+/**
+ * A formatted label's box by its plain words, for a test with no DOM and for a render that would
+ * not run. The words wrapped the way a plain label's are, so a label with nothing but a bold word in
+ * it measures the size it did before it was bold.
+ */
+export function estimateRuns(measure: TextMeasurer): RichMeasurer {
+  return (runs, font) => {
+    const wrapped = wrapText(flattenRuns(runs), font, measure)
+    return { width: Math.ceil(wrapped.width), height: wrapped.lines.length * lineHeightOf(font) }
+  }
+}
 
 /**
  * Everything a box can need measuring, gathered so the projector passes one thing.
  *
  * Three rather than one because they are three different questions: proportional text wraps,
- * monospace source does not, and an equation is not text at all.
+ * monospace source does not, and a formatted label is a rendering rather than a string.
  */
 export interface Measurers {
   readonly text: TextMeasurer
   readonly mono: TextMeasurer
-  readonly math: MathMeasurer
+  readonly rich: RichMeasurer
 }
 
 /**
  * A full set from a single text measurer, for the callers that only have one.
  *
  * The thumbnail is the real one: it projects off the main canvas with the estimating measurer, and a
- * thumbnail with a slightly wrong equation box is a thumbnail, where a synchronous KaTeX render per
- * math node per card is a scroll that stutters.
+ * thumbnail with a slightly wrong box around a formatted label is a thumbnail, where a synchronous
+ * DOM layout per formatted node per card is a scroll that stutters.
  */
 export function measurersFrom(measure: TextMeasurer): Measurers {
-  return { text: measure, mono: measure, math: estimateMath }
+  return { text: measure, mono: measure, rich: estimateRuns(measure) }
 }
 
-/** The real thing: a canvas per face, and KaTeX for the equations. */
-export function domMeasurers(render: (host: HTMLElement, latex: string) => void): Measurers {
-  return { text: canvasMeasurer(), mono: canvasMeasurer(MONO_FAMILY), math: katexMeasurer(render) }
+/** The real thing: a canvas per face, and a rendering for the formatted labels. */
+export function domMeasurers(render: RunRenderer): Measurers {
+  return { text: canvasMeasurer(), mono: canvasMeasurer(MONO_FAMILY), rich: richMeasurer(render) }
 }
 
 export interface WrappedText {
@@ -311,6 +343,8 @@ export interface MeasureRequest {
   readonly badge?: string
   /** How the box is built. Absent means from a wrapped label, which is what most kinds are. */
   readonly body?: ContentBody
+  /** The formatted label a rich body is measured from. `text` is then its plain projection. */
+  readonly runs?: readonly InlineSpan[]
 }
 
 export interface MeasuredNode {
@@ -330,12 +364,18 @@ export function measureNode(request: MeasureRequest, measurers: Measurers): Meas
   }
 
   const padding = request.isRoot ? ROOT_PAD : (PAD[request.shape] ?? PAD.card)
-  const lineHeight = Math.round(font.size * LINE_RATIO)
+  const lineHeight = lineHeightOf(font)
 
+  // The lines are kept for a rich body too, wrapped from its plain words: the box comes from the
+  // rendering, but the export, the thumbnail and find read lines, and those keep reading.
   const wrapped = wrapText(request.text, font, measurers.text)
+  const box =
+    request.body === "rich" && request.runs
+      ? measurers.rich(request.runs, font)
+      : { width: wrapped.width, height: wrapped.lines.length * lineHeight }
   const floor = request.text.trim() ? MIN_WIDTH : EMPTY_WIDTH
 
-  let width = Math.max(Math.ceil(wrapped.width) + padding.x * 2, floor)
+  let width = Math.max(Math.ceil(box.width) + padding.x * 2, floor)
   if (request.isTask) {
     width += TASK_EXTRA
   }
@@ -351,7 +391,7 @@ export function measureNode(request: MeasureRequest, measurers: Measurers): Meas
 
   return {
     width,
-    height: wrapped.lines.length * lineHeight + padding.y * 2,
+    height: Math.ceil(box.height) + padding.y * 2,
     lines: wrapped.lines,
     font,
     lineHeight,
@@ -369,7 +409,7 @@ export function measureNode(request: MeasureRequest, measurers: Measurers): Meas
 function measureCode(source: string, font: Font, mono: TextMeasurer): MeasuredNode {
   const all = source.split("\n")
   const lines = all.length > CODE_LINES ? all.slice(0, CODE_LINES) : all
-  const lineHeight = Math.round(font.size * LINE_RATIO)
+  const lineHeight = lineHeightOf(font)
 
   let widest = 0
   for (const line of lines) {

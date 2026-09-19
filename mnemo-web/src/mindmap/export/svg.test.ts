@@ -9,6 +9,8 @@
 
 import { describe, expect, it } from "vitest"
 
+import { defaultTextStyle, type InlineSpan } from "@/notes/model/types"
+
 import type { MindmapDocument, MindmapEdge, MindmapElement, NodeShape, StyleTemplate } from "../model/document"
 import { estimateWidth, measurersFrom } from "../scene/measure"
 import { projectScene } from "../scene/project"
@@ -229,7 +231,43 @@ describe("what a node is drawn as", () => {
       }),
     )
 
-    expect(picture!.markup).toContain("a^2 + b^2")
+    expect(picture!.markup).toContain('<tspan font-style="italic">a^2 + b^2</tspan>')
+  })
+
+  it("draws a formatted label as one span per piece, each saying what sets it apart", () => {
+    const runs: InlineSpan[] = [
+      { kind: "text", text: "Buy ", style: { ...defaultTextStyle } },
+      { kind: "text", text: "milk", style: { ...defaultTextStyle, bold: true } },
+      { kind: "text", text: " now", style: { ...defaultTextStyle, italic: true, underline: true } },
+      { kind: "text", text: " x", style: { ...defaultTextStyle, code: true } },
+    ]
+    const { picture } = draw(
+      document({
+        elements: [node("r"), node("f", { content: { $type: "text", text: "Buy milk now x", runs } })],
+        edges: [edge("r", "f")],
+      }),
+    )
+
+    expect(picture!.markup).toContain('<tspan>Buy </tspan><tspan font-weight="700">milk</tspan>')
+    expect(picture!.markup).toContain('<tspan font-style="italic" text-decoration="underline"> now</tspan>')
+    expect(picture!.markup).toContain('<tspan font-family="&quot;Geist Mono&quot;')
+    expect(picture!.markup).toContain('> x</tspan>')
+  })
+
+  it("cuts a formatted label along the lines the projector wrapped it into", () => {
+    // Two words the estimating measurer cannot fit on one line at the child rung.
+    const words = "aaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbb"
+    const runs: InlineSpan[] = [{ kind: "text", text: words, style: { ...defaultTextStyle, bold: true } }]
+    const { picture } = draw(
+      document({ elements: [node("r"), node("f", { content: { $type: "text", text: words, runs } })], edges: [edge("r", "f")] }),
+    )
+
+    // Two text elements, one per line, each carrying the run's weight.
+    const lines = picture!.markup.match(/<tspan font-weight="700">[^<]*<\/tspan>/g)
+    expect(lines).toEqual([
+      '<tspan font-weight="700">aaaaaaaaaaaaaaaaaaaa</tspan>',
+      '<tspan font-weight="700">bbbbbbbbbbbbbbbbbbbb</tspan>',
+    ])
   })
 })
 

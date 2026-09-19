@@ -3,7 +3,9 @@
  * anything else out.
  */
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+import { defaultTextStyle } from "@/notes/model/types"
 
 import type { MindmapDocument, MindmapEdge, MindmapElement, StyleTemplate } from "../model/document"
 import type { Scene, SceneElement } from "../model/scene"
@@ -99,6 +101,20 @@ describe("a projected element", () => {
 
     expect(scene.elements.find((e) => e.id === "r")!.childCount).toBe(2)
     expect(scene.elements.find((e) => e.id === "a")!.childCount).toBe(0)
+  })
+
+  it("sizes a formatted label from its runs, and a plain one from its words", () => {
+    const runs = [{ kind: "text" as const, text: "bold", style: { ...defaultTextStyle, bold: true } }]
+    const rich = vi.fn((_runs: readonly unknown[]) => ({ width: 77, height: 33 }))
+    const scene = projectScene(
+      { ...SAMPLE, elements: [node("r"), node("a", { content: { $type: "text", text: "bold", runs } })] },
+      options({ measurers: { ...measurersFrom(estimateWidth), rich } }),
+    )
+
+    expect(rich).toHaveBeenCalledTimes(1)
+    expect(rich.mock.calls[0][0]).toBe(runs)
+    expect(scene.elements.find((e) => e.id === "a")).toMatchObject({ width: 77 + 22, height: 33 + 14 })
+    expect(scene.elements.find((e) => e.id === "a")!.text.lines).toEqual(["bold"])
   })
 })
 

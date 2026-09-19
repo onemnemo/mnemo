@@ -15,11 +15,14 @@ vi.mock("../scene/measurers", () => ({
   sceneMeasurers: () => ({
     text: (text: string) => text.length,
     mono: (text: string) => text.length,
-    math: (latex: string) => ({ width: latex.length, height: 10 }),
+    rich: (runs: InlineSpan[]) => ({ width: flattenRuns(runs).length * 2, height: 10 }),
   }),
 }))
 
-import { isAutoSized, measureFor } from "./live-box"
+import { defaultTextStyle, type InlineSpan } from "@/notes/model/types"
+
+import { flattenRuns } from "../model/runs"
+import { isAutoSized, liveBodyOf, measureFor } from "./live-box"
 import type { ElementContent, SceneElement } from "../model/scene"
 
 function element(content: ElementContent, over: Partial<SceneElement> = {}): SceneElement {
@@ -46,42 +49,65 @@ function element(content: ElementContent, over: Partial<SceneElement> = {}): Sce
 describe("measureFor", () => {
   it("is the text plus a card's own padding, floored so a short label still reads as a box", () => {
     // card padding is 11 either side; "Hello" is 5 units under the one-unit measurer.
-    const measured = measureFor(element({ $type: "text", text: "Hello" }), "Hello")
+    const measured = measureFor(element({ $type: "text", text: "Hello" }), { text: "Hello" })
     expect(measured.width).toBe(5 + 22)
     expect(measured.height).toBe(19 + 14) // one line at the 'm' rung, card's y padding either side.
   })
 
   it("gives a root more room than a card, whatever its own shape says", () => {
-    const measured = measureFor(element({ $type: "text" }, { isRoot: true }), "Hi")
+    const measured = measureFor(element({ $type: "text" }, { isRoot: true }), { text: "Hi" })
     expect(measured.width).toBe(2 + 32) // root padding is 16 either side.
   })
 
   it("leaves room for the checkbox on a task", () => {
-    const measured = measureFor(element({ $type: "task" }), "Buy milk")
+    const measured = measureFor(element({ $type: "task" }), { text: "Buy milk" })
     expect(measured.width).toBe(8 + 22 + 20)
   })
 
   it("leaves room for the leading mark on a reference", () => {
-    const measured = measureFor(element({ $type: "link", url: "https://x" }), "Deck")
+    const measured = measureFor(element({ $type: "link", url: "https://x" }), { text: "Deck" })
     expect(measured.width).toBe(4 + 22 + 20)
   })
 
   it("leaves room for a resolved reference's trailing badge", () => {
-    const measured = measureFor(element({ $type: "link", url: "https://x" }, { refBadge: "12" }), "Deck")
+    const measured = measureFor(element({ $type: "link", url: "https://x" }, { refBadge: "12" }), { text: "Deck" })
     // ref mark (20) plus the badge's own width (2) and its gap (10).
     expect(measured.width).toBe(4 + 22 + 20 + 2 + 10)
   })
 
   it("leaves room for the hidden-count chip on a collapsed node", () => {
-    const measured = measureFor(element({ $type: "text" }, { collapsed: true }), "Topic")
+    const measured = measureFor(element({ $type: "text" }, { collapsed: true }), { text: "Topic" })
     expect(measured.width).toBe(5 + 22 + 24)
   })
 
   it("floors an empty label wider than a short one, so a fresh caret still reads as a node", () => {
-    const measured = measureFor(element({ $type: "text" }), "")
+    const measured = measureFor(element({ $type: "text" }), { text: "" })
     expect(measured.width).toBe(68)
   })
+
+  it("measures the runs it is given as a rendering, whatever the stored content says", () => {
+    // The stored label is plain; the field has just made it bold. The rich stub answers two units a
+    // character where the text stub answers one, so a rich measurement is telling.
+    const plain = element({ $type: "text", text: "Hello" })
+    const measured = measureFor(plain, { text: "Hello", runs: bold("Hello") })
+    expect(liveBodyOf(plain, { text: "Hello", runs: bold("Hello") })).toBe("rich")
+    expect(measured.width).toBe(10 + 22)
+    expect(measured.height).toBe(10 + 14)
+  })
+
+  it("measures a formatted node in a plain field as the text it is typing", () => {
+    const formatted = element({ $type: "text", text: "Hello", runs: bold("Hello") })
+    expect(liveBodyOf(formatted, { text: "Hello" })).toBe("label")
+    expect(measureFor(formatted, { text: "Hello" }).width).toBe(5 + 22)
+  })
+
+  it("keeps a code node a code body whatever the field holds", () => {
+    const code = element({ $type: "code", source: "x" })
+    expect(liveBodyOf(code, { text: "x", runs: bold("x") })).toBe("code")
+  })
 })
+
+const bold = (value: string): InlineSpan[] => [{ kind: "text", text: value, style: { ...defaultTextStyle, bold: true } }]
 
 describe("isAutoSized", () => {
   it("is true for a node still the size its own text measures to", () => {
@@ -92,6 +118,13 @@ describe("isAutoSized", () => {
   it("is false once a node has been dragged to a size of its own", () => {
     const el = element({ $type: "text", text: "Hello" }, { width: 200, height: 100 })
     expect(isAutoSized(el)).toBe(false)
+  })
+
+  it("is true for a formatted node, measured as the rendering the projector sized it from", () => {
+    // Measured as plain text this would answer 5 + 22 and switch the live box off for every node
+    // with a bold word in it.
+    const el = element({ $type: "text", text: "Hello", runs: bold("Hello") }, { width: 10 + 22, height: 10 + 14 })
+    expect(isAutoSized(el)).toBe(true)
   })
 
   it("is true for an untitled link, measured as the address it is drawn with rather than its empty title", () => {

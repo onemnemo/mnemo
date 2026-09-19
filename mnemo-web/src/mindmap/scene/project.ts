@@ -19,7 +19,7 @@
 
 import { branchWidth } from "./branch-width"
 import { FREE_CONTEXT, resolveStyle, templateChain, type ResolvedStyle, type StyleContext } from "./cascade"
-import { bodyOf, displayText, isRef, refKey, type RefInfo } from "./content"
+import { bodyOf, displayText, isRef, refKey, runsOf, type RefInfo } from "./content"
 import { resolveEdgeStyle, ribbonWidths } from "./edge-cascade"
 import { analyzeHierarchy, childrenIds, hiddenDescendantCount, type Hierarchy } from "./hierarchy"
 import { measureNode, type Measurers } from "./measure"
@@ -395,6 +395,7 @@ function buildElement(
       isRef: isRef(element.content),
       badge: ref?.badge,
       body: bodyOf(element.content),
+      runs: runsOf(element.content) ?? undefined,
     },
     options.measurers,
   )

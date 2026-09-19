@@ -27,12 +27,13 @@ import {
 } from "../canvas/edge-paths"
 import { dashAttribute, strokeStyleFor } from "../canvas/edge-style"
 import { isOpenShape, shapePath } from "../canvas/shape-path"
-import { bodyOf, imageRefOf, refGlyphOf, type ImageRef } from "../scene/content"
+import { bodyOf, imageRefOf, refGlyphOf, runsOf, type ImageRef } from "../scene/content"
 import { FONT_FAMILY, MONO_FAMILY, type TextMeasurer } from "../scene/measure"
 import { accentOf } from "../scene/branch"
 import { mixColor, washOf } from "../scene/tokens"
 import { boundsOf, type Scene, type SceneEdge, type SceneElement } from "../model/scene"
 import type { ArrowCap, CodeContent, FrameContent, ShapeContent, ShapeType } from "../model/document"
+import { sliceRuns, type Fragment } from "./rich-text"
 
 /** Room around the drawing, the same as the desktop leaves. */
 export const EXPORT_MARGIN = 48
@@ -441,8 +442,14 @@ function emitBody(element: SceneElement, paint: Paint): string {
   const anchor = centred ? "middle" : "start"
   const x = centred ? element.x + element.width / 2 : element.x + element.padding.x + leadInset(element)
 
+  // A formatted label is its runs cut along the same lines, one styled span per piece.
+  const runs = body === "rich" ? runsOf(element.content) : null
+  const pieces = runs ? sliceRuns(runs, text.lines) : null
   const lines = text.lines
-    .map((line, index) => emitText(line, x, top + (index + 0.5) * text.lineHeight, style, anchor))
+    .map((line, index) => {
+      const y = top + (index + 0.5) * text.lineHeight
+      return pieces ? emitFragments(pieces[index], x, y, style, anchor, paint) : emitText(line, x, y, style, anchor)
+    })
     .join("")
 
   // Source is not wrapped, so a line wider than the box has to be cut off at the edge the way the
@@ -543,7 +550,10 @@ function emitText(
   if (!text) {
     return ""
   }
+  return openText(x, y, style, anchor) + escape(text) + "</text>"
+}
 
+function openText(x: number, y: number, style: TextStyle, anchor: "start" | "middle" | "end"): string {
   return (
     `<text x="${n(x)}" y="${n(y)}" font-family="${escape(style.family)}" font-size="${n(style.size)}"` +
     ` font-weight="${style.weight}" fill="${style.fill}" dominant-baseline="central"` +
@@ -553,10 +563,63 @@ function emitText(
       : "") +
     (style.italic ? ' font-style="italic"' : "") +
     (style.strike ? ' text-decoration="line-through"' : "") +
-    ' xml:space="preserve">' +
-    escape(text) +
-    "</text>"
+    ' xml:space="preserve">'
   )
+}
+
+/**
+ * One line of a formatted label: a span per piece, each saying only what sets it apart from the
+ * line's own style. A highlight has no ink of its own in a text element and is left out; a chosen
+ * colour and a link keep the ink the canvas gives them.
+ */
+function emitFragments(
+  fragments: readonly Fragment[],
+  x: number,
+  y: number,
+  style: TextStyle,
+  anchor: "start" | "middle" | "end",
+  paint: Paint,
+): string {
+  if (fragments.length === 0) {
+    return ""
+  }
+  const spans = fragments
+    .map((piece) => `<tspan${fragmentAttributes(piece, style, paint)}>${escape(piece.text)}</tspan>`)
+    .join("")
+  return openText(x, y, style, anchor) + spans + "</text>"
+}
+
+function fragmentAttributes(piece: Fragment, base: TextStyle, paint: Paint): string {
+  let out = ""
+  if (piece.bold) {
+    out += ' font-weight="700"'
+  }
+  if (piece.italic && !base.italic) {
+    out += ' font-style="italic"'
+  }
+  // A span's decoration replaces the line's rather than adding to it, so a piece that adds one
+  // restates the strike a finished task already carries.
+  if (piece.underline || (piece.strike && !base.strike)) {
+    const decoration = [piece.underline ? "underline" : "", piece.strike || base.strike ? "line-through" : ""]
+    out += ` text-decoration="${decoration.filter(Boolean).join(" ")}"`
+  }
+  if (piece.code) {
+    out += ` font-family="${escape(MONO_FAMILY)}"`
+  }
+  if (piece.superscript || piece.subscript) {
+    out += ` baseline-shift="${piece.superscript ? "super" : "sub"}" font-size="${n(base.size * 0.75)}"`
+  }
+  // The swatch token names the ink token the mark stylesheet paints it with.
+  const ink = piece.swatch ? swatchInk(piece.swatch) : piece.link ? "var(--text-color-swatch-3)" : null
+  if (ink) {
+    out += ` fill="${paint.color(ink)}"`
+  }
+  return out
+}
+
+function swatchInk(token: string): string | null {
+  const match = /^swatch(\d+)$/.exec(token)
+  return match ? `var(--text-color-swatch-${match[1]})` : null
 }
 
 interface PillStyle {

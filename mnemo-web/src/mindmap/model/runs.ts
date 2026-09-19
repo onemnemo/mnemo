@@ -48,6 +48,36 @@ export function sameRuns(a: readonly InlineSpan[], b: readonly InlineSpan[]): bo
   return true
 }
 
+/**
+ * One string per distinct run list, for a cache or an effect keyed on the runs rather than on their
+ * object identity. Field by field in a fixed order, so two lists that spell the same runs key the
+ * same whatever order their fields were written in and whichever fields were left at the default.
+ */
+export function runsKey(runs: readonly InlineSpan[]): string {
+  let out = ""
+  for (const run of runs) {
+    switch (run.kind) {
+      case "text":
+        out += `t${run.text.length}:${run.text}`
+        break
+      case "equation":
+        out += `e${run.latex.length}:${run.latex}`
+        break
+      case "fraction":
+        out += `f${run.numerator}/${run.denominator}`
+        break
+    }
+    for (const key of Object.keys(defaultStyle) as (keyof typeof defaultStyle)[]) {
+      const value = run.style[key] ?? defaultStyle[key]
+      if (value !== defaultStyle[key]) {
+        out += `|${key}=${String(value)}`
+      }
+    }
+    out += ";"
+  }
+  return out
+}
+
 function sameRun(a: InlineSpan, b: InlineSpan): boolean {
   if (a.kind !== b.kind || !sameStyle(a.style, b.style)) {
     return false

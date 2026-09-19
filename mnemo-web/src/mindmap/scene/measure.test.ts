@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest"
 
-import { estimateWidth, FONTS, measureNode, measurersFrom, wrapText, type TextMeasurer } from "./measure"
+import { defaultTextStyle, type InlineSpan } from "@/notes/model/types"
+
+import {
+  estimateRuns,
+  estimateWidth,
+  FONTS,
+  measureNode,
+  measurersFrom,
+  wrapText,
+  type Measurers,
+  type TextMeasurer,
+} from "./measure"
 
 /** One unit per character, so an expected width is arithmetic rather than a font's opinion. */
 const perChar: TextMeasurer = (text) => text.length
@@ -95,6 +106,67 @@ describe("node boxes", () => {
 
   it("scales type by the rung the cascade chose, not by anything it measures", () => {
     expect(box("a", { fontScale: "xl" }).font.size).toBeGreaterThan(box("a", { fontScale: "s" }).font.size)
+  })
+})
+
+describe("a formatted label's box", () => {
+  const text = (value: string, style: Partial<InlineSpan["style"]> = {}): InlineSpan => ({
+    kind: "text",
+    text: value,
+    style: { ...defaultTextStyle, ...style },
+  })
+
+  /** A rich measurer that answers a fixed box, so what the node adds around it is arithmetic. */
+  const stub = (width: number, height: number): Measurers => ({
+    text: perChar,
+    mono: perChar,
+    rich: () => ({ width, height }),
+  })
+
+  const runs = [text("Hello "), text("world", { bold: true })]
+
+  it("is the rendered box plus the shape's padding, not the words' width", () => {
+    const box = measureNode({ text: "Hello world", shape: "card", fontScale: "m", isRoot: false, body: "rich", runs }, stub(50, 30))
+    expect(box.width).toBe(50 + 22)
+    expect(box.height).toBe(30 + 14)
+  })
+
+  it("leaves room for a task's checkbox, a reference's mark, its badge and a collapse chip, as a label does", () => {
+    const plain = { text: "Hello world", shape: "card" as const, fontScale: "m" as const, isRoot: false, body: "rich" as const, runs }
+    const base = measureNode(plain, stub(50, 30)).width
+
+    expect(measureNode({ ...plain, isTask: true }, stub(50, 30)).width).toBe(base + 20)
+    expect(measureNode({ ...plain, isRef: true }, stub(50, 30)).width).toBe(base + 20)
+    expect(measureNode({ ...plain, badge: "12" }, stub(50, 30)).width).toBe(base + 2 + 10)
+    expect(measureNode({ ...plain, isCollapsed: true }, stub(50, 30)).width).toBe(base + 24)
+  })
+
+  it("keeps the lines of its plain words, so every reader of lines keeps reading", () => {
+    const box = measureNode(
+      { text: "aaaa bbbb", shape: "card", fontScale: "m", isRoot: false, body: "rich", runs: [text("aaaa "), text("bbbb", { bold: true })] },
+      { text: (t) => t.length * 30, mono: perChar, rich: () => ({ width: 50, height: 30 }) },
+    )
+    expect(box.lines).toEqual(["aaaa", "bbbb"])
+    expect(box.lineHeight).toBe(Math.round(FONTS.m.size * 1.35))
+  })
+
+  it("rounds the rendered box up, since a box a fraction short wraps a line the rendering did not", () => {
+    const box = measureNode({ text: "Hello world", shape: "card", fontScale: "m", isRoot: false, body: "rich", runs }, stub(50.2, 29.6))
+    expect(box.width).toBe(51 + 22)
+    expect(box.height).toBe(30 + 14)
+  })
+
+  it("is measured as a plain label when no runs came with the request", () => {
+    const rich = measureNode({ text: "Hello world", shape: "card", fontScale: "m", isRoot: false, body: "rich" }, stub(50, 30))
+    const label = measureNode({ text: "Hello world", shape: "card", fontScale: "m", isRoot: false }, stub(50, 30))
+    expect(rich).toEqual(label)
+  })
+
+  it("estimates, with no rendering to hand, as the plain words wrapped the way a label's are", () => {
+    const estimate = estimateRuns(perChar)
+    const label = wrapText("Hello world", FONTS.m, perChar)
+    expect(estimate(runs, FONTS.m)).toEqual({ width: label.width, height: label.lines.length * Math.round(FONTS.m.size * 1.35) })
+    expect(measurersFrom(perChar).rich(runs, FONTS.m)).toEqual(estimate(runs, FONTS.m))
   })
 })
 

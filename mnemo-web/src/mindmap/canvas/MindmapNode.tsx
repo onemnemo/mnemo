@@ -6,7 +6,7 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import { useMindmapImage } from "../assets"
-import { bodyOf, imageRefOf, refGlyphOf, type ImageRef } from "../scene/content"
+import { bodyOf, imageRefOf, refGlyphOf, runsOf, type ImageRef } from "../scene/content"
 import { accentOf } from "../scene/branch"
 import { FRAME_HEAD } from "../scene/project"
 import { mixColor, washOf } from "../scene/tokens"
@@ -14,7 +14,8 @@ import { contentText, type CodeContent, type FrameContent } from "../model/docum
 import type { ShapeContent, ShapeType } from "../model/document"
 import type { SceneElement } from "../model/scene"
 import type { ElementBox } from "./edge-paths"
-import { isAutoSized, measureFor } from "./live-box"
+import { isAutoSized, liveBodyOf, measureFor, type LiveLabel } from "./live-box"
+import { RichLabel } from "./RichLabel"
 import { isOpenShape, shapePath, shapeTextInset } from "./shape-path"
 import { useFieldFlush } from "./useFieldFlush"
 
@@ -241,6 +242,8 @@ function NodeBody({ element }: { element: SceneElement }) {
   switch (bodyOf(element.content)) {
     case "code":
       return <CodeBody element={element} />
+    case "rich":
+      return <RichLabel element={element} runs={runsOf(element.content) ?? []} inset={labelInset(element)} />
     default:
       return <NodeLabel element={element} />
   }
@@ -669,7 +672,7 @@ function NodeEditor({
       }
       node.focus({ preventScroll: true })
       node.select()
-      resize(node, node.value)
+      resize(node, { text: node.value })
     },
     [resize],
   )
@@ -699,7 +702,7 @@ function NodeEditor({
         textAlign: isRoot ? "center" : undefined,
       }}
       onInput={(event) => {
-        resize(event.currentTarget, event.currentTarget.value)
+        resize(event.currentTarget, { text: event.currentTarget.value })
         track(event.currentTarget.value)
       }}
       onKeyDown={(event) => {
@@ -738,7 +741,7 @@ function NodeEditor({
 }
 
 /** The field grows with what is typed, since the box itself is only remeasured on commit. */
-function grow(node: HTMLTextAreaElement): void {
+function grow(node: HTMLElement): void {
   node.style.height = "0px"
   node.style.height = `${node.scrollHeight}px`
 }
@@ -755,7 +758,7 @@ function grow(node: HTMLTextAreaElement): void {
 function useLiveBox(
   element: SceneElement,
   onResize?: (id: string, box: ElementBox) => void,
-): (field: HTMLTextAreaElement, value: string) => void {
+): (field: HTMLElement, live: LiveLabel) => void {
   const host = useRef<HTMLElement | null>(null)
   const auto = useRef(false)
   const last = useRef<{ width: number; height: number } | null>(null)
@@ -779,7 +782,7 @@ function useLiveBox(
     }
   }, [])
 
-  return useCallback((field: HTMLTextAreaElement, value: string) => {
+  return useCallback((field: HTMLElement, live: LiveLabel) => {
     if (!host.current) {
       host.current = field.closest<HTMLElement>(".mm-node")
       auto.current = isAutoSized(opened.current)
@@ -792,18 +795,18 @@ function useLiveBox(
     }
 
     // Width first, and from the projector, so the field re-wraps at the width the box is keeping.
-    const measured = measureFor(opened.current, value)
+    const measured = measureFor(opened.current, live)
     box.style.width = `${measured.width}px`
 
     // Only then the height, and from the field itself. Read before the width lands it answers for
     // the width the box had a keystroke ago, which is a line count that disagrees with what is on
     // screen. Taken from the field rather than from the measurement so the box holds the text even
-    // where the two wrap differently. Only a label, though: source and LaTeX are drawn as something
-    // other than their lines — code capped at its eight, an equation as its rendering — so for
-    // those the measurement is the height the commit lands on and the field is free to run past it.
+    // where the two wrap differently. Only a plain label, though: source is drawn capped at its
+    // eight lines and a formatted label as the rendering the measurer laid out, so for those the
+    // measurement is the height the commit lands on and the field is free to run past it.
     grow(field)
     const height =
-      bodyOf(opened.current.content) === "label"
+      liveBodyOf(opened.current, live) === "label"
         ? field.scrollHeight + opened.current.padding.y * 2
         : measured.height
     box.style.height = `${height}px`

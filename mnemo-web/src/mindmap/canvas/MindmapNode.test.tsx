@@ -245,7 +245,7 @@ describe("the box under a label being typed into", () => {
   /** A node whose box is exactly what its own label measures to, which is how the projector makes one. */
   const autoNode = (text: string) => {
     const seed = node({ content: { $type: "text", text }, text: { lines: [text], fontSize: 14, fontWeight: 500, lineHeight: 19, letterSpacing: "-0.005em" } })
-    const measured = measureFor(seed, text)
+    const measured = measureFor(seed, { text })
     return node({ ...seed, width: measured.width, height: measured.height })
   }
 
@@ -257,7 +257,7 @@ describe("the box under a label being typed into", () => {
     const field = container.querySelector("textarea")!
     type(field, "a much longer label than the one it opened on")
 
-    expect(hostBox().style.width).toBe(`${measureFor(element, "a much longer label than the one it opened on").width}px`)
+    expect(hostBox().style.width).toBe(`${measureFor(element, { text: "a much longer label than the one it opened on" }).width}px`)
     expect(parseFloat(hostBox().style.width)).toBeGreaterThan(parseFloat(before))
   })
 
@@ -295,7 +295,7 @@ describe("the box under a label being typed into", () => {
     expect(onEditResize).toHaveBeenCalledWith("a", {
       x: element.x,
       y: element.y,
-      width: measureFor(element, grown).width,
+      width: measureFor(element, { text: grown }).width,
       height: parseFloat(hostBox().style.height),
     })
   })

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { defaultTextStyle, type InlineSpan } from "@/notes/model/types"
 
-import { flattenRuns, plainRuns, sameRuns } from "./runs"
+import { flattenRuns, plainRuns, runsKey, sameRuns } from "./runs"
 
 const text = (value: string, style: Partial<InlineSpan["style"]> = {}): InlineSpan => ({
   kind: "text",
@@ -51,5 +51,35 @@ describe("sameRuns", () => {
 
   it("sees a length change", () => {
     expect(sameRuns([text("a")], [text("a"), text("b")])).toBe(false)
+  })
+})
+
+describe("runsKey", () => {
+  it("is one string for one run list, whatever order the style fields were written in", () => {
+    const style = { ...defaultTextStyle, bold: true, linkUrl: "https://x" }
+    const reversed = Object.fromEntries(Object.entries(style).reverse()) as unknown as InlineSpan["style"]
+    expect(runsKey([{ kind: "text", text: "a", style: reversed }])).toBe(runsKey([{ kind: "text", text: "a", style }]))
+  })
+
+  it("tells apart every way two lists can differ", () => {
+    const keys = [
+      [text("a")],
+      [text("b")],
+      [text("a", { bold: true })],
+      [text("a", { italic: true })],
+      [text("a", { foregroundColor: "swatch1" })],
+      [text("a"), text("b")],
+      [text("ab")],
+      [{ kind: "equation", latex: "a", style: { ...defaultTextStyle } } as InlineSpan],
+      [{ kind: "fraction", numerator: 1, denominator: 2, style: { ...defaultTextStyle } } as InlineSpan],
+      [text("a;"), text("b")],
+      [text("a"), text(";b")],
+    ].map(runsKey)
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it("treats a field left out as the default it stands for", () => {
+    const sparse = { kind: "text", text: "a", style: { bold: true } } as unknown as InlineSpan
+    expect(runsKey([sparse])).toBe(runsKey([text("a", { bold: true })]))
   })
 })
