@@ -54,6 +54,17 @@ describe("wrapping", () => {
   it("gives empty text one empty line, so a box is still a box", () => {
     expect(wrapText("   ", { ...FONTS.m, maxWidth: 100 }, perChar).lines).toEqual([""])
   })
+
+  it("breaks where the label was broken, and wraps each paragraph on its own", () => {
+    const wrapped = wrapText("Iconic memory\nvisual input here", { ...FONTS.m, maxWidth: 14 }, perChar)
+    expect(wrapped.lines).toEqual(["Iconic memory", "visual input", "here"])
+    expect(wrapped.width).toBe(13)
+  })
+
+  it("keeps an empty paragraph as an empty line", () => {
+    expect(wrapText("a\n\nb", { ...FONTS.m, maxWidth: 100 }, perChar).lines).toEqual(["a", "", "b"])
+    expect(wrapText("a\r\nb", { ...FONTS.m, maxWidth: 100 }, perChar).lines).toEqual(["a", "b"])
+  })
 })
 
 describe("node boxes", () => {
@@ -86,7 +97,7 @@ describe("node boxes", () => {
   })
 
   it("leaves room for a task's checkbox", () => {
-    expect(box("abcd", { isTask: true }).width - box("abcd").width).toBe(20)
+    expect(box("abcd", { isTask: true }).width - box("abcd").width).toBe(21)
   })
 
   it("leaves room for the chip saying what a collapse hid", () => {
@@ -135,7 +146,7 @@ describe("a formatted label's box", () => {
     const plain = { text: "Hello world", shape: "card" as const, fontScale: "m" as const, isRoot: false, body: "rich" as const, runs }
     const base = measureNode(plain, stub(50, 30)).width
 
-    expect(measureNode({ ...plain, isTask: true }, stub(50, 30)).width).toBe(base + 20)
+    expect(measureNode({ ...plain, isTask: true }, stub(50, 30)).width).toBe(base + 21)
     expect(measureNode({ ...plain, isRef: true }, stub(50, 30)).width).toBe(base + 20)
     expect(measureNode({ ...plain, badge: "12" }, stub(50, 30)).width).toBe(base + 2 + 10)
     expect(measureNode({ ...plain, isCollapsed: true }, stub(50, 30)).width).toBe(base + 24)

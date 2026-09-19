@@ -76,8 +76,8 @@ const ROOT_PAD = { x: 16, y: 10 }
 const EMPTY_WIDTH = 68
 const MIN_WIDTH = 26
 
-/** Room for the checkbox a task draws before its text. */
-const TASK_EXTRA = 20
+/** Room for the checkbox a task draws before its text: its gap and its box. */
+const TASK_EXTRA = 21
 
 /** Room for the chip saying how much a collapse is hiding. */
 const COLLAPSED_EXTRA = 24
@@ -274,10 +274,27 @@ export interface WrappedText {
 /**
  * Greedy word wrap against a ceiling.
  *
- * A single word wider than the ceiling is broken mid-word rather than allowed to overflow, so one long
- * chemical name does not shove an entire branch sideways.
+ * A line break in the text is a line break: the label was typed that way, and each paragraph
+ * wraps on its own below the one before it. A single word wider than the ceiling is broken
+ * mid-word rather than allowed to overflow, so one long chemical name does not shove an entire
+ * branch sideways.
  */
 export function wrapText(text: string, font: Font, measure: TextMeasurer): WrappedText {
+  if (text.trim() === "") {
+    return { lines: [""], width: 0 }
+  }
+
+  const lines: string[] = []
+  let width = 0
+  for (const paragraph of text.split(/\r?\n/)) {
+    const wrapped = wrapParagraph(paragraph, font, measure)
+    lines.push(...wrapped.lines)
+    width = Math.max(width, wrapped.width)
+  }
+  return { lines, width }
+}
+
+function wrapParagraph(text: string, font: Font, measure: TextMeasurer): WrappedText {
   const words = text.split(/\s+/).filter(Boolean)
   if (words.length === 0) {
     return { lines: [""], width: 0 }
