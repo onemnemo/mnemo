@@ -42,7 +42,6 @@ export interface SlotProps {
   label: string
   /** The key that does the same thing, drawn on a cap beside the label. */
   chord?: string | null
-  /** Filled accent rather than a tint: which tool is armed has to be readable at a glance. */
   active?: boolean
   /**
    * That this control has a panel of its own behind it, and whether that panel is open now.
@@ -84,7 +83,7 @@ export function Slot({
           wide ? "min-w-[46px] px-1.5 text-[11.5px] font-medium tabular-nums" : "w-7",
           menu && "relative",
           disabled && "pointer-events-none opacity-35",
-          active ? "bg-accent text-accent-fg" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
+          active ? "bg-accent-wash text-accent-ink" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
         )}
       >
         {children}
@@ -105,7 +104,7 @@ function MenuMark() {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute right-[3.5px] bottom-[3.5px] size-[4px] opacity-60"
+      className="pointer-events-none absolute right-[3px] bottom-[3px] size-[5px] opacity-70"
       style={{ backgroundColor: "currentColor", clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }}
     />
   )

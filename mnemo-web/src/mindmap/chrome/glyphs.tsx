@@ -10,6 +10,7 @@
 
 import { cn } from "@/lib/utils"
 
+import { shapePath } from "../canvas/shape-path"
 import type {
   ArrowCap,
   CanvasBackground,
@@ -18,6 +19,7 @@ import type {
   LayoutAlgorithm,
   LineStyle,
   NodeShape,
+  ShapeType,
 } from "../model/document"
 import type { BranchMaterial } from "./material"
 
@@ -282,4 +284,63 @@ export function SwatchGlyph({ color, active }: { color: string; active: boolean 
       aria-hidden
     />
   )
+}
+
+// Build at canvas scale so fixed corner radii survive glyph downscaling.
+const SHAPE_BUILD_SCALE = 4
+const SHAPE_PAD = 1
+
+const ARROW_HEAD = 7
+const ARROW_HEAD_SPREAD = 0.44
+
+export function ShapeGlyph({
+  shape,
+  width,
+  height,
+  filled,
+}: {
+  shape: ShapeType
+  width: number
+  height: number
+  filled?: boolean
+}) {
+  const w = (width - SHAPE_PAD * 2) * SHAPE_BUILD_SCALE
+  const h = (height - SHAPE_PAD * 2) * SHAPE_BUILD_SCALE
+  const inset = SHAPE_PAD * SHAPE_BUILD_SCALE
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width * SHAPE_BUILD_SCALE} ${height * SHAPE_BUILD_SCALE}`}
+      data-shape={shape}
+      aria-hidden
+    >
+      <g transform={`translate(${inset}, ${inset})`}>
+        <path
+          d={shapePath(shape, w, h)}
+          fill={filled ? "currentColor" : "none"}
+          fillOpacity={filled ? 0.2 : undefined}
+          stroke="currentColor"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        {shape === "arrow" ? <path d={arrowHead(w, h)} fill="currentColor" /> : null}
+      </g>
+    </svg>
+  )
+}
+
+function arrowHead(w: number, h: number): string {
+  const length = Math.hypot(w, h)
+  const ux = w / length
+  const uy = -h / length
+  const size = ARROW_HEAD * SHAPE_BUILD_SCALE
+  const baseX = w - ux * size
+  const baseY = 0 - uy * size
+  const px = -uy * size * ARROW_HEAD_SPREAD
+  const py = ux * size * ARROW_HEAD_SPREAD
+  return `M${w},0 L${baseX + px},${baseY + py} L${baseX - px},${baseY - py} Z`
 }

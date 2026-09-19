@@ -136,4 +136,53 @@ describe("the tool dock", () => {
     press("ToolShape")
     expect(slot("ToolShape").getAttribute("aria-expanded")).toBe("true")
   })
+
+  it("wears the shape it will plant", () => {
+    mount({ shape: "hexagon" })
+
+    const face = slot("ToolShape").querySelector("svg[data-shape]")
+    expect(face?.getAttribute("data-shape")).toBe("hexagon")
+  })
+
+  it("answers a letter while the shapes are up, and keeps that letter from the map", () => {
+    const all = mount()
+    press("ToolShape")
+
+    const reachedMap = vi.fn()
+    container.addEventListener("keydown", reachedMap)
+    act(() => {
+      container.dispatchEvent(new KeyboardEvent("keydown", { key: "h", bubbles: true, cancelable: true }))
+    })
+
+    expect(all.onShape).toHaveBeenCalledWith("hexagon")
+    expect(showing("ShapeHexagon")).toBe(false)
+    expect(reachedMap).not.toHaveBeenCalled()
+  })
+
+  it("leaves a letter alone once the shapes are away, and under a modifier", () => {
+    const all = mount()
+    press("ToolShape")
+
+    act(() => {
+      container.dispatchEvent(new KeyboardEvent("keydown", { key: "h", ctrlKey: true, bubbles: true }))
+    })
+    expect(all.onShape).not.toHaveBeenCalled()
+    expect(showing("ShapeHexagon")).toBe(true)
+
+    press("ToolShape")
+    act(() => {
+      container.dispatchEvent(new KeyboardEvent("keydown", { key: "b", bubbles: true }))
+    })
+    expect(all.onShape).not.toHaveBeenCalled()
+  })
+
+  it("takes the shapes down when another tool is armed from outside the dock", () => {
+    const all = mount()
+    press("ToolShape")
+    expect(showing("ShapeHexagon")).toBe(true)
+
+    act(() => root.render(<MindmapToolDock {...all} tool="text" />))
+
+    expect(showing("ShapeHexagon")).toBe(false)
+  })
 })

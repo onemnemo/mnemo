@@ -1,37 +1,31 @@
+import { useEffect } from "react"
+
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
-import { shapePath } from "../canvas/shape-path"
 import type { ShapeType } from "../model/document"
 import { FlyoutPanel } from "./FlyoutPanel"
+import { ShapeGlyph } from "./glyphs"
 
-/** The primitives, in a fixed order: two rows of four. */
-const SHAPES: readonly { shape: ShapeType; key: string }[] = [
-  { shape: "rectangle", key: "ShapeRectangle" },
-  { shape: "ellipse", key: "ShapeEllipse" },
-  { shape: "diamond", key: "ShapeDiamond" },
-  { shape: "hexagon", key: "ShapeHexagon" },
-  { shape: "parallelogram", key: "ShapeParallelogram" },
-  { shape: "line", key: "ShapeLine" },
-  { shape: "arrow", key: "ShapeArrow" },
-  { shape: "blob", key: "ShapeBlob" },
+interface ShapeEntry {
+  readonly shape: ShapeType
+  readonly label: string
+  readonly mnemonic: string
+}
+
+const SHAPES: readonly ShapeEntry[] = [
+  { shape: "rectangle", label: "ShapeRectangle", mnemonic: "R" },
+  { shape: "ellipse", label: "ShapeEllipse", mnemonic: "O" },
+  { shape: "diamond", label: "ShapeDiamond", mnemonic: "D" },
+  { shape: "hexagon", label: "ShapeHexagon", mnemonic: "H" },
+  { shape: "parallelogram", label: "ShapeParallelogram", mnemonic: "P" },
+  { shape: "line", label: "ShapeLine", mnemonic: "L" },
+  { shape: "arrow", label: "ShapeArrow", mnemonic: "A" },
+  { shape: "blob", label: "ShapeBlob", mnemonic: "B" },
 ]
 
-/** The glyph box each primitive is previewed in. Wider than tall, like the shapes it plants. */
-const GLYPH_WIDTH = 30
-const GLYPH_HEIGHT = 20
-
-/**
- * The box the outline is actually built in, before being scaled down into the glyph.
- *
- * A rectangle's corner radius is the one absolute number in the geometry, so a shape drawn straight
- * into a 26 pixel box came out with rounding half its own height: the rectangle previewed as a
- * stadium and read as the same tile as the ellipse and the blob. Building at something near the size
- * of a real element and scaling the result gives every primitive the proportions it will have on the
- * canvas, which is the only thing that makes a picker of eight rounded outlines legible.
- */
-const BUILD_SCALE = 4
-const PAD = 1
+const GLYPH_WIDTH = 28
+const GLYPH_HEIGHT = 18
 
 export interface ShapeFlyoutProps {
   shape: ShapeType
@@ -39,88 +33,65 @@ export interface ShapeFlyoutProps {
   onClose: () => void
 }
 
-/**
- * What the shape tool plants.
- *
- * Each primitive is previewed with the same function that draws it on the canvas, so the picker and
- * the map cannot disagree about what a hexagon is.
- *
- * A pick closes the panel, unlike the connect tool's, which holds four values and is not finished
- * after one press. There is one question here, and the answer to it is followed by putting the shape
- * somewhere, which is behind wherever the panel is.
- */
 export function ShapeFlyout({ shape, onShape, onClose }: ShapeFlyoutProps) {
   const t = useT()
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) return
+      const letter = event.key.toUpperCase()
+      const hit = SHAPES.find((entry) => entry.mnemonic === letter)
+      if (!hit) return
+      // Stop H from also arming the canvas pan tool.
+      event.preventDefault()
+      event.stopPropagation()
+      onShape(hit.shape)
+      onClose()
+    }
+
+    window.addEventListener("keydown", onKeyDown, true)
+    return () => window.removeEventListener("keydown", onKeyDown, true)
+  }, [onShape, onClose])
+
   return (
-    <FlyoutPanel onClose={onClose} className="w-[260px]">
+    <FlyoutPanel onClose={onClose} className="w-max p-2">
       <div className="grid grid-cols-4 gap-1">
         {SHAPES.map((entry) => {
           const active = entry.shape === shape
-          const label = t("Mindmap", entry.key)
+          const label = t("Mindmap", entry.label)
           return (
             <button
               key={entry.shape}
               type="button"
-              title={label}
               aria-label={label}
               aria-pressed={active}
+              aria-keyshortcuts={entry.mnemonic}
               onClick={() => {
                 onShape(entry.shape)
                 onClose()
               }}
-              // The group is the whole tile, so hovering the label lifts the preview's frame with it,
-              // and the two never disagree about whether the pointer is on this shape.
-              className="group flex cursor-pointer flex-col items-center gap-1.5 rounded-lg p-1 outline-none"
+              className={cn(
+                "relative flex h-[58px] min-w-[66px] cursor-pointer flex-col items-center justify-end gap-2 rounded-lg px-1 pb-2 outline-none transition-colors duration-120",
+                active
+                  ? "bg-accent-wash text-accent-ink"
+                  : "text-ink-2 hover:bg-frame-hover hover:text-ink focus-visible:bg-frame-hover focus-visible:text-ink",
+              )}
             >
-              {/* The preview sits in a framed chip rather than floating on the panel, so the eight
-                  outlines read as a set of samples and the picked one is a filled tile, not a shape
-                  that happens to be a shade darker. */}
-              <span
+              <kbd
+                aria-hidden
                 className={cn(
-                  "grid h-[38px] w-full place-items-center rounded-lg border transition-colors duration-120",
-                  active
-                    ? "border-accent bg-accent-wash text-accent-ink"
-                    : "border-line bg-canvas-sunken text-ink-2 group-hover:border-ink-3 group-hover:text-ink",
+                  "absolute top-1.5 right-2 font-sans text-[9px] leading-none font-medium",
+                  active ? "opacity-70" : "text-ink-3",
                 )}
               >
-                <svg
-                  width={GLYPH_WIDTH}
-                  height={GLYPH_HEIGHT}
-                  viewBox={`0 0 ${GLYPH_WIDTH * BUILD_SCALE} ${GLYPH_HEIGHT * BUILD_SCALE}`}
-                  aria-hidden
-                >
-                  <path
-                    d={shapePath(
-                      entry.shape,
-                      (GLYPH_WIDTH - PAD * 2) * BUILD_SCALE,
-                      (GLYPH_HEIGHT - PAD * 2) * BUILD_SCALE,
-                    )}
-                    transform={`translate(${PAD * BUILD_SCALE}, ${PAD * BUILD_SCALE})`}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                    strokeLinejoin="round"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </svg>
-              </span>
-              <span
-                className={cn(
-                  "text-[10.5px] leading-none transition-colors duration-120",
-                  active ? "text-accent-ink" : "text-ink-3 group-hover:text-ink",
-                )}
-              >
-                {label}
-              </span>
+                {entry.mnemonic}
+              </kbd>
+              <ShapeGlyph shape={entry.shape} width={GLYPH_WIDTH} height={GLYPH_HEIGHT} filled={active} />
+              <span className="text-[10px] leading-none whitespace-nowrap">{label}</span>
             </button>
           )
         })}
       </div>
-
-      <p className="mt-1.5 border-t border-line px-1.5 pt-2 pb-0.5 text-[10.5px] leading-snug text-ink-3">
-        {t("Mindmap", "ShapesInlineTextHint")}
-      </p>
     </FlyoutPanel>
   )
 }
