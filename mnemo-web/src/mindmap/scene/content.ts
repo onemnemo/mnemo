@@ -12,6 +12,7 @@
  */
 
 import type { InlineSpan } from "@/notes/model/types"
+import { parseSpans } from "@/notes/model/wire"
 
 import type {
   CanvasImageContent,
@@ -37,6 +38,11 @@ export function bodyOf(content: ElementContent): ContentBody {
 /**
  * The formatted label a content carries, or null for one that is plain.
  *
+ * Read through the notes span parser rather than taken as is: the document arrives as the storage
+ * JSON, which leaves out a style field that holds its default, and the editor's mark modules take
+ * a missing colour for a colour. A note goes through the same parser on its way in; a map has no
+ * other boundary to do it at, so it happens here, where every reader of the runs already comes.
+ *
  * A stored math node is the one legacy shape that answers here without a `runs` field: it was an
  * inline equation all along, and reading it as one equation run is what lets the math kind retire
  * without a rewrite of anything on disk. The server does the same on load, so this only ever fires
@@ -47,8 +53,10 @@ export function runsOf(content: ElementContent): readonly InlineSpan[] | null {
     case "text":
     case "task":
     case "shape":
-    case "freeText":
-      return (content as { runs?: InlineSpan[] }).runs ?? null
+    case "freeText": {
+      const runs = (content as { runs?: unknown }).runs
+      return Array.isArray(runs) ? parseSpans(runs) : null
+    }
     case "math":
       return [{ kind: "equation", latex: (content as MathContent).latex ?? "", style: { ...defaultStyle } }]
     default:

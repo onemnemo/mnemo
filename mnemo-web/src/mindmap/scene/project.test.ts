@@ -112,7 +112,7 @@ describe("a projected element", () => {
     )
 
     expect(rich).toHaveBeenCalledTimes(1)
-    expect(rich.mock.calls[0][0]).toBe(runs)
+    expect(rich.mock.calls[0][0]).toEqual(runs)
     expect(scene.elements.find((e) => e.id === "a")).toMatchObject({ width: 77 + 22, height: 33 + 14 })
     expect(scene.elements.find((e) => e.id === "a")!.text.lines).toEqual(["bold"])
   })

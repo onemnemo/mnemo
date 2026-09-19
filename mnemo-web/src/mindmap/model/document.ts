@@ -44,6 +44,10 @@ export type ElementContent =
  * A label with formatting carries it as `runs`, the notes inline span model, and `text` is then the
  * plain projection the server rewrites from the runs on every write. Read `runs` when it is there
  * and `text` otherwise; never write one without the other.
+ *
+ * On the wire a run's style is sparse, the way the storage serializer writes it: a field at its
+ * default is left out. Read the runs through `runsOf` in the scene module, which fills them in, and
+ * never straight off the content.
  */
 export interface TextContent {
   $type: "text"
