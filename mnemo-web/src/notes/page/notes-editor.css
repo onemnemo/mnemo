@@ -5,9 +5,10 @@
  * substrate, hover/focus chrome, the focus state machine, and the
  * reduced-motion / high-contrast / zoom passes are the polish layer and land
  * on top of this. What lives here is only what a note needs to read correctly:
- * block spacing, heading scale, list markers, code and quote framing, and the
+ * block spacing, heading scale, list markers, code and quote framing. The
  * inline marks the browser does not style on its own (inline code, highlight,
- * colour swatches).
+ * colour swatches) and the inline atoms live in the editor's own mark
+ * stylesheet, scoped to a class this document carries beside its own.
  *
  * Everything resolves through the shared design tokens, so a note re-themes with
  * the rest of the app and nothing here hardcodes a colour. Selectors target the
@@ -1107,10 +1108,10 @@
  * hovering a page and selecting one describe the same shape.
  *
  * Qualified by `[data-page-state]`, which every row carries, only to outrank the
- * inline-link rule further down this file. That rule matches any `a[href]` at
- * the same specificity and lands later, so without this the row would take the
- * link blue and a second underline at a different offset. A page reference is
- * not a web link and must not read as one. */
+ * inline-link rule in the mark stylesheet. That rule matches any `a[href]` at
+ * the same specificity, so without this the row would take the link blue and a
+ * second underline at a different offset. A page reference is not a web link
+ * and must not read as one. */
 .notes-doc a.notes-page-row[data-page-state] {
   display: flex;
   align-items: center;
@@ -1186,31 +1187,6 @@
   border-radius: 4px;
   background: var(--canvas-sunken);
   vertical-align: middle;
-}
-
-/* Inline equation. Hitting it with a pointer is the only way to edit one, so it
- * carries a hit area of its own and says on hover that it is a thing to press.
- * The minimum width is what keeps a source that typesets to nothing (`{}`, a
- * lone spacing command) reachable rather than collapsing to a point. */
-.notes-doc .notes-equation {
-  display: inline-block;
-  min-width: 10px;
-  padding: 0 2px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color var(--duration-fast);
-}
-.notes-doc .notes-equation:hover {
-  background: var(--frame-hover);
-}
-/* An equation with no source yet. KaTeX typesets an empty source to an empty
- * span, so without this the atom is zero pixels wide: present in the line,
- * holding a caret position, with nothing to aim at and no way back into it. */
-.notes-doc .notes-equation-empty {
-  padding: 0 6px;
-  background: var(--canvas-sunken);
-  color: var(--ink-3);
-  font-style: italic;
 }
 
 /* ProseMirror puts a separator image after an inline node whose DOM is not
@@ -1490,43 +1466,6 @@
   width: 15px;
   height: 15px;
 }
-
-/* Inline marks the browser does not style itself. */
-.notes-doc code {
-  font-family: var(--font-mono);
-  font-size: 0.9em;
-  background: var(--surface-subtle);
-  border: 1px solid var(--line-color);
-  border-radius: 4px;
-  padding: 0.1em 0.3em;
-}
-.notes-doc mark {
-  background: var(--inline-highlight-color);
-  color: inherit;
-  border-radius: 2px;
-  padding: 0 0.1em;
-}
-.notes-doc a[href] {
-  color: var(--text-color-swatch-3);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  /* A link is something to press even inside an editable note: a click raises
-   * the chip that says where it goes, and Ctrl or Cmd follows it. Without this
-   * the pointer stays an I-beam and nothing on screen says either is there. */
-  cursor: pointer;
-}
-
-/* Foreground colour swatches. */
-.notes-doc [data-fg-swatch="swatch1"] { color: var(--text-color-swatch-1); }
-.notes-doc [data-fg-swatch="swatch2"] { color: var(--text-color-swatch-2); }
-.notes-doc [data-fg-swatch="swatch3"] { color: var(--text-color-swatch-3); }
-.notes-doc [data-fg-swatch="swatch4"] { color: var(--text-color-swatch-4); }
-.notes-doc [data-fg-swatch="swatch5"] { color: var(--text-color-swatch-5); }
-.notes-doc [data-fg-swatch="swatch6"] { color: var(--text-color-swatch-6); }
-.notes-doc [data-fg-swatch="swatch7"] { color: var(--text-color-swatch-7); }
-.notes-doc [data-fg-swatch="swatch8"] { color: var(--text-color-swatch-8); }
-.notes-doc [data-fg-swatch="swatch9"] { color: var(--text-color-swatch-9); }
-.notes-doc [data-fg-swatch="swatch10"] { color: var(--text-color-swatch-10); }
 
 /* ── the inline formatting toolbar ─────────────────────────────────────
  *
@@ -1837,18 +1776,6 @@
 .notes-slash-menu-empty[data-hidden] {
   display: none;
 }
-
-/* Background colour swatches. */
-.notes-doc [data-bg-swatch="swatch1"] { background: var(--color-swatch-1); }
-.notes-doc [data-bg-swatch="swatch2"] { background: var(--color-swatch-2); }
-.notes-doc [data-bg-swatch="swatch3"] { background: var(--color-swatch-3); }
-.notes-doc [data-bg-swatch="swatch4"] { background: var(--color-swatch-4); }
-.notes-doc [data-bg-swatch="swatch5"] { background: var(--color-swatch-5); }
-.notes-doc [data-bg-swatch="swatch6"] { background: var(--color-swatch-6); }
-.notes-doc [data-bg-swatch="swatch7"] { background: var(--color-swatch-7); }
-.notes-doc [data-bg-swatch="swatch8"] { background: var(--color-swatch-8); }
-.notes-doc [data-bg-swatch="swatch9"] { background: var(--color-swatch-9); }
-.notes-doc [data-bg-swatch="swatch10"] { background: var(--color-swatch-10); }
 
 /* The note's floating layers, all body-level and viewport-positioned, in the
  * order they stack. Two groups: what a selection *is* (bands, marquee) sits

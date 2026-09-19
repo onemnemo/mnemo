@@ -1,0 +1,84 @@
+/*
+ * The inline marks the browser does not style itself, and the inline atoms.
+ *
+ * Scoped to `.inline-marks` rather than to a note, because the same runs are drawn in more than one
+ * place: a note's document, a note read in a peek, and a formatted label on a mindmap node. Every
+ * host that renders the notes marks carries the class, and the rules reach the DOM the mark schema
+ * produces wherever it is. No page rule lives here: type scale, spacing and block framing belong to
+ * the surface, and a mindmap label takes its size from its rung, not from a note's measure.
+ *
+ * Everything resolves through the shared design tokens, so a swatch re-themes with the app.
+ */
+
+.inline-marks code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line-color);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+}
+.inline-marks mark {
+  background: var(--inline-highlight-color);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 0.1em;
+}
+.inline-marks a[href] {
+  color: var(--text-color-swatch-3);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  /* A link is something to press even inside an editable note: a click raises
+   * the chip that says where it goes, and Ctrl or Cmd follows it. Without this
+   * the pointer stays an I-beam and nothing on screen says either is there. */
+  cursor: pointer;
+}
+
+/* Foreground colour swatches. */
+.inline-marks [data-fg-swatch="swatch1"] { color: var(--text-color-swatch-1); }
+.inline-marks [data-fg-swatch="swatch2"] { color: var(--text-color-swatch-2); }
+.inline-marks [data-fg-swatch="swatch3"] { color: var(--text-color-swatch-3); }
+.inline-marks [data-fg-swatch="swatch4"] { color: var(--text-color-swatch-4); }
+.inline-marks [data-fg-swatch="swatch5"] { color: var(--text-color-swatch-5); }
+.inline-marks [data-fg-swatch="swatch6"] { color: var(--text-color-swatch-6); }
+.inline-marks [data-fg-swatch="swatch7"] { color: var(--text-color-swatch-7); }
+.inline-marks [data-fg-swatch="swatch8"] { color: var(--text-color-swatch-8); }
+.inline-marks [data-fg-swatch="swatch9"] { color: var(--text-color-swatch-9); }
+.inline-marks [data-fg-swatch="swatch10"] { color: var(--text-color-swatch-10); }
+
+/* Background colour swatches. */
+.inline-marks [data-bg-swatch="swatch1"] { background: var(--color-swatch-1); }
+.inline-marks [data-bg-swatch="swatch2"] { background: var(--color-swatch-2); }
+.inline-marks [data-bg-swatch="swatch3"] { background: var(--color-swatch-3); }
+.inline-marks [data-bg-swatch="swatch4"] { background: var(--color-swatch-4); }
+.inline-marks [data-bg-swatch="swatch5"] { background: var(--color-swatch-5); }
+.inline-marks [data-bg-swatch="swatch6"] { background: var(--color-swatch-6); }
+.inline-marks [data-bg-swatch="swatch7"] { background: var(--color-swatch-7); }
+.inline-marks [data-bg-swatch="swatch8"] { background: var(--color-swatch-8); }
+.inline-marks [data-bg-swatch="swatch9"] { background: var(--color-swatch-9); }
+.inline-marks [data-bg-swatch="swatch10"] { background: var(--color-swatch-10); }
+
+/* Inline equation. Hitting it with a pointer is the only way to edit one, so it
+ * carries a hit area of its own and says on hover that it is a thing to press.
+ * The minimum width is what keeps a source that typesets to nothing (`{}`, a
+ * lone spacing command) reachable rather than collapsing to a point. */
+.inline-marks .notes-equation {
+  display: inline-block;
+  min-width: 10px;
+  padding: 0 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color var(--duration-fast);
+}
+.inline-marks .notes-equation:hover {
+  background: var(--frame-hover);
+}
+/* An equation with no source yet. KaTeX typesets an empty source to an empty
+ * span, so without this the atom is zero pixels wide: present in the line,
+ * holding a caret position, with nothing to aim at and no way back into it. */
+.inline-marks .notes-equation-empty {
+  padding: 0 6px;
+  background: var(--canvas-sunken);
+  color: var(--ink-3);
+  font-style: italic;
+}

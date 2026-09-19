@@ -1,4 +1,5 @@
 import "katex/dist/katex.min.css"
+import "../editor/marks/inline-marks.css"
 import "./notes-editor.css"
 
 import type { EditorState } from "prosemirror-state"
@@ -48,7 +49,7 @@ export function ReadOnlyEditor({
   // user-select:none, which an editable mount gets for free via contenteditable.
   return (
     <>
-      <div ref={ref} className="notes-doc" data-selectable />
+      <div ref={ref} className="notes-doc inline-marks" data-selectable />
       <NodeViewPortals registry={portals} />
     </>
   )

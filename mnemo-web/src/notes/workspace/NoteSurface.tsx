@@ -1,4 +1,5 @@
 import 'katex/dist/katex.min.css';
+import '../editor/marks/inline-marks.css';
 import '../page/notes-editor.css';
 import '../proofing/proofing.css';
 
@@ -215,7 +216,7 @@ export function NoteSurface({
           {/* Rendered whether or not the view exists yet: this owns the element
               ProseMirror mounts into, so it must never come and go under it. */}
           <EditorContextMenu view={view} registry={registry} services={viewServices}>
-            <div ref={ref} className="notes-doc" lang={lang} spellCheck={spellCheck} />
+            <div ref={ref} className="notes-doc inline-marks" lang={lang} spellCheck={spellCheck} />
           </EditorContextMenu>
         </div>
       </div>
