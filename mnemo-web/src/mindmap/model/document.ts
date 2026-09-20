@@ -113,11 +113,48 @@ export type ShapeType =
   | "arrow"
   | "blob"
 
+/** Sparse persisted point; omitted coordinates are zero. */
+export interface StoredPoint {
+  x?: number
+  y?: number
+}
+
+export type AnchorSide = "top" | "right" | "bottom" | "left"
+
+/** A line end attached to an element side. An omitted side means top. */
+export interface LineAttachment {
+  elementId: string
+  side?: AnchorSide
+}
+
+/** Line points relative to the element's origin. Attached ends may resolve outside its box. */
+export interface LineGeometry {
+  start?: StoredPoint | null
+  end?: StoredPoint | null
+  bend?: StoredPoint | null
+  startAt?: LineAttachment | null
+  endAt?: LineAttachment | null
+}
+
 export interface ShapeContent {
   $type: "shape"
   shape?: ShapeType
   text?: string | null
   runs?: InlineSpan[]
+  /** Clockwise degrees about the box centre. */
+  rotation?: number
+  /** Missing legacy geometry resolves to the former box diagonal. */
+  line?: LineGeometry | null
+  /** Null uses the shape's default start cap. */
+  startCap?: ArrowCap | null
+  /** Null uses the shape's default end cap. */
+  endCap?: ArrowCap | null
+  /** Null uses the default shape outline weight. */
+  thickness?: number | null
+}
+
+export function pointOf(point: StoredPoint | null | undefined): { x: number; y: number } {
+  return { x: point?.x ?? 0, y: point?.y ?? 0 }
 }
 
 export interface FreeTextContent {

@@ -558,3 +558,96 @@ describe("projecting the same element twice", () => {
     expect(reloaded).toEqual(before)
   })
 })
+
+describe("lines", () => {
+  const box = (id: string, x: number, y: number): MindmapElement => ({
+    id,
+    kind: "shape",
+    content: { $type: "shape", shape: "rectangle" },
+    x,
+    y,
+    width: 100,
+    height: 50,
+  })
+  const arrow = (over: Partial<MindmapElement> = {}): MindmapElement => ({
+    id: "l",
+    kind: "shape",
+    content: {
+      $type: "shape",
+      shape: "arrow",
+      line: { start: { x: 8, y: 8 }, end: { x: 92, y: 8 }, endAt: { elementId: "s2", side: "left" } },
+    },
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 16,
+    ...over,
+  })
+  // The line is stored before the box it locks onto, which is the order the pass has to survive.
+  const withLine = (elements: MindmapElement[] = [arrow(), box("s1", 100, 100), box("s2", 300, 200)]): MindmapDocument => ({
+    id: "m",
+    elements,
+  })
+  const lineOf = (scene: Scene) => scene.elements.find((e) => e.id === "l")!
+
+  it("arrive resolved, with an attached end at its target's side", () => {
+    const line = lineOf(projectScene(withLine(), options()))
+
+    expect(line.line).toBeDefined()
+    expect(line.line!.end).toEqual({ x: 300, y: 225 })
+    expect(line.line!.start).toEqual({ x: 8, y: 8 })
+    // The box is where the line was written, not where its end went.
+    expect(line).toMatchObject({ x: 0, y: 0, width: 100, height: 16 })
+  })
+
+  it("follow a moved target across two projections and are shared otherwise", () => {
+    const document = withLine()
+    const opts = options()
+    const before = projectScene(document, opts)
+
+    const moved: MindmapDocument = {
+      ...document,
+      elements: document.elements!.map((element) => (element.id === "s2" ? { ...element, x: 500 } : element)),
+    }
+    const after = projectScene(moved, opts)
+
+    expect(lineOf(after).line!.end).toEqual({ x: 500, y: 225 })
+    expect(lineOf(after)).not.toBe(lineOf(before))
+    expect(after.elements.find((e) => e.id === "s1")).toBe(before.elements.find((e) => e.id === "s1"))
+
+    const same = projectScene({ ...moved, elements: [...moved.elements!] }, opts)
+    expect(lineOf(same)).toBe(lineOf(after))
+  })
+
+  it("can be met by a link edge, since they are drawn before edges are routed", () => {
+    const document: MindmapDocument = {
+      ...withLine(),
+      edges: [{ id: "e", fromId: "s1", toId: "l", kind: "link" }],
+    }
+
+    expect(projectScene(document, options()).edges).toHaveLength(1)
+  })
+
+  it("size a frame around where they are drawn", () => {
+    const document = withLine([
+      arrow(),
+      box("s1", 100, 100),
+      box("s2", 300, 200),
+      { id: "f", kind: "frame", content: { $type: "frame", childIds: ["l"] }, x: 0, y: 0 },
+    ])
+    const frame = projectScene(document, options()).elements.find((e) => e.id === "f")!
+
+    expect(frame.x + frame.width).toBeGreaterThan(300)
+  })
+
+  it("carry a closed shape's rotation and never a line's", () => {
+    const document = withLine([
+      { ...box("s1", 0, 0), content: { $type: "shape", shape: "hexagon", rotation: 30 } },
+      arrow({ content: { $type: "shape", shape: "line", rotation: 45 } }),
+    ])
+    const scene = projectScene(document, options())
+
+    expect(scene.elements.find((e) => e.id === "s1")!.rotation).toBe(30)
+    expect(lineOf(scene).rotation).toBeUndefined()
+  })
+})

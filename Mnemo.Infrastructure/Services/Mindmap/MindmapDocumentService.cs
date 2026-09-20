@@ -104,7 +104,7 @@ public sealed class MindmapDocumentService : IMindmapService
             if (document.SchemaVersion != 2)
                 return Result<MindmapDocument>.Failure($"Mindmap '{id}' uses unsupported schema version {document.SchemaVersion}.");
 
-            return PruneDanglingEdges(document);
+            return PrepareLoadedDocument(document);
         }
         catch (Exception ex)
         {
@@ -122,6 +122,8 @@ public sealed class MindmapDocumentService : IMindmapService
                 return Result<MindmapFindResult>.Failure($"Mindmap '{mapId}' was not found.");
             if (document.SchemaVersion != 2)
                 return Result<MindmapFindResult>.Failure($"Mindmap '{mapId}' uses unsupported schema version {document.SchemaVersion}.");
+
+            document = PrepareLoadedDocument(document);
 
             // An empty query has no meaningful FTS match; return the revision with no hits so the caller can
             // still proceed (and carry the rev into an edit) rather than treating it as an error.
@@ -227,6 +229,8 @@ public sealed class MindmapDocumentService : IMindmapService
             if (document is null)
                 return Ok(MindmapEditResult.Failure(Err(MindmapEditErrorCode.NotFound, $"Mindmap '{id}' was not found."), 0));
 
+            document = PrepareLoadedDocument(document);
+
             if (string.Equals(document.Title, title, StringComparison.Ordinal))
                 return Ok(Unchanged(document));
 
@@ -264,17 +268,18 @@ public sealed class MindmapDocumentService : IMindmapService
         var created = false;
         try
         {
-            var existing = await _store.LoadAsync(document.Id, cancellationToken).ConfigureAwait(false);
+            var incoming = MindmapContentNormalizer.NormalizeDocument(document);
+            var existing = await _store.LoadAsync(incoming.Id, cancellationToken).ConfigureAwait(false);
             created = existing is null;
             var before = existing is null
-                ? EmptyDocumentLike(document)
-                : PruneDanglingEdges(existing).Value!;
+                ? EmptyDocumentLike(incoming)
+                : PrepareLoadedDocument(existing);
 
             // Forward only. A package carries whatever revision the map had when it was exported, which is
             // routinely behind the copy being replaced, and adopting it would make every write that follows
             // look like it came from the future.
-            var nextRevision = Math.Max(before.Revision, document.Revision) + 1;
-            var replaced = document with { Revision = nextRevision, ModifiedAt = DateTime.UtcNow };
+            var nextRevision = Math.Max(before.Revision, incoming.Revision) + 1;
+            var replaced = incoming with { Revision = nextRevision, ModifiedAt = DateTime.UtcNow };
 
             var invalid = Validate(replaced);
             if (invalid is not null)
@@ -307,6 +312,8 @@ public sealed class MindmapDocumentService : IMindmapService
             if (source is null)
                 return Result<MindmapDocument>.Failure($"Mindmap '{id}' was not found.");
 
+            source = PrepareLoadedDocument(source);
+
             var now = DateTime.UtcNow;
             var working = new MindmapWorkingDocument(Guid.NewGuid().ToString(), newTitle, now, source.Canvas, _idGenerator);
 
@@ -319,9 +326,19 @@ public sealed class MindmapDocumentService : IMindmapService
 
             foreach (var element in source.Elements)
             {
-                var content = element.Content is FrameContent frame
-                    ? frame with { ChildIds = frame.ChildIds.Select(c => idMap.GetValueOrDefault(c, c)).ToList() }
-                    : element.Content;
+                var content = element.Content switch
+                {
+                    FrameContent frame => frame with { ChildIds = frame.ChildIds.Select(c => idMap.GetValueOrDefault(c, c)).ToList() },
+                    ShapeContent { Line: { } line } shape => shape with
+                    {
+                        Line = line with
+                        {
+                            StartAt = Remap(line.StartAt, idMap),
+                            EndAt = Remap(line.EndAt, idMap),
+                        },
+                    },
+                    _ => element.Content,
+                };
                 working.AddElement(element with { Id = idMap[element.Id], Content = content });
             }
 
@@ -450,7 +467,7 @@ public sealed class MindmapDocumentService : IMindmapService
             if (document.SchemaVersion != 2)
                 return Result<MindmapEditResult>.Failure($"Mindmap '{mapId}' uses unsupported schema version {document.SchemaVersion}.");
 
-            document = PruneDanglingEdges(document).Value!;
+            document = PrepareLoadedDocument(document);
 
             var concurrency = CheckRevision(mapId, document.Revision, expectedRevision, ops);
             if (concurrency is not null)
@@ -468,6 +485,10 @@ public sealed class MindmapDocumentService : IMindmapService
 
             var newRevision = document.Revision + 1;
             var updated = working.Materialize(newRevision, DateTime.UtcNow);
+            var invalid = ValidateTransition(document, updated);
+            if (invalid is not null)
+                return Ok(MindmapEditResult.Failure(invalid, document.Revision));
+
             await _store.SaveAsync(updated, working.BuildSearchDelta(fullReplace: false), cancellationToken).ConfigureAwait(false);
             _changeLog.Record(mapId, newRevision, working.ChangeTouchedIds);
 
@@ -512,7 +533,7 @@ public sealed class MindmapDocumentService : IMindmapService
             if (document.SchemaVersion != 2)
                 return Result<MindmapEditResult>.Failure($"Mindmap '{mapId}' uses unsupported schema version {document.SchemaVersion}.");
 
-            document = PruneDanglingEdges(document).Value!;
+            document = PrepareLoadedDocument(document);
 
             // Undo/redo restores the local editor's own prior state; a stale revision means someone else
             // wrote in between, so refuse rather than silently clobbering their change.
@@ -726,6 +747,17 @@ public sealed class MindmapDocumentService : IMindmapService
                 return Err(MindmapEditErrorCode.BadContentType, $"Content '{element.Content.TypeDiscriminator}' does not match element kind {element.Kind}.");
         }
 
+        foreach (var element in document.Elements)
+        {
+            if (element.Content is not ShapeContent { Line: { } line })
+                continue;
+
+            var attachmentError = ValidateAttachment(element.Id, "start", line.StartAt, elements)
+                ?? ValidateAttachment(element.Id, "end", line.EndAt, elements);
+            if (attachmentError is not null)
+                return attachmentError;
+        }
+
         var edgeIds = new HashSet<string>(StringComparer.Ordinal);
         var parentOf = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var edge in document.Edges)
@@ -774,6 +806,25 @@ public sealed class MindmapDocumentService : IMindmapService
             }
         }
 
+        return null;
+    }
+
+    private static MindmapEditError? ValidateAttachment(
+        string lineId,
+        string end,
+        LineAttachment? attachment,
+        IReadOnlyDictionary<string, MindmapElement> elements)
+    {
+        if (attachment is null)
+            return null;
+        if (string.IsNullOrWhiteSpace(attachment.ElementId))
+            return Err(MindmapEditErrorCode.InvalidOperation, $"Line '{lineId}' has a {end} attachment without an element id.");
+        if (!Enum.IsDefined(attachment.Side))
+            return Err(MindmapEditErrorCode.InvalidOperation, $"Line '{lineId}' has an invalid {end} attachment side.");
+        if (!elements.TryGetValue(attachment.ElementId, out var target))
+            return Err(MindmapEditErrorCode.NotFound, $"Line '{lineId}' refers to missing element '{attachment.ElementId}'.");
+        if (!MindmapContentNormalizer.IsEligibleLineTarget(target))
+            return Err(MindmapEditErrorCode.BadContentType, $"Line '{lineId}' cannot attach to element '{attachment.ElementId}'.");
         return null;
     }
 
@@ -1098,6 +1149,7 @@ public sealed class MindmapDocumentService : IMindmapService
         // Frames orphan (never cascade) their members, but a deleted member must not linger as a dangling
         // ChildId. Drop removed ids from any surviving frame's membership.
         PruneFrameMembership(working, toRemove);
+        PruneLineAttachments(working, toRemove);
 
         accumulator.DeletedCount += toRemove.Count;
         return null;
@@ -1340,6 +1392,30 @@ public sealed class MindmapDocumentService : IMindmapService
         }
     }
 
+    private static LineAttachment? Remap(LineAttachment? attachment, IReadOnlyDictionary<string, string> idMap) =>
+        attachment is null ? null : attachment with { ElementId = idMap.GetValueOrDefault(attachment.ElementId, attachment.ElementId) };
+
+    private static void PruneLineAttachments(MindmapWorkingDocument working, IReadOnlyCollection<string> removedIds)
+    {
+        foreach (var element in working.Elements.ToList())
+        {
+            if (element.Content is not ShapeContent { Line: { } line } shape)
+                continue;
+
+            var startGone = line.StartAt is not null && removedIds.Contains(line.StartAt.ElementId);
+            var endGone = line.EndAt is not null && removedIds.Contains(line.EndAt.ElementId);
+            if (!startGone && !endGone)
+                continue;
+
+            var pruned = line with
+            {
+                StartAt = startGone ? null : line.StartAt,
+                EndAt = endGone ? null : line.EndAt,
+            };
+            working.ReplaceElement(element with { Content = shape with { Line = pruned } });
+        }
+    }
+
     /// <summary>Resolves the <c>after</c> sibling to the hierarchy edge to insert past, or an error.</summary>
     private static MindmapEditError? ResolveAfterEdge(MindmapWorkingDocument working, string parentId, string? afterSiblingId, out string? afterEdgeId)
     {
@@ -1364,6 +1440,9 @@ public sealed class MindmapDocumentService : IMindmapService
 
         return document with { Edges = kept };
     }
+
+    private static MindmapDocument PrepareLoadedDocument(MindmapDocument document) =>
+        MindmapContentNormalizer.RepairLoadedDocument(PruneDanglingEdges(document).Value!);
 
     private static IEnumerable<string> RootNodeIds(MindmapWorkingDocument working)
     {

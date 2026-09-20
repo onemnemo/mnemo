@@ -3,9 +3,6 @@ using System.Collections.Generic;
 
 namespace Mnemo.Core.Models.Mindmap;
 
-// Content payloads for non-node elements (shapes, free text, canvas images, frames). Same polymorphic
-// family as the node contents; grouped for the same reason.
-
 /// <summary>A geometric primitive.</summary>
 public enum ShapeType
 {
@@ -16,8 +13,6 @@ public enum ShapeType
     Parallelogram,
     Line,
     Arrow,
-    // A soft closed curve. The one member that isn't flowchart vocabulary: a hexagon claims a map is
-    // a process whether or not it is, while a blob only says "this is a region".
     Blob,
 }
 
@@ -31,7 +26,59 @@ public sealed record ShapeContent : IElementContent
     /// <summary>Formatted label; see <see cref="TextContent.Runs"/>.</summary>
     public IReadOnlyList<InlineSpan>? Runs { get; init; }
 
+    /// <summary>Degrees clockwise about the box centre. Read for the closed shapes only.</summary>
+    public double Rotation { get; init; }
+
+    /// <summary>Where a line or arrow runs. Null on an older row reads as the box's diagonal.</summary>
+    public LineGeometry? Line { get; init; }
+
+    /// <summary>Null means what the shape implies: nothing on a line, nothing at an arrow's start.</summary>
+    public ArrowCap? StartCap { get; init; }
+
+    /// <summary>Null means what the shape implies: nothing on a line, a head on an arrow.</summary>
+    public ArrowCap? EndCap { get; init; }
+
+    /// <summary>Stroke weight of a line or arrow. Null is the outline weight every shape draws at.</summary>
+    public double? Thickness { get; init; }
+
     public string TypeDiscriminator => ElementContentDiscriminators.Shape;
+}
+
+/// <summary>A point relative to the element's origin.</summary>
+/// <remarks>
+/// This must remain a reference type because the sparse serializer drops default-valued structs.
+/// </remarks>
+public sealed record CanvasPoint(double X, double Y);
+
+public enum AnchorSide
+{
+    Top,
+    Right,
+    Bottom,
+    Left,
+}
+
+public sealed record LineAttachment
+{
+    /// <summary>Target element id. Invalid stored ids are detached during normalization.</summary>
+    public string ElementId { get; init; } = string.Empty;
+
+    public AnchorSide Side { get; init; }
+}
+
+/// <summary>Line or arrow points relative to the element's origin.</summary>
+public sealed record LineGeometry
+{
+    public CanvasPoint? Start { get; init; }
+
+    public CanvasPoint? End { get; init; }
+
+    /// <summary>The control point of a quadratic curve. Null is a straight line.</summary>
+    public CanvasPoint? Bend { get; init; }
+
+    public LineAttachment? StartAt { get; init; }
+
+    public LineAttachment? EndAt { get; init; }
 }
 
 /// <summary>A free-floating text label (<see cref="ElementKind.Text"/>).</summary>

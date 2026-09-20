@@ -19,6 +19,7 @@ import type {
   EdgeKind,
   ElementContent,
   ElementKind,
+  LineAttachment,
   LineStyle,
   EdgeRouting,
   NodeShape,
@@ -36,6 +37,28 @@ export interface Viewport {
 export interface Point {
   readonly x: number
   readonly y: number
+}
+
+/**
+ * A line or arrow shape, resolved.
+ *
+ * The points are relative to the element's box, as stored, but an attached end has been moved to
+ * its target's side and may sit outside the box. The box is where the line was last written and the
+ * extent is where it is drawn; the culler and the marquee read the extent, everything that moves
+ * the element reads the box.
+ */
+export interface SceneLine {
+  readonly start: Point
+  readonly end: Point
+  /** The control point of a quadratic curve, or null for a straight line. */
+  readonly bend: Point | null
+  readonly startAt: LineAttachment | null
+  readonly endAt: LineAttachment | null
+  readonly startCap: ArrowCap
+  readonly endCap: ArrowCap
+  readonly thickness: number
+  /** Absolute canvas bounds of the drawing: the resolved points padded by stroke and cap. */
+  readonly extent: Bounds
 }
 
 /**
@@ -102,6 +125,10 @@ export interface SceneElement {
   readonly refBadge?: string
   /** The thing this reference points at is gone. Absent also means the lookup has not come back. */
   readonly refMissing?: boolean
+  /** Degrees clockwise about the box centre. Present on a closed shape that has been turned. */
+  readonly rotation?: number
+  /** Present on every line and arrow shape. */
+  readonly line?: SceneLine
 }
 
 /**
@@ -160,6 +187,13 @@ export function boundsOf(elements: readonly SceneElement[]): Bounds {
     if (e.y < minY) minY = e.y
     if (e.x + e.width > maxX) maxX = e.x + e.width
     if (e.y + e.height > maxY) maxY = e.y + e.height
+    // A line is drawn where its ends are, which for an attached end is wherever its target went.
+    if (e.line) {
+      if (e.line.extent.minX < minX) minX = e.line.extent.minX
+      if (e.line.extent.minY < minY) minY = e.line.extent.minY
+      if (e.line.extent.maxX > maxX) maxX = e.line.extent.maxX
+      if (e.line.extent.maxY > maxY) maxY = e.line.extent.maxY
+    }
   }
   return { minX, minY, maxX, maxY }
 }

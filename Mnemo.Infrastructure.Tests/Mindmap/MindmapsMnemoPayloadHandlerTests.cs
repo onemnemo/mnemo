@@ -34,6 +34,57 @@ public sealed class MindmapsMnemoPayloadHandlerTests
     }
 
     [Fact]
+    public async Task RoundTrip_PreservesLineGeometryAndRotation()
+    {
+        await using var source = new MindmapTestHarness();
+        await using var target = new MindmapTestHarness();
+        var map = (await source.Service.CreateAsync("Alpha", new[] { new MindmapNodeSpec { Text = "Target" } })).Value!;
+        var targetId = map.Elements.Single().Id;
+        var added = (await source.Service.ApplyAsync(map.Id, map.Revision, new MindmapEditOp[]
+        {
+            new AddElementOp
+            {
+                Ref = "line",
+                Kind = ElementKind.Shape,
+                Content = new ShapeContent
+                {
+                    Shape = ShapeType.Arrow,
+                    Text = "Flow",
+                    Thickness = 7,
+                    StartCap = ArrowCap.Dot,
+                    EndCap = ArrowCap.Arrow,
+                    Line = new LineGeometry
+                    {
+                        Start = new CanvasPoint(8, 8),
+                        End = new CanvasPoint(112, 52),
+                        Bend = new CanvasPoint(60, 80),
+                        EndAt = new LineAttachment { ElementId = targetId, Side = AnchorSide.Left },
+                    },
+                },
+            },
+            new AddElementOp
+            {
+                Ref = "shape",
+                Kind = ElementKind.Shape,
+                Content = new ShapeContent { Shape = ShapeType.Diamond, Rotation = 315 },
+            },
+        })).Value!;
+
+        Assert.True(added.Success);
+        await RoundTripAsync(source, target);
+
+        var restored = (await target.Service.GetAsync(map.Id)).Value!;
+        var line = Assert.IsType<ShapeContent>(restored.Elements.Single(e => e.Id == added.CreatedIds["line"]).Content);
+        Assert.Equal(7, line.Thickness);
+        Assert.Equal(ArrowCap.Dot, line.StartCap);
+        Assert.Equal(ArrowCap.Arrow, line.EndCap);
+        Assert.Equal(new CanvasPoint(60, 80), line.Line!.Bend);
+        Assert.Equal(new LineAttachment { ElementId = targetId, Side = AnchorSide.Left }, line.Line.EndAt);
+        var shape = Assert.IsType<ShapeContent>(restored.Elements.Single(e => e.Id == added.CreatedIds["shape"]).Content);
+        Assert.Equal(315, shape.Rotation);
+    }
+
+    [Fact]
     public async Task RoundTrip_RestoresFolderMembership()
     {
         await using var source = new MindmapTestHarness();
@@ -254,15 +305,26 @@ public sealed class MindmapsMnemoPayloadHandlerTests
         await using var source = new MindmapTestHarness();
         await using var target = new MindmapTestHarness();
         await source.Service.CreateAsync("Alpha");
-        var files = (await ExportHandler(source).ExportAsync(Context())).Files;
+        var export = await ExportHandler(source).ExportAsync(Context());
 
-        var result = await ImportAsync(target, files, schemaVersion: 2);
+        var result = await ImportAsync(target, export.Files, schemaVersion: export.SchemaVersion + 1);
 
         // Reading a layout this build has never seen imports whatever happens to line up and drops the
         // rest, which leaves the user with maps that look restored and are not.
         Assert.Equal(0, result.ImportedCount);
         Assert.Empty((await target.Service.ListAsync()).Value!);
         Assert.Contains(result.Warnings, w => w.Key == "MindmapPackageTooNew");
+    }
+
+    [Fact]
+    public async Task Export_AdvancesThePayloadVersionForLineGeometry()
+    {
+        await using var source = new MindmapTestHarness();
+        await source.Service.CreateAsync("Alpha");
+
+        var export = await ExportHandler(source).ExportAsync(Context());
+
+        Assert.Equal(2, export.SchemaVersion);
     }
 
     [Fact]
@@ -344,6 +406,6 @@ public sealed class MindmapsMnemoPayloadHandlerTests
         MindmapTestHarness source, MindmapTestHarness target, ImportConflictPolicy policy = ImportConflictPolicy.KeepBoth)
     {
         var export = await ExportHandler(source).ExportAsync(Context());
-        return await ImportAsync(target, export.Files, policy);
+        return await ImportAsync(target, export.Files, policy, export.SchemaVersion);
     }
 }

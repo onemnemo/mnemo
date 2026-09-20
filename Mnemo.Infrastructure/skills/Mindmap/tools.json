@@ -67,7 +67,7 @@
     },
     {
       "name": "read_elements",
-      "description": "Full detail for selected elements. Provide ids (max 100), OR subtree_of (a node + its subtree), OR kinds. Returns { map_id, rev, elements: [{ i, kind, content, style?, x?, y?, collapsed?, pinned?, w?, h? }], edges: [{ e, a, b, kind, label? }] }. content uses the storage $type shape.",
+      "description": "Full detail for selected elements. Provide ids (max 100), OR subtree_of (a node + its subtree), OR kinds. Returns { map_id, rev, elements: [{ i, kind, content, style?, x?, y?, collapsed?, pinned?, w?, h? }], edges: [{ e, a, b, kind, label? }] }. content uses the storage $type shape. A line or arrow shape carries content.line (start, end, bend, startAt, endAt): an end with an attachment is drawn at that element's side wherever it is now, and the shape's x, y, w, h are only where the line was last written.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -100,7 +100,7 @@
                 "after": { "type": "string" },
                 "nodes": { "type": "array", "items": { "type": "object" } },
                 "t": { "type": "string", "description": "Text shorthand." },
-                "content": { "type": "object", "description": "Typed content ($type: text, task, code, math, link, note, flashcard, image, shape, freeText, canvasImage, frame)." },
+                "content": { "type": "object", "description": "Typed content ($type: text, task, code, math, link, note, flashcard, image, shape, freeText, canvasImage, frame). Replaces the whole content: send it back complete as read_elements gave it, with your change applied, or members you left out (a shape's line, rotation, caps) are lost." },
                 "style": { "type": "object" },
                 "clear_style": { "type": "boolean" },
                 "collapsed": { "type": "boolean" },

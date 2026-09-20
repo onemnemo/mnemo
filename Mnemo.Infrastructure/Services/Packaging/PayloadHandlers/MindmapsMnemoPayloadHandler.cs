@@ -30,7 +30,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
     private const string AssetPrefix = "assets/images/";
 
     /// <summary>The payload layout this build writes, and the newest one it knows how to read.</summary>
-    private const int PayloadSchemaVersion = 1;
+    private const int PayloadSchemaVersion = 2;
 
     private readonly IMindmapService _mindmaps;
     private readonly IMindmapStore _store;
