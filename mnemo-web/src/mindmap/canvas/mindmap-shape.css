@@ -1,0 +1,22 @@
+.mm-line-select,
+.mm-line-handles {
+  display: none;
+}
+
+.mm-node[data-selected] .mm-line-select,
+.mm-node[data-selected="one"] .mm-line-handles {
+  display: block;
+}
+
+[data-lod="bare"] .mm-node[data-mm-line],
+[data-lod="bare"] .mm-node[data-mm-line][data-selected] {
+  background: none;
+}
+
+[data-lod="bare"] .mm-node[data-mm-line] > svg {
+  display: block;
+}
+
+[data-lod="bare"] .mm-node[data-mm-line] .mm-line-handles {
+  display: none;
+}

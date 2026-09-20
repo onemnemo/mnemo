@@ -6,6 +6,7 @@ import { dashAttribute, strokeStyleFor } from "../canvas/edge-style"
 import { accentOf, markColor } from "../scene/branch"
 import { estimateWidth, measurersFrom } from "../scene/measure"
 import { projectScene } from "../scene/project"
+import { linePath } from "../scene/line-geometry"
 import { boundsOf, type SceneElement } from "../model/scene"
 import type { MindmapDocument, StyleTemplate } from "../model/document"
 
@@ -85,7 +86,16 @@ export const MindmapThumbnail = memo(function MindmapThumbnail({
         })}
 
         {view.scene.elements.map((element) =>
-          element.nodeShape === "plain" ? (
+          element.line ? (
+            <path
+              key={element.id}
+              d={linePath(element.line.start, element.line.end, element.line.bend)}
+              transform={`translate(${element.x} ${element.y})`}
+              fill="none"
+              stroke={accentOf(element)}
+              strokeWidth={element.line.thickness}
+            />
+          ) : element.nodeShape === "plain" ? (
             // A plain node is a label with a rule under it and no box at all, and at this size the
             // label is not drawn either. Leaving the rule out too left an ordinary map showing its
             // coloured roots, a few hairline edges, and nothing where most of its nodes are.
@@ -108,6 +118,11 @@ export const MindmapThumbnail = memo(function MindmapThumbnail({
               fill={element.fill}
               stroke={accentOf(element)}
               strokeWidth={1}
+              transform={
+                element.rotation
+                  ? `rotate(${element.rotation} ${element.x + element.width / 2} ${element.y + element.height / 2})`
+                  : undefined
+              }
             />
           ),
         )}

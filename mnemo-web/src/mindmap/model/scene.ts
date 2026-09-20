@@ -24,6 +24,7 @@ import type {
   EdgeRouting,
   NodeShape,
 } from "./document"
+import { drawnBoundsOf } from "../scene/element-geometry"
 
 export type { ArrowCap, CanvasBackground, EdgeKind, ElementContent, ElementKind, LineStyle, EdgeRouting, NodeShape }
 
@@ -39,25 +40,16 @@ export interface Point {
   readonly y: number
 }
 
-/**
- * A line or arrow shape, resolved.
- *
- * The points are relative to the element's box, as stored, but an attached end has been moved to
- * its target's side and may sit outside the box. The box is where the line was last written and the
- * extent is where it is drawn; the culler and the marquee read the extent, everything that moves
- * the element reads the box.
- */
+/** Resolved points are box-relative; extent is the absolute drawn bounds. */
 export interface SceneLine {
   readonly start: Point
   readonly end: Point
-  /** The control point of a quadratic curve, or null for a straight line. */
   readonly bend: Point | null
   readonly startAt: LineAttachment | null
   readonly endAt: LineAttachment | null
   readonly startCap: ArrowCap
   readonly endCap: ArrowCap
   readonly thickness: number
-  /** Absolute canvas bounds of the drawing: the resolved points padded by stroke and cap. */
   readonly extent: Bounds
 }
 
@@ -74,6 +66,8 @@ export interface MeasuredText {
   readonly fontWeight: number
   readonly lineHeight: number
   readonly letterSpacing: string
+  readonly width?: number
+  readonly height?: number
 }
 
 /** One element, laid out and styled. */
@@ -125,9 +119,8 @@ export interface SceneElement {
   readonly refBadge?: string
   /** The thing this reference points at is gone. Absent also means the lookup has not come back. */
   readonly refMissing?: boolean
-  /** Degrees clockwise about the box centre. Present on a closed shape that has been turned. */
+  /** Clockwise degrees about the box centre. */
   readonly rotation?: number
-  /** Present on every line and arrow shape. */
   readonly line?: SceneLine
 }
 
@@ -183,17 +176,11 @@ export function boundsOf(elements: readonly SceneElement[]): Bounds {
   let maxX = -Infinity
   let maxY = -Infinity
   for (const e of elements) {
-    if (e.x < minX) minX = e.x
-    if (e.y < minY) minY = e.y
-    if (e.x + e.width > maxX) maxX = e.x + e.width
-    if (e.y + e.height > maxY) maxY = e.y + e.height
-    // A line is drawn where its ends are, which for an attached end is wherever its target went.
-    if (e.line) {
-      if (e.line.extent.minX < minX) minX = e.line.extent.minX
-      if (e.line.extent.minY < minY) minY = e.line.extent.minY
-      if (e.line.extent.maxX > maxX) maxX = e.line.extent.maxX
-      if (e.line.extent.maxY > maxY) maxY = e.line.extent.maxY
-    }
+    const bounds = drawnBoundsOf(e)
+    if (bounds.minX < minX) minX = bounds.minX
+    if (bounds.minY < minY) minY = bounds.minY
+    if (bounds.maxX > maxX) maxX = bounds.maxX
+    if (bounds.maxY > maxY) maxY = bounds.maxY
   }
   return { minX, minY, maxX, maxY }
 }

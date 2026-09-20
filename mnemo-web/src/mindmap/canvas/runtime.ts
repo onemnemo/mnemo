@@ -179,7 +179,7 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
   let edgeCamera = elements.edgeCamera
   let edgeCanvas = elements.edgeCanvas
 
-  const index = createSceneIndex(scene, elements.pane, mode)
+  const index = createSceneIndex(scene, elements.pane, mode, elements.world)
   const culler = createCuller(index.cullTargets(), true)
   const lod = new LodController(elements.world)
   const motion = new MotionHint(elements.world)
@@ -216,8 +216,6 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
     // path into here is something moving: the camera, or a drag asking for a redraw.
     motion.moved()
     elements.world.style.transform = worldTransform(viewport)
-    // Chrome drawn inside an element, which is scaled with everything else, has to be told what to
-    // undo. Only the selection carries any, so this costs a property write per selected element.
     index.writeZoom(viewport.zoom)
     if (edgeCamera) {
       edgeCamera.setAttribute("transform", svgCameraTransform(viewport))

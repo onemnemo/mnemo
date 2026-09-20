@@ -12,6 +12,7 @@
  */
 
 import { markColor } from "../scene/branch"
+import { boxFromBounds, drawnBoundsOf } from "../scene/element-geometry"
 import { boundsOf, type SceneElement, type Point, type Viewport } from "../model/scene"
 
 /** World units of air kept around the content, so the outermost nodes are not against the frame. */
@@ -39,6 +40,9 @@ export interface MinimapContext {
   save(): void
   restore(): void
   beginPath(): void
+  moveTo(x: number, y: number): void
+  lineTo(x: number, y: number): void
+  quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void
   rect(x: number, y: number, width: number, height: number): void
   roundRect(x: number, y: number, width: number, height: number, radii: number): void
   clip(): void
@@ -90,12 +94,7 @@ export function minimapToWorld(point: Point, projection: MinimapProjection): Poi
   }
 }
 
-/**
- * Every element as a swatch in its own colour.
- *
- * Elements only, not edges. At this size a branch is a hair thinner than a pixel, and drawing five
- * thousand of them would trade the one thing the minimap is for, the shape of the map, for a grey haze.
- */
+/** Omits edges because dense branch pixels obscure the map at minimap scale. */
 export function paintSwatches(
   context: MinimapContext,
   elements: readonly SceneElement[],
@@ -103,10 +102,32 @@ export function paintSwatches(
   resolve: (color: string) => string,
 ): void {
   for (const element of elements) {
-    const x = element.x * projection.scale + projection.offsetX
-    const y = element.y * projection.scale + projection.offsetY
-    const width = Math.max(MIN_SWATCH, element.width * projection.scale)
-    const height = Math.max(MIN_SWATCH, element.height * projection.scale)
+    if (element.line) {
+      const point = (value: Point): Point => ({
+        x: (element.x + value.x) * projection.scale + projection.offsetX,
+        y: (element.y + value.y) * projection.scale + projection.offsetY,
+      })
+      const start = point(element.line.start)
+      const end = point(element.line.end)
+      context.beginPath()
+      context.moveTo(start.x, start.y)
+      if (element.line.bend) {
+        const bend = point(element.line.bend)
+        context.quadraticCurveTo(bend.x, bend.y, end.x, end.y)
+      } else {
+        context.lineTo(end.x, end.y)
+      }
+      context.strokeStyle = resolve(markColor(element))
+      context.lineWidth = Math.max(1, element.line.thickness * projection.scale)
+      context.stroke()
+      continue
+    }
+
+    const drawn = boxFromBounds(drawnBoundsOf(element))
+    const x = drawn.x * projection.scale + projection.offsetX
+    const y = drawn.y * projection.scale + projection.offsetY
+    const width = Math.max(MIN_SWATCH, drawn.width * projection.scale)
+    const height = Math.max(MIN_SWATCH, drawn.height * projection.scale)
 
     context.beginPath()
     context.roundRect(x, y, width, height, SWATCH_RADIUS)

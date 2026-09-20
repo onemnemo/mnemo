@@ -13,6 +13,8 @@ import { describe, expect, it } from "vitest"
 import type { ElementBox } from "../canvas/edge-paths"
 import type { SceneIndex } from "../canvas/scene-index"
 import type { Point, Scene, SceneEdge, SceneElement } from "../model/scene"
+import type { ShapeType } from "../model/document"
+import type { AbsoluteLine } from "../scene/line-geometry"
 
 import { installInteraction, type MovedElement, type NodeChrome } from "./controller"
 import type { ResizeBox, ResizeDir } from "./resize"
@@ -110,9 +112,14 @@ function harness(scene: Scene = SCENE) {
   pane.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600)
 
   const repainted: string[][] = []
+  const lines = new Map(scene.elements.filter((item) => item.line).map((item) => [item.id, item.line!]))
+  const rotations = new Map<string, number>()
+  const lineRepaints: string[][] = []
+  const lineWrites: { id: string; line: AbsoluteLine }[] = []
   const index: SceneIndex = {
     positionOf: (id) => positions.get(id),
     boxOf: (id): ElementBox | undefined => boxes.get(id),
+    drawnBoxOf: (id): ElementBox | undefined => boxes.get(id),
     hostFor: (id) => hosts.get(id) ?? null,
     labelFor: () => null,
     writePositions(ids, at) {
@@ -141,6 +148,16 @@ function harness(scene: Scene = SCENE) {
     allEdgeIds: () => scene.edges.map((item) => item.id),
     setSelected: () => {},
     cullTargets: () => [],
+    linesToRepaint: (ids) => ids.filter((id) => lines.has(id)),
+    repaintLines: (ids) => void lineRepaints.push([...ids]),
+    lineOf: (id) => lines.get(id),
+    rotationOf: (id) => rotations.get(id) ?? 0,
+    writeLine: (id, line) => void lineWrites.push({ id, line }),
+    writeRotation: (id, degrees) => void rotations.set(id, degrees),
+    anchorTargets: () =>
+      scene.elements
+        .filter((item) => (item.kind === "node" || item.kind === "shape") && !item.line)
+        .map((item) => ({ id: item.id, box: boxes.get(item.id)!, rotation: rotations.get(item.id) })),
   }
 
   const redraws: (readonly string[] | undefined)[] = []
@@ -152,9 +169,13 @@ function harness(scene: Scene = SCENE) {
   const connected: [string, string][] = []
   const grouped: string[][] = []
   const chromed: [string, NodeChrome][] = []
+  const rotated: { id: string; degrees: number }[] = []
+  const lineCommits: { id: string; line: AbsoluteLine }[] = []
+  const drawn: { shape: ShapeType; line: AbsoluteLine }[] = []
   let unpins = 0
   let selection: Selection = EMPTY_SELECTION
   let tool: MindmapTool = "select"
+  let armedShape: ShapeType = "rectangle"
 
   const installed = installInteraction(
     {
@@ -186,6 +207,10 @@ function harness(scene: Scene = SCENE) {
       connect: (fromId, toId) => void connected.push([fromId, toId]),
       group: (ids) => void grouped.push([...ids]),
       chrome: (id, part) => void chromed.push([id, part]),
+      armedShape: () => armedShape,
+      commitRotate: (id, degrees) => void rotated.push({ id, degrees }),
+      commitLine: (id, line) => void lineCommits.push({ id, line }),
+      draw: (shape, line) => void drawn.push({ shape, line }),
     },
   )
 
@@ -210,6 +235,15 @@ function harness(scene: Scene = SCENE) {
     pins,
     commits,
     resizes,
+    lineRepaints,
+    lineWrites,
+    rotations,
+    rotated,
+    lineCommits,
+    drawn,
+    armShape: (shape: ShapeType) => {
+      armedShape = shape
+    },
     activated,
     planted,
     connected,
@@ -230,10 +264,15 @@ function harness(scene: Scene = SCENE) {
     },
     press: (id: string | null, at: Point, init?: MouseEventInit) =>
       send("pointerdown", at, id ? hosts.get(id)! : pane, init),
-    pressGrip: (id: string, dir: ResizeDir, at: Point, init?: MouseEventInit) => {
+    pressGrip: (id: string, dir: ResizeDir | "rotate" | "start" | "end" | "bend", at: Point, init?: MouseEventInit) => {
       const grip = grips.get(id)!
       grip.dataset.mmHandle = dir
       send("pointerdown", at, grip, init)
+    },
+    keyGrip: (id: string, dir: ResizeDir | "rotate" | "start" | "end" | "bend", key: string, shiftKey = false) => {
+      const grip = grips.get(id)!
+      grip.dataset.mmHandle = dir
+      grip.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key, shiftKey }))
     },
     pressChrome: (id: string, part: NodeChrome, at: Point) => {
       const chrome = chromes.get(id)!
@@ -242,8 +281,8 @@ function harness(scene: Scene = SCENE) {
       // one lands: the attribute is on what holds the glyph, not on the glyph.
       send("pointerdown", at, chrome.firstElementChild!)
     },
-    move: (at: Point) => send("pointermove", at),
-    release: (at: Point) => send("pointerup", at),
+    move: (at: Point, init?: MouseEventInit) => send("pointermove", at, pane, init),
+    release: (at: Point, init?: MouseEventInit) => send("pointerup", at, pane, init),
     cancel: (at: Point) => send("pointercancel", at),
   }
 }
@@ -775,6 +814,275 @@ describe("a node's own chrome", () => {
 
     expect(h.chromed).toHaveLength(0)
     expect(h.connected).toEqual([["a", "a1"]])
+    h.uninstall()
+  })
+})
+
+function lineScene(extra: Partial<SceneElement["line"]> = {}): Scene {
+  const line: SceneElement = {
+    ...element("line", 492, 392),
+    kind: "shape",
+    content: { $type: "shape", shape: "arrow" },
+    width: 116,
+    height: 16,
+    line: {
+      start: { x: 8, y: 8 },
+      end: { x: 108, y: 8 },
+      bend: null,
+      startAt: null,
+      endAt: null,
+      startCap: "none",
+      endCap: "arrow",
+      thickness: 1.5,
+      extent: { minX: 490, minY: 390, maxX: 610, maxY: 410 },
+      ...extra,
+    },
+  }
+  return { ...SCENE, elements: [...SCENE.elements, line] }
+}
+
+describe("the rotate grip", () => {
+  it("turns the shape as the pointer circles its centre, and commits once on release", () => {
+    const h = harness()
+    h.pressGrip("a", "rotate", { x: 250, y: 0 })
+    h.move({ x: 300, y: -40 })
+
+    expect(h.rotations.get("a")).toBeCloseTo(270)
+    h.release({ x: 300, y: -40 })
+    expect(h.rotated).toHaveLength(1)
+    expect(h.rotated[0].id).toBe("a")
+    expect(h.rotated[0].degrees).toBeCloseTo(270)
+    expect(h.resizes).toEqual([])
+    h.uninstall()
+  })
+
+  it("snaps to fifteen degree steps under Shift", () => {
+    const h = harness()
+    h.pressGrip("a", "rotate", { x: 250, y: 0 })
+    h.move({ x: 300, y: -30 }, { shiftKey: true })
+
+    expect((h.rotations.get("a") ?? 1) % 15).toBe(0)
+    h.uninstall()
+  })
+
+  it("commits nothing for a grip pressed and let go", () => {
+    const h = harness()
+    h.pressGrip("a", "rotate", { x: 250, y: 0 })
+    h.release({ x: 250, y: 0 })
+
+    expect(h.rotated).toEqual([])
+    h.uninstall()
+  })
+
+  it("puts the turn back when the gesture is cancelled", () => {
+    const h = harness()
+    h.pressGrip("a", "rotate", { x: 250, y: 0 })
+    h.move({ x: 300, y: -40 })
+    h.cancelGesture()
+
+    expect(h.rotations.get("a")).toBe(0)
+    expect(h.rotated).toEqual([])
+    h.uninstall()
+  })
+
+  it("turns by keyboard, with Shift using the same fifteen degree step", () => {
+    const h = harness()
+
+    h.keyGrip("a", "rotate", "ArrowRight", true)
+
+    expect(h.rotations.get("a")).toBe(15)
+    expect(h.rotated).toEqual([{ id: "a", degrees: 15 }])
+    h.uninstall()
+  })
+})
+
+describe("a line's rings", () => {
+  it("drag an end freely and commit the new line on release", () => {
+    const h = harness(lineScene())
+    h.pressGrip("line", "end", { x: 600, y: 400 })
+    h.move({ x: 650, y: 450 })
+
+    expect(h.lineWrites.at(-1)?.line.end).toEqual({ x: 650, y: 450 })
+    expect(h.lineWrites.at(-1)?.line.start).toEqual({ x: 500, y: 400 })
+    h.release({ x: 650, y: 450 })
+    expect(h.lineCommits).toHaveLength(1)
+    expect(h.lineCommits[0].line.end).toEqual({ x: 650, y: 450 })
+    expect(h.lineCommits[0].line.endAt).toBeNull()
+    h.uninstall()
+  })
+
+  it("lock an end onto a node's side when it comes within reach", () => {
+    const h = harness(lineScene())
+    h.pressGrip("line", "start", { x: 500, y: 400 })
+    h.move({ x: 305, y: 418 })
+    h.release({ x: 305, y: 418 })
+
+    expect(h.lineCommits[0].line.start).toEqual({ x: 300, y: 420 })
+    expect(h.lineCommits[0].line.startAt).toEqual({ elementId: "loose", side: "right" })
+    expect(h.pane.querySelector("[data-mm-anchor]")).toBeNull()
+    h.uninstall()
+  })
+
+  it("bend the line through the pointer, and straighten it when the bend is let go on the chord", () => {
+    const h = harness(lineScene())
+    h.pressGrip("line", "bend", { x: 550, y: 400 })
+    h.move({ x: 550, y: 340 })
+    h.release({ x: 550, y: 340 })
+
+    expect(h.lineCommits[0].line.bend).toEqual({ x: 550, y: 340 })
+
+    const bent = harness(lineScene({ bend: { x: 58, y: -52 } }))
+    bent.pressGrip("line", "bend", { x: 550, y: 340 })
+    bent.move({ x: 552, y: 402 })
+    bent.release({ x: 552, y: 402 })
+
+    expect(bent.lineCommits[0].line.bend).toBeNull()
+    h.uninstall()
+    bent.uninstall()
+  })
+
+  it("commit nothing for a ring pressed and let go, and put the line back on cancel", () => {
+    const h = harness(lineScene())
+    h.pressGrip("line", "end", { x: 600, y: 400 })
+    h.release({ x: 600, y: 400 })
+    expect(h.lineCommits).toEqual([])
+
+    h.pressGrip("line", "end", { x: 600, y: 400 })
+    h.move({ x: 700, y: 400 })
+    h.cancelGesture()
+    expect(h.lineWrites.at(-1)?.line.end).toEqual({ x: 600, y: 400 })
+    expect(h.lineCommits).toEqual([])
+    h.uninstall()
+  })
+
+  it("never turn a ring press into a resize", () => {
+    const h = harness(lineScene())
+    h.pressGrip("line", "end", { x: 600, y: 400 })
+    h.move({ x: 650, y: 450 })
+    h.release({ x: 650, y: 450 })
+
+    expect(h.resizes).toEqual([])
+    h.uninstall()
+  })
+
+  it("moves an end or creates a bend from the keyboard", () => {
+    const h = harness(lineScene({ endAt: { elementId: "loose", side: "left" } }))
+
+    h.keyGrip("line", "end", "ArrowRight")
+    h.keyGrip("line", "bend", "ArrowUp")
+
+    expect(h.lineCommits[0].line.end).toEqual({ x: 601, y: 400 })
+    expect(h.lineCommits[0].line.endAt).toBeNull()
+    expect(h.lineCommits[1].line.bend).toEqual({ x: 550, y: 399 })
+    h.uninstall()
+  })
+})
+
+describe("a line locked at both ends", () => {
+  it("is selected by a press on its stroke and never dragged", () => {
+    const h = harness(
+      lineScene({ startAt: { elementId: "loose", side: "right" }, endAt: { elementId: "b", side: "left" } }),
+    )
+    h.press("line", { x: 550, y: 400 })
+    h.move({ x: 600, y: 450 })
+    h.release({ x: 600, y: 450 })
+
+    expect(h.selection().elements.has("line")).toBe(true)
+    expect(h.commits).toEqual([])
+    h.uninstall()
+  })
+})
+
+describe("the line tool", () => {
+  it("draws a line from the press to the release, with the readout beside the cursor", () => {
+    const h = harness()
+    h.arm("shape")
+    h.armShape("arrow")
+    h.press(null, { x: 100, y: 300 })
+    expect(h.planted).toEqual([])
+    h.move({ x: 200, y: 300 })
+
+    expect(h.pane.querySelector("[data-mm-readout]")?.textContent).toBe("0° · 100")
+    expect(h.pane.querySelector("[data-mm-preview]")).not.toBeNull()
+    h.release({ x: 200, y: 300 })
+
+    expect(h.drawn).toEqual([
+      { shape: "arrow", line: { start: { x: 100, y: 300 }, end: { x: 200, y: 300 }, bend: null, startAt: null, endAt: null } },
+    ])
+    expect(h.pane.querySelector("[data-mm-readout]")).toBeNull()
+    h.uninstall()
+  })
+
+  it("holds the angle to a step under Shift", () => {
+    const h = harness()
+    h.arm("shape")
+    h.armShape("line")
+    h.press(null, { x: 100, y: 300 })
+    h.move({ x: 200, y: 292 }, { shiftKey: true })
+    h.release({ x: 200, y: 292 }, { shiftKey: true })
+
+    expect(h.drawn[0].line.end.y).toBeCloseTo(300)
+    h.uninstall()
+  })
+
+  it("plants the default line on a plain click", () => {
+    const h = harness()
+    h.arm("shape")
+    h.armShape("line")
+    h.press(null, { x: 100, y: 300 })
+    h.release({ x: 100, y: 300 })
+
+    expect(h.drawn[0].line.end).toEqual({ x: 260, y: 300 })
+    expect(h.planted).toEqual([])
+    h.uninstall()
+  })
+
+  it("meets a node with the end and stores the attachment", () => {
+    const h = harness()
+    h.arm("shape")
+    h.armShape("arrow")
+    h.press(null, { x: 100, y: 300 })
+    h.move({ x: 196, y: 422 })
+    h.release({ x: 196, y: 422 })
+
+    expect(h.drawn[0].line.endAt).toEqual({ elementId: "loose", side: "left" })
+    expect(h.drawn[0].line.end).toEqual({ x: 200, y: 420 })
+    h.uninstall()
+  })
+
+  it("starts from an anchor pressed just inside a visible node", () => {
+    const h = harness()
+    h.arm("shape")
+    h.armShape("arrow")
+    h.press("loose", { x: 204, y: 420 })
+    h.move({ x: 400, y: 420 })
+    h.release({ x: 400, y: 420 })
+
+    expect(h.drawn[0].line.startAt).toEqual({ elementId: "loose", side: "left" })
+    expect(h.drawn[0].line.start).toEqual({ x: 200, y: 420 })
+    h.uninstall()
+  })
+
+  it("still drops a box shape on the press", () => {
+    const h = harness()
+    h.arm("shape")
+    h.armShape("hexagon")
+    h.press(null, { x: 100, y: 300 })
+
+    expect(h.planted).toEqual([{ tool: "shape", at: { x: 100, y: 300 } }])
+    h.uninstall()
+  })
+
+  it("draws nothing when the gesture is cancelled", () => {
+    const h = harness()
+    h.arm("shape")
+    h.armShape("line")
+    h.press(null, { x: 100, y: 300 })
+    h.move({ x: 200, y: 300 })
+    h.cancelGesture()
+
+    expect(h.drawn).toEqual([])
+    expect(h.pane.querySelector("[data-mm-preview]")).toBeNull()
     h.uninstall()
   })
 })

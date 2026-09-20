@@ -35,13 +35,14 @@ export function intersects(rect: Rect, box: Rect): boolean {
   )
 }
 
-export function elementsInRect(
+export function elementsInRect<T extends { readonly id: string } & Rect>(
   rect: Rect,
-  elements: readonly { readonly id: string; readonly x: number; readonly y: number; readonly width: number; readonly height: number }[],
+  elements: readonly T[],
+  boundsOf: (element: T) => Rect = (element) => element,
 ): string[] {
   const hits: string[] = []
   for (const element of elements) {
-    if (intersects(rect, element)) {
+    if (intersects(rect, boundsOf(element))) {
       hits.push(element.id)
     }
   }

@@ -7,9 +7,11 @@
  * caller named, never what the document holds.
  */
 
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { Scene, SceneEdge, SceneElement } from "../model/scene"
+import { lineLabelPoint } from "../scene/element-geometry"
+import { absoluteLine, linePath } from "../scene/line-geometry"
 
 import {
   createSceneIndex,
@@ -249,13 +251,11 @@ describe("selection", () => {
     expect(index.hostFor("a")!.dataset.selected).toBe("one")
   })
 
-  it("hands a host the camera's scale as it becomes selected, not on the next pan", () => {
-    // A grip drawn before the scale arrives is a grip at the wrong size for a frame, and at a low
-    // zoom that frame is the one the pointer is already over.
+  it("makes the current camera scale available before selection changes", () => {
     index.writeZoom(2)
     index.setSelected(["a"])
 
-    expect(index.hostFor("a")!.style.getPropertyValue("--mm-zoom")).toBe("2")
+    expect(pane.style.getPropertyValue("--mm-zoom")).toBe("2")
   })
 })
 
@@ -294,5 +294,188 @@ describe("writeBox", () => {
 
     expect(svg.getAttribute("width")).toBe("200")
     expect(path.getAttribute("d")).toBe(shapePath("diamond", 200, 100))
+  })
+})
+
+describe("lines", () => {
+  const line = (id: string, attachedTo?: string): SceneElement => ({
+    ...element(id, 500, 500),
+    kind: "shape",
+    content: {
+      $type: "shape",
+      shape: "line",
+      line: { start: { x: 8, y: 8 }, end: { x: 108, y: 8 }, endAt: attachedTo ? { elementId: attachedTo, side: "left" } : null },
+    },
+    width: 116,
+    height: 16,
+    text: {
+      ...element(id, 500, 500).text,
+      lines: ["caption"],
+      width: 200,
+      height: 30,
+    },
+    line: {
+      start: { x: 8, y: 8 },
+      end: { x: 108, y: 8 },
+      bend: null,
+      startAt: null,
+      endAt: attachedTo ? { elementId: attachedTo, side: "left" } : null,
+      startCap: "none",
+      endCap: "none",
+      thickness: 1.5,
+      extent: { minX: 500, minY: 500, maxX: 620, maxY: 520 },
+    },
+  })
+  const frame: SceneElement = { ...element("f", 0, 0), kind: "frame", content: { $type: "frame", childIds: [] } }
+  const withLines: Scene = {
+    ...SCENE,
+    elements: [...SCENE.elements, frame, line("free"), line("locked", "b")],
+  }
+
+  const mountLines = (): SceneIndex => {
+    for (const id of ["f", "free", "locked"]) {
+      const host = document.createElement("div")
+      host.className = "mm-node"
+      host.dataset.mmId = id
+      if (id !== "f") {
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+        for (const part of ["stroke", "hit", "select"]) {
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
+          path.setAttribute(`data-mm-line-${part}`, "")
+          svg.append(path)
+        }
+        for (const handle of ["start", "end", "bend"]) {
+          const ring = document.createElementNS("http://www.w3.org/2000/svg", "g")
+          ring.setAttribute("data-mm-handle", handle)
+          ring.append(document.createElementNS("http://www.w3.org/2000/svg", "circle"))
+          svg.append(ring)
+        }
+        host.append(svg)
+        const label = document.createElement("div")
+        label.setAttribute("data-mm-line-label", "")
+        host.append(label)
+      }
+      pane.append(host)
+    }
+    return createSceneIndex(withLines, pane, "svg")
+  }
+
+  it("knows which lines a move touches: those locked to the moved, and a moved line with a lock", () => {
+    const lines = mountLines()
+
+    expect(lines.linesToRepaint(["b"])).toEqual(["locked"])
+    expect(lines.linesToRepaint(["locked"])).toEqual(["locked"])
+    expect(lines.linesToRepaint(["free"])).toEqual([])
+    expect(lines.linesToRepaint(["a"])).toEqual([])
+  })
+
+  it("redraws a locked end from the target's live box and keeps the host around the drawing", () => {
+    const lines = mountLines()
+    lines.writePositions(["b"], () => ({ x: 900, y: 0 }))
+    lines.repaintLines(["locked"])
+
+    const host = pane.querySelector<HTMLElement>('[data-mm-id="locked"]')!
+    expect(host.querySelector("[data-mm-line-stroke]")!.getAttribute("d")).toBe("M8,496 L400,8")
+    const endRing = host.querySelector('[data-mm-handle="end"]')!
+    expect(endRing.getAttribute("transform")).toBe("translate(400 8)")
+    expect(endRing.querySelector("circle")!.hasAttribute("cx")).toBe(false)
+    expect(endRing.querySelector("circle")!.hasAttribute("cy")).toBe(false)
+    const live = lines.lineOf("locked")!
+    const labelAt = lineLabelPoint(live)
+    expect(host.querySelector<HTMLElement>("[data-mm-line-label]")!.style.transform).toBe(
+      `translate(${labelAt.x}px, ${labelAt.y}px) translate(-50%, -50%)`,
+    )
+    expect(host.style.transform).toBe("translate(500px, 12px)")
+    expect(host.style.width).toBe("408px")
+    expect(host.style.height).toBe("504px")
+    expect(lines.lineOf("locked")!.extent.maxX).toBeGreaterThan(900)
+  })
+
+  it("keeps a long dragged line local while its locked end stays on the target", () => {
+    const lines = mountLines()
+
+    lines.writePositions(["locked"], () => ({ x: -5_000, y: 4_000 }))
+    lines.repaintLines(["locked"])
+    lines.writePositions(["locked"], () => ({ x: -6_000, y: 4_500 }))
+    lines.repaintLines(["locked"])
+
+    const box = lines.boxOf("locked")!
+    const line = lines.lineOf("locked")!
+    const absolute = absoluteLine(line, box)
+    expect(lines.positionOf("locked")).toEqual({ x: -6_000, y: 4_500 })
+    expect(absolute.start).toEqual({ x: -5_992, y: 4_508 })
+    expect(absolute.end).toEqual({ x: 300, y: 20 })
+    const host = pane.querySelector<HTMLElement>('[data-mm-id="locked"]')!
+    expect(host.querySelector("[data-mm-line-stroke]")!.getAttribute("d")).toBe(
+      linePath(line.start, line.end, line.bend),
+    )
+    expect(host.querySelector('[data-mm-handle="end"]')!.getAttribute("transform")).toBe(
+      `translate(${line.end.x} ${line.end.y})`,
+    )
+    expect(Math.max(Math.abs(line.start.x), Math.abs(line.start.y), Math.abs(line.end.x), Math.abs(line.end.y))).toBeLessThan(
+      Math.max(box.width, box.height),
+    )
+  })
+
+  it("writes a line through canvas points and its extent with it", () => {
+    const lines = mountLines()
+    lines.writeLine("free", {
+      start: { x: 508, y: 508 },
+      end: { x: 700, y: 700 },
+      bend: { x: 600, y: 450 },
+      startAt: null,
+      endAt: null,
+    })
+
+    const host = pane.querySelector<HTMLElement>('[data-mm-id="free"]')!
+    expect(host.querySelector("[data-mm-line-stroke]")!.getAttribute("d")).toBe("M8,8 Q100,-50 200,200")
+    const extent = lines.lineOf("free")!.extent
+    expect(extent.minY).toBeLessThan(450)
+    expect(extent.maxX).toBeGreaterThan(700)
+    const target = lines.cullTargets().find((t) => t.key === nodeCullKey("free"))!
+    expect(target.bounds()).toEqual(lines.drawnBoxOf("free"))
+  })
+
+  it("offers nodes and closed shapes as anchor targets, never a line or a frame", () => {
+    const lines = mountLines()
+
+    expect(lines.anchorTargets().map((t) => t.id)).toEqual(["a", "b", "c"])
+  })
+
+  it("writes the zoom once on the inherited root", () => {
+    const lines = mountLines()
+    lines.writeZoom(0.5)
+
+    expect(pane.style.getPropertyValue("--mm-zoom")).toBe("0.5")
+    expect(pane.querySelector<HTMLElement>('[data-mm-id="free"]')!.style.getPropertyValue("--mm-zoom")).toBe("")
+  })
+
+  it("does not rewrite the zoom variable when the camera scale is unchanged", () => {
+    const lines = mountLines()
+    const write = vi.spyOn(pane.style, "setProperty")
+
+    lines.writeZoom(0.5)
+    lines.writeZoom(0.5)
+
+    expect(write).toHaveBeenCalledTimes(1)
+  })
+
+  it("includes a line caption in its visible bounds without adding the stored host box", () => {
+    const lines = mountLines()
+
+    expect(lines.drawnBoxOf("free")).toEqual({ x: 447, y: 486, width: 222, height: 44 })
+  })
+
+  it("turns a rotor and reports the turn", () => {
+    const lines = mountLines()
+    const host = pane.querySelector<HTMLElement>('[data-mm-id="a"]')!
+    const rotor = document.createElement("div")
+    rotor.setAttribute("data-mm-rotor", "")
+    host.append(rotor)
+    lines.writeRotation("a", 30)
+
+    expect(rotor.style.rotate).toBe("30deg")
+    expect(lines.rotationOf("a")).toBe(30)
+    expect(lines.anchorTargets().find((t) => t.id === "a")!.rotation).toBe(30)
   })
 })

@@ -157,7 +157,7 @@ function locateElements(ids: readonly string[]): (index: SceneIndex) => Point | 
   return (index) => {
     const boxes = []
     for (const id of ids) {
-      const box = index.boxOf(id)
+      const box = index.drawnBoxOf(id)
       if (box) {
         boxes.push(box)
       }

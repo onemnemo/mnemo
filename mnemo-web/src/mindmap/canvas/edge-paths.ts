@@ -13,8 +13,10 @@
  * per-frame path of the one thing whose per-frame cost is the whole architecture.
  */
 
-import type { EdgeRouting, SceneElement } from '../model/scene'
+import type { AnchorSide } from '../model/document'
+import type { EdgeRouting, SceneElement, SceneLine } from '../model/scene'
 import type { Point } from '../model/scene'
+import { pointOnRotatedBoxToward } from '../scene/element-geometry'
 
 /**
  * How far a curve's control points reach along the chord, as a fraction.
@@ -53,6 +55,8 @@ export interface ElementBox {
    * what marks the box as a plain node.
    */
   readonly underline?: number
+  readonly rotation?: number
+  readonly line?: SceneLine
 }
 
 /** Where a cap sits and which way it points, in canvas coordinates. */
@@ -127,6 +131,8 @@ export function boxOf(element: SceneElement): ElementBox {
     width: element.width,
     height: element.height,
     underline: element.underline,
+    rotation: element.rotation,
+    line: element.line,
   }
 }
 
@@ -155,6 +161,67 @@ function meetY(box: ElementBox, fallback: number): number {
   return box.underline === undefined ? fallback : box.y + box.height - box.underline / 2
 }
 
+function connectionPoint(box: ElementBox, side: AnchorSide, toward: Point): Point {
+  if (box.line) return nearestPointOnLine(box, box.line, toward)
+  if (box.rotation) return pointOnRotatedBoxToward(box, box.rotation, toward)
+  switch (side) {
+    case 'top':
+      return { x: box.x + box.width / 2, y: meetY(box, box.y) }
+    case 'right':
+      return { x: box.x + box.width, y: meetY(box, box.y + box.height / 2) }
+    case 'bottom':
+      return { x: box.x + box.width / 2, y: meetY(box, box.y + box.height) }
+    case 'left':
+      return { x: box.x, y: meetY(box, box.y + box.height / 2) }
+  }
+}
+
+function nearestPointOnLine(box: ElementBox, line: SceneLine, toward: Point): Point {
+  const pointAt = (t: number): Point => {
+    if (!line.bend) {
+      return {
+        x: box.x + line.start.x + (line.end.x - line.start.x) * t,
+        y: box.y + line.start.y + (line.end.y - line.start.y) * t,
+      }
+    }
+    const one = 1 - t
+    return {
+      x: box.x + one * one * line.start.x + 2 * one * t * line.bend.x + t * t * line.end.x,
+      y: box.y + one * one * line.start.y + 2 * one * t * line.bend.y + t * t * line.end.y,
+    }
+  }
+
+  let best = pointAt(0)
+  let bestDistance = squaredDistance(best, toward)
+  let previous = best
+  for (let index = 1; index <= 32; index++) {
+    const next = pointAt(index / 32)
+    const candidate = nearestPointOnSegment(previous, next, toward)
+    const distance = squaredDistance(candidate, toward)
+    if (distance < bestDistance) {
+      best = candidate
+      bestDistance = distance
+    }
+    previous = next
+  }
+  return best
+}
+
+function nearestPointOnSegment(start: Point, end: Point, point: Point): Point {
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const lengthSquared = dx * dx + dy * dy
+  if (lengthSquared === 0) return start
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared))
+  return { x: start.x + dx * t, y: start.y + dy * t }
+}
+
+function squaredDistance(a: Point, b: Point): number {
+  const dx = a.x - b.x
+  const dy = a.y - b.y
+  return dx * dx + dy * dy
+}
+
 /**
  * Where an edge leaves one box and meets another.
  *
@@ -172,22 +239,26 @@ export function anchorsFor(source: ElementBox, target: ElementBox): Anchors {
 
   if (Math.abs(dx) * HORIZONTAL_BIAS >= Math.abs(dy)) {
     const sign: 1 | -1 = dx >= 0 ? 1 : -1
+    const sourcePoint = connectionPoint(source, sign > 0 ? 'right' : 'left', { x: tcx, y: tcy })
+    const targetPoint = connectionPoint(target, sign > 0 ? 'left' : 'right', { x: scx, y: scy })
     return {
-      sx: sign > 0 ? source.x + source.width : source.x,
-      sy: meetY(source, scy),
-      tx: sign > 0 ? target.x : target.x + target.width,
-      ty: meetY(target, tcy),
+      sx: sourcePoint.x,
+      sy: sourcePoint.y,
+      tx: targetPoint.x,
+      ty: targetPoint.y,
       axis: 'x',
       sign,
     }
   }
 
   const sign: 1 | -1 = dy >= 0 ? 1 : -1
+  const sourcePoint = connectionPoint(source, sign > 0 ? 'bottom' : 'top', { x: tcx, y: tcy })
+  const targetPoint = connectionPoint(target, sign > 0 ? 'top' : 'bottom', { x: scx, y: scy })
   return {
-    sx: scx,
-    sy: meetY(source, sign > 0 ? source.y + source.height : source.y),
-    tx: tcx,
-    ty: meetY(target, sign > 0 ? target.y : target.y + target.height),
+    sx: sourcePoint.x,
+    sy: sourcePoint.y,
+    tx: targetPoint.x,
+    ty: targetPoint.y,
     axis: 'y',
     sign,
   }

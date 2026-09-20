@@ -9,6 +9,7 @@ import { useMindmapImage } from "../assets"
 import { bodyOf, imageRefOf, refGlyphOf, runsOf, type ImageRef } from "../scene/content"
 import { accentOf } from "../scene/branch"
 import { FRAME_HEAD } from "../scene/project"
+import { lineLabelPoint } from "../scene/element-geometry"
 import { mixColor, washOf } from "../scene/tokens"
 import type { FieldResult } from "../edit/label-commit"
 import type { CodeContent, FrameContent } from "../model/document"
@@ -17,7 +18,9 @@ import type { SceneElement } from "../model/scene"
 import type { ElementBox } from "./edge-paths"
 import { NodeEditor } from "./NodeEditor"
 import { RichLabel } from "./RichLabel"
-import { isOpenShape, shapePath, shapeTextInset } from "./shape-path"
+import { ResizeHandles, RotateHandle } from "./ShapeHandles"
+import { ShapeLine, ShapeLineHandles } from "./ShapeLine"
+import { shapePath, shapeTextInset } from "./shape-path"
 import { useFieldFlush } from "./useFieldFlush"
 
 export interface MindmapNodeProps {
@@ -62,57 +65,70 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
     return <FrameBody element={element} editing={editing} onEditEnd={onEditEnd} />
   }
 
-  return (
-    <div
-      className="mm-node group absolute left-0 top-0 select-none"
-      data-mm-id={element.id}
-      style={{
-        transform: `translate(${element.x}px, ${element.y}px)`,
-        width: element.width,
-        height: element.height,
-        // Read only below the label threshold, where the host is the only box left to paint. Set
-        // here rather than in the stylesheet because it is per element, and written once at render
-        // rather than per frame, so a band crossing stays one style recalculation.
-        "--mm-marker": markerFill(element, wash, accentLine),
-      } as React.CSSProperties}
-    >
-      {/* Two spans rather than one with conflicting variants: the ring's state is a DOM attribute
-          the scene index writes, so it cannot be branched on in JavaScript, and hover and selection
-          would otherwise be two utilities fighting over one property in whatever order Tailwind
-          happened to emit them. Both are bled outside the box on both axes so they read as a halo
-          around the node rather than as a second box drawn on it, and so a plain node with no
-          chrome of its own still gets one. */}
-      <span
-        className={cn(
-          "pointer-events-none absolute -inset-x-1.5 -inset-y-1 rounded-[10px] transition-colors duration-100",
-          "group-hover:bg-frame-hover group-data-[selected]:hidden",
-          editing && "hidden",
-        )}
-        aria-hidden
-      />
-      <span
-        className={cn(
-          "pointer-events-none absolute -inset-x-1.5 -inset-y-1 rounded-[10px] outline-2 outline-accent",
-          editing ? "block" : "hidden group-data-[selected]:block",
-        )}
-        aria-hidden
-      />
+  // Rotation stays inside the host so scene-index translations remain axis aligned.
+  const rotor = element.kind === "shape" && !element.line
+  const line = element.line
+  const lineLabel = line ? lineLabelPoint(line) : null
 
-      {element.kind === "shape" ? <ShapeOutline element={element} stroke={accentLine} /> : null}
+  const body = (
+    <>
+      {/* Separate spans keep hover and DOM-driven selection from competing for one property. */}
+      {line ? null : (
+        <>
+          <span
+            className={cn(
+              "pointer-events-none absolute -inset-x-1.5 -inset-y-1 rounded-[10px] transition-colors duration-100",
+              "group-hover:bg-frame-hover group-data-[selected]:hidden",
+              editing && "hidden",
+            )}
+            aria-hidden
+          />
+          <span
+            className={cn(
+              "pointer-events-none absolute -inset-x-1.5 -inset-y-1 rounded-[10px] outline-2 outline-accent",
+              editing ? "block" : "hidden group-data-[selected]:block",
+            )}
+            aria-hidden
+          />
+        </>
+      )}
+
+      {line ? (
+        <ShapeLine element={element} line={line} stroke={accentLine} />
+      ) : element.kind === "shape" ? (
+        <ShapeOutline element={element} stroke={accentLine} />
+      ) : null}
 
       {isResizable(element) && !editing ? <ResizeHandles /> : null}
+      {rotor && !editing ? <RotateHandle label={t("Mindmap", "RotateHandle")} value={element.rotation ?? 0} /> : null}
 
       <div
+        data-mm-line-label={line ? "" : undefined}
         className={cn(
-          "relative flex h-full w-full items-center",
+          "flex items-center",
+          line ? "absolute left-0 top-0 w-max" : "relative h-full w-full",
+          line && "rounded-[6px] bg-canvas",
+          line && editing && "min-w-[56px]",
           isRoot && "justify-center",
           element.kind === "shape" && "justify-center",
+          line && !editing && "pointer-events-none [&_.mm-label]:pointer-events-auto",
+          line && editing && "pointer-events-auto",
           nodeShape === "pill" && "rounded-full",
           // A root is a bigger box and takes a bigger radius, which is the only thing about its
           // corners that is its own rather than the rung's.
           (nodeShape === "card" || nodeShape === "outline") && (isRoot ? "rounded-[14px]" : "rounded-[10px]"),
         )}
-        style={bodyStyle(element, wash, accentLine)}
+        style={{
+          ...bodyStyle(element, wash, accentLine),
+          ...(line && lineLabel
+            ? {
+                transform: `translate(${lineLabel.x}px, ${lineLabel.y}px) translate(-50%, -50%)`,
+                boxShadow: editing
+                  ? "0 0 0 2px var(--accent)"
+                  : "0 0 0 1px var(--line-soft)",
+              }
+            : null),
+        }}
       >
         <NodeGlyph element={element} accent={accentLine} label={t("Mindmap", "OpenRef")} />
 
@@ -163,6 +179,8 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
         ) : null}
       </div>
 
+      {line ? <ShapeLineHandles element={element} line={line} hidden={editing} /> : null}
+
       {/* A dot in the corner, and pressing it lets go. A node that will sit out the next arrange says
           so where it stands rather than only once you have selected it, since the difference is
           invisible until the arrange runs and then looks like the arrange missed one. */}
@@ -187,6 +205,32 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
           {element.hiddenCount}
         </span>
       ) : null}
+    </>
+  )
+
+  return (
+    <div
+      className={cn("mm-node group absolute left-0 top-0 select-none", (rotor || line) && "pointer-events-none")}
+      data-mm-id={element.id}
+      data-mm-line={line ? "" : undefined}
+      style={{
+        transform: `translate(${element.x}px, ${element.y}px)`,
+        width: element.width,
+        height: element.height,
+        "--mm-marker": markerFill(element, wash, accentLine),
+      } as React.CSSProperties}
+    >
+      {rotor ? (
+        <div
+          data-mm-rotor=""
+          className="pointer-events-auto absolute inset-0"
+          style={{ rotate: `${element.rotation ?? 0}deg` }}
+        >
+          {body}
+        </div>
+      ) : (
+        body
+      )}
     </div>
   )
 })
@@ -272,7 +316,8 @@ function NodeLabel({ element }: { element: SceneElement }) {
   return (
     <span
       className={cn(
-        "mm-label block w-full",
+        "mm-label block",
+        element.line ? "mx-auto w-auto" : "w-full",
         (element.isRoot || element.kind === "shape") && "text-center",
         faded && "text-ink-3",
         done && "line-through",
@@ -440,58 +485,10 @@ function markerFill(
  * Both of those are things to say with a different gesture, not with a grip on a corner.
  */
 function isResizable(element: SceneElement): boolean {
+  if (element.line) {
+    return false
+  }
   return element.kind === "shape" || element.kind === "text" || element.kind === "image"
-}
-
-/** The eight grips, as fractions of the box, with the cursor each one should show. */
-const HANDLES = [
-  { dir: "nw", x: 0, y: 0, cursor: "nwse-resize" },
-  { dir: "n", x: 0.5, y: 0, cursor: "ns-resize" },
-  { dir: "ne", x: 1, y: 0, cursor: "nesw-resize" },
-  { dir: "e", x: 1, y: 0.5, cursor: "ew-resize" },
-  { dir: "se", x: 1, y: 1, cursor: "nwse-resize" },
-  { dir: "s", x: 0.5, y: 1, cursor: "ns-resize" },
-  { dir: "sw", x: 0, y: 1, cursor: "nesw-resize" },
-  { dir: "w", x: 0, y: 0.5, cursor: "ew-resize" },
-] as const
-
-/**
- * The grips on a selected free element.
- *
- * Drawn inside the host rather than in an overlay, so they travel with the box for free while the
- * resize itself is written to the DOM: an overlay would need its own copy of the geometry, updated
- * on every frame of the gesture, and the two would drift the first time one of them was missed.
- *
- * They undo the camera's scale on themselves, since a grip that shrinks with the map is a grip you
- * cannot hit when zoomed out. The scale arrives as a custom property the scene index writes onto
- * the selected hosts, and the whole undo is one transform, so the border and the radius stay the
- * size they were drawn at too.
- *
- * Only while exactly one thing is selected. Eight grips on every member of a sweep is noise, and
- * there is no sensible answer for what one of them would do to a set.
- */
-function ResizeHandles() {
-  return (
-    <>
-      {HANDLES.map((handle) => (
-        <span
-          key={handle.dir}
-          data-mm-handle={handle.dir}
-          className={cn(
-            "absolute hidden size-[9px] rounded-[2px] border border-accent bg-canvas",
-            "group-data-[selected=one]:block",
-          )}
-          style={{
-            left: `${handle.x * 100}%`,
-            top: `${handle.y * 100}%`,
-            transform: "translate(-50%, -50%) scale(calc(1 / var(--mm-zoom, 1)))",
-            cursor: handle.cursor,
-          }}
-          aria-hidden
-        />
-      ))}
-    </>
-  )
 }
 
 /** How wide a band along a frame's border can be grabbed, on top of its title strip. */
@@ -617,7 +614,6 @@ function FrameTitle({
  */
 function ShapeOutline({ element, stroke }: { element: SceneElement; stroke: string | undefined }) {
   const shape = (element.content as ShapeContent).shape ?? DEFAULT_SHAPE
-  const open = isOpenShape(shape)
 
   return (
     <svg
@@ -631,13 +627,10 @@ function ShapeOutline({ element, stroke }: { element: SceneElement; stroke: stri
         // rather than scaled into it, so it cannot simply follow a size the gesture wrote.
         data-mm-shape={shape}
         d={shapePath(shape, element.width, element.height)}
-        fill={open ? "none" : (element.fill ?? "var(--canvas)")}
+        fill={element.fill ?? "var(--canvas)"}
         stroke={stroke ?? "var(--line)"}
         strokeWidth={1.5}
         strokeLinejoin="round"
-        // An arrow shape's head is the marker the edge layer already defines, so a shape arrow and
-        // an edge's arrow are the same glyph rather than two drawings of one idea.
-        markerEnd={shape === "arrow" ? "url(#mm-cap-arrow)" : undefined}
       />
     </svg>
   )

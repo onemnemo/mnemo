@@ -30,7 +30,6 @@ describe("an older line row", () => {
     expect(line.start).toEqual({ x: 0, y: 60 })
     expect(line.end).toEqual({ x: 120, y: 0 })
     expect(line.bend).toBeNull()
-    // The same two points the box path always drew between, so an old map does not change.
     expect(shapePath("line", 120, 60)).toBe(linePath(line.start, line.end, null))
   })
 
@@ -81,7 +80,6 @@ describe("an attached end", () => {
 
     expect(line.end).toEqual({ x: 300, y: -80 })
     expect(line.endAt).toEqual({ elementId: "n", side: "left" })
-    // The extent follows the drawing out of the box, which is what the culler has to know.
     expect(line.extent.maxX).toBeGreaterThan(400)
     expect(line.extent.minY).toBeLessThan(120)
   })
@@ -164,6 +162,13 @@ describe("the stored box", () => {
     const capped = extentOf([{ x: 0, y: 0 }], 4, "none", "arrow")
 
     expect(capped.maxX).toBeGreaterThan(plain.maxX)
+  })
+
+  it("contains the full arrow marker at the maximum supported weight", () => {
+    const capped = extentOf([{ x: 0, y: 0 }], 8, "arrow", "arrow")
+
+    expect(capped.minX).toBeLessThanOrEqual(-39)
+    expect(capped.maxX).toBeGreaterThanOrEqual(39)
   })
 })
 

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 
 import { boxOf, anchorsFor, edgeShape, strokeToPathData, isFilled } from "./edge-paths"
 import { strokeFor } from "./edge-canvas"
+import { capMarker } from "./line-marks"
 import { dashAttribute, strokeStyleFor } from "./edge-style"
 import type { Scene, SceneEdge, SceneElement } from "../model/scene"
 import { useFieldFlush } from "./useFieldFlush"
@@ -34,36 +35,6 @@ export const MindmapEdgeLayer = memo(function MindmapEdgeLayer({
 
   return (
     <svg className="pointer-events-none absolute inset-0 size-full overflow-visible" aria-hidden>
-      <defs>
-        {/*
-          `context-stroke` takes the colour from the path wearing the marker, so eight branch hues
-          and every user-picked colour share two definitions instead of needing one marker each.
-        */}
-        <marker
-          id="mm-cap-arrow"
-          viewBox="0 0 8 8"
-          refX="7"
-          refY="4"
-          markerWidth="5"
-          markerHeight="5"
-          orient="auto-start-reverse"
-          markerUnits="strokeWidth"
-        >
-          <path d="M0 0.5 L8 4 L0 7.5 Z" fill="context-stroke" />
-        </marker>
-        <marker
-          id="mm-cap-dot"
-          viewBox="0 0 8 8"
-          refX="4"
-          refY="4"
-          markerWidth="4"
-          markerHeight="4"
-          orient="auto"
-          markerUnits="strokeWidth"
-        >
-          <circle cx="4" cy="4" r="3.2" fill="context-stroke" />
-        </marker>
-      </defs>
       <g ref={cameraRef}>
         {scene.edges.map((edge) => {
           const from = boxes.get(edge.fromId)
@@ -96,16 +67,10 @@ function EdgePath({ edge, from, to }: { edge: SceneEdge; from: SceneElement; to:
       strokeLinecap="round"
       // A ribbon has no stroke for a marker to take its colour from, and a tapering branch that
       // ended in an arrowhead would be two ideas about the same end anyway.
-      markerStart={filled ? undefined : capUrl(edge.startCap)}
-      markerEnd={filled ? undefined : capUrl(edge.endCap)}
+      markerStart={filled ? undefined : capMarker(edge.startCap)}
+      markerEnd={filled ? undefined : capMarker(edge.endCap)}
     />
   )
-}
-
-function capUrl(cap: SceneEdge["startCap"]): string | undefined {
-  if (cap === "arrow") return "url(#mm-cap-arrow)"
-  if (cap === "dot") return "url(#mm-cap-dot)"
-  return undefined
 }
 
 /**

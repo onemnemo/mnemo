@@ -12,13 +12,27 @@
  * a component is a position that costs a render to change.
  */
 
-import type { ShapeType } from '../model/document'
-import type { SceneEdge, Scene } from '../model/scene'
+import type { ShapeContent, ShapeType } from '../model/document'
+import type { SceneEdge, Scene, SceneElement, SceneLine } from '../model/scene'
 import type { Point } from '../model/scene'
+import { boxFromBounds, drawnBoundsOf, lineLabelPoint } from '../scene/element-geometry'
+import {
+  absoluteLine,
+  extentOf,
+  isAttachmentTarget,
+  lineBox,
+  linePath,
+  midpoint,
+  relative,
+  resolveLine,
+  type AbsoluteLine,
+  type AnchorTarget,
+} from '../scene/line-geometry'
 import type { CullableNode, CullBounds, CullTarget } from './culler'
 import { strokeFor } from './edge-canvas'
 import { anchorsFor, edgeShape, strokeToPathData, type ElementBox } from './edge-paths'
 import type { EdgeMode } from './edge-style'
+import { bendRingLook } from './line-marks'
 import { shapePath } from './shape-path'
 
 /**
@@ -46,10 +60,21 @@ export function edgeIdFromCullKey(key: string): string | null {
   return key.startsWith(EDGE_KEY_PREFIX) ? key.slice(EDGE_KEY_PREFIX.length) : null
 }
 
+interface LineDom {
+  readonly stroke: Element | null
+  readonly hit: Element | null
+  readonly select: Element | null
+  readonly rings: Readonly<Record<'start' | 'end' | 'bend', SVGGElement | null>>
+  readonly tangents: Readonly<Record<'start' | 'end', SVGLineElement | null>>
+  readonly label: HTMLElement | null
+}
+
 export interface SceneIndex {
   positionOf(id: string): Point | undefined
   /** The live box of an element, which is what an edge is drawn between. */
   boxOf(id: string): ElementBox | undefined
+  /** The visible axis aligned bounds, including rotation, resolved line ends, and a line caption. */
+  drawnBoxOf(id: string): ElementBox | undefined
   hostFor(id: string): HTMLElement | null
   /** The label span an inline edit would type into, if this element renders one. */
   labelFor(id: string): HTMLElement | null
@@ -64,17 +89,17 @@ export interface SceneIndex {
    * to the box and so would otherwise keep the size React last rendered it at.
    */
   writeBox(id: string, box: ElementBox): void
-  /**
-   * The camera's scale, for the chrome that has to stay the same size on screen while the world
-   * scales under it.
-   *
-   * Written onto the selected hosts rather than onto the world, because an inherited custom
-   * property on the world would invalidate the style of every element in the document on every
-   * frame of a pan, to move eight grips on one of them.
-   */
+  /** Updates the inherited screen-space scale when camera zoom changes. */
   writeZoom(zoom: number): void
   /** Edge ids with an endpoint among these elements. Computed once per gesture, not per frame. */
   incidentEdges(ids: readonly string[]): readonly string[]
+  linesToRepaint(ids: readonly string[]): readonly string[]
+  repaintLines(lineIds: readonly string[]): void
+  lineOf(id: string): SceneLine | undefined
+  rotationOf(id: string): number
+  writeLine(id: string, line: AbsoluteLine): void
+  writeRotation(id: string, degrees: number): void
+  anchorTargets(): readonly AnchorTarget[]
   /**
    * Rewrites whatever DOM these edges own: the path in svg mode, the label in either mode that
    * draws edges. In canvas mode the strokes are not DOM and are not this function's business.
@@ -116,12 +141,14 @@ export function createSceneIndex(
   scene: Scene,
   pane: HTMLElement,
   edgeMode: EdgeMode,
+  zoomRoot: HTMLElement = pane,
 ): SceneIndex {
   const hosts = new Map<string, HTMLElement>()
   for (const host of pane.querySelectorAll<HTMLElement>('.mm-node')) {
     const id = host.dataset.mmId
     if (id) hosts.set(id, host)
   }
+  const elementsById = new Map(scene.elements.map((element) => [element.id, element] as const))
 
   const paths = new Map<string, SVGPathElement>()
   const labels = new Map<string, HTMLElement>()
@@ -163,6 +190,24 @@ export function createSceneIndex(
     })
   }
 
+  const lines = new Map<string, SceneLine>()
+  const attachedTo = new Map<string, string[]>()
+  const lineMoves = new Map<string, Point>()
+  const rotations = new Map<string, number>()
+  for (const element of scene.elements) {
+    if (element.line) {
+      lines.set(element.id, element.line)
+      lineMoves.set(element.id, { x: 0, y: 0 })
+      for (const end of [element.line.startAt, element.line.endAt]) {
+        if (!end) continue
+        const list = attachedTo.get(end.elementId)
+        if (list) list.push(element.id)
+        else attachedTo.set(end.elementId, [element.id])
+      }
+    }
+    if (element.rotation) rotations.set(element.id, element.rotation)
+  }
+
   const edgesById = new Map<string, SceneEdge>()
   const incident = new Map<string, string[]>()
   const attach = (elementId: string, edgeId: string): void => {
@@ -179,17 +224,159 @@ export function createSceneIndex(
   const boxOf = (id: string): ElementBox | undefined => {
     const position = positions.get(id)
     const size = sizes.get(id)
-    return position && size ? { x: position.x, y: position.y, ...size } : undefined
+    if (!position || !size) return undefined
+    const rotation = rotations.get(id)
+    const line = lines.get(id)
+    return {
+      x: position.x,
+      y: position.y,
+      ...size,
+      ...(rotation === undefined ? null : { rotation }),
+      ...(line === undefined ? null : { line }),
+    }
+  }
+
+  const liveElement = (id: string): SceneElement | undefined => {
+    const element = elementsById.get(id)
+    const position = positions.get(id)
+    const size = sizes.get(id)
+    if (!element || !position || !size) return undefined
+    return {
+      ...element,
+      ...position,
+      width: size.width,
+      height: size.height,
+      rotation: rotations.get(id),
+      line: lines.get(id),
+    }
+  }
+
+  const drawnBoxOf = (id: string): ElementBox | undefined => {
+    const element = liveElement(id)
+    return element ? boxFromBounds(drawnBoundsOf(element)) : undefined
   }
 
   let selected: readonly string[] = []
-  // Remembered so a host that becomes selected mid-gesture is handed the scale it has to draw its
-  // chrome at, rather than waiting for the camera to move before its grips are the right size.
   let cameraZoom = 1
 
+  const targetOf = (id: string): AnchorTarget | undefined => {
+    const box = boxOf(id)
+    if (!box || !isAttachmentTarget(elementsById.get(id))) return undefined
+    return { id, box, rotation: rotations.get(id) }
+  }
+
+  const contentOf = new Map<string, ShapeContent>()
+  for (const element of scene.elements) {
+    if (element.line) contentOf.set(element.id, element.content as ShapeContent)
+  }
+
+  zoomRoot.style.setProperty('--mm-zoom', '1')
+
+  const lineDom = new Map<string, LineDom>()
+  const domOf = (id: string): LineDom | undefined => {
+    const cached = lineDom.get(id)
+    if (cached) return cached
+    const host = hosts.get(id)
+    if (!host) return undefined
+    const dom: LineDom = {
+      stroke: host.querySelector('[data-mm-line-stroke]'),
+      hit: host.querySelector('[data-mm-line-hit]'),
+      select: host.querySelector('[data-mm-line-select]'),
+      rings: {
+        start: host.querySelector<SVGGElement>('[data-mm-handle="start"]'),
+        end: host.querySelector<SVGGElement>('[data-mm-handle="end"]'),
+        bend: host.querySelector<SVGGElement>('[data-mm-handle="bend"]'),
+      },
+      tangents: {
+        start: host.querySelector<SVGLineElement>('[data-mm-tangent="start"]'),
+        end: host.querySelector<SVGLineElement>('[data-mm-tangent="end"]'),
+      },
+      label: host.querySelector<HTMLElement>('[data-mm-line-label]'),
+    }
+    lineDom.set(id, dom)
+    return dom
+  }
+
+  const drawLine = (id: string, line: SceneLine): void => {
+    lines.set(id, line)
+    const dom = domOf(id)
+    if (!dom) return
+    const d = linePath(line.start, line.end, line.bend)
+    dom.stroke?.setAttribute('d', d)
+    dom.hit?.setAttribute('d', d)
+    dom.select?.setAttribute('d', d)
+    const bend = line.bend ?? midpoint(line.start, line.end)
+    const ring = (group: SVGGElement | null, at: Point): void => {
+      group?.setAttribute('transform', `translate(${at.x} ${at.y})`)
+    }
+    ring(dom.rings.start, line.start)
+    ring(dom.rings.end, line.end)
+    ring(dom.rings.bend, bend)
+    const look = bendRingLook(line.bend !== null)
+    const bendCircle = dom.rings.bend?.querySelector('circle')
+    bendCircle?.setAttribute('fill', look.fill)
+    bendCircle?.setAttribute('fill-opacity', String(look.fillOpacity))
+    const tangent = (element: SVGLineElement | null, to: Point): void => {
+      if (!element) return
+      element.style.display = line.bend ? '' : 'none'
+      element.setAttribute('x1', String(bend.x))
+      element.setAttribute('y1', String(bend.y))
+      element.setAttribute('x2', String(to.x))
+      element.setAttribute('y2', String(to.y))
+    }
+    tangent(dom.tangents.start, line.start)
+    tangent(dom.tangents.end, line.end)
+    const labelAt = lineLabelPoint(line)
+    if (dom.label) {
+      dom.label.style.transform = `translate(${labelAt.x}px, ${labelAt.y}px) translate(-50%, -50%)`
+    }
+  }
+
+  const reboxLine = (id: string, line: SceneLine, source: ElementBox): void => {
+    const absolute = absoluteLine(line, source)
+    const points = [absolute.start, absolute.end]
+    if (absolute.bend) points.push(absolute.bend)
+    const box = lineBox(points)
+    positions.set(id, { x: box.x, y: box.y })
+    sizes.set(id, { width: box.width, height: box.height })
+    const host = hosts.get(id)
+    if (host) {
+      host.style.transform = `translate(${box.x}px, ${box.y}px)`
+      host.style.width = `${box.width}px`
+      host.style.height = `${box.height}px`
+    }
+    drawLine(id, {
+      ...line,
+      start: relative(absolute.start, box),
+      end: relative(absolute.end, box),
+      bend: absolute.bend ? relative(absolute.bend, box) : null,
+    })
+  }
+
+  const lineSourceBox = (id: string): ElementBox | undefined => {
+    const element = elementsById.get(id)
+    if (!element?.line) return undefined
+    const move = lineMoves.get(id) ?? { x: 0, y: 0 }
+    return {
+      x: element.x + move.x,
+      y: element.y + move.y,
+      width: element.width,
+      height: element.height,
+    }
+  }
+
   return {
-    positionOf: (id) => positions.get(id),
+    positionOf(id) {
+      const line = lines.get(id)
+      const original = elementsById.get(id)
+      const move = lineMoves.get(id)
+      if (line && original && move && (line.startAt || line.endAt)) {
+        return { x: original.x + move.x, y: original.y + move.y }
+      }
+      return positions.get(id)
+    },
     boxOf,
+    drawnBoxOf,
     hostFor: (id) => hosts.get(id) ?? null,
     labelFor: (id) => hosts.get(id)?.querySelector<HTMLElement>('.mm-label') ?? null,
 
@@ -199,6 +386,12 @@ export function createSceneIndex(
         if (!host) continue
         const point = at(id)
         if (!point) continue
+        const line = lines.get(id)
+        const original = elementsById.get(id)
+        if (line && original && (line.startAt || line.endAt)) {
+          lineMoves.set(id, { x: point.x - original.x, y: point.y - original.y })
+          continue
+        }
         positions.set(id, point)
         host.style.transform = `translate(${point.x}px, ${point.y}px)`
       }
@@ -220,10 +413,9 @@ export function createSceneIndex(
     },
 
     writeZoom(zoom) {
+      if (zoom === cameraZoom) return
       cameraZoom = zoom
-      for (const id of selected) {
-        hosts.get(id)?.style.setProperty('--mm-zoom', String(zoom))
-      }
+      zoomRoot.style.setProperty('--mm-zoom', String(zoom))
     },
 
     incidentEdges(ids) {
@@ -234,6 +426,66 @@ export function createSceneIndex(
         for (const edgeId of incident.get(id) ?? []) seen.add(edgeId)
       }
       return [...seen]
+    },
+
+    linesToRepaint(ids) {
+      const seen = new Set<string>()
+      for (const id of ids) {
+        for (const lineId of attachedTo.get(id) ?? []) seen.add(lineId)
+        const line = lines.get(id)
+        if (line && (line.startAt || line.endAt)) seen.add(id)
+      }
+      return [...seen]
+    },
+
+    repaintLines(lineIds) {
+      for (const id of lineIds) {
+        const content = contentOf.get(id)
+        const source = lineSourceBox(id)
+        if (!content || !source) continue
+        reboxLine(id, resolveLine(content, source, targetOf), source)
+      }
+    },
+
+    lineOf: (id) => lines.get(id),
+
+    rotationOf: (id) => rotations.get(id) ?? 0,
+
+    writeLine(id, line) {
+      const previous = lines.get(id)
+      const box = boxOf(id)
+      if (!previous || !box) return
+      const start = relative(line.start, box)
+      const end = relative(line.end, box)
+      const bend = line.bend ? relative(line.bend, box) : null
+      const points = [line.start, line.end]
+      if (line.bend) points.push(line.bend)
+      drawLine(id, {
+        ...previous,
+        start,
+        end,
+        bend,
+        startAt: line.startAt,
+        endAt: line.endAt,
+        extent: extentOf(points, previous.thickness, previous.startCap, previous.endCap),
+      })
+    },
+
+    writeRotation(id, degrees) {
+      rotations.set(id, degrees)
+      const rotor = hosts.get(id)?.querySelector<HTMLElement>('[data-mm-rotor]')
+      if (rotor) rotor.style.rotate = `${degrees}deg`
+    },
+
+    anchorTargets() {
+      // Walks the scene, so it is asked once per gesture and never per pointer move.
+      const targets: AnchorTarget[] = []
+      for (const element of scene.elements) {
+        if (element.kind !== 'node' && element.kind !== 'shape') continue
+        const target = targetOf(element.id)
+        if (target) targets.push(target)
+      }
+      return targets
     },
 
     repaintEdges(edgeIds) {
@@ -279,9 +531,7 @@ export function createSceneIndex(
           // Both read inside rather than captured outside: a resize replaces the size entry, and a
           // target holding the one from build time would keep the culler working off the old box.
           bounds: (): CullBounds | undefined => {
-            const position = positions.get(element.id)
-            const size = sizes.get(element.id)
-            return position && size ? { x: position.x, y: position.y, ...size } : undefined
+            return drawnBoxOf(element.id)
           },
         })
       }
@@ -306,8 +556,8 @@ export function createSceneIndex(
           // looks exactly like a camera parked off the map.
           edgeId: edge.id,
           bounds: (): CullBounds | undefined => {
-            const from = boxOf(edge.fromId)
-            const to = boxOf(edge.toId)
+            const from = drawnBoxOf(edge.fromId)
+            const to = drawnBoxOf(edge.toId)
             if (!from || !to) return undefined
             // The union of both endpoints. An edge is a curve inside that box for every routing
             // here, so the box is a correct conservative cover rather than an approximation.
@@ -337,7 +587,6 @@ export function createSceneIndex(
         const host = hosts.get(id)
         if (!host) continue
         host.setAttribute('data-selected', value)
-        host.style.setProperty('--mm-zoom', String(cameraZoom))
       }
       selected = [...ids]
     },

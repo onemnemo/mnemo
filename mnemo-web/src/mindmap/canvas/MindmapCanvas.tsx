@@ -4,12 +4,14 @@ import { cn } from "@/lib/utils"
 
 import "./mindmap-lod.css"
 import "./mindmap-motion.css"
+import "./mindmap-shape.css"
 
 import type { ElementBox } from "./edge-paths"
 import { initialHybridMode } from "./edge-strategy"
 import type { EdgeMode } from "./edge-style"
 import { MindmapBackground } from "./MindmapBackground"
 import { MindmapEdgeLabels, MindmapEdgeLayer } from "./MindmapEdgeLayer"
+import { MindmapMarkerDefs } from "./MindmapMarkerDefs"
 import { createSelectionRepainter } from "./edge-highlight"
 import { MindmapSelectionLayer } from "./MindmapSelectionLayer"
 import { MindmapNode } from "./MindmapNode"
@@ -17,6 +19,8 @@ import { createCanvasRuntime, type CanvasRuntime } from "./runtime"
 import type { FieldResult } from "../edit/label-commit"
 import { installInteraction, type MovedElement, type NodeChrome } from "../interaction/controller"
 import type { ResizeBox } from "../interaction/resize"
+import type { ShapeType } from "../model/document"
+import type { AbsoluteLine } from "../scene/line-geometry"
 import { EMPTY_SELECTION, isEmpty, type Selection } from "../interaction/selection"
 import { cursorFor, type MindmapTool } from "../interaction/tool"
 import type { Point, Scene, Viewport } from "../model/scene"
@@ -58,6 +62,10 @@ export interface MindmapCanvasProps {
   onConnect?: (fromId: string, toId: string) => void
   /** A node's own chrome was pressed: a task's box, or a reference's mark. */
   onChrome?: (id: string, part: NodeChrome) => void
+  armedShape?: ShapeType
+  onCommitRotate?: (id: string, degrees: number) => void
+  onCommitLine?: (id: string, line: AbsoluteLine) => void
+  onDraw?: (shape: ShapeType, line: AbsoluteLine) => void
   /** The camera moved, this frame. Drives the minimap; a zoom readout wants onCameraSettled. */
   onCamera?: (viewport: Viewport) => void
   /** The camera stopped moving, for a zoom readout. Never per frame. */
@@ -99,6 +107,10 @@ export function MindmapCanvas({
   onGroup,
   onConnect,
   onChrome,
+  armedShape = "rectangle",
+  onCommitRotate,
+  onCommitLine,
+  onDraw,
   onCamera,
   onCameraSettled,
   onFitClamped,
@@ -133,6 +145,10 @@ export function MindmapCanvas({
     onGroup,
     onConnect,
     onChrome,
+    armedShape,
+    onCommitRotate,
+    onCommitLine,
+    onDraw,
     onCamera,
     onCameraSettled,
     onFitClamped,
@@ -149,6 +165,10 @@ export function MindmapCanvas({
     onGroup,
     onConnect,
     onChrome,
+    armedShape,
+    onCommitRotate,
+    onCommitLine,
+    onDraw,
     onCamera,
     onCameraSettled,
     onFitClamped,
@@ -227,6 +247,10 @@ export function MindmapCanvas({
         group: (ids) => live.current.onGroup?.(ids),
         connect: (fromId, toId) => live.current.onConnect?.(fromId, toId),
         chrome: (id, part) => live.current.onChrome?.(id, part),
+        armedShape: () => live.current.armedShape,
+        commitRotate: (id, degrees) => live.current.onCommitRotate?.(id, degrees),
+        commitLine: (id, line) => live.current.onCommitLine?.(id, line),
+        draw: (shape, line) => live.current.onDraw?.(shape, line),
       },
     )
     created.cancelGesture = installed.cancel
@@ -277,9 +301,13 @@ export function MindmapCanvas({
       return
     }
     const index = created.index()
+    if (index.lineOf(id)) {
+      return
+    }
     index.writeBox(id, box)
     const incident = index.incidentEdges([id])
     index.repaintEdges(incident)
+    index.repaintLines(index.linesToRepaint([id]))
     // Through the wrapped redraw, not the runtime's own: a selected incident edge's highlight is
     // routed from the box too, and left out it stays where the shorter label had it.
     repaint.current?.(incident)
@@ -307,7 +335,7 @@ export function MindmapCanvas({
       return
     }
     const index = created.index()
-    return created.hold([editingId], index.incidentEdges([editingId]))
+    return created.hold([editingId, ...index.linesToRepaint([editingId])], index.incidentEdges([editingId]))
   }, [editingId, scene])
 
   return (
@@ -328,6 +356,7 @@ export function MindmapCanvas({
       data-mm-canvas
     >
       <MindmapBackground ref={background} background={scene.background} />
+      <MindmapMarkerDefs />
 
       {edgeMode === "canvas" ? (
         <canvas ref={edgeCanvas} className="pointer-events-none absolute inset-0 size-full" aria-hidden />

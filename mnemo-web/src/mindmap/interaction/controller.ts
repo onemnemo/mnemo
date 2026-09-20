@@ -15,10 +15,25 @@ import { planDrag, positionAt, type DragPlan } from "../canvas/drag-plan"
 import { panModifier } from "../canvas/pan-gesture"
 import { isEditableTarget } from "@/keybinds/chord"
 import type { SceneIndex } from "../canvas/scene-index"
+import type { ShapeType } from "../model/document"
 import type { Point, Scene, SceneElement } from "../model/scene"
+import { absoluteLine, isLineShape, midpoint, type AbsoluteLine } from "../scene/line-geometry"
 import { EDGE_HIT_PIXELS, hitEdge } from "./hit-test"
+import {
+  beginDraw,
+  beginLineDrag,
+  cancelLineDrag,
+  dropOverlay,
+  endLineDrag,
+  moveLineDrag,
+  plantDefaultLine,
+  type LineDrag,
+} from "./line-drag"
+import type { LineEnd } from "./line-gesture"
 import { elementsInRect, rectBetween } from "./marquee"
-import { boxChanged, resizeBox, type ResizeBox, type ResizeDir } from "./resize"
+import { boxChanged, type ResizeBox, type ResizeDir } from "./resize"
+import { normalizeDeg, resizeRotated } from "./rotate"
+import { beginRotate, cancelRotate, endRotate, moveRotate, type RotateDrag } from "./rotate-drag"
 import type { MindmapTool } from "./tool"
 import {
   addElements,
@@ -91,6 +106,19 @@ export interface InteractionHandlers {
   connect(fromId: string, toId: string): void
   /** A piece of a node's own chrome was pressed rather than the node itself. */
   chrome(id: string, part: NodeChrome): void
+  armedShape(): ShapeType
+  commitRotate(id: string, degrees: number): void
+  commitLine(id: string, line: AbsoluteLine): void
+  draw(shape: ShapeType, line: AbsoluteLine): void
+}
+
+type Handle = ResizeDir | "rotate" | LineEnd | "bend"
+
+const RESIZE_DIRS: ReadonlySet<string> = new Set(["nw", "n", "ne", "e", "se", "s", "sw", "w"])
+const HANDLES: ReadonlySet<string> = new Set([...RESIZE_DIRS, "rotate", "start", "end", "bend"])
+
+function isResizeDir(handle: Handle): handle is ResizeDir {
+  return RESIZE_DIRS.has(handle)
 }
 
 /**
@@ -117,12 +145,14 @@ type Gesture =
       readonly selectOnUp: boolean
       readonly additive: boolean
       readonly marqueeIntent: MarqueeIntent
+      readonly draws: ShapeType | null
     }
   | {
       readonly kind: "drag"
       readonly pointerId: number
       readonly plan: DragPlan
       readonly incident: readonly string[]
+      readonly lines: readonly string[]
       readonly startCanvas: Point
       readonly moves: MovedElement[]
     }
@@ -151,9 +181,13 @@ type Gesture =
       /** The box the grip was taken from. Every frame is measured off this, never off the last one. */
       readonly origin: ResizeBox
       readonly incident: readonly string[]
+      readonly lines: readonly string[]
+      readonly rotation: number
       /** Where the box currently is, which is what a release commits. */
       box: ResizeBox
     }
+  | RotateDrag
+  | LineDrag
 
 export interface InstalledInteraction {
   /** Removes every listener this attached. Does not touch a gesture in progress; call `cancel` first. */
@@ -215,9 +249,19 @@ export function installInteraction(
   const elementAt = (target: EventTarget | null): string | null =>
     (target as HTMLElement | null)?.closest?.<HTMLElement>(".mm-node")?.dataset.mmId ?? null
 
-  const handleAt = (target: EventTarget | null): ResizeDir | null =>
-    ((target as HTMLElement | null)?.closest?.<HTMLElement>("[data-mm-handle]")?.dataset
-      .mmHandle as ResizeDir | undefined) ?? null
+  const handleAt = (target: EventTarget | null): Handle | null => {
+    const value = (target as Element | null)?.closest?.("[data-mm-handle]")?.getAttribute("data-mm-handle")
+    return value && HANDLES.has(value) ? (value as Handle) : null
+  }
+
+  const heldAtBothEnds = (id: string): boolean => {
+    const line = index.lineOf(id)
+    return line !== undefined && line.startAt !== null && line.endAt !== null
+  }
+
+  const sweepBounds = (element: SceneElement) => {
+    return index.drawnBoxOf(element.id) ?? element
+  }
 
   const chromeAt = (target: EventTarget | null): NodeChrome | null =>
     ((target as HTMLElement | null)?.closest?.<HTMLElement>("[data-mm-chrome]")?.dataset
@@ -276,23 +320,32 @@ export function installInteraction(
       return
     }
 
-    // Before anything else, including the armed tool: a grip is only on screen because the element
-    // is selected, and pressing one can mean nothing but "resize this". Like a connect drag it is a
-    // drag by definition, so it takes the capture at once and skips the threshold.
-    const dir = handleAt(event.target)
-    const grabbed = dir && elementId ? index.boxOf(elementId) : undefined
-    if (dir && elementId && grabbed) {
+    // Handles claim the press before tools and selection.
+    const handle = handleAt(event.target)
+    const grabbed = handle && elementId ? index.boxOf(elementId) : undefined
+    if (handle && elementId && grabbed) {
+      if (handle === "rotate") {
+        gesture = beginRotate(surface, elementId, grabbed, event.pointerId, startCanvas)
+        return
+      }
+      if (!isResizeDir(handle)) {
+        gesture = beginLineDrag(surface, elementId, handle, event.pointerId) ?? gesture
+        return
+      }
       const incident = index.incidentEdges([elementId])
+      const lines = index.linesToRepaint([elementId])
       pane.setPointerCapture(event.pointerId)
-      surface.pin([elementId], incident)
+      surface.pin([elementId, ...lines], incident)
       gesture = {
         kind: "resize",
         pointerId: event.pointerId,
         id: elementId,
-        dir,
+        dir: handle,
         startCanvas,
         origin: grabbed,
         incident,
+        lines,
+        rotation: index.rotationOf(elementId),
         box: grabbed,
       }
       return
@@ -317,6 +370,23 @@ export function installInteraction(
       gesture = { kind: "connect", pointerId: event.pointerId, fromId: elementId, line }
       handlers.setSelection(selectOnly("element", elementId))
       drawConnectLine(line, anchorOf(surface, elementId), panePoint(pane, startClient))
+      return
+    }
+
+    const armed = tool === "shape" ? handlers.armedShape() : null
+    if (armed && isLineShape(armed)) {
+      handlers.setSelection(EMPTY_SELECTION)
+      gesture = {
+        kind: "press",
+        pointerId: event.pointerId,
+        elementId: null,
+        startClient,
+        startCanvas,
+        selectOnUp: false,
+        additive: false,
+        marqueeIntent,
+        draws: armed,
+      }
       return
     }
 
@@ -350,6 +420,7 @@ export function installInteraction(
         selectOnUp: already && selectionCount(selection) > 1,
         additive,
         marqueeIntent,
+        draws: null,
       }
       return
     }
@@ -374,6 +445,7 @@ export function installInteraction(
       selectOnUp: false,
       additive,
       marqueeIntent,
+      draws: null,
     }
   }
 
@@ -395,13 +467,15 @@ export function installInteraction(
     // Once per gesture, not once per frame: which edges touch the moving set cannot change while
     // the set is moving.
     const incident = index.incidentEdges(plan.ids)
+    const lines = index.linesToRepaint(plan.ids)
     pane.setPointerCapture(press.pointerId)
-    surface.pin(plan.ids, incident)
+    surface.pin([...plan.ids, ...lines], incident)
     return {
       kind: "drag",
       pointerId: press.pointerId,
       plan,
       incident,
+      lines,
       startCanvas: press.startCanvas,
       moves: [],
     }
@@ -438,16 +512,28 @@ export function installInteraction(
       const at = surface.toCanvas(event.clientX, event.clientY)
       // Off the origin and the total delta, for the same reason a drag is: an accumulated delta
       // drifts, and here it would drift against the grip the pointer is still holding.
-      gesture.box = resizeBox(
+      gesture.box = resizeRotated(
         gesture.origin,
         gesture.dir,
         at.x - gesture.startCanvas.x,
         at.y - gesture.startCanvas.y,
+        gesture.rotation,
         event.shiftKey,
       )
       index.writeBox(gesture.id, gesture.box)
       index.repaintEdges(gesture.incident)
+      index.repaintLines(gesture.lines)
       surface.redraw(gesture.incident)
+      return
+    }
+
+    if (gesture.kind === "rotate") {
+      moveRotate(surface, gesture, event)
+      return
+    }
+
+    if (gesture.kind === "lineEnd" || gesture.kind === "bend") {
+      moveLineDrag(surface, gesture, event)
       return
     }
 
@@ -459,8 +545,20 @@ export function installInteraction(
       if (!far) {
         return
       }
-      gesture = gesture.elementId ? beginDrag(gesture) : beginMarquee(gesture)
+      if (gesture.draws) {
+        gesture = beginDraw(surface, gesture.draws, gesture.pointerId, gesture.startCanvas)
+      } else if (gesture.elementId && heldAtBothEnds(gesture.elementId)) {
+        return
+      } else {
+        gesture = gesture.elementId ? beginDrag(gesture) : beginMarquee(gesture)
+      }
     }
+
+    if (gesture.kind === "draw") {
+      moveLineDrag(surface, gesture, event)
+      return
+    }
+
 
     if (gesture.kind === "drag") {
       const drag = gesture
@@ -484,6 +582,7 @@ export function installInteraction(
 
       index.writePositions(drag.plan.ids, (id) => landing.get(id))
       index.repaintEdges(drag.incident)
+      index.repaintLines(drag.lines)
       surface.redraw(drag.incident)
       return
     }
@@ -508,6 +607,19 @@ export function installInteraction(
       if (finished.selectOnUp && finished.elementId) {
         handlers.setSelection(selectOnly("element", finished.elementId))
       }
+      if (finished.draws) {
+        plantDefaultLine(finished.draws, finished.startCanvas, handlers)
+      }
+      return
+    }
+
+    if (finished.kind === "rotate") {
+      endRotate(surface, finished, handlers.commitRotate)
+      return
+    }
+
+    if (finished.kind === "lineEnd" || finished.kind === "bend" || finished.kind === "draw") {
+      endLineDrag(surface, finished, handlers)
       return
     }
 
@@ -548,7 +660,7 @@ export function installInteraction(
     if (rect.width * zoom < 4 && rect.height * zoom < 4) {
       return
     }
-    const hits = elementsInRect(rect, sweepable(scene))
+    const hits = elementsInRect(rect, sweepable(scene), sweepBounds)
 
     // The frame tool sweeps the same way selection does, and for the same reason: what a frame holds
     // is a set of elements, and a rectangle dragged around them is how anyone says which.
@@ -591,14 +703,22 @@ export function installInteraction(
       const plan = gesture.plan
       index.writePositions(plan.ids, (id) => plan.origins.get(id))
       index.repaintEdges(gesture.incident)
+      index.repaintLines(gesture.lines)
       surface.redraw(gesture.incident)
       surface.unpin()
     }
     if (gesture.kind === "resize") {
       index.writeBox(gesture.id, gesture.origin)
       index.repaintEdges(gesture.incident)
+      index.repaintLines(gesture.lines)
       surface.redraw(gesture.incident)
       surface.unpin()
+    }
+    if (gesture.kind === "rotate") {
+      cancelRotate(surface, gesture)
+    }
+    if (gesture.kind === "lineEnd" || gesture.kind === "bend" || gesture.kind === "draw") {
+      cancelLineDrag(surface, gesture)
     }
     gesture = { kind: "none" }
     releaseCapture(pane, pointerId)
@@ -619,11 +739,65 @@ export function installInteraction(
     }
   }
 
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+    const handle = handleAt(event.target)
+    const elementId = elementAt(event.target)
+    if (!handle || !elementId) return
+
+    const step = event.shiftKey ? 10 : 1
+    const delta =
+      event.key === "ArrowLeft"
+        ? { x: -step, y: 0 }
+        : event.key === "ArrowRight"
+          ? { x: step, y: 0 }
+          : event.key === "ArrowUp"
+            ? { x: 0, y: -step }
+            : event.key === "ArrowDown"
+              ? { x: 0, y: step }
+              : null
+    if (!delta) return
+
+    if (handle === "rotate") {
+      event.preventDefault()
+      const direction = delta.x + delta.y < 0 ? -1 : 1
+      const degrees = normalizeDeg(index.rotationOf(elementId) + direction * (event.shiftKey ? 15 : 1))
+      index.writeRotation(elementId, degrees)
+      const incident = index.incidentEdges([elementId])
+      const lines = index.linesToRepaint([elementId])
+      index.repaintEdges(incident)
+      index.repaintLines(lines)
+      surface.redraw(incident)
+      handlers.commitRotate(elementId, degrees)
+      return
+    }
+
+    if (handle !== "start" && handle !== "end" && handle !== "bend") return
+    const line = index.lineOf(elementId)
+    const box = index.boxOf(elementId)
+    if (!line || !box) return
+    event.preventDefault()
+    const current = absoluteLine(line, box)
+    const move = (point: Point): Point => ({ x: point.x + delta.x, y: point.y + delta.y })
+    const next: AbsoluteLine =
+      handle === "start"
+        ? { ...current, start: move(current.start), startAt: null }
+        : handle === "end"
+          ? { ...current, end: move(current.end), endAt: null }
+          : { ...current, bend: move(current.bend ?? midpoint(current.start, current.end)) }
+    index.writeLine(elementId, next)
+    const incident = index.incidentEdges([elementId])
+    index.repaintEdges(incident)
+    surface.redraw(incident)
+    handlers.commitLine(elementId, next)
+  }
+
   pane.addEventListener("pointerdown", onPointerDown)
   pane.addEventListener("pointermove", onPointerMove)
   pane.addEventListener("pointerup", onPointerUp)
   pane.addEventListener("pointercancel", onPointerCancel)
   pane.addEventListener("dblclick", onDoubleClick)
+  pane.addEventListener("keydown", onKeyDown)
 
   return {
     uninstall: () => {
@@ -632,11 +806,15 @@ export function installInteraction(
       pane.removeEventListener("pointerup", onPointerUp)
       pane.removeEventListener("pointercancel", onPointerCancel)
       pane.removeEventListener("dblclick", onDoubleClick)
+      pane.removeEventListener("keydown", onKeyDown)
       if (gesture.kind === "marquee") {
         gesture.box.remove()
       }
       if (gesture.kind === "connect") {
         gesture.line.remove()
+      }
+      if (gesture.kind === "lineEnd" || gesture.kind === "bend" || gesture.kind === "draw") {
+        dropOverlay(gesture)
       }
     },
     cancel: resetGesture,

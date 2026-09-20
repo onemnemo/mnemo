@@ -67,6 +67,41 @@ describe('choosing where an edge attaches', () => {
       expect(['x', 'y']).toContain(a.axis)
     }
   })
+
+  it('meets the visible side of a rotated shape', () => {
+    const anchors = anchorsFor(box(0, 0), { ...box(400, 0), rotation: 90 })
+
+    expect(anchors.tx).toBeCloseTo(430)
+    expect(anchors.ty).toBeCloseTo(20)
+  })
+
+  it('meets a rotated perimeter along the direction of approach', () => {
+    const anchors = anchorsFor(box(0, 0), { ...box(400, 0), rotation: 45 })
+
+    expect(anchors.tx).toBeCloseTo(450 - 20 * Math.SQRT2)
+    expect(anchors.ty).toBeCloseTo(20)
+  })
+
+  it('meets the drawn stroke of a line shape', () => {
+    const target: ElementBox = {
+      ...box(400, 0),
+      line: {
+        start: { x: 0, y: 0 },
+        end: { x: 100, y: 100 },
+        bend: null,
+        startAt: null,
+        endAt: null,
+        startCap: 'none',
+        endCap: 'none',
+        thickness: 1.5,
+        extent: { minX: 396, minY: -4, maxX: 504, maxY: 104 },
+      },
+    }
+
+    const anchors = anchorsFor(box(0, 0), target)
+    expect(anchors.tx).toBeCloseTo(400)
+    expect(anchors.ty).toBeCloseTo(0)
+  })
 })
 
 describe('a plain node', () => {

@@ -50,6 +50,7 @@ import {
 } from "../edit/clipboard"
 import { carriedText, isPlainKind, linkContent, plainContent } from "../edit/convert"
 import { labelCommit, type FieldResult } from "../edit/label-commit"
+import { detachOps, lineContent, lineOps, moveOps, resizeLineOps } from "../edit/line-ops"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import { palettePlan } from "../edit/palette"
 import { clearsAnything, restyled } from "../edit/restyle"
@@ -68,6 +69,7 @@ import {
   type ElementStyle,
   type FrameContent,
   type LayoutAlgorithm,
+  type ShapeContent,
   type ShapeType,
   type StyleTemplate,
 } from "../model/document"
@@ -75,6 +77,7 @@ import { op, type FrameOp, type MindmapOp, type NodeSpec } from "../model/ops"
 import { absoluteUrl, followRef, isFollowable } from "./follow"
 import { isChromeControl, isTyping } from "./route-guards"
 import type { Point, Scene, SceneElement } from "../model/scene"
+import type { AbsoluteLine } from "../scene/line-geometry"
 import { accentOf, branchSwatchOf } from "../scene/branch"
 import { imageRefOf, nodeKindOf, runsOf, type NodeKind } from "../scene/content"
 import {
@@ -267,12 +270,13 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
 
   const commitMove = useCallback(
     (moves: readonly MovedElement[]) => {
-      // Rounded because a position is a stored coordinate, and sub-pixel noise from a pointer is not
-      // information about where the user put the node.
-      void editor.apply(
-        moves.map((move) => op.moveTo(move.id, Math.round(move.x), Math.round(move.y))),
-        { label: t("Mindmap", "Move") },
-      )
+      if (!scene) {
+        return
+      }
+      // Through the one builder every move goes through, which rounds (a position is a stored
+      // coordinate, and sub-pixel noise from a pointer is not information about where the user put
+      // the node) and rewrites any line whose drawing the move changed.
+      void editor.apply(moveOps(scene, moves), { label: t("Mindmap", "Move") })
 
       // A second batch, so joining or leaving a group is its own undo. Dragging a node onto a frame
       // is one action to the hand but two to the document, and someone who only wanted the node back
@@ -315,9 +319,67 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       ) {
         ops.push(op.moveTo(id, Math.round(box.x), Math.round(box.y)))
       }
+      // A line locked to this element sits on its border, which just moved.
+      if (scene) {
+        ops.push(...resizeLineOps(scene, id, box))
+      }
       void editor.apply(ops, { label: t("Mindmap", "Resize") })
     },
-    [boxes, editor, t],
+    [boxes, editor, scene, t],
+  )
+
+  const commitRotate = useCallback(
+    (id: string, degrees: number) => {
+      const element = scene?.elements.find((candidate) => candidate.id === id)
+      if (!element || element.kind !== "shape") {
+        return
+      }
+      const content: ShapeContent = { ...(element.content as ShapeContent), rotation: Math.round(degrees) % 360 }
+      const ops: MindmapOp[] = [op.set(id, { content })]
+      // A line locked to a turned shape sits on a side that just swung round.
+      ops.push(
+        ...resizeLineOps(
+          { ...scene!, elements: scene!.elements.map((e) => (e.id === id ? { ...e, rotation: content.rotation } : e)) },
+          id,
+          element,
+        ),
+      )
+      void editor.apply(ops, { label: t("Mindmap", "Rotate") })
+    },
+    [editor, scene, t],
+  )
+
+  const commitLine = useCallback(
+    (id: string, line: AbsoluteLine) => {
+      const element = scene?.elements.find((candidate) => candidate.id === id)
+      if (!element?.line) {
+        return
+      }
+      void editor.apply(lineOps(element, line), { label: t("Mindmap", "Resize") })
+    },
+    [editor, scene, t],
+  )
+
+  /**
+   * Puts a drawn line down, selected and not being typed into.
+   *
+   * Unlike a planted shape it opens no caption field: a drawn line is a stroke rather than a label,
+   * and a field standing on a flat line is a field standing on the stroke.
+   */
+  const draw = useCallback(
+    async (drawn: ShapeType, line: AbsoluteLine) => {
+      setTool("select")
+      const { content, box } = lineContent({ $type: "shape", shape: drawn }, line)
+      const result = await editor.apply(
+        [op.addElement("shape", box.x, box.y, content, { ref: "n", wh: [box.width, box.height] })],
+        { label: t("Mindmap", "ToolShape") },
+      )
+      const created = result?.createdIds?.n
+      if (created) {
+        setSelection(selectOnly("element", created))
+      }
+    },
+    [editor, t],
   )
 
   /**
@@ -828,14 +890,35 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     return taken
   }, [capture, map.data, scene])
 
+  /**
+   * The ids a delete reaches: the ones named and everything under them, since the server takes
+   * each node's subtree with it. A line locked to a grandchild has to be let go the same as one
+   * locked to the node itself.
+   */
+  const withDescendants = useCallback(
+    (ids: readonly string[]): ReadonlySet<string> => {
+      const reached = new Set(ids)
+      if (hierarchy) {
+        for (const id of ids) {
+          for (const below of descendantsOf(hierarchy, id)) {
+            reached.add(below)
+          }
+        }
+      }
+      return reached
+    },
+    [hierarchy],
+  )
+
   const cutSelection = useCallback(() => {
     const taken = copySelection()
     // Only what the copy actually carried. A selection can hold a shape the capture left behind, and
     // a cut that took it away would be removing something nothing is holding on to.
     if (taken.ids.length > 0) {
-      void editor.apply([op.del(taken.ids)], { label: t("Mindmap", "Cut") })
+      const detach = scene ? detachOps(scene, withDescendants(taken.ids)) : []
+      void editor.apply([...detach, op.del(taken.ids)], { label: t("Mindmap", "Cut") })
     }
-  }, [copySelection, editor, t])
+  }, [copySelection, editor, scene, t, withDescendants])
 
   /**
    * Puts the held copy down, under the selected node.
@@ -901,8 +984,12 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const deleteSelection = useCallback(() => {
     const ops: MindmapOp[] = []
     if (selection.elements.size > 0) {
-      // One op for the lot: the server takes each node's subtree with it, and a single batch is a
-      // single undo.
+      // A line locked to something going away lets go first, at the point it is drawn at, so it
+      // does not spring back to wherever it was last written. Then one op for the lot: the server
+      // takes each node's subtree with it, and a single batch is a single undo.
+      if (scene) {
+        ops.push(...detachOps(scene, withDescendants([...selection.elements])))
+      }
       ops.push(op.del([...selection.elements]))
     }
     for (const edgeId of selection.edges) {
@@ -911,7 +998,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     if (ops.length > 0) {
       void editor.apply(ops, { label: t("Mindmap", "Delete") })
     }
-  }, [editor, selection, t])
+  }, [editor, scene, selection, t, withDescendants])
 
   /**
    * Moves a node out one level, taking its place right after the parent it just left.
@@ -1048,10 +1135,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         // One batch, so lining six things up is one press and one Ctrl+Z. Rounded for the same reason
         // a drag is: a stored coordinate is where the user put something, not a float.
         const moves = planAlign(which, selected, (id) => boxes.get(id))
-        void editor.apply(
-          moves.map((move) => op.moveTo(move.id, Math.round(move.x), Math.round(move.y))),
-          { label: t("Mindmap", which.startsWith("distribute") ? "Distribute" : "Align") },
-        )
+        void editor.apply(moveOps(scene, moves), {
+          label: t("Mindmap", which.startsWith("distribute") ? "Distribute" : "Align"),
+        })
       },
     }
   }, [boxes, editor, scene, selection, t])
@@ -1590,6 +1676,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           onSelection={setSelection}
           onCommitMove={commitMove}
           onCommitResize={commitResize}
+          armedShape={shape}
+          onCommitRotate={commitRotate}
+          onCommitLine={commitLine}
+          onDraw={(drawn, line) => void draw(drawn, line)}
           onActivate={activate}
           onChrome={pressChrome}
           editingId={editing}

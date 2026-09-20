@@ -164,6 +164,10 @@
     "FindInMap": "Buscar en el mapa",
     "FindNext": "Siguiente coincidencia",
     "FindPrevious": "Coincidencia anterior",
+    "RotateHandle": "Girar",
+    "LineStartHandle": "Mover inicio de línea",
+    "LineEndHandle": "Mover final de línea",
+    "LineBendHandle": "Mover curva de línea",
     "FindClose": "Cerrar la búsqueda"
   }
 }

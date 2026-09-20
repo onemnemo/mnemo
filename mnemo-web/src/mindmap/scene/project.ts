@@ -22,7 +22,8 @@ import { FREE_CONTEXT, resolveStyle, templateChain, type ResolvedStyle, type Sty
 import { bodyOf, displayText, isRef, refKey, runsOf, type RefInfo } from "./content"
 import { resolveEdgeStyle, ribbonWidths } from "./edge-cascade"
 import { analyzeHierarchy, childrenIds, hiddenDescendantCount, type Hierarchy } from "./hierarchy"
-import { isLineShape, resolveLine, type AnchorTarget } from "./line-geometry"
+import { isAttachmentTarget, isLineShape, resolveLine, type AnchorTarget } from "./line-geometry"
+import { drawnBoundsOf, type DrawnElementBox } from "./element-geometry"
 import { measureNode, type Measurers } from "./measure"
 import { cssColor, washOf } from "./tokens"
 import {
@@ -35,7 +36,7 @@ import {
   type ShapeContent,
   type StyleTemplate,
 } from "../model/document"
-import type { Bounds, Scene, SceneEdge, SceneElement } from "../model/scene"
+import type { Scene, SceneEdge, SceneElement } from "../model/scene"
 
 /** A free element with nothing to size it by still has to be somewhere and be grabbable. */
 const FREE_WIDTH = 160
@@ -48,14 +49,7 @@ export const FRAME_PAD = 18
 export const FRAME_HEAD = 22
 
 /** Enough of an element to put a frame around. Boxes come from the scene, or from a live drag. */
-export interface FrameMemberBox {
-  readonly x: number
-  readonly y: number
-  readonly width: number
-  readonly height: number
-  /** A member line is wherever its ends are drawn, which an attached end puts outside its box. */
-  readonly line?: { readonly extent: Bounds }
-}
+export type FrameMemberBox = DrawnElementBox
 
 /**
  * A frame's box, from the things it holds, or null when it holds nothing.
@@ -71,16 +65,11 @@ export function frameBox(
   let maxX = -Infinity
   let maxY = -Infinity
   for (const member of members) {
-    if (member.x < minX) minX = member.x
-    if (member.y < minY) minY = member.y
-    if (member.x + member.width > maxX) maxX = member.x + member.width
-    if (member.y + member.height > maxY) maxY = member.y + member.height
-    if (member.line) {
-      if (member.line.extent.minX < minX) minX = member.line.extent.minX
-      if (member.line.extent.minY < minY) minY = member.line.extent.minY
-      if (member.line.extent.maxX > maxX) maxX = member.line.extent.maxX
-      if (member.line.extent.maxY > maxY) maxY = member.line.extent.maxY
-    }
+    const bounds = drawnBoundsOf(member)
+    if (bounds.minX < minX) minX = bounds.minX
+    if (bounds.minY < minY) minY = bounds.minY
+    if (bounds.maxX > maxX) maxX = bounds.maxX
+    if (bounds.maxY > maxY) maxY = bounds.maxY
   }
   if (!Number.isFinite(minX)) {
     return null
@@ -160,8 +149,7 @@ export function projectScene(document: MindmapDocument, options: ProjectOptions)
       frames.push({ element, base: projected })
       continue
     }
-    // A line waits too: an end locked to another element is drawn wherever that element is, and
-    // the element may be stored after the line.
+    // Resolve lines after every possible attachment target exists.
     if (projected.kind === "shape" && isLineShape((projected.content as ShapeContent).shape)) {
       lines.push({ element, base: projected })
       continue
@@ -170,13 +158,10 @@ export function projectScene(document: MindmapDocument, options: ProjectOptions)
     drawn.set(projected.id, projected)
   }
 
-  // Lines before frames, so a frame holding a line is sized around where the line is drawn. A line
-  // cannot lock onto a frame, so nothing in this pass waits on the next. Being appended here also
-  // paints every line over every node, whatever order the document stored them in, which is what
-  // an arrow meeting a node's border needs.
+  // Frames depend on resolved line bounds, and lines paint above nodes.
   const targetOf = (id: string): AnchorTarget | undefined => {
     const target = drawn.get(id)
-    if (!target || target.kind === "frame" || target.line) {
+    if (!isAttachmentTarget(target)) {
       return undefined
     }
     return { id, box: target, rotation: target.rotation }
@@ -287,13 +272,6 @@ function sizeFrame(
   return result
 }
 
-/**
- * A line, with its ends looked up.
- *
- * Its own memo for the same reason a frame has one: where an attached end is drawn is a function of
- * another element. The resolution is two map lookups, so it is simply redone and compared, and the
- * previous result is handed back when nothing it says has moved.
- */
 function resolveShapeLine(
   element: MindmapElement,
   base: SceneElement,
@@ -375,7 +353,6 @@ const projected = new WeakMap<MindmapElement, Projected>()
 /** The same, for the second pass: a frame's box comes from its members and not from itself. */
 const sizedFrames = new WeakMap<MindmapElement, { base: SceneElement; result: SceneElement }>()
 
-/** And for a line, whose attached ends come from their targets. */
 const resolvedLines = new WeakMap<MindmapElement, { base: SceneElement; result: SceneElement }>()
 
 function sameInputs(a: ProjectInputs, b: ProjectInputs): boolean {
@@ -492,6 +469,8 @@ function buildElement(
       fontWeight: measured.font.weight,
       lineHeight: measured.lineHeight,
       letterSpacing: measured.font.letterSpacing,
+      width: measured.width,
+      height: measured.height,
     },
     padding: measured.padding,
     isRoot,
@@ -507,7 +486,6 @@ function buildElement(
   }
 }
 
-/** A closed shape's turn. Undefined when there is none, and always for a line, which has ends instead. */
 function rotationOf(kind: ElementKind, content: MindmapElement["content"]): number | undefined {
   if (kind !== "shape") {
     return undefined

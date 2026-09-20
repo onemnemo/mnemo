@@ -30,3 +30,14 @@ describe("what it catches", () => {
     expect(elementsInRect({ x: 0, y: 0, width: 50, height: 50 }, [box("a", 300, 300)])).toEqual([])
   })
 })
+
+describe("what is on screen rather than what is stored", () => {
+  it("sweeps against the bounds a caller gives, so a turned shape or a reaching line is caught where it is drawn", () => {
+    const rect = { x: 150, y: 0, width: 50, height: 50 }
+    const stored = [box("a", 0, 0)]
+    const drawnAt = () => ({ x: 140, y: 0, width: 100, height: 40 })
+
+    expect(elementsInRect(rect, stored)).toEqual([])
+    expect(elementsInRect(rect, stored, drawnAt)).toEqual(["a"])
+  })
+})

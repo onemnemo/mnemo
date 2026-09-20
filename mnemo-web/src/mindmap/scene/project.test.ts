@@ -583,7 +583,6 @@ describe("lines", () => {
     height: 16,
     ...over,
   })
-  // The line is stored before the box it locks onto, which is the order the pass has to survive.
   const withLine = (elements: MindmapElement[] = [arrow(), box("s1", 100, 100), box("s2", 300, 200)]): MindmapDocument => ({
     id: "m",
     elements,
@@ -596,7 +595,6 @@ describe("lines", () => {
     expect(line.line).toBeDefined()
     expect(line.line!.end).toEqual({ x: 300, y: 225 })
     expect(line.line!.start).toEqual({ x: 8, y: 8 })
-    // The box is where the line was written, not where its end went.
     expect(line).toMatchObject({ x: 0, y: 0, width: 100, height: 16 })
   })
 

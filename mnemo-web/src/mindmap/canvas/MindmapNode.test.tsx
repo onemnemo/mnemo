@@ -55,6 +55,36 @@ function frame(over: Partial<SceneElement> = {}): SceneElement {
   })
 }
 
+function line(over: Partial<SceneElement> = {}): SceneElement {
+  return node({
+    kind: "shape",
+    content: { $type: "shape", shape: "line", text: "hello" },
+    width: 116,
+    height: 16,
+    text: {
+      lines: ["hello"],
+      fontSize: 14,
+      fontWeight: 500,
+      lineHeight: 19,
+      letterSpacing: "-0.005em",
+      width: 40,
+      height: 19,
+    },
+    line: {
+      start: { x: 8, y: 8 },
+      end: { x: 108, y: 8 },
+      bend: null,
+      startAt: null,
+      endAt: null,
+      startCap: "none",
+      endCap: "none",
+      thickness: 1.5,
+      extent: { minX: -2, minY: -2, maxX: 118, maxY: 18 },
+    },
+    ...over,
+  })
+}
+
 let container: HTMLElement
 let root: Root
 
@@ -240,6 +270,71 @@ describe("a frame title being edited", () => {
     })
 
     expect(onEditEnd).toHaveBeenCalledWith("f", { text: "Renamed" })
+  })
+})
+
+describe("line handles", () => {
+  it("reconciles a handle that a live drag moved outside React", () => {
+    const before = line()
+    act(() => root.render(<MindmapNode element={before} />))
+
+    const start = container.querySelector<SVGGElement>('[data-mm-handle="start"]')!
+    start.setAttribute("transform", "translate(22 -140)")
+
+    act(() =>
+      root.render(
+        <MindmapNode
+          element={line({
+            x: 80,
+            y: 221,
+            width: 321,
+            height: 169,
+            line: {
+              ...before.line!,
+              start: { x: 8, y: 8 },
+              end: { x: 313, y: 161 },
+              bend: { x: 161, y: 84 },
+            },
+          })}
+        />,
+      ),
+    )
+
+    expect(container.querySelector('[data-mm-handle="start"]')).toBe(start)
+    expect(start.getAttribute("transform")).toBe("translate(8 8)")
+  })
+})
+
+describe("a line label", () => {
+  it("sits at the bend handle while the handle remains above the caption", () => {
+    act(() => root.render(<MindmapNode element={line()} />))
+
+    const label = container.querySelector<HTMLElement>("[data-mm-line-label]")!
+    const bend = container.querySelector<SVGGElement>('[data-mm-handle="bend"]')!
+    expect(label.style.transform).toBe("translate(58px, 8px) translate(-50%, -50%)")
+    expect(bend.getAttribute("transform")).toBe("translate(58 8)")
+    expect(label.nextElementSibling?.contains(bend)).toBe(true)
+    expect(label.style.boxShadow).toBe("0 0 0 1px var(--line-soft)")
+    expect(label.className).toContain("bg-canvas")
+  })
+
+  it("hides the line handles while the caption is being edited", () => {
+    const element = line()
+    const onEditEnd = vi.fn()
+    act(() => root.render(<MindmapNode element={element} />))
+    const handles = container.querySelector<SVGGElement>("[data-mm-line-handles]")!
+
+    act(() => root.render(<MindmapNode element={element} editing onEditEnd={onEditEnd} />))
+
+    const label = container.querySelector<HTMLElement>("[data-mm-line-label]")!
+    expect(handles.closest("svg")!.style.display).toBe("none")
+    expect(label.style.boxShadow).toBe("0 0 0 2px var(--accent)")
+    expect(label.className).toContain("bg-canvas")
+    expect(label.className).toContain("min-w-[56px]")
+
+    act(() => root.render(<MindmapNode element={element} />))
+    expect(container.querySelector("[data-mm-line-handles]")).toBe(handles)
+    expect(handles.closest("svg")!.style.display).toBe("")
   })
 })
 

@@ -26,12 +26,15 @@ import {
   type CapPlacement,
 } from "../canvas/edge-paths"
 import { dashAttribute, strokeStyleFor } from "../canvas/edge-style"
-import { isOpenShape, shapePath } from "../canvas/shape-path"
+import { shapePath } from "../canvas/shape-path"
+import { arrowCapPoints, DOT_MARKER } from "../scene/cap-geometry"
+import { lineLabelPoint } from "../scene/element-geometry"
+import { linePath } from "../scene/line-geometry"
 import { bodyOf, imageRefOf, refGlyphOf, runsOf, type ImageRef } from "../scene/content"
 import { FONT_FAMILY, MONO_FAMILY, type TextMeasurer } from "../scene/measure"
 import { accentOf } from "../scene/branch"
 import { mixColor, washOf } from "../scene/tokens"
-import { boundsOf, type Scene, type SceneEdge, type SceneElement } from "../model/scene"
+import { boundsOf, type Scene, type SceneEdge, type SceneElement, type SceneLine } from "../model/scene"
 import type { ArrowCap, CodeContent, FrameContent, ShapeContent, ShapeType } from "../model/document"
 import { sliceRuns, type Fragment } from "./rich-text"
 
@@ -176,33 +179,16 @@ function emitEdge(edge: SceneEdge, from: SceneElement, to: SceneElement, paint: 
   return out.join("")
 }
 
-/**
- * An arrowhead or a dot, at the end of a line and pointing the way it was going.
- *
- * The geometry is the marker's own, unrolled: the arrow marker is a triangle in an eight unit box
- * scaled by five stroke widths with its reference point at the tip, and the dot a circle of radius
- * 3.2 scaled by four. Written out here so a cap in an exported file is the same glyph, at the same
- * size, as the one the canvas draws.
- */
 function emitCap(cap: ArrowCap | undefined, at: CapPlacement, width: number, color: string): string {
   if (cap === "arrow") {
-    const s = (width * 5) / 8
-    const points = [
-      [-7 * s, -3.5 * s],
-      [1 * s, 0],
-      [-7 * s, 3.5 * s],
-    ]
-      .map(([x, y]) => {
-        const cos = Math.cos(at.angle)
-        const sin = Math.sin(at.angle)
-        return `${n(at.x + x * cos - y * sin)},${n(at.y + x * sin + y * cos)}`
-      })
+    const points = arrowCapPoints(at, width)
+      .map((point) => `${n(point.x)},${n(point.y)}`)
       .join(" ")
     return `<polygon points="${points}" fill="${color}"/>`
   }
 
   if (cap === "dot") {
-    return `<circle cx="${n(at.x)}" cy="${n(at.y)}" r="${n(width * 1.6)}" fill="${color}"/>`
+    return `<circle cx="${n(at.x)}" cy="${n(at.y)}" r="${n(width * DOT_MARKER.radius * DOT_MARKER.scale)}" fill="${color}"/>`
   }
 
   return ""
@@ -216,7 +202,15 @@ function emitElement(element: SceneElement, paint: Paint): string {
   if (element.kind === "frame") {
     return emitFrame(element, paint)
   }
+  if (element.rotation) {
+    const cx = element.x + element.width / 2
+    const cy = element.y + element.height / 2
+    return `<g transform="rotate(${n(element.rotation)} ${n(cx)} ${n(cy)})">${emitStraight(element, paint)}</g>`
+  }
+  return emitStraight(element, paint)
+}
 
+function emitStraight(element: SceneElement, paint: Paint): string {
   const accent = accentOf(element)
   const out: string[] = [emitBox(element, accent, paint)]
 
@@ -327,27 +321,39 @@ function emitBox(element: SceneElement, accent: string | undefined, paint: Paint
 }
 
 function emitShape(element: SceneElement, accent: string | undefined, paint: Paint): string {
+  if (element.line) {
+    return emitLine(element, element.line, accent, paint)
+  }
   const shape = shapeOf(element)
-  const open = isOpenShape(shape)
   const color = paint.color(accent ?? "var(--line)")
   const path =
     `<path d="${shapePath(shape, element.width, element.height)}"` +
-    ` fill="${open ? "none" : paint.color(element.fill ?? "var(--canvas)")}"` +
+    ` fill="${paint.color(element.fill ?? "var(--canvas)")}"` +
     ` stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>`
 
-  // The shaft runs bottom left to top right, so an arrow's head sits at the top right corner
-  // pointing out along it, which is the one direction the shape itself already fixed.
-  const head =
-    shape === "arrow"
-      ? emitCap(
-          "arrow",
-          { x: element.width, y: 0, angle: Math.atan2(-element.height, element.width) },
-          1.5,
-          color,
-        )
-      : ""
+  return `<g transform="translate(${n(element.x)}, ${n(element.y)})">${path}</g>`
+}
 
-  return `<g transform="translate(${n(element.x)}, ${n(element.y)})">${path}${head}</g>`
+function emitLine(element: SceneElement, line: SceneLine, accent: string | undefined, paint: Paint): string {
+  const color = paint.color(accent ?? "var(--line)")
+  const path =
+    `<path d="${linePath(line.start, line.end, line.bend)}" fill="none" stroke="${color}"` +
+    ` stroke-width="${n(line.thickness)}" stroke-linecap="round"/>`
+  const towardsStart = line.bend ?? line.end
+  const towardsEnd = line.bend ?? line.start
+  const startCap = emitCap(
+    line.startCap,
+    { x: line.start.x, y: line.start.y, angle: Math.atan2(line.start.y - towardsStart.y, line.start.x - towardsStart.x) },
+    line.thickness,
+    color,
+  )
+  const endCap = emitCap(
+    line.endCap,
+    { x: line.end.x, y: line.end.y, angle: Math.atan2(line.end.y - towardsEnd.y, line.end.x - towardsEnd.x) },
+    line.thickness,
+    color,
+  )
+  return `<g transform="translate(${n(element.x)}, ${n(element.y)})">${path}${startCap}${endCap}</g>`
 }
 
 /**
@@ -424,10 +430,13 @@ function emitBody(element: SceneElement, paint: Paint): string {
   const faded = done || element.refMissing === true
   const fill = paint.color(faded ? "var(--ink-3)" : (element.textColor ?? "var(--ink)"))
   const centred = element.isRoot || element.kind === "shape"
+  const lineLabel = element.line ? lineLabelPoint(element.line) : null
 
   // The rule a plain node draws sits inside its box, so the text is centred in what is left above it.
   const inner = element.nodeShape === "plain" ? element.height - (element.underline ?? 2) : element.height
-  const top = element.y + (inner - text.lines.length * text.lineHeight) / 2
+  const top = lineLabel
+    ? element.y + lineLabel.y - text.lines.length * text.lineHeight / 2
+    : element.y + (inner - text.lines.length * text.lineHeight) / 2
 
   const style: TextStyle = {
     family: body === "code" ? MONO_FAMILY : FONT_FAMILY,
@@ -440,7 +449,11 @@ function emitBody(element: SceneElement, paint: Paint): string {
   }
 
   const anchor = centred ? "middle" : "start"
-  const x = centred ? element.x + element.width / 2 : element.x + element.padding.x + leadInset(element)
+  const x = lineLabel
+    ? element.x + lineLabel.x
+    : centred
+      ? element.x + element.width / 2
+      : element.x + element.padding.x + leadInset(element)
 
   // A formatted label is its runs cut along the same lines, one styled span per piece.
   const runs = body === "rich" ? runsOf(element.content) : null

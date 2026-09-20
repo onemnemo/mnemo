@@ -292,3 +292,74 @@ describe("the file itself", () => {
     expect(picture!.markup).toContain('id="mm-clip-a_b_c"')
   })
 })
+
+describe("a free shape", () => {
+  it("is turned as a whole about its centre when it has been rotated", () => {
+    const { picture } = draw(
+      document({
+        elements: [
+          node("r"),
+          { id: "s", kind: "shape", content: { $type: "shape", shape: "hexagon", rotation: 30 }, x: 300, y: 100, width: 100, height: 50 },
+        ],
+        edges: [],
+      }),
+    )
+
+    expect(picture!.markup).toContain('<g transform="rotate(30 350 125)">')
+  })
+
+  it("draws a line through its points with its weight and the caps it wears", () => {
+    const { picture } = draw(
+      document({
+        elements: [
+          node("r"),
+          {
+            id: "l",
+            kind: "shape",
+            content: {
+              $type: "shape",
+              shape: "arrow",
+              line: { start: { x: 8, y: 8 }, end: { x: 108, y: 8 }, bend: { x: 58, y: 40 } },
+              startCap: "dot",
+              thickness: 3,
+            },
+            x: 300,
+            y: 100,
+            width: 116,
+            height: 56,
+          },
+        ],
+        edges: [],
+      }),
+    )
+
+    expect(picture!.markup).toContain('<path d="M8,8 Q58,40 108,8" fill="none" stroke="#abcdef" stroke-width="3"')
+    expect(picture!.markup).toContain('<circle cx="8" cy="8" r="4.8"')
+    expect(picture!.markup).toMatch(/<polygon points="[^"]*" fill="#abcdef"\/>/)
+    expect(picture!.markup).not.toContain("M0,56 L116,0")
+  })
+
+  it("reaches out to a locked end that sits past the box, so nothing is clipped", () => {
+    const { picture } = draw(
+      document({
+        elements: [
+          node("r", { x: 0, y: 0 }),
+          {
+            id: "l",
+            kind: "shape",
+            content: { $type: "shape", shape: "line", line: { start: { x: 8, y: 8 }, end: { x: 108, y: 8 }, endAt: { elementId: "far", side: "left" } } },
+            x: 300,
+            y: 100,
+            width: 116,
+            height: 16,
+          },
+          node("far", { x: 900, y: 500 }),
+        ],
+        edges: [],
+      }),
+    )
+
+    expect(picture!.width).toBeGreaterThan(900)
+    expect(picture!.markup).toContain("L600,")
+  })
+})

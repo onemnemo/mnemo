@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { cssColor } from "../scene/tokens"
-import type { SceneElement } from "../model/scene"
+import type { Point, SceneElement } from "../model/scene"
 import {
   minimapToWorld,
   paintSwatches,
@@ -33,6 +33,7 @@ const element = (over: Partial<SceneElement> = {}): SceneElement => ({
 
 interface Drawn {
   readonly op: "fill" | "stroke"
+  readonly shape: "rect" | "line"
   readonly x: number
   readonly y: number
   readonly width: number
@@ -46,6 +47,7 @@ interface Drawn {
 function recorder(): MinimapContext & { drawn: Drawn[] } {
   const drawn: Drawn[] = []
   let pending = { x: 0, y: 0, width: 0, height: 0 }
+  let path: Point[] = []
   let clipped = false
 
   const context: MinimapContext & { drawn: Drawn[] } = {
@@ -57,7 +59,18 @@ function recorder(): MinimapContext & { drawn: Drawn[] } {
     restore() {
       clipped = false
     },
-    beginPath() {},
+    beginPath() {
+      path = []
+    },
+    moveTo(x, y) {
+      path.push({ x, y })
+    },
+    lineTo(x, y) {
+      path.push({ x, y })
+    },
+    quadraticCurveTo(cpx, cpy, x, y) {
+      path.push({ x: cpx, y: cpy }, { x, y })
+    },
     rect() {},
     roundRect(x, y, width, height) {
       pending = { x, y, width, height }
@@ -66,11 +79,22 @@ function recorder(): MinimapContext & { drawn: Drawn[] } {
       clipped = true
     },
     fill() {
-      drawn.push({ op: "fill", ...pending, color: String(context.fillStyle), weight: 0, clipped })
+      drawn.push({ op: "fill", shape: "rect", ...pending, color: String(context.fillStyle), weight: 0, clipped })
     },
     stroke() {
+      if (path.length > 0) {
+        const xs = path.map((point) => point.x)
+        const ys = path.map((point) => point.y)
+        pending = {
+          x: Math.min(...xs),
+          y: Math.min(...ys),
+          width: Math.max(...xs) - Math.min(...xs),
+          height: Math.max(...ys) - Math.min(...ys),
+        }
+      }
       drawn.push({
         op: "stroke",
+        shape: path.length > 0 ? "line" : "rect",
         ...pending,
         color: String(context.strokeStyle),
         weight: context.lineWidth,
@@ -115,6 +139,40 @@ describe("the projection", () => {
 })
 
 describe("the swatches", () => {
+  it("draws a line as a stroke instead of filling its bounding rectangle", () => {
+    const context = recorder()
+    const elements = [
+      element({
+        id: "line",
+        kind: "shape",
+        content: { $type: "shape", shape: "line" },
+        x: 10,
+        y: 20,
+        width: 1_016,
+        height: 516,
+        line: {
+          start: { x: 8, y: 8 },
+          end: { x: 1_008, y: 508 },
+          bend: null,
+          startAt: null,
+          endAt: null,
+          startCap: "none",
+          endCap: "none",
+          thickness: 1.5,
+          extent: { minX: 14, minY: 24, maxX: 1_022, maxY: 532 },
+        },
+      }),
+    ]
+    const map = projectMinimap(elements, BOX.width, BOX.height)!
+
+    paintSwatches(context, elements, map, resolve)
+
+    expect(context.drawn).toHaveLength(1)
+    expect(context.drawn[0]).toMatchObject({ op: "stroke", shape: "line" })
+    expect(context.drawn[0].width).toBeGreaterThan(0)
+    expect(context.drawn[0].height).toBeGreaterThan(0)
+  })
+
   it("keeps a swatch visible however large the map is", () => {
     // Two nodes a hundred thousand units apart: at that scale a node is a thousandth of a pixel.
     const context = recorder()

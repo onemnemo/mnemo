@@ -29,6 +29,36 @@ describe("bounds", () => {
       maxY: 230,
     })
   })
+
+  it("uses a turned shape's visible bounds", () => {
+    const turned = { ...element(0, 0, 100, 40), kind: "shape" as const, rotation: 90 }
+
+    const bounds = boundsOf([turned])
+    expect(bounds.minX).toBeCloseTo(30)
+    expect(bounds.minY).toBeCloseTo(-30)
+    expect(bounds.maxX).toBeCloseTo(70)
+    expect(bounds.maxY).toBeCloseTo(70)
+  })
+
+  it("uses a line's drawing without retaining its stale stored box", () => {
+    const line: SceneElement = {
+      ...element(1000, 1000, 116, 16),
+      kind: "shape",
+      line: {
+        start: { x: -1000, y: -1000 },
+        end: { x: -900, y: -1000 },
+        bend: null,
+        startAt: null,
+        endAt: null,
+        startCap: "none",
+        endCap: "none",
+        thickness: 1.5,
+        extent: { minX: -4, minY: -4, maxX: 104, maxY: 4 },
+      },
+    }
+
+    expect(boundsOf([line])).toEqual({ minX: -4, minY: -4, maxX: 104, maxY: 4 })
+  })
 })
 
 describe("fit", () => {

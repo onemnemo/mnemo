@@ -164,6 +164,10 @@
     "FindInMap": "マップ内を検索",
     "FindNext": "次の一致",
     "FindPrevious": "前の一致",
+    "RotateHandle": "回転",
+    "LineStartHandle": "線の始点を移動",
+    "LineEndHandle": "線の終点を移動",
+    "LineBendHandle": "線の曲がりを移動",
     "FindClose": "検索を閉じる"
   }
 }

@@ -164,6 +164,10 @@
     "FindInMap": "In der Map suchen",
     "FindNext": "Nächster Treffer",
     "FindPrevious": "Vorheriger Treffer",
+    "RotateHandle": "Drehen",
+    "LineStartHandle": "Linienanfang verschieben",
+    "LineEndHandle": "Linienende verschieben",
+    "LineBendHandle": "Linienbiegung verschieben",
     "FindClose": "Suche schließen"
   }
 }
