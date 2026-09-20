@@ -1,0 +1,125 @@
+name: Bug report
+description: Report something broken, confusing, or inconsistent in Mnemo.
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve Mnemo. Search the existing issues before filing a new one.
+
+        Do not include API keys, private material, complete backups, or other sensitive data. Report security vulnerabilities through private vulnerability reporting instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: Mnemo version
+      description: Use the version number from the download or release page.
+      placeholder: 0.8.0-rc.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: system-details
+    attributes:
+      label: System details
+      description: Include the operating system version, architecture, and Linux desktop environment when relevant.
+      placeholder: Windows 11 24H2, x64
+    validations:
+      required: true
+
+  - type: dropdown
+    id: distribution
+    attributes:
+      label: Installation type
+      options:
+        - Installer
+        - Portable archive
+        - AppImage
+        - Built from source
+        - Other or unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest reliable sequence that shows the problem.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often does it happen?
+      options:
+        - Every time
+        - Often
+        - Sometimes
+        - Once
+        - Unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: data-impact
+    attributes:
+      label: Did this affect saved data?
+      description: Stop using the affected workflow and keep a copy of the data directory if data may have been lost or changed.
+      options:
+        - No
+        - Data may have changed
+        - Data was lost
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, or recordings
+      description: Attach only what is safe to share publicly.
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Include anything else that may help reproduce or understand the problem.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I removed API keys, private material, and other sensitive information.
+          required: true
+        - label: I agree to follow the Code of Conduct.
+          required: true

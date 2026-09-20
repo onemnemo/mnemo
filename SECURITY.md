@@ -8,10 +8,11 @@ Please do not publicly disclose security vulnerabilities before giving the maint
 
 To report a vulnerability, contact the project maintainer:
 
-- GitHub: @torstfugl
-- Repository: onemnemo/mnemo
+- Submit a [private vulnerability report](https://github.com/onemnemo/mnemo/security/advisories/new), or
+- email [security@mnemo.one](mailto:security@mnemo.one).
 
-If a dedicated security email is added later, this file should be updated.
+Do not include a vulnerability in a public issue or discussion. General support requests belong in
+[SUPPORT.md](SUPPORT.md).
 
 ## What to include
 

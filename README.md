@@ -9,7 +9,7 @@
 
 **Free. Open source. Local first. Built by learners, for learners.**
 
-[Downloads](https://github.com/onemnemo/mnemo/releases) · [Documentation](https://www.mnemo.one/docs) · [Contributing](CONTRIBUTING.md)
+[Downloads](https://github.com/onemnemo/mnemo/releases) · [Documentation](https://www.mnemo.one/docs) · [Support](SUPPORT.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 

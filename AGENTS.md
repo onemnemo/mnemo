@@ -41,8 +41,9 @@ If you read nothing else, read these.
 3. **No internal document references in code or commits.** No milestone identifiers, no
    section numbers, no plan or spec filenames. Those files are local and private; a commit or
    a comment is read by strangers.
-4. **No trailers on commits or pull requests.** No `Co-Authored-By`, no attribution lines.
-   The commit author is the author.
+4. **No agent attribution.** An agent must never add a `Co-Authored-By` trailer or another
+   attribution line for itself. Never invent attribution for a person. Preserve a human
+   contributor's intentional `Signed-off-by` or genuine human co-author trailer.
 5. **Commit format is `type(scope): subject`**, lowercase imperative. Bundle related work;
    do not commit every tiny step.
 6. **Commit at logical boundaries without asking. Ask before pushing** or before anything

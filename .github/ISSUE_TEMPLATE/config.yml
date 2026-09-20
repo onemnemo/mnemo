@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question
+    url: https://github.com/onemnemo/mnemo/discussions/categories/q-a
+    about: Get help using, installing, or understanding Mnemo.
+  - name: Suggest an idea
+    url: https://github.com/onemnemo/mnemo/discussions/categories/ideas
+    about: Propose and discuss a feature before it becomes an issue.
+  - name: Share beta feedback
+    url: https://github.com/onemnemo/mnemo/discussions
+    about: Share first impressions and broader feedback about the beta.
+  - name: Report a security vulnerability
+    url: https://github.com/onemnemo/mnemo/security/advisories/new
+    about: Send a private report to the maintainers. Do not open a public issue.

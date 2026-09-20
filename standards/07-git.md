@@ -62,8 +62,9 @@ more than one image was pasted.
 - **No references to local-only material.** No section numbers, no milestone identifiers, no
   plan or spec filenames, no "per the spec" or "per the plan". Those files are not visible to
   anyone reading the repository.
-- **No trailers.** No `Co-Authored-By`, no attribution lines of any kind, in commits or in
-  pull request bodies. The commit author is the author.
+- **No agent attribution.** An agent must never add a `Co-Authored-By` trailer or another
+  attribution line for itself. Never invent attribution for a person. Preserve an intentional
+  human `Signed-off-by` or genuine human co-author trailer.
 - The message must stand alone for a first-time reader.
 
 ## Granularity
