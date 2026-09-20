@@ -20,6 +20,13 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 
 ### Added
 
+- **Notes.** The slash menu can open partway through a line, keeping the surrounding text when you choose a command. Type a backslash at a word boundary to find symbols by name, including Greek letters, operators, arrows and fractions.
+- **Notes.** Spell checking now includes the note title.
+- **Flashcards.** Selected cards can be given a new due date, started over, or moved within a deck's new-card queue from the deck and card browser pages. Rescheduling does not add a review, and starting over keeps the review history.
+- **Mind maps.** Find inside an open map with Ctrl+F, move between matching labels with Enter and Shift+Enter, and jump to each match at a readable zoom. Searches also match the beginnings of words.
+- **Mind maps.** Text and task nodes, shape labels and captions support rich text, inline equations and symbols through the same formatting controls as notes. Formatting is preserved in map exports.
+- **Mind maps.** Draw lines and arrows, move their ends and bends, attach ends to elements, and rotate closed shapes. Line caps, thickness and colour can be changed across a selection, with keyboard controls for line and rotation handles.
+
 - **Notes.** The note editor is now organized into blocks such as paragraphs, headings, lists, quotes and dividers. You can create them with markdown style shortcuts as you type, convert one type into another, drag them to reorder using each block's own handle, and undo or redo any change.
 - **Notes.** Blocks can be dragged into a two column layout: drop one into either column, move it between the columns or reorder it within one, and drag it back out onto the page.
 - **Notes.** Added block level selection: drag in the note's margin to select a run of blocks, or press Ctrl+A to select the current block and press it again to select the whole note. A selection can be dragged to reorder it, and dragging selected text moves it across blocks, including inside a two column layout.
@@ -56,7 +63,7 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 - **Flashcards.** Library folders have a right-click menu with options to expand or collapse the folder, and you can drag decks and folders to reorganize your library, including dropping onto empty space to move something to the top level.
 - **Mind maps.** Mind maps support frames: titled containers that group nodes so they move and get rearranged together. A node can be dragged into a frame to join it, a marquee selection can be turned directly into a frame, and any element can be resized by dragging a corner.
 - **Mind maps.** A connect tool draws a link edge by dragging from one element to another, connecting any two elements on the map rather than only a parent to its child. Link edges can be selected, restyled, or deleted like any other element, and can use arrow or dot caps, dashed, dotted, or double lines, curved, straight, or right angled routing, and a label on the line.
-- **Mind maps.** Nodes can hold more than plain text: tasks with a clickable checkbox, code shown in monospace with a language label, math typeset from a formula, and link, note, or flashcard deck nodes that show the title of whatever they point to, with a due count for a deck. A node can be converted from one of these kinds to another without retyping its content, and images can be placed on the canvas by dropping, pasting, a keyboard shortcut, or a dock button.
+- **Mind maps.** Nodes can hold more than plain text: tasks with a clickable checkbox, code shown in monospace with a language label, and link, note, or flashcard deck nodes that show the title of whatever they point to, with a due count for a deck. A node can be converted from one of these kinds to another without retyping its content, and images can be placed on the canvas by dropping, pasting, a keyboard shortcut, or a dock button.
 - **Mind maps.** Node and branch styling can be saved as a personal template alongside a set of built in ones, and applied again later, including how many levels of a branch it reaches. A style panel controls the whole map's look, a docked inspector offers custom colors, an edge's color and weight can be set individually or applied to a whole branch at once, and a starting style can be chosen when a map is created.
 - **Mind maps.** A shape tool adds flowchart shapes and a free form blob to the canvas, with a picker that opens by holding the tool down. Holding Q opens a radial quick menu of actions at the pointer, where a flick and release performs an action without a separate click.
 - **Mind maps.** A map can be arranged automatically with a choice of layout algorithms from the editor's top bar, loose elements can be lined up and evenly spaced, and a node can be pinned so arranging leaves it in place, shown with a small badge.
@@ -90,6 +97,9 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 
 ### Changed
 
+- **Mind maps.** Existing math nodes become text nodes containing an inline equation. The tool dock and shape picker have been redesigned.
+
+
 - **Flashcards.** The spaced-repetition scheduler has been upgraded from FSRS-5 to FSRS-6, which more accurately predicts how likely you are to remember a card at review time.
 - **Flashcards.** Deck, folder, card, and card type names and text now have a maximum length and are rejected if they exceed it, instead of being accepted and then breaking the library and browse views.
 - **Flashcards.** The card type manager and the material editor now load only when you open them, so the flashcards area loads faster.
@@ -110,6 +120,19 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 - **App and platform.** Log files are capped in size, and files older than two weeks are removed at startup. The logs folder previously grew for as long as the app was installed.
 
 ### Fixed
+
+- **Notes.** Pasting nested lists into tables keeps their content, Markdown round trips preserve soft breaks, and empty equation chips no longer export as math fences. Older notes with numeric fields stored as text remain readable.
+- **Notes.** Paste progress stays below dialogs and notifications instead of covering them.
+- **Flashcards.** Anki imports preserve mature review state more accurately and read cloze text from the field named by the card template. CSV imports detect the file's delimiter and explain the import action in the preview. Image references containing brackets are read correctly.
+- **Flashcards.** Closing an enlarged image no longer reveals the answer beneath it, and enlarged images use consistent sizing.
+- **Flashcards.** Edits made during a study session survive later grades, including leech handling, and appear when the card comes around again. Grading a rescheduled card uses its current saved schedule.
+- **Flashcards.** Restoring review state leaves trashed cards and material untouched, and importing a package rejects unusable scheduler weights.
+- **Mind maps.** Edited labels stay visible while the camera moves, clicks inside a label place the caret, and typed line breaks survive rendering. Clicking a formatted link on the canvas does not navigate away from the map.
+- **Mind maps.** Undoing a deletion restores the original element order, abandoning a blank new node does not consume undo steps, and a late save response cannot overwrite a newer reload. Root colours now match the chosen colour, and empty line captions stay hidden.
+- **App and platform.** Backups can include more than a few thousand files, and a busy database produces an explanation when a backup cannot start. Unused assets are cleaned up even when the profile has no saved notes.
+- **App and platform.** Portable update checks only offer releases with downloads for the current platform.
+- **App and platform.** Dialogs are protected from accidental dismissal, flashcard loading dialogs keep their eventual size, and a page failure leaves the surrounding app available. Side peek panels keep their minimum width beside a wide dock and no longer reload the library just to read a title.
+- **App and platform.** Keyboard settings reject shortcuts reserved by the window, and exported filenames handle more Windows device-name variants safely.
 
 - **Notes.** Fixed several ways a note's data could be silently lost or corrupted. Opening a note with a block type or content this version does not recognize now keeps it intact and refuses to open it for editing, with an explanation, instead of silently flattening or discarding parts of it, and any images referenced only by that content are no longer deleted as unused. A note with no blocks at all now opens normally instead of being treated as broken. Renaming, tagging or moving a note that is open for editing could previously stop it from saving further changes, or let a stale copy overwrite a save made around the same time, and both are now fixed. An AI assisted edit to a note is now checked for conflicts the same way a manual edit is, instead of being able to silently overwrite one, and deleting a note that cannot actually be deleted, such as one already in the trash, now reports the failure instead of a false success.
 - **Notes.** Fixed newly typed text sometimes remaining invisible until the next scroll or edit, on Mac and Linux, where the app uses a WebKit based browser engine.
@@ -166,6 +189,10 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 - **App and platform.** A setting that cannot be saved now reports the failure instead of appearing saved until the next launch.
 - **App and platform.** A crash after startup now shows a message saying where the details were written, rather than the window disappearing with nothing said.
 - **App and platform.** Opening a library written by a newer version of Mnemo is now refused with an explanation, instead of being read through older assumptions.
+
+### Security
+
+- Updated PDF.js to 6.3.289 to address a script execution vulnerability in earlier versions.
 
 ### Removed
 
