@@ -25,12 +25,14 @@ import type { CanvasRuntime } from "../canvas/runtime"
 import { ExportMenu } from "../chrome/ExportMenu"
 import { MindmapMinimap, type MinimapSink } from "../chrome/Minimap"
 import { MindmapToolDock } from "../chrome/MindmapToolDock"
-import type { ColorControl, NodeActions } from "../chrome/NodeBar"
+import type { ColorControl } from "../chrome/color-control"
+import type { NodeActions } from "../chrome/NodeBar"
 import { RadialMenu } from "../chrome/RadialMenu"
 import { RefPicker, type RefTarget } from "../chrome/RefPicker"
 import { ON_CANVAS, ON_NODE } from "../chrome/sectors"
 import { SaveTemplateDialog } from "../chrome/SaveTemplateDialog"
 import type { AlignControl } from "../chrome/AlignBar"
+import type { LinePatch } from "../chrome/LineBar"
 import { MindmapSelectionBar } from "../chrome/SelectionBar"
 import { useMinimapShown } from "../chrome/useMinimapShown"
 import { useDrainOnExit } from "../edit/useDrainOnExit"
@@ -50,7 +52,7 @@ import {
 } from "../edit/clipboard"
 import { carriedText, isPlainKind, linkContent, plainContent } from "../edit/convert"
 import { labelCommit, type FieldResult } from "../edit/label-commit"
-import { detachOps, lineContent, lineOps, moveOps, resizeLineOps } from "../edit/line-ops"
+import { detachOps, lineContent, lineOps, moveOps, resizeLineOps, rotateLineOps } from "../edit/line-ops"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import { palettePlan } from "../edit/palette"
 import { clearsAnything, restyled } from "../edit/restyle"
@@ -273,9 +275,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       if (!scene) {
         return
       }
-      // Through the one builder every move goes through, which rounds (a position is a stored
-      // coordinate, and sub-pixel noise from a pointer is not information about where the user put
-      // the node) and rewrites any line whose drawing the move changed.
       void editor.apply(moveOps(scene, moves), { label: t("Mindmap", "Move") })
 
       // A second batch, so joining or leaving a group is its own undo. Dragging a node onto a frame
@@ -319,7 +318,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       ) {
         ops.push(op.moveTo(id, Math.round(box.x), Math.round(box.y)))
       }
-      // A line locked to this element sits on its border, which just moved.
       if (scene) {
         ops.push(...resizeLineOps(scene, id, box))
       }
@@ -330,21 +328,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
 
   const commitRotate = useCallback(
     (id: string, degrees: number) => {
-      const element = scene?.elements.find((candidate) => candidate.id === id)
-      if (!element || element.kind !== "shape") {
-        return
-      }
-      const content: ShapeContent = { ...(element.content as ShapeContent), rotation: Math.round(degrees) % 360 }
-      const ops: MindmapOp[] = [op.set(id, { content })]
-      // A line locked to a turned shape sits on a side that just swung round.
-      ops.push(
-        ...resizeLineOps(
-          { ...scene!, elements: scene!.elements.map((e) => (e.id === id ? { ...e, rotation: content.rotation } : e)) },
-          id,
-          element,
-        ),
-      )
-      void editor.apply(ops, { label: t("Mindmap", "Rotate") })
+      if (!scene) return
+      void editor.apply(rotateLineOps(scene, id, degrees), { label: t("Mindmap", "Rotate") })
     },
     [editor, scene, t],
   )
@@ -360,12 +345,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     [editor, scene, t],
   )
 
-  /**
-   * Puts a drawn line down, selected and not being typed into.
-   *
-   * Unlike a planted shape it opens no caption field: a drawn line is a stroke rather than a label,
-   * and a field standing on a flat line is a field standing on the stroke.
-   */
   const draw = useCallback(
     async (drawn: ShapeType, line: AbsoluteLine) => {
       setTool("select")
@@ -890,11 +869,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     return taken
   }, [capture, map.data, scene])
 
-  /**
-   * The ids a delete reaches: the ones named and everything under them, since the server takes
-   * each node's subtree with it. A line locked to a grandchild has to be let go the same as one
-   * locked to the node itself.
-   */
+  /** Includes collapsed descendants removed by the server cascade. */
   const withDescendants = useCallback(
     (ids: readonly string[]): ReadonlySet<string> => {
       const reached = new Set(ids)
@@ -984,9 +959,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const deleteSelection = useCallback(() => {
     const ops: MindmapOp[] = []
     if (selection.elements.size > 0) {
-      // A line locked to something going away lets go first, at the point it is drawn at, so it
-      // does not spring back to wherever it was last written. Then one op for the lot: the server
-      // takes each node's subtree with it, and a single batch is a single undo.
+      // Detach ends before deletion so the change remains one undo step.
       if (scene) {
         ops.push(...detachOps(scene, withDescendants([...selection.elements])))
       }
@@ -1077,6 +1050,23 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       })
     },
     [editor, selection, t],
+  )
+
+  const styleLines = useCallback(
+    (patch: LinePatch) => {
+      const ops: MindmapOp[] = []
+      for (const id of selection.elements) {
+        const element = scene?.elements.find((candidate) => candidate.id === id)
+        if (!element?.line) {
+          continue
+        }
+        ops.push(op.set(id, { content: { ...(element.content as ShapeContent), ...patch } }))
+      }
+      if (ops.length > 0) {
+        void editor.apply(ops, { label: t("Mindmap", "StyleLine") })
+      }
+    },
+    [editor, scene, selection, t],
   )
 
   /**
@@ -1709,6 +1699,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             pane={stage}
             onEdgeStyle={styleEdges}
             onNodeStyle={styleNodes}
+            onLineStyle={styleLines}
             onEdgeLabel={setEditingEdge}
             color={color}
             align={align}

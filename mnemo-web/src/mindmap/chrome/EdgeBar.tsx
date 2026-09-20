@@ -5,11 +5,14 @@ import { useT } from "@/i18n/useT"
 
 import type { EdgeStyle } from "../model/document"
 import type { SceneEdge } from "../model/scene"
-import { BRANCH_COUNT, branchColor, branchToken } from "../scene/tokens"
+import { branchColor } from "../scene/tokens"
 import { FloatBar, Sep, Slot } from "./bits"
-import { LINES, ROUTES, THICKNESSES } from "./choices"
-import { EndsGlyph, LineGlyph, RouteGlyph, SwatchGlyph, ThicknessGlyph } from "./glyphs"
-import { CapRow, Cell, Group, MenuToggle, Popped } from "./menu"
+import { LINES, ROUTES } from "./choices"
+import { EndsPicker } from "./EndsPicker"
+import { EndsGlyph, LineGlyph, RouteGlyph, SwatchGlyph } from "./glyphs"
+import { Cell, Group, MenuToggle, Popped } from "./menu"
+import { PaletteGrid } from "./PaletteGrid"
+import { ThicknessPicker } from "./ThicknessPicker"
 
 export interface EdgeBarProps {
   /** The edge the controls read their current values from. */
@@ -93,18 +96,7 @@ export function EdgeBar({ edge, count, onStyle, onLabel }: EdgeBarProps) {
         {/* With the line styles rather than in a slot of its own: a stroke's weight and its pattern
             are one decision about how loud the edge is, and nobody sets one without looking at the
             other. */}
-        <Group label={t("Mindmap", "EdgeThickness")}>
-          {THICKNESSES.map((entry) => (
-            <Cell
-              key={entry.value}
-              label={t("Mindmap", entry.key)}
-              active={(edge.thickness ?? 1.5) === entry.value}
-              onClick={() => style({ thickness: entry.value })}
-            >
-              <ThicknessGlyph thickness={entry.value} />
-            </Cell>
-          ))}
-        </Group>
+        <ThicknessPicker value={edge.thickness} onPick={(thickness) => style({ thickness })} />
         {reach}
       </Popped>
 
@@ -137,25 +129,12 @@ export function EdgeBar({ edge, count, onStyle, onLabel }: EdgeBarProps) {
         onOpen={shown("ends")}
         width="w-[196px]"
       >
-        {/* Two rows rather than one control with four directions. The model has always held the two
-            ends as two fields, and a combined control can say arrows at both ends or at neither but
-            not an arrow at the start only, which is a thing people draw. */}
-        <Group label={t("Mindmap", "Ends")}>
-          <div className="flex w-full flex-col gap-1">
-            <CapRow
-              label={t("Mindmap", "CapStart")}
-              end="start"
-              value={startCap}
-              onPick={(cap) => style({ startCap: cap })}
-            />
-            <CapRow
-              label={t("Mindmap", "CapEnd")}
-              end="end"
-              value={endCap}
-              onPick={(cap) => style({ endCap: cap })}
-            />
-          </div>
-        </Group>
+        <EndsPicker
+          start={startCap}
+          end={endCap}
+          onStart={(cap) => style({ startCap: cap })}
+          onEnd={(cap) => style({ endCap: cap })}
+        />
         {reach}
       </Popped>
 
@@ -166,23 +145,14 @@ export function EdgeBar({ edge, count, onStyle, onLabel }: EdgeBarProps) {
         onOpen={shown("color")}
         width="w-[188px]"
       >
-        <Group label={t("Mindmap", "EdgeColor")}>
-          <div className="grid w-full grid-cols-4 gap-1">
-            {Array.from({ length: BRANCH_COUNT }, (_, index) => (
-              <Cell
-                key={index}
-                label={`${t("Mindmap", "EdgeColor")} ${index + 1}`}
-                active={edge.color === branchColor(index)}
-                onClick={() => {
-                  style({ color: branchToken(index) })
-                  setOpen(null)
-                }}
-              >
-                <SwatchGlyph color={branchColor(index)} active={edge.color === branchColor(index)} />
-              </Cell>
-            ))}
-          </div>
-        </Group>
+        <PaletteGrid
+          label={t("Mindmap", "EdgeColor")}
+          active={(index) => edge.color === branchColor(index)}
+          onPick={(token) => {
+            style({ color: token })
+            setOpen(null)
+          }}
+        />
         {reach}
         {/* The way back out. An edge with no colour of its own takes the branch's, which is what
             makes a coloured map read as branches rather than as a hundred separate lines, and

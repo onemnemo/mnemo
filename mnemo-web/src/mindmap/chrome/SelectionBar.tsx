@@ -9,7 +9,9 @@ import type { NodeKind } from "../scene/content"
 import { AlignBar, type AlignControl } from "./AlignBar"
 import { boxesAnchor, edgeAnchor } from "./anchor"
 import { EdgeBar } from "./EdgeBar"
-import { NodeBar, type ColorControl, type NodeActions } from "./NodeBar"
+import { LineBar, type LinePatch } from "./LineBar"
+import type { ColorControl } from "./color-control"
+import { NodeBar, type NodeActions } from "./NodeBar"
 import { useBarAnchor, type Held } from "./useBarAnchor"
 
 export interface SelectionBarProps {
@@ -21,6 +23,7 @@ export interface SelectionBarProps {
   /** A null member takes a style away rather than setting it; `deep` sends it down the branch too. */
   onEdgeStyle: (patch: EdgeStyle, deep: boolean) => void
   onNodeStyle: (patch: ElementStyle) => void
+  onLineStyle: (patch: LinePatch) => void
   onEdgeLabel: (edgeId: string) => void
   /** Recolour the selection; null when there is no colour to set. */
   color: ColorControl | null
@@ -51,6 +54,7 @@ export function MindmapSelectionBar({
   pane,
   onEdgeStyle,
   onNodeStyle,
+  onLineStyle,
   onEdgeLabel,
   color,
   align,
@@ -83,6 +87,14 @@ export function MindmapSelectionBar({
   const primary = elements.find((element) => element?.id === selection.primary?.id)
   if (!primary) {
     return null
+  }
+
+  if (elements.every((element) => element?.line)) {
+    return (
+      <Anchored runtime={runtime} pane={pane} locate={locateElements(ids)}>
+        <LineBar element={primary} count={ids.length} onStyle={onLineStyle} color={color} />
+      </Anchored>
+    )
   }
 
   // Anchoring over the whole selection rather than over what actually moves comes to the same bounds,

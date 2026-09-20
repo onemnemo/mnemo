@@ -7,27 +7,17 @@ import type { ElementStyle } from "../model/document"
 import type { SceneElement } from "../model/scene"
 import { nodeKindOf, type NodeKind } from "../scene/content"
 import { fontScaleOf } from "../scene/measure"
-import { BRANCH_COUNT, branchColor, branchSlot, branchToken } from "../scene/tokens"
+import { branchSlot } from "../scene/tokens"
 import { FloatBar, Sep, Slot } from "./bits"
 import { SCALES, SHAPES } from "./choices"
+import type { ColorControl } from "./color-control"
 import { FlyoutPanel } from "./FlyoutPanel"
 import { NodeShapeGlyph, ScaleGlyph, SwatchGlyph } from "./glyphs"
 import { KindMenu } from "./KindMenu"
 import { Cell, Group, MenuItem, MenuSep, MenuToggle, Popped } from "./menu"
+import { PaletteGrid } from "./PaletteGrid"
 
-/** What the colour control can do, or null when this selection has no colour to set. */
-export interface ColorControl {
-  /** The palette slot showing now, 1 to 8, or null when the colour is not one of the eight. */
-  slot: number | null
-  /** The colour drawn now, whatever it is, so the face can show a hue off the palette. */
-  color: string | undefined
-  /** Whether there is anything under the selected node for a subtree option to reach. */
-  hasSubtree: boolean
-  /** Whether the reset hands the node back to a branch or to the plain default. */
-  branching: boolean
-  /** A null token takes the colour away rather than setting one. */
-  onPick: (token: string | null, subtree: boolean) => void
-}
+export type { ColorControl } from "./color-control"
 
 /** Everything the overflow menu offers, so the bar itself keeps one width as the list grows. */
 export interface NodeActions {
@@ -104,23 +94,14 @@ export function NodeBar({ element, count, onStyle, color, onKind, actions }: Nod
           onOpen={shown("color")}
           width="w-[188px]"
         >
-          <Group label={t("Mindmap", "Color")}>
-            <div className="grid w-full grid-cols-4 gap-1">
-              {Array.from({ length: BRANCH_COUNT }, (_, index) => (
-                <Cell
-                  key={index}
-                  label={`${t("Mindmap", "Color")} ${index + 1}`}
-                  active={branchSlot(index) === color.slot}
-                  onClick={() => {
-                    color.onPick(branchToken(index), subtree && color.hasSubtree)
-                    setOpen(null)
-                  }}
-                >
-                  <SwatchGlyph color={branchColor(index)} active={branchSlot(index) === color.slot} />
-                </Cell>
-              ))}
-            </div>
-          </Group>
+          <PaletteGrid
+            label={t("Mindmap", "Color")}
+            active={(index) => branchSlot(index) === color.slot}
+            onPick={(token) => {
+              color.onPick(token, subtree && color.hasSubtree)
+              setOpen(null)
+            }}
+          />
 
           {/* Off by default, and only offered when there is something under the node to reach. Writing a
               colour down the whole branch repaints the node's parent and every cousin it has. */}
