@@ -9,7 +9,7 @@ import { useMindmapImage } from "../assets"
 import { bodyOf, imageRefOf, refGlyphOf, runsOf, type ImageRef } from "../scene/content"
 import { accentOf } from "../scene/branch"
 import { FRAME_HEAD } from "../scene/project"
-import { lineLabelPoint } from "../scene/element-geometry"
+import { hasLineCaption, lineLabelPoint } from "../scene/element-geometry"
 import { mixColor, washOf } from "../scene/tokens"
 import type { FieldResult } from "../edit/label-commit"
 import type { CodeContent, FrameContent } from "../model/document"
@@ -108,6 +108,7 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
           "flex items-center",
           line ? "absolute left-0 top-0 w-max" : "relative h-full w-full",
           line && "rounded-[6px] bg-canvas",
+          line && !editing && !hasLineCaption(element) && "hidden",
           line && editing && "min-w-[56px]",
           isRoot && "justify-center",
           element.kind === "shape" && "justify-center",

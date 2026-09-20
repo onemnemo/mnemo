@@ -87,9 +87,17 @@ export function lineLabelPoint(line: Pick<SceneLine, "start" | "end" | "bend">):
       }
 }
 
+export function hasLineCaption(element: Pick<DrawnElementBox, "text">): boolean {
+  return (
+    element.text !== undefined &&
+    element.text.lines.some((value) => value.length > 0) &&
+    (element.text.width ?? 0) > 0 &&
+    (element.text.height ?? 0) > 0
+  )
+}
+
 function lineCaptionBounds(element: DrawnElementBox, line: SceneLine): Bounds | null {
-  if (!element.text || element.text.lines.every((value) => value.length === 0)) return null
-  if (!((element.text.width ?? 0) > 0) || !((element.text.height ?? 0) > 0)) return null
+  if (!hasLineCaption(element)) return null
   const { width, height } = lineLabelSize(element)
   const point = lineLabelPoint(line)
   const x = element.x + point.x

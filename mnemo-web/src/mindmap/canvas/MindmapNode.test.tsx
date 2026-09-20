@@ -306,6 +306,23 @@ describe("line handles", () => {
 })
 
 describe("a line label", () => {
+  it("stays hidden while empty and appears for editing", () => {
+    const seed = line()
+    const empty = line({
+      content: { $type: "shape", shape: "line", text: "" },
+      text: { ...seed.text, lines: [""], width: 0 },
+    })
+    const onEditEnd = vi.fn()
+
+    act(() => root.render(<MindmapNode element={empty} />))
+    const caption = container.querySelector<HTMLElement>("[data-mm-line-label]")!
+    expect(caption.className).toContain("hidden")
+
+    act(() => root.render(<MindmapNode element={empty} editing onEditEnd={onEditEnd} />))
+    expect(container.querySelector("[data-mm-line-label]")).toBe(caption)
+    expect(caption.className).not.toContain("hidden")
+  })
+
   it("sits at the bend handle while the handle remains above the caption", () => {
     act(() => root.render(<MindmapNode element={line()} />))
 
