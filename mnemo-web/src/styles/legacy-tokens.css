@@ -42,7 +42,6 @@
   --text-faded: var(--ink-icon);
   --text-disabled: var(--ink-icon);
   --version-text: var(--ink-3);
-  --links: var(--accent-ink);
 
   /* Lines. The old palette had one line weight; the new one distinguishes a real
      border from a hairline between panels, and the old name was almost always the
@@ -52,7 +51,6 @@
   --divider-subtle: var(--line-soft);
 
   /* Accent */
-  --accent-button-text: var(--accent-fg);
   --accent-subtle-background: var(--accent-wash);
   --accent-border-subtle: var(--accent-wash);
 
@@ -81,7 +79,6 @@
   --text-control-background: var(--canvas);
   --text-control-border: var(--line);
   --text-control-border-pointer-over: var(--line);
-  --text-control-border-focused: var(--accent);
   --text-control-placeholder-foreground: var(--ink-3);
 
   /* Topbar search */

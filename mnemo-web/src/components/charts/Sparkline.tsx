@@ -8,7 +8,7 @@ export function Sparkline({
   width = 240,
   height = 48,
   className = "text-[var(--flashcard-state-learning)]",
-  dotClassName = "text-brand",
+  dotClassName = "text-ink",
 }: {
   values: number[]
   width?: number

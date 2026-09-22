@@ -73,7 +73,7 @@ export function ShapeFlyout({ shape, onShape, onClose }: ShapeFlyoutProps) {
               className={cn(
                 "relative flex h-[58px] min-w-[66px] cursor-pointer flex-col items-center justify-end gap-2 rounded-lg px-1 pb-2 outline-none transition-colors duration-120",
                 active
-                  ? "bg-accent-wash text-accent-ink"
+                  ? "bg-frame-active text-ink"
                   : "text-ink-2 hover:bg-frame-hover hover:text-ink focus-visible:bg-frame-hover focus-visible:text-ink",
               )}
             >

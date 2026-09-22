@@ -67,13 +67,13 @@ export function ExportPanel({
                 className={cn(
                   "relative flex min-w-0 flex-col items-start gap-1 rounded-lg border p-2.5 text-left transition-colors",
                   "disabled:pointer-events-none disabled:opacity-50",
-                  isSelected ? "border-brand bg-brand-subtle" : "border-line hover:border-text-faded",
+                  isSelected ? "border-transparent shadow-[0_0_0_1.5px_var(--solid)]" : "border-line hover:border-text-faded",
                 )}
               >
                 <span
                   className={cn(
                     "font-mono text-caption",
-                    isSelected ? "text-brand" : "text-text-faded",
+                    isSelected ? "text-ink" : "text-text-faded",
                   )}
                 >
                   {format.extensions[0] ?? ""}
@@ -90,7 +90,7 @@ export function ExportPanel({
                   <AppIcon
                     name="common/check-circle"
                     size={15}
-                    className="absolute top-2 right-2 text-brand"
+                    className="absolute top-2 right-2 text-ink"
                   />
                 ) : null}
               </button>

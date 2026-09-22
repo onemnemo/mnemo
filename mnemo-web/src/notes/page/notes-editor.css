@@ -816,9 +816,9 @@
   border-color: var(--text-tertiary);
 }
 .notes-doc li[data-checklist][data-checked="true"] .notes-checkbox {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-button-text);
+  border-color: var(--solid);
+  background: var(--solid);
+  color: var(--solid-fg);
 }
 .notes-doc .notes-checklist-body {
   flex: 1;
@@ -1276,7 +1276,7 @@
   transition: border-color var(--duration-fast);
 }
 .notes-equation-flyout .notes-equation-editor-source:focus-visible {
-  border-color: var(--accent);
+  border-color: var(--solid);
 }
 .notes-equation-flyout .notes-equation-editor-source::placeholder {
   color: var(--ink-3);
@@ -1335,7 +1335,7 @@
   transition: border-color var(--duration-fast);
 }
 .notes-link-flyout-input:focus-visible {
-  border-color: var(--accent);
+  border-color: var(--solid);
 }
 .notes-link-flyout-input::placeholder {
   color: var(--ink-3);
@@ -1644,7 +1644,7 @@
   background: var(--frame-hover);
 }
 .notes-formatting-toolbar-swatch-cell.is-selected {
-  border-color: var(--accent);
+  border-color: var(--solid);
   background: var(--frame-active);
 }
 /* A background cell draws its colour as an inner tile with a faint outline, so
@@ -2001,7 +2001,7 @@
   background: var(--frame-hover);
 }
 .notes-find-chip-active {
-  border-color: var(--accent);
+  border-color: var(--solid);
   background: var(--frame-active);
   color: var(--ink);
 }

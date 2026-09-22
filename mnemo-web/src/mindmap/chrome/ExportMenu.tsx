@@ -65,10 +65,10 @@ export function ExportMenu({ onExport, canExport }: ExportMenuProps) {
             <span
               className={cn(
                 "grid size-[15px] shrink-0 place-items-center rounded-[4px] shadow-[inset_0_0_0_1.5px_currentColor]",
-                transparent ? "text-accent" : "text-line",
+                transparent ? "bg-solid text-solid-fg shadow-none" : "text-line",
               )}
             >
-              {transparent ? <AppIcon name="check" size={10} strokeWidth={2.5} className="text-accent" /> : null}
+              {transparent ? <AppIcon name="check" size={10} strokeWidth={2.5} className="text-solid-fg" /> : null}
             </span>
             {t("Mindmap", "ExportTransparentBackground")}
           </button>

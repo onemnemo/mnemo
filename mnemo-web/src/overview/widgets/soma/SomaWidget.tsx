@@ -1,4 +1,4 @@
-import { AppIcon } from "@/components/icon/AppIcon"
+import { SomaMark } from "@/chat/components/SomaMark"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { useSomaStore } from "@/stores/soma"
@@ -24,9 +24,7 @@ export function SomaWidget({ manifest, renderColumns }: WidgetProps) {
   const openDock = useSomaStore((state) => state.setDockOpen)
 
   const mark = (
-    <span className="grid size-[18px] shrink-0 place-items-center rounded-full bg-accent-wash">
-      <AppIcon name="orbit" size={12} strokeWidth={2} className="text-accent-ink" />
-    </span>
+    <SomaMark size={18} />
   )
 
   if (renderColumns < 2) {

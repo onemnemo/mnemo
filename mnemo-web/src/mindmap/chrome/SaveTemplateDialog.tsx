@@ -2,6 +2,7 @@ import { Dialog } from "radix-ui"
 import { useEffect, useState } from "react"
 
 import { describeError } from "@/api/error-copy"
+import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { toast } from "@/stores/toast"
@@ -88,7 +89,7 @@ export function SaveTemplateDialog({ mapId, rootId, onClose }: SaveTemplateDialo
                 onKeyDown={(event) => {
                   if (event.key === "Enter") void commit()
                 }}
-                className="mt-3 w-full rounded-md border bg-[var(--text-control-background)] px-3 py-2 text-body-small text-foreground placeholder:text-[var(--text-control-placeholder-foreground)] focus:border-[var(--text-control-border-focused)] focus:outline-none"
+                className="mt-3 w-full rounded-md border bg-[var(--text-control-background)] px-3 py-2 text-body-small text-foreground placeholder:text-[var(--text-control-placeholder-foreground)] focus:border-[var(--line)] focus:outline-none"
               />
 
               {available > 0 && (
@@ -109,7 +110,7 @@ export function SaveTemplateDialog({ mapId, rootId, onClose }: SaveTemplateDialo
                         className={cn(
                           "h-8 min-w-[42px] rounded-md border px-2 text-body-small tabular-nums transition-colors",
                           level === levels
-                            ? "border-transparent bg-primary text-primary-foreground"
+                            ? "border-transparent bg-solid text-solid-fg"
                             : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                         )}
                       >
@@ -123,22 +124,16 @@ export function SaveTemplateDialog({ mapId, rootId, onClose }: SaveTemplateDialo
           )}
 
           <div className="mt-5 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md bg-secondary px-3 py-1.5 text-body-small font-medium text-secondary-foreground transition-colors hover:brightness-95"
-            >
+            <Button variant="ghost" onClick={onClose}>
               {nothingStyled ? t("Common", "Close") : mm("Cancel")}
-            </button>
+            </Button>
             {!nothingStyled && (
-              <button
-                type="button"
+              <Button
                 disabled={!canSave}
                 onClick={() => void commit()}
-                className="rounded-md bg-primary px-3 py-1.5 text-body-small font-medium text-primary-foreground transition-colors hover:brightness-95 disabled:pointer-events-none disabled:opacity-40"
               >
                 {mm("Save")}
-              </button>
+              </Button>
             )}
           </div>
         </Dialog.Content>

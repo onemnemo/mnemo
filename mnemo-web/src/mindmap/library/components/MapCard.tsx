@@ -89,7 +89,7 @@ export function DueBadge({ due, className }: { due: number; className?: string }
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full bg-accent-wash px-2 py-0.5 text-[11px] font-medium text-accent-ink",
+        "inline-flex items-center gap-1.5 rounded-full bg-state-due-wash px-2 py-0.5 text-[11px] font-medium text-state-due",
         className,
       )}
     >

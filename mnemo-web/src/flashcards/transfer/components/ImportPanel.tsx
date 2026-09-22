@@ -143,7 +143,7 @@ export function ImportPanel({
               type="button"
               disabled={locked}
               onClick={pick}
-              className="h-8 w-full rounded-md border border-dashed border-line text-body-extra-small text-text-tertiary transition-colors hover:border-brand hover:text-text-secondary disabled:opacity-50"
+              className="h-8 w-full rounded-md border border-dashed border-line text-body-extra-small text-text-tertiary transition-colors hover:border-ink-3 hover:text-text-secondary disabled:opacity-50"
             >
               {common("TransferAddAnotherFile")}
             </button>
@@ -220,7 +220,7 @@ function Dropzone({
   const common = (key: string) => t("Common", key)
 
   return (
-    <div className="group flex flex-col items-center gap-2 rounded-lg border border-dashed border-line px-6 py-7 text-center transition-colors hover:border-brand">
+    <div className="group flex flex-col items-center gap-2 rounded-lg border border-dashed border-line px-6 py-7 text-center transition-colors hover:border-ink-3">
       <div className="grid size-10 place-items-center rounded-lg bg-surface-subtle text-text-tertiary">
         <AppIcon name="common/download" size={18} />
       </div>
@@ -230,7 +230,7 @@ function Dropzone({
           type="button"
           disabled={disabled}
           onClick={onBrowse}
-          className="text-brand underline-offset-2 hover:underline disabled:opacity-50"
+          className="text-ink underline underline-offset-2 disabled:opacity-50"
         >
           {common("TransferBrowse")}
         </button>
@@ -273,7 +273,7 @@ function FileRow({
           "grid size-[30px] shrink-0 place-items-center rounded-md",
           rejected
             ? "bg-[var(--toast-icon-badge-warning)] text-[var(--toast-accent-warning)]"
-            : "bg-brand-subtle text-brand",
+            : "bg-canvas-sunken text-ink-icon",
           // A row still going up reads as in-progress, so removing one is a deliberate act rather
           // than something that looks identical to cancelling a finished upload.
           uploading && "animate-pulse",

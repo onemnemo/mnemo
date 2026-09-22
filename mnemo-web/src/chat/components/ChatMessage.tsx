@@ -289,7 +289,7 @@ function MessageAction({
       aria-pressed={active}
       className={cn(
         "grid size-7 place-items-center rounded-md transition-colors hover:bg-frame-hover",
-        active ? "text-accent-ink" : "text-ink-3 hover:text-ink",
+        active ? "text-ink" : "text-ink-3 hover:text-ink",
       )}
     >
       <AppIcon name={icon} size={14} />

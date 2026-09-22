@@ -254,7 +254,7 @@ function ActionRow({
           title={rebindable ? t(NS, "keybindManager.editShortcut") : t(NS, "keybindManager.editorScopeLocked")}
           className={cn(
             "flex h-8 items-center rounded-lg px-1.5 transition-colors disabled:opacity-45",
-            recording ? "bg-accent-wash" : "hover:bg-frame-hover",
+            recording ? "bg-frame-active" : "hover:bg-frame-hover",
             !rebindable && "hover:bg-transparent",
           )}
           style={{ transitionDuration: "var(--duration-fast)" }}
@@ -264,7 +264,7 @@ function ActionRow({
               {t("Settings", "KeyboardReservedFormat", { 0: formatChord(refused) })}
             </span>
           ) : recording ? (
-            <span className="px-1 text-[12.5px] font-medium text-accent-ink">
+            <span className="px-1 text-[12.5px] font-medium text-ink">
               {t(NS, "keybindManager.editorPressShortcut")}
             </span>
           ) : (

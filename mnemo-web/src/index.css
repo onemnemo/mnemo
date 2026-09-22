@@ -16,9 +16,8 @@
  * (font-sans, rounded-lg, text-heading-1, shadow-elevation-2) and var(--...),
  * and colors re-resolve when [data-theme] changes.
  *
- * One color reconciliation: Mnemo's `accent` is the brand color, but shadcn's
- * `accent` is a subtle hover surface. So brand -> --color-primary/--color-brand,
- * and shadcn's accent -> a quiet Mnemo hover surface.
+ * Mnemo's accent is reserved for brand and semantic emphasis. Shared controls
+ * use the solid and frame tokens instead.
  */
 @theme inline {
     --font-sans: var(--font-sans);
@@ -61,8 +60,6 @@
     --color-popover: var(--overlay-background);
     --color-popover-foreground: var(--text-primary);
 
-    --color-primary: var(--accent);
-    --color-primary-foreground: var(--accent-button-text);
     --color-secondary: var(--secondary-button-background);
     --color-secondary-foreground: var(--secondary-button-text-color);
 
@@ -86,8 +83,6 @@
 
     --color-sidebar: var(--sidebar-background);
     --color-sidebar-foreground: var(--text-secondary);
-    --color-sidebar-primary: var(--accent);
-    --color-sidebar-primary-foreground: var(--accent-button-text);
     --color-sidebar-accent: var(--nav-button-hover);
     --color-sidebar-accent-foreground: var(--text-primary);
     --color-sidebar-border: var(--sidebar-border);
@@ -96,8 +91,6 @@
     /* Curated Mnemo semantic utilities (brand + surfaces + text ramp + lines).
        The full palette is always available via var(--token); more get promoted
        to utilities as needed. */
-    --color-brand: var(--accent);
-    --color-brand-subtle: var(--accent-subtle-background);
     --color-surface: var(--workspace-background);
     --color-surface-subtle: var(--surface-subtle);
     --color-sidebar-surface: var(--sidebar-background);
@@ -108,7 +101,6 @@
     --color-text-disabled: var(--text-disabled);
     --color-line: var(--line-color);
     --color-divider-subtle: var(--divider-subtle);
-    --color-links: var(--links);
 
     /* ---- Rehaul utilities ----
        The vocabulary ported UI is written against. Everything above this point is the
@@ -398,7 +390,7 @@
 .chat-prose ol { list-style: decimal; }
 .chat-prose li { margin: 0.25em 0; }
 .chat-prose li > ul, .chat-prose li > ol { margin: 0.25em 0; }
-.chat-prose a { color: var(--links); text-decoration: underline; text-underline-offset: 2px; }
+.chat-prose a { color: var(--text-color-swatch-3); text-decoration: underline; text-underline-offset: 2px; }
 .chat-prose strong { font-weight: 600; }
 .chat-prose em { font-style: italic; }
 .chat-prose u { text-decoration: underline; text-underline-offset: 2px; }

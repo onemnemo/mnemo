@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
 import { AppIcon } from "@/components/icon/AppIcon"
+import { SomaMark } from "@/chat/components/SomaMark"
 import { PaletteRow } from "@/components/shell/palette/PaletteRow"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
@@ -276,8 +277,8 @@ function AskSomaRow({
         )}
         style={{ transitionDuration: "var(--duration-fast)" }}
       >
-        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent-wash">
-          <AppIcon name="orbit" size={14} strokeWidth={1.8} className="text-accent-ink" />
+        <span className="grid size-6 shrink-0 place-items-center rounded-md">
+          <SomaMark size={18} />
         </span>
         <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">
           {t("GlobalSearch", "AskSoma")} <span className="font-medium">{query}</span>

@@ -1,6 +1,7 @@
 import { Dialog } from "radix-ui"
 import { useEffect, useRef, useState } from "react"
 
+import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
@@ -86,7 +87,7 @@ export function CreateMapDialog({ open, busy, onCancel, onCreate }: CreateMapDia
             onKeyDown={(event) => {
               if (event.key === "Enter") commit()
             }}
-            className="mt-3 w-full rounded-md border bg-[var(--text-control-background)] px-3 py-2 text-body-small text-foreground placeholder:text-[var(--text-control-placeholder-foreground)] focus:border-[var(--text-control-border-focused)] focus:outline-none"
+            className="mt-3 w-full rounded-md border bg-[var(--text-control-background)] px-3 py-2 text-body-small text-foreground placeholder:text-[var(--text-control-placeholder-foreground)] focus:border-[var(--line)] focus:outline-none"
           />
 
           {templates.length > 0 && (
@@ -100,8 +101,10 @@ export function CreateMapDialog({ open, busy, onCancel, onCreate }: CreateMapDia
                     aria-pressed={template.id === chosen}
                     onClick={() => setTemplateId(template.id)}
                     className={cn(
-                      "flex flex-col items-center gap-2.5 rounded-lg border-[1.5px] bg-secondary/60 p-2.5 transition-colors",
-                      template.id === chosen ? "border-primary" : "border-transparent hover:border-border",
+                      "flex flex-col items-center gap-2.5 rounded-lg border-[1.5px] border-transparent bg-secondary/60 p-2.5 transition-colors",
+                      template.id === chosen
+                        ? "shadow-[0_0_0_1.5px_var(--solid)]"
+                        : "hover:border-line",
                     )}
                   >
                     <span className="flex gap-[5px]">
@@ -123,21 +126,15 @@ export function CreateMapDialog({ open, busy, onCancel, onCreate }: CreateMapDia
           )}
 
           <div className="mt-5 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-md bg-secondary px-3 py-1.5 text-body-small font-medium text-secondary-foreground transition-colors hover:brightness-95"
-            >
+            <Button variant="ghost" onClick={onCancel}>
               {mm("Cancel")}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
               disabled={!canCreate}
               onClick={commit}
-              className="rounded-md bg-primary px-3 py-1.5 text-body-small font-medium text-primary-foreground transition-colors hover:brightness-95 disabled:pointer-events-none disabled:opacity-40"
             >
               {mm("Create")}
-            </button>
+            </Button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

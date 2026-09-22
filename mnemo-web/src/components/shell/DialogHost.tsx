@@ -1,7 +1,7 @@
 import { Dialog } from "radix-ui"
 import { useEffect, useState } from "react"
 
-import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import { useDialogStore } from "@/stores/dialog"
 
 import { getTopLayer } from "./top-layer"
@@ -53,29 +53,21 @@ export function DialogHost() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") accept()
                   }}
-                  className="mt-3 w-full rounded-md border bg-[var(--text-control-background)] px-3 py-2 text-body-small text-foreground placeholder:text-[var(--text-control-placeholder-foreground)] focus:border-[var(--text-control-border-focused)] focus:outline-none"
+                  className="mt-3 w-full rounded-md border bg-[var(--text-control-background)] px-3 py-2 text-body-small text-foreground placeholder:text-[var(--text-control-placeholder-foreground)] focus:border-[var(--line)] focus:outline-none"
                 />
               )}
 
               <div className="mt-5 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={cancel}
-                  className="rounded-md bg-secondary px-3 py-1.5 text-body-small font-medium text-secondary-foreground transition-colors hover:brightness-95"
-                >
+                <Button variant="ghost" onClick={cancel}>
                   {request.cancelLabel}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant={request.kind === "confirm" && request.destructive ? "danger" : "solid"}
                   autoFocus={request.kind === "confirm"}
                   onClick={accept}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-body-small font-medium text-primary-foreground transition-colors hover:brightness-95",
-                    request.kind === "confirm" && request.destructive ? "bg-destructive" : "bg-primary",
-                  )}
                 >
                   {request.confirmLabel}
-                </button>
+                </Button>
               </div>
             </>
           )}

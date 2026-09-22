@@ -53,7 +53,7 @@ export function LibraryHeader({
     <header className="flex items-center justify-between gap-4">
       <div className="flex min-w-0 items-center gap-3">
         {folder ? (
-          <div className="grid size-[38px] shrink-0 place-items-center rounded-lg bg-canvas-sunken text-accent">
+          <div className="grid size-[38px] shrink-0 place-items-center rounded-lg bg-canvas-sunken text-ink-icon">
             <AppIcon name="common/folder" size={19} />
           </div>
         ) : null}

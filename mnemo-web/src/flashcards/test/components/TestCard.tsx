@@ -105,11 +105,11 @@ export function TestCard({
           className={cn(
             "w-full resize-none rounded-xl bg-transparent px-3.5 py-3",
             "text-[14.5px] leading-[1.6] text-ink placeholder:text-ink-3",
-            "shadow-[0_0_0_1px_var(--line)] focus:shadow-[0_0_0_1.5px_var(--accent)] focus:outline-none",
+            "shadow-[0_0_0_1px_var(--line)] focus:shadow-[0_0_0_1.5px_var(--solid)] focus:outline-none",
           )}
         />
       ) : answer.trim() ? (
-        <p className="rounded-xl bg-accent-wash px-3.5 py-3 text-[14.5px] leading-[1.6] whitespace-pre-wrap text-ink shadow-[0_0_0_1px_var(--line-soft)] dark:bg-accent-wash/40">
+        <p className="rounded-xl bg-canvas-sunken px-3.5 py-3 text-[14.5px] leading-[1.6] whitespace-pre-wrap text-ink shadow-[0_0_0_1px_var(--line-soft)]">
           {answer}
         </p>
       ) : (

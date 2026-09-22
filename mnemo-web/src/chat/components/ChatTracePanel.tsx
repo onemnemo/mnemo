@@ -175,7 +175,7 @@ function StepRow({ step, last }: { step: ChatProcessStep; last: boolean }) {
       >
         <span className={cn("text-[12.5px]", step.isComplete ? "text-ink-2" : "text-ink")}>{step.label}</span>
         {step.detail ? (
-          <span className="truncate rounded bg-accent-wash px-1.5 py-0.5 font-mono text-[11px] text-accent-ink">
+          <span className="truncate rounded bg-canvas-sunken px-1.5 py-0.5 font-mono text-[11px] text-ink-2">
             {step.detail}
           </span>
         ) : null}

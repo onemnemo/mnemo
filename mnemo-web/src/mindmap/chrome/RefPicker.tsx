@@ -89,7 +89,7 @@ export function RefPicker({ target, onPick, onClose }: RefPickerProps) {
                 onPick(shown[0].id)
               }
             }}
-            className="mt-3 w-full rounded-md border bg-[var(--text-control-background)] px-3 py-2 text-body-small text-foreground placeholder:text-[var(--text-control-placeholder-foreground)] focus:border-[var(--text-control-border-focused)] focus:outline-none"
+            className="mt-3 w-full rounded-md border bg-[var(--text-control-background)] px-3 py-2 text-body-small text-foreground placeholder:text-[var(--text-control-placeholder-foreground)] focus:border-[var(--line)] focus:outline-none"
           />
 
           <div className="mt-3 min-h-0 flex-1 overflow-y-auto">

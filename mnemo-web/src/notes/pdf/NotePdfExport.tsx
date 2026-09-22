@@ -213,7 +213,7 @@ export function NotePdfExport({ target, onClose }: { target: NotePdfTarget; onCl
       footer={
         <>
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            <label className="flex h-9 w-[224px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 shadow-[0_0_0_1px_var(--line)] focus-within:shadow-[0_0_0_1.5px_var(--accent)]">
+            <label className="flex h-9 w-[224px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 shadow-[0_0_0_1px_var(--line)] focus-within:shadow-[0_0_0_1.5px_var(--solid)]">
               <AppIcon name="common/file-text" size={14} className="shrink-0 text-ink-icon" />
               <input
                 value={stem}

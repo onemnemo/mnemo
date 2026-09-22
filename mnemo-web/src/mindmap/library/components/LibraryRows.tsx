@@ -66,7 +66,7 @@ export function FolderRow({
           onClick={() => onOpen(folder.id)}
           className={cn(ROW_CLASS, over && "shadow-[0_0_0_2px_var(--accent)]")}
         >
-          <span className="grid size-[34px] shrink-0 place-items-center rounded-lg bg-canvas-sunken text-accent">
+          <span className="grid size-[34px] shrink-0 place-items-center rounded-lg bg-canvas-sunken text-ink-icon">
             <AppIcon name="common/folder" size={17} />
           </span>
           <span className="min-w-0 flex-1">

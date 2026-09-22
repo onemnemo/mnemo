@@ -46,16 +46,16 @@ export function MindmapExportPanel({
                   "relative flex min-w-0 flex-col items-start gap-1 rounded-xl p-2.5 text-left transition-shadow",
                   "disabled:pointer-events-none disabled:opacity-50",
                   isSelected
-                    ? "bg-accent-wash shadow-[0_0_0_1.5px_var(--accent)]"
+                    ? "shadow-[0_0_0_1.5px_var(--solid)]"
                     : "shadow-[0_0_0_1px_var(--line-soft)] hover:shadow-[0_0_0_1px_var(--line)]",
                 )}
               >
-                <span className={cn("font-mono text-[10.5px]", isSelected ? "text-accent" : "text-ink-3")}>
+                <span className={cn("font-mono text-[10.5px]", isSelected ? "text-ink" : "text-ink-3")}>
                   {format.extensions[0] ?? ""}
                 </span>
                 <span className="truncate text-[12.5px] font-semibold text-ink">{format.displayName}</span>
                 {isSelected ? (
-                  <AppIcon name="common/check-circle" size={15} className="absolute right-2 top-2 text-accent" />
+                  <AppIcon name="common/check-circle" size={15} className="absolute right-2 top-2 text-ink" />
                 ) : null}
               </button>
             )

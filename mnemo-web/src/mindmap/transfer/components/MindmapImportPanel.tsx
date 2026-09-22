@@ -203,7 +203,7 @@ function Dropzone({
           type="button"
           disabled={disabled}
           onClick={onBrowse}
-          className="text-accent underline-offset-2 hover:underline disabled:opacity-50"
+          className="text-ink underline underline-offset-2 disabled:opacity-50"
         >
           {common("TransferBrowse")}
         </button>
@@ -241,7 +241,7 @@ function FileRow({
       <div
         className={cn(
           "grid size-[30px] shrink-0 place-items-center rounded-md",
-          rejected ? "bg-danger-wash text-danger" : "bg-accent-wash text-accent",
+          rejected ? "bg-danger-wash text-danger" : "bg-canvas-sunken text-ink-icon",
           uploading && "animate-pulse",
         )}
       >

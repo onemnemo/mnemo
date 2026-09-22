@@ -339,7 +339,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
               <AppIcon
                 name={importing ? "common/download" : "common/upload"}
                 size={16}
-                className="shrink-0 text-brand"
+                className="shrink-0 text-ink-icon"
               />
             )}
             <div className="min-w-0 flex-1 space-y-0.5">

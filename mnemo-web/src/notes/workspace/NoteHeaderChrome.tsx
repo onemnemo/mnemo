@@ -365,7 +365,7 @@ export function CoverPicker({
                 style={{ background: cover.css }}
                 className={
                   'h-12 rounded-lg transition-transform hover:scale-[1.03]' +
-                  (cover.token === token ? ' ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--canvas)]' : '')
+                  (cover.token === token ? ' ring-2 ring-[var(--solid)] ring-offset-2 ring-offset-[var(--canvas)]' : '')
                 }
               />
             ))}

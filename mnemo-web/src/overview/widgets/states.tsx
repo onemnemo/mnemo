@@ -53,7 +53,7 @@ export function WidgetError({ onRetry }: { onRetry: () => void }) {
       <button
         type="button"
         onClick={onRetry}
-        className="rounded-sm text-caption text-brand underline-offset-2 hover:underline"
+        className="rounded-sm text-caption text-ink underline underline-offset-2"
       >
         {t("Overview", "Retry")}
       </button>

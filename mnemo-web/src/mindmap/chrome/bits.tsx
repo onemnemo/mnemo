@@ -83,7 +83,7 @@ export function Slot({
           wide ? "min-w-[46px] px-1.5 text-[11.5px] font-medium tabular-nums" : "w-7",
           menu && "relative",
           disabled && "pointer-events-none opacity-35",
-          active ? "bg-accent-wash text-accent-ink" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
+          active ? "bg-frame-active text-ink" : "text-ink-2 hover:bg-frame-hover hover:text-ink",
         )}
       >
         {children}
