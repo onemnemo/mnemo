@@ -64,6 +64,13 @@ If you read nothing else, read these.
 - Report what you actually ran and what it produced. If something is skipped or failing, say
   so plainly.
 
+## Code navigation
+
+For work across feature layers, run `node scripts/code-map.mjs --list`, then
+`node scripts/code-map.mjs <area> --topic <literal>` before broad source searches. The map
+returns bounded paths from the current checkout. Read the source before making correctness or
+absence claims. Run `node scripts/code-map.mjs --check` after changing the map.
+
 ## Verification
 
 From `mnemo-web`:
