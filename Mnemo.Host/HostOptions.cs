@@ -5,8 +5,10 @@ namespace Mnemo.Host;
 /// (default http://localhost:5173/) and binds the API to a fixed dev port so the
 /// Vite proxy has a stable target across host restarts; without it the host serves
 /// the built SPA itself on the port <see cref="Startup.LoopbackPort"/> resolves.
+/// <c>MNEMO_DEVTOOLS=1</c> opens the web inspector on a packaged build, which is the
+/// only way to look inside WebKit on a machine that has no dev server.
 /// </summary>
-public sealed record HostOptions(bool DevMode, string DevServerUrl, int DevApiPort, string? SpaRootOverride)
+public sealed record HostOptions(bool DevMode, string DevServerUrl, int DevApiPort, string? SpaRootOverride, bool DevTools)
 {
     public const int DefaultDevApiPort = 47210;
 
@@ -29,6 +31,8 @@ public sealed record HostOptions(bool DevMode, string DevServerUrl, int DevApiPo
         if (!string.IsNullOrWhiteSpace(portVariable) && int.TryParse(portVariable, out var parsedPort))
             devApiPort = parsedPort;
 
-        return new HostOptions(devMode, devServerUrl, devApiPort, Environment.GetEnvironmentVariable("MNEMO_SPA_ROOT"));
+        var devTools = devMode || Environment.GetEnvironmentVariable("MNEMO_DEVTOOLS") == "1";
+
+        return new HostOptions(devMode, devServerUrl, devApiPort, Environment.GetEnvironmentVariable("MNEMO_SPA_ROOT"), devTools);
     }
 }

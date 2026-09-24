@@ -456,7 +456,7 @@ public static class Program
             .SetUseOsDefaultSize(false)
             .SetSize(bounds.Width, bounds.Height)
             .SetMinSize(bounds.MinWidth, bounds.MinHeight)
-            .SetDevToolsEnabled(options.DevMode)
+            .SetDevToolsEnabled(options.DevTools)
             // WebView2 otherwise shows a status bubble with the destination URL
             // whenever a link is hovered. The shell is a window, not a browser, and
             // the routes behind it are not something to read off the bottom edge.
@@ -473,6 +473,33 @@ public static class Program
         }
 
         WindowChrome.Configure(window, logger);
+        if (OperatingSystem.IsMacOS())
+        {
+            MacWindow.Attach(window, options.DevTools, logger);
+
+            // Cmd+Q, the Dock's Quit and logout all arrive as terminate:, which PhotinoX
+            // raises here and, left unanswered, follows with a forced shutdown that skips
+            // the closing handler and the save it waits for. Turned into a window close
+            // instead, so every way out of the app goes through the same gate. Only the
+            // first request closes: a held Cmd+Q repeats, and a repeat reaching the window
+            // would read as the impatient second close that skips the save.
+            var gate = server.App.Services.GetRequiredService<ShutdownGate>();
+            app.RegisterShutdownRequestedHandler((_, e) =>
+            {
+                e.Cancel = true;
+                if (gate.IsDraining)
+                    return;
+
+                try
+                {
+                    window.Close();
+                }
+                catch (InvalidOperationException)
+                {
+                    // Already closed: the shutdown this answered is under way.
+                }
+            });
+        }
         AttachShutdownGate(window, server.App.Services);
         ExitSignals.Attach(window, logger);
         server.App.Services.GetRequiredService<NativeFileDialogs>().Attach(window);

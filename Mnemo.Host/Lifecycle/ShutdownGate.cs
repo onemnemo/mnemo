@@ -86,6 +86,21 @@ public sealed class ShutdownGate
     }
 
     /// <summary>
+    /// Whether a drain is under way, for a caller that must not count as the second
+    /// close request that would cut it short.
+    /// </summary>
+    public bool IsDraining
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _draining;
+            }
+        }
+    }
+
+    /// <summary>
     /// Reports that there is a person to ask or work to write, so the grace period
     /// should stop counting. Ignored once a verdict has been given.
     /// </summary>

@@ -34,6 +34,21 @@ public sealed class ShutdownGateTests
     }
 
     [Fact]
+    public void ReportsADrainWithoutClaimingOne()
+    {
+        var gate = new ShutdownGate();
+        Assert.False(gate.IsDraining);
+
+        gate.TryBeginDrain();
+        Assert.True(gate.IsDraining);
+
+        // Asking does not spend the drain: a close after a cancel is still held.
+        gate.Reset();
+        Assert.False(gate.IsDraining);
+        Assert.True(gate.TryBeginDrain());
+    }
+
+    [Fact]
     public async Task WaitingEndsWhenTheClientReportsReady()
     {
         var gate = new ShutdownGate();
