@@ -192,7 +192,8 @@ describe("the wheel", () => {
 /** A pointer event jsdom will carry a button and a pointer id on. */
 function pointer(type: string, init: PointerEventInit = {}): Event {
   const event = new Event(type, { bubbles: true, cancelable: true })
-  Object.assign(event, { pointerId: 1, button: 0, movementX: 0, movementY: 0, ...init })
+  // movementX stays zero, as WebKit reports it on pointer events; the travel is in the client position.
+  Object.assign(event, { pointerId: 1, button: 0, clientX: 0, clientY: 0, movementX: 0, movementY: 0, ...init })
   return event
 }
 
@@ -205,9 +206,22 @@ describe("panning the map", () => {
 
   const dragBy = (pane: HTMLElement, down: PointerEventInit, dx: number, dy: number) => {
     pane.dispatchEvent(pointer("pointerdown", down))
-    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, movementX: dx, movementY: dy }))
+    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, clientX: dx, clientY: dy }))
     pane.dispatchEvent(pointer("pointerup", { pointerId: 1 }))
   }
+
+  it("follows the pointer across several moves", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE)
+    stubCapture(pane)
+
+    pane.dispatchEvent(pointer("pointerdown", { button: 1, clientX: 100, clientY: 100 }))
+    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, clientX: 110, clientY: 105 }))
+    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, clientX: 130, clientY: 100 }))
+    pane.dispatchEvent(pointer("pointerup", { pointerId: 1 }))
+
+    expect(runtime.viewport()).toEqual({ x: -30, y: 0, zoom: 1 })
+    dispose()
+  })
 
   it("follows a middle button drag", () => {
     const { runtime, pane, dispose } = mount(EMPTY_SCENE)
@@ -288,7 +302,7 @@ describe("panning the map", () => {
     // The edge-label editor lives outside any node, so without the field guard this press would
     // read as the modifier over empty canvas and pan instead of placing the caret.
     field.dispatchEvent(pointer("pointerdown", { button: 0, ctrlKey: true }))
-    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, movementX: 25, movementY: 25 }))
+    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, clientX: 25, clientY: 25 }))
 
     expect(runtime.viewport()).toEqual({ x: 0, y: 0, zoom: 1 })
     dispose()
@@ -335,7 +349,7 @@ describe("panning the map", () => {
     pane.append(node)
 
     node.dispatchEvent(pointer("pointerdown", { button: 0, ctrlKey: true }))
-    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, movementX: 30, movementY: 30 }))
+    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, clientX: 30, clientY: 30 }))
 
     expect(runtime.viewport()).toEqual({ x: 0, y: 0, zoom: 1 })
     dispose()

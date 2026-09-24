@@ -326,6 +326,9 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
 
   let panning = false
   let panPointer = -1
+  // The travel is read off the client position rather than `movementX`, which WebKit reports as
+  // zero on pointer events: the pan took its capture and its cursor and then never moved.
+  let panLast = { x: 0, y: 0 }
   let spaceHeld = false
 
   const onWheel = (event: WheelEvent): void => {
@@ -353,6 +356,7 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
   const beginPan = (event: PointerEvent): void => {
     panning = true
     panPointer = event.pointerId
+    panLast = { x: event.clientX, y: event.clientY }
     elements.pane.setPointerCapture(event.pointerId)
     elements.pane.style.cursor = "grabbing"
     event.preventDefault()
@@ -449,7 +453,8 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
     if (!panning || event.pointerId !== panPointer) {
       return
     }
-    viewport = panBy(viewport, event.movementX, event.movementY)
+    viewport = panBy(viewport, event.clientX - panLast.x, event.clientY - panLast.y)
+    panLast = { x: event.clientX, y: event.clientY }
     applyCamera()
   }
 
