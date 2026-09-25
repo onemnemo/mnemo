@@ -147,3 +147,37 @@ describe("a label being typed into", () => {
     expect(host("a").style.display).toBe("none")
   })
 })
+
+describe("double clicking an edge", () => {
+  it("calls onActivateEdge, an edge having no DOM of its own to hit", () => {
+    const scene: Scene = {
+      id: "edge-scene",
+      elements: [node("p", { x: 0, y: 0 }), node("q", { x: 300, y: 0, isRoot: false, branch: 0, depth: 1 })],
+      edges: [{ id: "p-q", fromId: "p", toId: "q", kind: "hierarchy", routing: "straight" }],
+      background: "plain",
+    }
+    const activatedEdges: string[] = []
+
+    act(() => {
+      root.render(
+        <StrictMode>
+          <MindmapCanvas scene={scene} runtimeRef={runtime} onActivateEdge={(id) => activatedEdges.push(id)} />
+        </StrictMode>,
+      )
+    })
+
+    const pane = container.firstElementChild as HTMLElement
+    Object.defineProperty(pane, "clientWidth", { value: 800, configurable: true })
+    Object.defineProperty(pane, "clientHeight", { value: 600, configurable: true })
+    act(() => {
+      runtime.current!.setViewport({ x: 0, y: 0, zoom: 1 })
+    })
+
+    // Both boxes are 40 tall at y = 0, so the straight edge runs at y = 20 between x = 100 and 300.
+    act(() => {
+      pane.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 200, clientY: 20 }))
+    })
+
+    expect(activatedEdges).toEqual(["p-q"])
+  })
+})

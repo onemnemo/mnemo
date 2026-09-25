@@ -20,6 +20,7 @@ import {
 } from "../api"
 import { IMAGE_ACCEPT, imageFilesOf, measureImageFile, uploadMindmapImage } from "../assets"
 import { cameraSignal } from "../canvas/camera-signal"
+import { bandForZoom } from "../canvas/lod"
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
 import { ExportMenu } from "../chrome/ExportMenu"
@@ -1431,8 +1432,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         case "mindmap.edit-edge-label":
           event.preventDefault()
           // A selected edge is what the label belongs to; with a node selected it is the node's own
-          // text, since that is the label in front of whoever pressed the key.
-          if (selection.primary?.kind === "edge") {
+          // text. Below the label threshold the pill is display: none, so an editor opened there
+          // could never blur.
+          if (selection.primary?.kind === "edge" && bandForZoom(zoom) !== "bare") {
             setEditingEdge(selection.primary.id)
           } else if (primary) {
             beginEdit(primary)
@@ -1532,6 +1534,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       scene,
       selection,
       tool,
+      zoom,
     ],
   )
 
@@ -1671,6 +1674,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           onCommitLine={commitLine}
           onDraw={(drawn, line) => void draw(drawn, line)}
           onActivate={activate}
+          onActivateEdge={setEditingEdge}
           onChrome={pressChrome}
           editingId={editing}
           onEditEnd={endEdit}

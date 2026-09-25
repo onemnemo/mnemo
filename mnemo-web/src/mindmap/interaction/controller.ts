@@ -12,6 +12,7 @@
  */
 
 import { planDrag, positionAt, type DragPlan } from "../canvas/drag-plan"
+import { bandForZoom } from "../canvas/lod"
 import { panModifier } from "../canvas/pan-gesture"
 import { isEditableTarget } from "@/keybinds/chord"
 import type { SceneIndex } from "../canvas/scene-index"
@@ -96,6 +97,8 @@ export interface InteractionHandlers {
   commitMove(moves: readonly MovedElement[]): void
   /** A double click, which is how a label asks to be edited. */
   activate(id: string): void
+  /** A double click on an edge or its label pill, which is how an edge label asks to be edited. */
+  activateEdge(id: string): void
   /** An armed creation tool was used on empty canvas. */
   plant(tool: MindmapTool, at: Point): void
   /** A sweep with the frame tool armed. Never called with nothing caught. */
@@ -274,6 +277,11 @@ export function installInteraction(
       point,
       tolerance: EDGE_HIT_PIXELS / surface.zoom(),
     })
+
+  // The label pill has its own DOM, so it is found by target rather than geometrically.
+  const edgeLabelAt = (target: EventTarget | null): string | null =>
+    (target as HTMLElement | null)?.closest?.<HTMLElement>("[data-mm-edge-label]")?.dataset.mmEdgeLabel ??
+    null
 
   // The open label editor's mount. An equation or a fraction atom inside it is a span that is not
   // editable, so a press on one is not an editable target, and it would otherwise start a drag of
@@ -732,10 +740,41 @@ export function installInteraction(
   }
 
   const onDoubleClick = (event: MouseEvent): void => {
+    // A double click inside an open field, the label included, belongs to the caret.
+    if (isEditableTarget(event.target)) {
+      return
+    }
+
     const elementId = elementAt(event.target)
     if (elementId) {
       event.preventDefault()
       handlers.activate(elementId)
+      return
+    }
+
+    // Other tools already claimed the press under this double click.
+    if (handlers.tool() !== "select") {
+      return
+    }
+
+    // Below the label threshold the pill and its field are display: none, see mindmap-lod.css.
+    // Opening one there would set editingEdge on a field nobody can see, focus, or blur.
+    if (bandForZoom(surface.zoom()) === "bare") {
+      return
+    }
+
+    // Node first, then the label pill, then the edge found geometrically as a press finds it.
+    const labelId = edgeLabelAt(event.target)
+    if (labelId) {
+      event.preventDefault()
+      handlers.activateEdge(labelId)
+      return
+    }
+
+    const edgeId = edgeAt(surface.toCanvas(event.clientX, event.clientY))
+    if (edgeId) {
+      event.preventDefault()
+      handlers.activateEdge(edgeId)
     }
   }
 

@@ -42,6 +42,8 @@ export interface MindmapCanvasProps {
   onCommitResize?: (id: string, box: ResizeBox) => void
   /** A double click, which is how a label asks to be edited. */
   onActivate?: (id: string) => void
+  /** A double click on an edge or its label pill, which is how an edge label asks to be edited. */
+  onActivateEdge?: (id: string) => void
   /** The node whose label is currently a field. */
   editingId?: string | null
   /** The field closed: its runs or its text, or null when the edit was abandoned. Any promise it returns is the write. */
@@ -96,6 +98,7 @@ export function MindmapCanvas({
   onCommitMove,
   onCommitResize,
   onActivate,
+  onActivateEdge,
   editingId,
   onEditEnd,
   editingEdgeId,
@@ -138,6 +141,7 @@ export function MindmapCanvas({
     onCommitMove,
     onCommitResize,
     onActivate,
+    onActivateEdge,
     subtreeOf,
     tool,
     onPlant,
@@ -158,6 +162,7 @@ export function MindmapCanvas({
     onCommitMove,
     onCommitResize,
     onActivate,
+    onActivateEdge,
     subtreeOf,
     tool,
     onPlant,
@@ -247,6 +252,7 @@ export function MindmapCanvas({
         commitMove: (moves) => live.current.onCommitMove?.(moves),
         commitResize: (id, box) => live.current.onCommitResize?.(id, box),
         activate: (id) => live.current.onActivate?.(id),
+        activateEdge: (id) => live.current.onActivateEdge?.(id),
         plant: (armed, at) => live.current.onPlant?.(armed, at),
         group: (ids) => live.current.onGroup?.(ids),
         connect: (fromId, toId) => live.current.onConnect?.(fromId, toId),

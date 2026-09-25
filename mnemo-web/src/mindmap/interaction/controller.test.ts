@@ -64,7 +64,8 @@ const SUBTREES: Record<string, string[]> = {
   a: ["a1"],
 }
 
-function harness(scene: Scene = SCENE) {
+function harness(scene: Scene = SCENE, options: { zoom?: number } = {}) {
+  const zoomLevel = options.zoom ?? 1
   const pane = document.createElement("div")
   document.body.append(pane)
 
@@ -165,6 +166,7 @@ function harness(scene: Scene = SCENE) {
   const commits: MovedElement[][] = []
   const resizes: { id: string; box: ResizeBox }[] = []
   const activated: string[] = []
+  const activatedEdges: string[] = []
   const planted: { tool: MindmapTool; at: Point }[] = []
   const connected: [string, string][] = []
   const grouped: string[][] = []
@@ -187,7 +189,7 @@ function harness(scene: Scene = SCENE) {
       // the gesture rather than about a projection.
       toCanvas: (x, y) => ({ x, y }),
       toPane: (point) => point,
-      zoom: () => 1,
+      zoom: () => zoomLevel,
       redraw: (moved) => void redraws.push(moved),
       pin: (elements, edges) => void pins.push({ elements, edges }),
       unpin: () => {
@@ -203,6 +205,7 @@ function harness(scene: Scene = SCENE) {
       commitMove: (moves) => void commits.push([...moves]),
       commitResize: (id, box) => void resizes.push({ id, box }),
       activate: (id) => void activated.push(id),
+      activateEdge: (id) => void activatedEdges.push(id),
       plant: (armed, at) => void planted.push({ tool: armed, at }),
       connect: (fromId, toId) => void connected.push([fromId, toId]),
       group: (ids) => void grouped.push([...ids]),
@@ -245,6 +248,7 @@ function harness(scene: Scene = SCENE) {
       armedShape = shape
     },
     activated,
+    activatedEdges,
     planted,
     connected,
     grouped,
@@ -284,6 +288,7 @@ function harness(scene: Scene = SCENE) {
     move: (at: Point, init?: MouseEventInit) => send("pointermove", at, pane, init),
     release: (at: Point, init?: MouseEventInit) => send("pointerup", at, pane, init),
     cancel: (at: Point) => send("pointercancel", at),
+    doubleClick: (at: Point, target: EventTarget = pane) => send("dblclick", at, target),
   }
 }
 
@@ -1083,6 +1088,119 @@ describe("the line tool", () => {
 
     expect(h.drawn).toEqual([])
     expect(h.pane.querySelector("[data-mm-preview]")).toBeNull()
+    h.uninstall()
+  })
+})
+
+/** Two nodes a straight edge apart. */
+function edgeScene(): Scene {
+  return {
+    id: "edges",
+    elements: [element("p", 0, 0), element("q", 300, 0)],
+    edges: [{ id: "p-q", fromId: "p", toId: "q", kind: "hierarchy", routing: "straight" }],
+    background: "dots",
+  }
+}
+
+describe("double clicking", () => {
+  it("activates a node, the same as it always has", () => {
+    const h = harness()
+    h.doubleClick({ x: 210, y: -50 }, h.hosts.get("a")!)
+
+    expect(h.activated).toEqual(["a"])
+    expect(h.activatedEdges).toEqual([])
+    h.uninstall()
+  })
+
+  it("activates an edge found geometrically, with no DOM target of its own", () => {
+    const h = harness(edgeScene())
+    // Both boxes are 40 tall at y = 0, so the straight edge runs at y = 20 between x = 100 and 300.
+    h.doubleClick({ x: 200, y: 20 })
+
+    expect(h.activatedEdges).toEqual(["p-q"])
+    expect(h.activated).toEqual([])
+    h.uninstall()
+  })
+
+  it("activates an edge's label pill", () => {
+    const h = harness(edgeScene())
+    const pill = document.createElement("span")
+    pill.dataset.mmEdgeLabel = "p-q"
+    h.pane.append(pill)
+
+    h.doubleClick({ x: 150, y: 20 }, pill)
+
+    expect(h.activatedEdges).toEqual(["p-q"])
+    expect(h.activated).toEqual([])
+    h.uninstall()
+  })
+
+  it("prefers the node when a double click lands on one near an edge", () => {
+    const h = harness(edgeScene())
+    h.doubleClick({ x: 50, y: 20 }, h.hosts.get("p")!)
+
+    expect(h.activated).toEqual(["p"])
+    expect(h.activatedEdges).toEqual([])
+    h.uninstall()
+  })
+
+  it("does nothing on empty canvas, far from any edge", () => {
+    const h = harness(edgeScene())
+    h.doubleClick({ x: 1000, y: 1000 })
+
+    expect(h.activated).toEqual([])
+    expect(h.activatedEdges).toEqual([])
+    h.uninstall()
+  })
+
+  it("does nothing below the label threshold, where the pill is display: none", () => {
+    // Under LABEL_ZOOM_THRESHOLD (0.15), where the geometric hit alone would still succeed.
+    const h = harness(edgeScene(), { zoom: 0.1 })
+    h.doubleClick({ x: 200, y: 20 })
+
+    expect(h.activatedEdges).toEqual([])
+    h.uninstall()
+  })
+
+  it("still activates an edge just above the label threshold", () => {
+    const h = harness(edgeScene(), { zoom: 0.2 })
+    h.doubleClick({ x: 200, y: 20 })
+
+    expect(h.activatedEdges).toEqual(["p-q"])
+    h.uninstall()
+  })
+
+  it("does nothing on an edge while another tool is armed", () => {
+    const h = harness(edgeScene())
+    h.arm("connect")
+    h.doubleClick({ x: 200, y: 20 })
+
+    expect(h.activatedEdges).toEqual([])
+    h.uninstall()
+  })
+
+  it("does nothing on a label pill while another tool is armed", () => {
+    const h = harness(edgeScene())
+    const pill = document.createElement("span")
+    pill.dataset.mmEdgeLabel = "p-q"
+    h.pane.append(pill)
+    h.arm("shape")
+
+    h.doubleClick({ x: 150, y: 20 }, pill)
+
+    expect(h.activatedEdges).toEqual([])
+    h.uninstall()
+  })
+
+  it("does nothing inside the open label field itself", () => {
+    const h = harness(edgeScene())
+    const field = document.createElement("input")
+    field.dataset.mmEdgeLabel = "p-q"
+    h.pane.append(field)
+
+    h.doubleClick({ x: 150, y: 20 }, field)
+
+    expect(h.activatedEdges).toEqual([])
     h.uninstall()
   })
 })
