@@ -29,13 +29,14 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
     private readonly string _trashDbPath = Path.Combine(Path.GetTempPath(), $"mnemo_host_notes_{Guid.NewGuid():N}.db");
     private readonly WebApplication _app;
     private readonly RecordingCoordinator _transfer = new();
+    private readonly RecordingLogger _logger = new();
     private readonly TrashDatabase _trashDatabase;
     private HttpClient? _client;
     private bool _started;
 
     public NoteTransferImportTests()
     {
-        var logger = new SilentLogger();
+        var logger = _logger;
         _trashDatabase = new TrashDatabase(logger, _trashDbPath);
 
         var builder = WebApplication.CreateBuilder();
@@ -128,6 +129,31 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
         Assert.False(request.Options.ContainsKey(ImportExportOptionKeys.TargetFolderId));
     }
 
+    [Fact]
+    public async Task EveryWarningTheAdapterReports_ReachesTheAppLog()
+    {
+        // The app log keeps the complete, per-note list.
+        _transfer.Warnings =
+        [
+            TransferWarning.Of("NoteImportFailed", ("noteTitle", "a"), ("error", "boom")),
+            TransferWarning.Of("NoteImportFailed", ("noteTitle", "b"), ("error", "boom")),
+        ];
+        var client = await ClientAsync();
+        var uploadId = Stage("Warnings.md");
+
+        var response = await client.PostAsJsonAsync("/api/notes/transfer/import", new
+        {
+            uploadIds = new[] { uploadId },
+            conflictPolicy = "KeepBoth",
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // One log write for the whole import, not one per warning.
+        var logged = Assert.Single(_logger.Entries, entry => entry.Category == "Notes.Transfer");
+        Assert.Contains("noteTitle=a", logged.Message);
+        Assert.Contains("noteTitle=b", logged.Message);
+    }
+
     /// <summary>A staged markdown file, the way the upload route leaves one behind.</summary>
     private static string Stage(string fileName)
     {
@@ -181,6 +207,9 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
     {
         public List<ImportExportRequest> Imports { get; } = [];
 
+        /// <summary>Warnings the next import(s) report back, unset by default.</summary>
+        public List<TransferWarning> Warnings { get; set; } = [];
+
         public IReadOnlyList<ImportExportCapability> GetCapabilities(string? contentType = null) =>
         [
             new ImportExportCapability
@@ -211,6 +240,7 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
                 ContentType = "notes",
                 FormatId = "notes.markdown",
                 ProcessedCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["notes"] = 1 },
+                Warnings = Warnings,
             }));
         }
 
@@ -239,11 +269,13 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
         public Task MigrateAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
-    private sealed class SilentLogger : ILoggerService
+    /// <summary>Keeps every line logged.</summary>
+    private sealed class RecordingLogger : ILoggerService
     {
-        public void Log(LogLevel level, string category, string message, Exception? exception = null)
-        {
-        }
+        public List<(string Category, string Message)> Entries { get; } = [];
+
+        public void Log(LogLevel level, string category, string message, Exception? exception = null) =>
+            Entries.Add((category, message));
     }
 
     private sealed class MemorySettings : ISettingsService

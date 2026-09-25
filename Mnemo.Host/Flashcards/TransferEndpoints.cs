@@ -170,6 +170,7 @@ public static class TransferEndpoints
             TransferImportDto body,
             IImportExportCoordinator transfer,
             IFlashcardLibraryService library,
+            ILoggerService logger,
             CancellationToken cancellationToken) =>
         {
             // Deduplicated first: the same id twice would import once and then report the second
@@ -296,6 +297,9 @@ public static class TransferEndpoints
                 var cardsAfter = await CountCardsAsync(library, cancellationToken).ConfigureAwait(false);
                 importedCards = Math.Max(importedCards, cardsAfter - cardsBefore);
             }
+
+            // The notification groups repeats; the app log keeps the full list.
+            TransferWarningLog.Log(logger, LogCategory, warnings);
 
             return Results.Ok(new TransferImportResultDto(
                 succeeded,

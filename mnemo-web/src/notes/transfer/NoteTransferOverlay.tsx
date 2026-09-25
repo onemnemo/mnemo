@@ -10,9 +10,9 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
 import { Segmented } from "@/flashcards/transfer/components/Segmented"
-import { fileNoteText } from "@/flashcards/transfer/transfer"
 import { useT } from "@/i18n/useT"
 import { isMac } from "@/keybinds/chord"
+import { groupedWarningLines } from "@/lib/transfer-warnings"
 import { notesKey } from "@/notes/api"
 import { toast } from "@/stores/toast"
 
@@ -220,7 +220,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
 
       // Only a .mnemo package ever attaches a post-import warning today, but every import result
       // carries the field, so it is folded in here rather than only on the pre-import file rows.
-      const warningLines = result.warnings.map((warning) => fileNoteText(t, warning))
+      const warningLines = groupedWarningLines(t, result.warnings)
       const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join("\n")
 
       if (result.succeededFiles === 0) {

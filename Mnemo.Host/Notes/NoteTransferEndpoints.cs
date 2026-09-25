@@ -164,6 +164,7 @@ public static class NoteTransferEndpoints
                 NoteTransferImportDto body,
                 IImportExportCoordinator transfer,
                 INoteFolderService folders,
+                ILoggerService logger,
                 CancellationToken cancellationToken) =>
             {
                 // Deduplicated first: the same id twice would import once and then report the second
@@ -284,6 +285,9 @@ public static class NoteTransferEndpoints
                     foreach (var leftover in pending)
                         TransferStagingStore.DeleteUpload(leftover);
                 }
+
+                // The notification groups repeats; the app log keeps the full list.
+                TransferWarningLog.Log(logger, LogCategory, warnings);
 
                 return Results.Ok(new NoteTransferImportResultDto(
                     succeeded,

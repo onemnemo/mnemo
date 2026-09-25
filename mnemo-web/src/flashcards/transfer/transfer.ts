@@ -8,6 +8,7 @@ import type {
   TransferWarningDto,
 } from "@/api/types"
 import type { TranslateFn } from "@/i18n/types"
+import { groupedWarningLines } from "@/lib/transfer-warnings"
 
 // Pure rules behind the transfer dialog: what a file is allowed to be, which formats an export
 // can offer, and how the queue reads. Kept clear of React so the parts that are easy to get
@@ -157,7 +158,7 @@ export function importResultNotice(
   result: TransferImportResultDto,
   importedPhrase: string,
 ): ImportNotice {
-  const warnings = result.warnings.map((warning) => fileNoteText(t, warning))
+  const warnings = groupedWarningLines(t, result.warnings)
   const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join("\n")
 
   if (result.succeededFiles === 0) {

@@ -156,6 +156,7 @@ public static class MindmapTransferEndpoints
         endpoints.MapPost("/api/mindmaps/transfer/import", async (
             MindmapTransferImportDto body,
             IImportExportCoordinator transfer,
+            ILoggerService logger,
             CancellationToken cancellationToken) =>
         {
             // Deduplicated first: the same id twice would import once and then report the second
@@ -259,6 +260,9 @@ public static class MindmapTransferEndpoints
                 foreach (var leftover in pending)
                     TransferStagingStore.DeleteUpload(leftover);
             }
+
+            // The notification groups repeats; the app log keeps the full list.
+            TransferWarningLog.Log(logger, LogCategory, warnings);
 
             return Results.Ok(new MindmapTransferImportResultDto(
                 succeeded,
