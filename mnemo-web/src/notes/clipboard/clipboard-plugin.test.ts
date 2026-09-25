@@ -383,6 +383,19 @@ describe('clipboardPlugin external paste', () => {
     expect(view.state.doc.childCount).toBe(1);
     expect(view.state.doc.child(0).textContent).toBe('Before after');
   });
+
+  it('drops a control character carried in a rich HTML paste', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    const clip = fakeClipboard();
+    clip.setData('text/plain', 'onetwo');
+    clip.setData('text/html', '<h1>one</h1><p><em>t\u0001wo</em></p>');
+
+    expect(firePaste(view, clip)).toBe(true);
+    expect(view.state.doc.textContent).not.toContain('\u0001');
+    expect(view.state.doc.child(0).type.name).toBe('heading');
+  });
 });
 
 describe('clipboardPlugin plain-text markdown paste', () => {
@@ -520,6 +533,60 @@ describe('clipboardPlugin plain-text markdown paste', () => {
     const view = mountFull(docOf(para('start', 's1')));
     view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
     expect(firePaste(view, plainText('   '))).toBe(false);
+  });
+
+  it('drops a control character from pasted plain text, keeping tab and newline', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePaste(view, plainText('one\u0001\ttwo\nthree'))).toBe(true);
+    expect(view.state.doc.textContent).not.toContain('\u0001');
+    expect(view.state.doc.textContent).toContain('\t');
+    expect(blockTypes(view)).toEqual(['paragraph', 'paragraph']);
+  });
+
+  it('reads a bare old-Mac carriage return in pasted text as a line break, not nothing', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    // A lone '\r' must become a newline, not be stripped.
+    expect(firePaste(view, plainText('one\rtwo'))).toBe(true);
+    expect(blockTypes(view)).toEqual(['paragraph', 'paragraph']);
+    expect(view.state.doc.child(0).textContent).toBe('one');
+    expect(view.state.doc.child(1).textContent).toBe('two');
+  });
+
+  it('reads a Windows line ending in pasted text as a single line break', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePaste(view, plainText('one\r\ntwo'))).toBe(true);
+    expect(blockTypes(view)).toEqual(['paragraph', 'paragraph']);
+    expect(view.state.doc.child(0).textContent).toBe('one');
+    expect(view.state.doc.child(1).textContent).toBe('two');
+  });
+
+  it('reads a vertical tab or form feed in pasted text as a line break', () => {
+    const view = mountFull(docOf(para('', 's1')));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePaste(view, plainText('one\u000Btwo\u000Cthree'))).toBe(true);
+    expect(blockTypes(view)).toEqual(['paragraph', 'paragraph', 'paragraph']);
+    expect(view.state.doc.child(0).textContent).toBe('one');
+    expect(view.state.doc.child(1).textContent).toBe('two');
+    expect(view.state.doc.child(2).textContent).toBe('three');
+  });
+
+  it('drops a control character from a paste landing inside a code line', () => {
+    const codeBlock = schema.nodes.codeBlock.create(
+      { sid: 'c', id: 'c', language: 'js' },
+      schema.nodes.codeLine.create(null, schema.text('hi')),
+    );
+    const view = mountFull(docOf(codeBlock));
+    view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+    expect(firePaste(view, plainText('\u0007bell'))).toBe(true);
+    expect(view.state.doc.textContent).toBe('hibell');
   });
 });
 

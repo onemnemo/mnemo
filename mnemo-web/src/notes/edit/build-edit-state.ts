@@ -47,6 +47,7 @@ import { codeHighlightPlugin } from '../editor/code/highlight';
 import { codeKeymap } from '../editor/code/code-keymap';
 import { crossBlockRangePlugin } from '../editor/commands/range-delete';
 import { slashHintPlugin } from '../editor/pipeline/slash-hint';
+import { controlCharGuard, controlCharTextInputGuard } from '../editor/pipeline/control-chars';
 import { findPlugin } from '../find/find-plugin';
 import { proofingPlugin } from '../proofing/proofing-plugin';
 import { blockSelectionPlugin } from '../selection/block-selection-plugin';
@@ -134,6 +135,8 @@ export type NoteEditState =
  *    the schema alone, and `line block*` lets it re-parent a cut container's
  *    rows or cells into the block the range started in. It declines every other
  *    selection, including a range inside one block.
+ *  - `controlCharTextInputGuard` is last among the `handleTextInput` plugins,
+ *    so every trigger gets first refusal on the character.
  *  - `structureKeymap` must precede `baseKeymap`: both bind Enter, Backspace
  *    and Delete, and ours has to win so a split or a join lands our block
  *    shapes instead of `baseKeymap`'s generic `joinForward`, which does not
@@ -148,6 +151,8 @@ export type NoteEditState =
  *    `numberedListPlugin`, `findPlugin` and `intrinsicSizePlugin` only decorate;
  *    none of them touch key dispatch except `findPlugin`, which claims Ctrl+F
  *    (unclaimed by anything above) and Escape only while find is open.
+ *  - `controlCharGuard` follows it, another `appendTransaction` repair on the
+ *    same `changedRanges`, and the backstop for drops, IME and autocorrect.
  *  - `scriptEscapeKeymap` follows find, so the first Escape closes that surface
  *    and a later Escape can end an explicitly armed subscript or superscript.
  *  - `blockIdentityPlugin` also only appends. Its place after the pipeline is
@@ -212,6 +217,7 @@ export function editorPlugins(
     // Before every keymap and before the generic replace they fall through to:
     // it claims only a text range that spans two blocks.
     crossBlockRangePlugin(),
+    controlCharTextInputGuard(),
     // Answers for one caret only, a caret in source, and declines every other,
     // so Tab keeps whatever meaning the keymaps below give it elsewhere.
     codeKeymap(),
@@ -224,6 +230,7 @@ export function editorPlugins(
     editorKeymap(),
     keymap(baseKeymap),
     invariantPipeline(registry),
+    controlCharGuard(),
     // After the invariants: it reads the selection the repairs settled on, and
     // like them it appends rather than touching key dispatch.
     containerCaretGuard(),

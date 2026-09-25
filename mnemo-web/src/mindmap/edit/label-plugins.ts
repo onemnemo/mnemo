@@ -13,6 +13,8 @@
  *    paste inside the equation card's source field belongs to that field.
  *  - `clipboardPlugin` owns copy, cut and paste. Given no asset support, since a label cannot hold
  *    a picture; an image reference in a pasted slice is folded away below.
+ *  - `controlCharGuard` follows it: the notes editor's repair, the backstop for a plain-text
+ *    drop and anything else the text-input guard misses.
  *  - `singleLinePlugin` appends after the paste and after anything else that leaves the document
  *    with more than one block, and folds them into one paragraph with the lines joined by `\n`.
  *    It has to be an append and not a paste hook: an internal slice and a plain paste with a
@@ -27,6 +29,7 @@
  *    folded straight back to a paragraph with the marker eaten.
  *  - `scriptAssistancePlugin` follows the triggers so a terminating Space converts literal syntax
  *    first; `autoLinkPlugin` follows both for the same reason.
+ *  - `controlCharTextInputGuard` is last of the `handleTextInput` plugins, as in the notes editor.
  *  - `labelKeymap` is the map's own: Enter and Mod-Enter finish, Shift-Enter breaks the line,
  *    Escape abandons, Tab goes nowhere. It sits ahead of `editorKeymap`, whose Mod-Enter is the
  *    checklist toggle, and of `baseKeymap`, whose Enter would split the block and whose Mod-Enter
@@ -55,6 +58,7 @@ import { editorHistory, historyBoundaryPlugin } from "@/notes/editor/history"
 import type { InlineMapper } from "@/notes/editor/mapper/inline"
 import { autoLinkPlugin } from "@/notes/editor/marks/auto-link"
 import { linkInteractionPlugin } from "@/notes/editor/marks/link-interaction"
+import { controlCharGuard, controlCharTextInputGuard } from "@/notes/editor/pipeline/control-chars"
 import { inputTriggerPlugin } from "@/notes/editor/pipeline/input-triggers"
 import { nestedInputGuard } from "@/notes/editor/pipeline/nested-input"
 import type { BlockRegistry } from "@/notes/editor/registry/build"
@@ -75,12 +79,14 @@ export function labelPlugins(registry: BlockRegistry, inline: InlineMapper, keys
   return [
     nestedInputGuard(),
     clipboardPlugin(registry, inline),
+    controlCharGuard(),
     singleLinePlugin(),
     symbolPalettePlugin(),
     equationOpenOnInsert(),
     inputTriggerPlugin({ ...registry, inputTriggers: [] }, scriptShortcutTriggers()),
     scriptAssistancePlugin(),
     autoLinkPlugin(),
+    controlCharTextInputGuard(),
     labelKeymap(keys),
     editorKeymap(),
     keymap(baseKeymap),

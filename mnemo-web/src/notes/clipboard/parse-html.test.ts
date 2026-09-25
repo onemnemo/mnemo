@@ -50,6 +50,25 @@ describe('parseExternalHtml', () => {
     expect(parseExternalHtml('a'.repeat(2_000_001), schema)).toBe('too-large');
   });
 
+  it('strips a control character carried in a text node', () => {
+    const parsed = parseExternalHtml('<p>a\u0001b</p>', schema);
+    if (parsed === null || parsed === 'too-large') throw new Error('expected a slice');
+    expect(parsed.slice.content.textBetween(0, parsed.slice.content.size, '\n')).toBe('ab');
+  });
+
+  it('does not corrupt tag syntax by stripping a control character used as markup whitespace', () => {
+    // \f and \r may separate an attribute from its tag name, so they must survive until parsed.
+    const parsed = parseExternalHtml('<a\fhref="https://ok.test">link</a>', schema);
+    if (parsed === null || parsed === 'too-large') throw new Error('expected a slice');
+    expect(parsed.slice.content.textBetween(0, parsed.slice.content.size, '\n')).toBe('link');
+    let href: string | undefined;
+    parsed.slice.content.descendants((node) => {
+      for (const mark of node.marks) if (mark.type.name === 'link') href = String(mark.attrs.href);
+      return true;
+    });
+    expect(href).toBe('https://ok.test');
+  });
+
   it('parses a data table into a real table, cell marks and all', () => {
     const parsed = parseExternalHtml(
       '<p>before</p><table><tr><td><b>a</b></td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>',

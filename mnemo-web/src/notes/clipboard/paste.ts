@@ -61,6 +61,7 @@ import {
 import { storePasteProgress, type PasteProgressReporter } from './paste-progress';
 import { readClipMeta } from './read-clipboard';
 import { isMultiCell, parseClipboardGrid } from './table-grid';
+import { normalizeLineBreaks, stripControlChars } from '../editor/pipeline/control-chars';
 import { cellAtPos, cellCaretPos, gridToTable, writeCells } from '../editor/table/model';
 import { applyLink } from '../editor/marks/link-commands';
 import { linkTargetFromText } from '../model/autolink';
@@ -255,7 +256,9 @@ function pastePlainText(
   support: PasteAssetSupport | undefined,
   progress: PasteProgressReporter,
 ): boolean {
-  const text = data.getData('text/plain').slice(0, MAX_PLAIN_TEXT_LENGTH);
+  // Normalized first, or a lone '\r' would be stripped and join two lines.
+  const raw = normalizeLineBreaks(data.getData('text/plain').slice(0, MAX_PLAIN_TEXT_LENGTH));
+  const text = stripControlChars(raw);
   if (text === '') return true;
 
   try {

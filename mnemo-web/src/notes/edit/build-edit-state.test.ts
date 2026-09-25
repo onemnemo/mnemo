@@ -46,7 +46,7 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry, inline } = editorSchema();
     const plugins = editorPlugins(registry, inline);
-    expect(plugins).toHaveLength(37);
+    expect(plugins).toHaveLength(39);
     // Input guards run before handlers that could claim the same event.
     expect(plugins[0].props.handleDOMEvents?.keydown).toBeTypeOf('function');
     expect(plugins[1].props.handleDOMEvents?.mousedown).toBeTypeOf('function');
@@ -58,6 +58,8 @@ describe('editorPlugins wiring', () => {
     expect(plugins[6].props.handleKeyDown).toBeTypeOf('function');
     expect(plugins[10].props.handleTextInput).toBeTypeOf('function');
     expect(plugins[11].props.handleTextInput).toBeTypeOf('function');
+    // Last of the handleTextInput chain, after the trigger plugins (indices 9-12).
+    expect(plugins[13].props.handleTextInput).toBeTypeOf('function');
     // The tail is two chrome layers that take no part in that precedence, the
     // toolbar and the link interaction. Behind them the history boundary is
     // still the last plugin that appends, so repairs join the transaction they

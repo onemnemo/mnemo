@@ -17,6 +17,7 @@ import { sanitizeExternalHtml } from './html-sanitize';
 import { restateLists } from './restate-lists';
 import { emptyLine, INLINE_TAGS, markerDiv } from './restate-markup';
 import { isDataTable } from './table-grid';
+import { stripControlChars } from '../editor/pipeline/control-chars';
 
 export type ExternalParse = { readonly slice: Slice } | 'too-large' | null;
 
@@ -27,6 +28,10 @@ export function parseExternalHtml(html: string, schema: Schema): ExternalParse {
   const outcome = sanitizeExternalHtml(html);
   if ('tooLarge' in outcome) return 'too-large';
 
+  // After parsing, not before: \f and \r are HTML whitespace between a tag name and an
+  // attribute, and stripping them from the raw markup would break the tag.
+  stripControlCharsFromText(outcome.fragment);
+
   // Tables first: a list inside a cell is flattened into that cell's line, and
   // a table inside an item is the item's block child either way.
   restateTables(outcome.fragment);
@@ -35,6 +40,16 @@ export function parseExternalHtml(html: string, schema: Schema): ExternalParse {
     preserveWhitespace: false,
   });
   return slice.content.size === 0 ? null : { slice };
+}
+
+/** Strips a disallowed control character out of every text node's own content, in place. */
+function stripControlCharsFromText(root: DocumentFragment): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node as Text;
+    const clean = stripControlChars(text.data);
+    if (clean !== text.data) text.data = clean;
+  }
 }
 
 /**
