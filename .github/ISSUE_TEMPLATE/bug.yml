@@ -23,11 +23,14 @@ body:
     id: operating-system
     attributes:
       label: Operating system
+      description: Every system you have seen it on.
+      multiple: true
       options:
         - Windows 11
         - Windows 10
         - macOS
         - Linux
+        - Not platform specific
         - Other
     validations:
       required: true
@@ -39,7 +42,7 @@ body:
       description: Include the operating system version, architecture, and Linux desktop environment when relevant.
       placeholder: Windows 11 24H2, x64
     validations:
-      required: true
+      required: false
 
   - type: dropdown
     id: distribution
@@ -92,8 +95,9 @@ body:
     attributes:
       label: Did this affect saved data?
       description: Stop using the affected workflow and keep a copy of the data directory if data may have been lost or changed.
+      # Quoted: YAML reads a bare No as false, and GitHub then drops the option.
       options:
-        - No
+        - "No"
         - Data may have changed
         - Data was lost
         - Unknown

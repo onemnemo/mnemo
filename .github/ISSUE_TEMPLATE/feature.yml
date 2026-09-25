@@ -1,0 +1,54 @@
+name: Feature or enhancement
+description: Propose a specific change to how Mnemo works.
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For an open-ended idea that still needs discussion, start in [Ideas](https://github.com/onemnemo/mnemo/discussions/categories/ideas) instead. This form is for a change concrete enough to work on.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Notes
+        - Flashcards
+        - Mindmaps
+        - Import and export
+        - Assistant
+        - Window and app shell
+        - Settings
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is missing or awkward?
+      description: The situation and what gets in the way today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should happen instead?
+      description: The change you have in mind, and how someone would use it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+      description: Other ways to solve it, and what people do in the meantime.
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Screenshots or additional context
+      description: Attach only what is safe to share publicly.
