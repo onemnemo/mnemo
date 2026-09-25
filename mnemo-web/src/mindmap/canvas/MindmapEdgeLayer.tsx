@@ -142,6 +142,30 @@ export const MindmapEdgeLabels = memo(function MindmapEdgeLabels({
 const LABEL_PILL =
   "absolute left-0 top-0 whitespace-nowrap rounded-full bg-canvas px-1.5 text-[10.5px] leading-[16px] text-ink-2 shadow-[0_0_0_1px_var(--line-soft)]"
 
+/** The pill's horizontal padding and ring, which the text width does not include. */
+const LABEL_FIELD_CHROME = 14
+
+let labelMeasure: CanvasRenderingContext2D | null | undefined
+
+/**
+ * Widens the field to its text as it is typed.
+ *
+ * `field-sizing: content` would do this in CSS, but only Chromium has it: on WebKit the field kept its
+ * starting width while typing and the text scrolled inside it. The text is measured in the field's
+ * own font instead, which every engine agrees on.
+ */
+function fitLabelField(field: HTMLInputElement): void {
+  if (labelMeasure === undefined) {
+    labelMeasure = document.createElement("canvas").getContext("2d") ?? null
+  }
+  if (!labelMeasure) return
+  const style = getComputedStyle(field)
+  // Firefox leaves the shorthand empty, so it is rebuilt from the parts there.
+  labelMeasure.font = style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+  const text = field.value || field.placeholder
+  field.style.width = `${Math.ceil(labelMeasure.measureText(text).width) + LABEL_FIELD_CHROME}px`
+}
+
 /**
  * A label, as a field, in the label's own place.
  *
@@ -165,15 +189,20 @@ function EdgeLabelEditor({
     <input
       data-mm-edge-label={edge.id}
       ref={(node) => {
-        node?.focus({ preventScroll: true })
-        node?.select()
+        if (!node) return
+        fitLabelField(node)
+        node.focus({ preventScroll: true })
+        node.select()
       }}
       defaultValue={edge.label ?? ""}
       spellCheck={false}
       // select-text against the pane's select-none, or the caret cannot select what it is editing.
-      className={cn(LABEL_PILL, "field-sizing-content w-[56px] min-w-[56px] select-text text-ink outline-none")}
+      className={cn(LABEL_PILL, "w-[56px] min-w-[56px] select-text text-ink outline-none")}
       style={place}
-      onChange={(event) => track(event.currentTarget.value)}
+      onChange={(event) => {
+        fitLabelField(event.currentTarget)
+        track(event.currentTarget.value)
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
           // A composing Enter confirms the IME's candidate, not the label; let the IME answer it.
