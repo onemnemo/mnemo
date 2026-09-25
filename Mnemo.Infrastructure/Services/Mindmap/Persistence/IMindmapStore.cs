@@ -29,8 +29,9 @@ public interface IMindmapStore
 
     /// <summary>
     /// Upserts the document row and applies the FTS <paramref name="searchDelta"/> in a single transaction.
+    /// Returns false when nothing was written because the trash is holding a map under that id.
     /// </summary>
-    Task SaveAsync(MindmapDocument document, MindmapSearchDelta searchDelta, CancellationToken cancellationToken = default);
+    Task<bool> SaveAsync(MindmapDocument document, MindmapSearchDelta searchDelta, CancellationToken cancellationToken = default);
 
     /// <summary>Deletes a document and all its FTS rows.</summary>
     Task DeleteAsync(string id, CancellationToken cancellationToken = default);

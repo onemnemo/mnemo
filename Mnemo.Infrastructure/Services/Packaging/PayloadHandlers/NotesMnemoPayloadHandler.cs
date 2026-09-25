@@ -4,6 +4,7 @@ using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services.Notes.Persistence;
 
 namespace Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 
@@ -13,11 +14,17 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
 
     private readonly INoteService _noteService;
     private readonly INoteFolderService _folderService;
+    private readonly INoteTrashStore? _trash;
 
-    public NotesMnemoPayloadHandler(INoteService noteService, INoteFolderService folderService)
+    /// <summary>
+    /// Builds the handler. <paramref name="trash"/> answers which note and folder ids the trash is
+    /// holding; null means nothing can be held, as with services that keep no trash.
+    /// </summary>
+    public NotesMnemoPayloadHandler(INoteService noteService, INoteFolderService folderService, INoteTrashStore? trash = null)
     {
         _noteService = noteService;
         _folderService = folderService;
+        _trash = trash;
     }
 
     public string PayloadType => "notes";
@@ -59,11 +66,21 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         var policy = context.Options.ConflictPolicy;
         var usedTitles = new HashSet<string>(existingNotes.Values.Select(n => n.Title), StringComparer.OrdinalIgnoreCase);
 
+        // The trash keeps a deleted note's or folder's id taken while the library no longer lists it,
+        // and refuses a write under it. To the user that item is gone, so an incoming one under a held
+        // id goes in under a fresh id, whatever the policy, and the held one stays in the trash.
+        var heldNoteIds = await HeldIdsAsync(t => t.HeldNoteIdsAsync(cancellationToken)).ConfigureAwait(false);
+        var heldFolderIds = await HeldIdsAsync(t => t.HeldFolderIdsAsync(cancellationToken)).ConfigureAwait(false);
+
         foreach (var folder in snapshot.Folders)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var imported = CloneFolder(folder);
-            if (existingFolders.ContainsKey(imported.FolderId))
+            if (heldFolderIds.ContainsKey(imported.FolderId))
+            {
+                imported.FolderId = Guid.NewGuid().ToString();
+            }
+            else if (existingFolders.ContainsKey(imported.FolderId))
             {
                 if (policy == ImportConflictPolicy.Skip)
                 {
@@ -91,7 +108,11 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var imported = CloneNote(note);
-            if (existingNotes.ContainsKey(imported.NoteId))
+            if (heldNoteIds.ContainsKey(imported.NoteId))
+            {
+                imported.NoteId = Guid.NewGuid().ToString();
+            }
+            else if (existingNotes.ContainsKey(imported.NoteId))
             {
                 if (policy == ImportConflictPolicy.Skip)
                 {
@@ -129,6 +150,12 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         RestoreImageAssets(context.Files);
         return result;
     }
+
+    private async Task<IReadOnlyDictionary<string, string>> HeldIdsAsync(
+        Func<INoteTrashStore, Task<IReadOnlyDictionary<string, string>>> read) =>
+        _trash is null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : await read(_trash).ConfigureAwait(false);
 
     private static HashSet<string> ResolveSelectedNoteIds(MnemoPackageExportOptions options)
     {

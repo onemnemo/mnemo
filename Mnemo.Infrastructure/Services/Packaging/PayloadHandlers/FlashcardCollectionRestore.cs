@@ -20,9 +20,9 @@ namespace Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 /// material, cards, schedules and history; skipping leaves local content alone; replacing clears
 /// what the deck currently holds and writes the package's rows into the same ids, which is what
 /// makes re-importing the same package under replace land the same collection rather than a second
-/// copy of it. A row the trash is holding is never written over: the repositories refuse it, and a
-/// deck whose id a held row owns is reported as skipped rather than having its cards filed under a
-/// deck nobody can open.
+/// copy of it. A row the trash is holding is never written over: the repositories refuse it. To the
+/// user that row is already gone, so whatever the policy, the package's row is written under a
+/// fresh id instead and the held one stays in the trash exactly as it was.
 /// </remarks>
 internal sealed class FlashcardCollectionRestore
 {
@@ -95,7 +95,7 @@ internal sealed class FlashcardCollectionRestore
             var folderMap = await RestoreFoldersAsync(conn, tx, snapshot, policy, result, now, ct).ConfigureAwait(false);
             var deckMap = await RestoreDecksAsync(conn, tx, snapshot, policy, folderMap, result, now, ct).ConfigureAwait(false);
             var factMap = await RestoreFactsAsync(conn, tx, snapshot, policy, deckMap, imagesDirectory, ct).ConfigureAwait(false);
-            var cardMap = await RestoreCardsAsync(conn, tx, snapshot, policy, deckMap, factMap, imagesDirectory, result, now, ct).ConfigureAwait(false);
+            var cardMap = await RestoreCardsAsync(conn, tx, snapshot, policy, deckMap, factMap, imagesDirectory, now, ct).ConfigureAwait(false);
             await RestoreHistoryAsync(conn, tx, snapshot, deckMap, cardMap, ct).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
 
@@ -205,13 +205,32 @@ internal sealed class FlashcardCollectionRestore
             if (!string.IsNullOrWhiteSpace(parentId) && map.TryGetValue(parentId, out var remappedParent))
                 parentId = remappedParent;
 
-            map[folder.Id] = id;
-            existingIds.Add(id);
             await _folders.UpsertAsync(conn, tx, new FlashcardFolder(id, folder.Name, parentId, folder.Order), now, cancellationToken)
                 .ConfigureAwait(false);
+
+            // A folder the trash is holding keeps its id and the save leaves it alone, so the
+            // package's folder gets an id of its own.
+            if (!existingIds.Contains(id) && !await IsLiveFolderAsync(conn, id, cancellationToken).ConfigureAwait(false))
+            {
+                id = NewId();
+                await _folders.UpsertAsync(conn, tx, new FlashcardFolder(id, folder.Name, parentId, folder.Order), now, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            map[folder.Id] = id;
+            existingIds.Add(id);
         }
 
         return map;
+    }
+
+    private async Task<bool> IsLiveFolderAsync(
+        Microsoft.Data.Sqlite.SqliteConnection conn,
+        string folderId,
+        CancellationToken cancellationToken)
+    {
+        var live = await _folders.ListAsync(conn, cancellationToken).ConfigureAwait(false);
+        return live.Any(f => string.Equals(f.Id, folderId, StringComparison.Ordinal));
     }
 
     private async Task<Dictionary<string, string>> RestoreDecksAsync(
@@ -261,7 +280,7 @@ internal sealed class FlashcardCollectionRestore
                 folderId = remappedFolder;
 
             var presetId = await ResolvePresetIdAsync(conn, deck.PresetId, cancellationToken).ConfigureAwait(false);
-            await _decks.UpsertAsync(conn, tx, new FlashcardDeckHeader(
+            var header = new FlashcardDeckHeader(
                 Id: deckId,
                 FolderId: folderId,
                 PresetId: presetId,
@@ -272,16 +291,17 @@ internal sealed class FlashcardCollectionRestore
                 LastStudied: deck.LastStudied,
                 Icon: deck.Icon,
                 CreatedAt: deck.CreatedAt ?? now,
-                UpdatedAt: deck.UpdatedAt ?? now), cancellationToken).ConfigureAwait(false);
+                UpdatedAt: deck.UpdatedAt ?? now);
+            await _decks.UpsertAsync(conn, tx, header, cancellationToken).ConfigureAwait(false);
 
             // A deck id can also collide with one the trash is holding. Nothing above can see that
             // row, and the save leaves it alone rather than overwriting something restorable, so the
-            // deck is not there afterwards. Importing its cards regardless would file them under a
-            // deck nobody can open, so the deck is reported as skipped instead.
+            // deck is not there afterwards. The user deleted that deck and is importing it back, so
+            // the package's deck gets an id of its own and its cards follow it there.
             if (await _decks.GetHeaderAsync(conn, deckId, cancellationToken).ConfigureAwait(false) is null)
             {
-                result.SkippedCount++;
-                continue;
+                deckId = NewId();
+                await _decks.UpsertAsync(conn, tx, header with { Id = deckId }, cancellationToken).ConfigureAwait(false);
             }
 
             existingIds.Add(deckId);
@@ -414,14 +434,10 @@ internal sealed class FlashcardCollectionRestore
 
             // A fact id can also collide with material the trash is holding. Nothing above can see
             // that row and the save leaves it alone, so the material is not there afterwards. Its
-            // cards keep their layout slots while it is held, so a copy needs material of its own
-            // for its cards to have slots at all, and anything else leaves the held material out
-            // rather than filing live cards under it.
+            // cards keep their layout slots while it is held, so the package's material gets an id
+            // of its own for its cards to have slots at all.
             if (await _facts.GetAsync(conn, id, cancellationToken).ConfigureAwait(false) is null)
             {
-                if (policy != ImportConflictPolicy.KeepBoth)
-                    continue;
-
                 id = NewId();
                 await _facts.UpsertAsync(conn, tx, ToFact(fact, id, homeDeckId, imagesDirectory), cancellationToken).ConfigureAwait(false);
             }
@@ -463,7 +479,6 @@ internal sealed class FlashcardCollectionRestore
         IReadOnlyDictionary<string, string> deckMap,
         IReadOnlyDictionary<string, string> factMap,
         string imagesDirectory,
-        MnemoPayloadImportResult result,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -506,17 +521,10 @@ internal sealed class FlashcardCollectionRestore
                 // A card id can also collide with one the trash is holding. Nothing above can see
                 // that row and the save leaves it alone, so the card is not there afterwards. The
                 // held card keeps the schedule it had when it was deleted, which is what a restore
-                // from the trash brings back, so the package's schedule is written only for a card
-                // the package actually wrote: a copy gets the card under a fresh id, and anything
-                // else leaves the held card where the user put it and counts it as skipped.
+                // from the trash brings back, so the package's card and schedule go under a fresh
+                // id and the held card stays where the user put it.
                 if (await _cards.GetAsync(conn, cardId, cancellationToken).ConfigureAwait(false) is null)
                 {
-                    if (policy != ImportConflictPolicy.KeepBoth)
-                    {
-                        result.SkippedCount++;
-                        continue;
-                    }
-
                     cardId = NewId();
                     await _cards.UpsertAsync(
                         conn, tx, restored with { Id = cardId }, cancellationToken).ConfigureAwait(false);

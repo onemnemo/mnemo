@@ -34,12 +34,14 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
 
     private readonly IMindmapService _mindmaps;
     private readonly IMindmapStore _store;
+    private readonly IMindmapTrashStore _trash;
     private readonly ILoggerService _logger;
 
-    public MindmapsMnemoPayloadHandler(IMindmapService mindmaps, IMindmapStore store, ILoggerService logger)
+    public MindmapsMnemoPayloadHandler(IMindmapService mindmaps, IMindmapStore store, IMindmapTrashStore trash, ILoggerService logger)
     {
         _mindmaps = mindmaps;
         _store = store;
+        _trash = trash;
         _logger = logger;
     }
 
@@ -144,6 +146,11 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             listed.IsSuccess && listed.Value is not null ? listed.Value.Select(m => m.Title) : Enumerable.Empty<string>(),
             StringComparer.OrdinalIgnoreCase);
 
+        // The trash keeps a deleted map's id taken while the library no longer lists it. To the user
+        // that map is gone, so an incoming map under one of these ids goes in under a fresh id, whatever
+        // the policy, and the held map stays in the trash as it was.
+        var heldMapIds = await _trash.HeldMapIdsAsync(cancellationToken).ConfigureAwait(false);
+
         // Assets and templates come first so a restored map's asset/template references resolve immediately.
         RestoreImageAssets(context.Files);
         await RestoreTemplatesAsync(snapshot.Templates, cancellationToken).ConfigureAwait(false);
@@ -170,7 +177,11 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
                 continue;
             }
 
-            if (existingMapIds.Contains(document.Id))
+            if (heldMapIds.Contains(document.Id))
+            {
+                document = document with { Id = Guid.NewGuid().ToString() };
+            }
+            else if (existingMapIds.Contains(document.Id))
             {
                 if (policy == ImportConflictPolicy.Skip)
                 {
@@ -203,6 +214,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             // the change log so a batch composed before it is refused rather than rebased onto a document
             // that no longer resembles the one it was written against.
             var stored = await _mindmaps.ReplaceAsync(document, cancellationToken).ConfigureAwait(false);
+
             if (!stored.IsSuccess || stored.Value is null)
             {
                 result.Warnings.Add(stored.ErrorMessage is { } storeError
@@ -375,11 +387,19 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             existingResult.IsSuccess && existingResult.Value is not null ? existingResult.Value.Select(f => f.Id) : Enumerable.Empty<string>(),
             StringComparer.Ordinal);
 
+        // A folder the trash is holding refuses the write, and a map filed under it would vanish with
+        // it, so the package's folder takes a fresh id instead.
+        var heldIds = await _trash.HeldFolderIdsAsync(cancellationToken).ConfigureAwait(false);
+
         foreach (var folder in InAncestorOrder(folders))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var id = folder.Id;
-            if (existingIds.Contains(id))
+            if (heldIds.Contains(id))
+            {
+                id = Guid.NewGuid().ToString();
+            }
+            else if (existingIds.Contains(id))
             {
                 if (policy == ImportConflictPolicy.Skip)
                 {

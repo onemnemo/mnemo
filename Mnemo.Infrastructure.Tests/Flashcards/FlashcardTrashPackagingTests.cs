@@ -51,8 +51,11 @@ public sealed class FlashcardTrashPackagingTests
         Assert.Equal(1, imported.Cards);
     }
 
-    [Fact]
-    public async Task Importing_a_deck_whose_id_the_trash_is_holding_is_reported_as_skipped()
+    [Theory]
+    [InlineData(ImportConflictPolicy.KeepBoth)]
+    [InlineData(ImportConflictPolicy.Skip)]
+    [InlineData(ImportConflictPolicy.Replace)]
+    public async Task Importing_a_deck_whose_id_the_trash_is_holding_lands_under_a_fresh_id(ImportConflictPolicy policy)
     {
         await using var source = new FlashcardStoreHarness();
         await source.SeedDeckAsync();
@@ -63,14 +66,17 @@ public sealed class FlashcardTrashPackagingTests
         await target.SeedDeckAsync();
         await new FlashcardDeckTrashSource(target.Store).CaptureAsync("deck-1", "e1");
 
-        var result = await Handler(target).ImportAsync(ImportContext(exported));
+        var result = await Handler(target).ImportAsync(FlashcardPackageFixture.ImportContext(exported, policy));
 
-        // The held deck keeps the id, so the incoming deck has nowhere to be written. Its cards must
-        // not be written anyway: they would sit in a deck nobody can open, and would come back with
-        // the held deck as though they had always been in it.
-        Assert.Equal(0, result.ImportedCount);
-        Assert.Equal(1, result.SkippedCount);
-        Assert.Equal(0, await CountCardsAsync(target));
+        // The held deck keeps its id, so the incoming deck is written beside it rather than into it.
+        // Its cards follow it there and never into the held deck, which would bring them back with a
+        // restore as though they had always been in it.
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal(0, result.SkippedCount);
+        var copyDeckId = Assert.Single(await ListDeckIdsAsync(target));
+        Assert.NotEqual("deck-1", copyDeckId);
+        Assert.Equal("c1", Assert.Single(await ListLiveCardsAsync(target, copyDeckId)).Front);
+        Assert.Empty(await ListLiveCardsAsync(target, "deck-1"));
     }
 
     [Theory]
@@ -114,10 +120,13 @@ public sealed class FlashcardTrashPackagingTests
         else
         {
             // Replacing the deck leaves the trash alone: the held card stays where the user put
-            // it, and is counted as skipped rather than quietly written over.
-            Assert.Equal(1, result.SkippedCount);
+            // it, and the package's copy of it lands in the deck under an id of its own.
+            Assert.Equal(0, result.SkippedCount);
             var live = await ListLiveCardsAsync(h, "deck-1");
-            Assert.Equal("kept", Assert.Single(live).Front);
+            Assert.Equal(new[] { "held", "kept" }, live.Select(c => c.Front).OrderBy(f => f, StringComparer.Ordinal).ToArray());
+            var copyOfHeld = live.Single(c => c.Front == "held");
+            Assert.NotEqual("held", copyOfHeld.Id);
+            Assert.Equal(4, (await ReadScheduleAsync(h, copyOfHeld.Id)).Reps);
         }
     }
 

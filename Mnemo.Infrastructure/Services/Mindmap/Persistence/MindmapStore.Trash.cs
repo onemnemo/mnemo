@@ -427,6 +427,21 @@ public sealed partial class MindmapStore : IMindmapTrashStore
             return json is null ? null : MindmapDocumentSerializer.Deserialize(json);
         }, cancellationToken);
 
+    public Task<IReadOnlySet<string>> HeldMapIdsAsync(CancellationToken cancellationToken = default) =>
+        ReadHeldIdsAsync("SELECT Id FROM Mindmaps WHERE TrashId IS NOT NULL;", cancellationToken);
+
+    public Task<IReadOnlySet<string>> HeldFolderIdsAsync(CancellationToken cancellationToken = default) =>
+        ReadHeldIdsAsync("SELECT Id FROM MindmapFolders WHERE TrashId IS NOT NULL;", cancellationToken);
+
+    private Task<IReadOnlySet<string>> ReadHeldIdsAsync(string sql, CancellationToken cancellationToken) =>
+        ReadAsync(async connection =>
+        {
+            await using var cmd = connection.CreateCommand();
+            cmd.CommandText = sql;
+            var ids = await ReadStringsAsync(cmd, cancellationToken).ConfigureAwait(false);
+            return (IReadOnlySet<string>)new HashSet<string>(ids, StringComparer.Ordinal);
+        }, cancellationToken);
+
     /// <summary>Folders reachable from $id that nothing has taken yet.</summary>
     private const string LiveSubtreeSql = """
         WITH RECURSIVE Subtree(Id) AS (

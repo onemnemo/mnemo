@@ -135,7 +135,7 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
         return results;
     }
 
-    public Task SaveAsync(MindmapDocument document, MindmapSearchDelta searchDelta, CancellationToken cancellationToken = default) =>
+    public Task<bool> SaveAsync(MindmapDocument document, MindmapSearchDelta searchDelta, CancellationToken cancellationToken = default) =>
         WriteAsync(async (writer, tx) =>
         {
             // Null when a row for this id is already stored: the update half below never touches Sid,
@@ -174,9 +174,10 @@ public sealed partial class MindmapStore : IMindmapStore, IAsyncDisposable
             // Nothing was written, so nothing is reindexed either: the mirror keeps the held map's rows
             // as they stood when it was deleted, ready for a restore.
             if (applied == 0)
-                return;
+                return false;
 
             await ApplySearchDeltaAsync(writer, tx, document.Id, searchDelta, cancellationToken).ConfigureAwait(false);
+            return true;
         }, cancellationToken);
 
     public Task DeleteAsync(string id, CancellationToken cancellationToken = default) =>

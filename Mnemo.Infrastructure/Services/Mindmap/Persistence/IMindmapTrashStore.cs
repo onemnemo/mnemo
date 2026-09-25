@@ -69,4 +69,13 @@ public interface IMindmapTrashStore
 
     /// <summary>Reads one map whether or not the trash holds it. Pairs with <see cref="ListAllOwnedIdsAsync"/>.</summary>
     Task<MindmapDocument?> LoadAllOwnedAsync(string id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ids of the maps the trash is holding. The library never lists them, but the ids stay taken, so
+    /// a writer that has to put something new under one needs to know.
+    /// </summary>
+    Task<IReadOnlySet<string>> HeldMapIdsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Ids of the folders the trash is holding, on the same terms as <see cref="HeldMapIdsAsync"/>.</summary>
+    Task<IReadOnlySet<string>> HeldFolderIdsAsync(CancellationToken cancellationToken = default);
 }

@@ -361,7 +361,7 @@ public sealed class MindmapsMnemoPayloadHandlerTests
     }
 
     private static MindmapsMnemoPayloadHandler ExportHandler(MindmapTestHarness h) =>
-        new(h.Service, h.Store, new TestLogger());
+        new(h.Service, h.Store, h.Store, new TestLogger());
 
     private static MnemoPayloadExportContext Context() =>
         new() { Options = new MnemoPackageExportOptions() };
@@ -371,7 +371,7 @@ public sealed class MindmapsMnemoPayloadHandlerTests
         IReadOnlyDictionary<string, byte[]> files,
         ImportConflictPolicy policy = ImportConflictPolicy.KeepBoth,
         int schemaVersion = 1) =>
-        new MindmapsMnemoPayloadHandler(target.Service, target.Store, new TestLogger()).ImportAsync(new MnemoPayloadImportContext
+        new MindmapsMnemoPayloadHandler(target.Service, target.Store, target.Store, new TestLogger()).ImportAsync(new MnemoPayloadImportContext
         {
             Entry = new MnemoPackageEntry { PayloadType = "mindmaps", Path = "payloads/mindmaps", SchemaVersion = schemaVersion },
             Options = new MnemoPackageImportOptions { ConflictPolicy = policy },

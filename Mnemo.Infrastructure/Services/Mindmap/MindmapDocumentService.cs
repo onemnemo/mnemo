@@ -236,7 +236,9 @@ public sealed class MindmapDocumentService : IMindmapService
 
             var renamed = document with { Title = title, Revision = document.Revision + 1, ModifiedAt = DateTime.UtcNow };
             // No element text changed, so the FTS mirror needs no delta.
-            await _store.SaveAsync(renamed, new MindmapSearchDelta(), cancellationToken).ConfigureAwait(false);
+            if (!await _store.SaveAsync(renamed, new MindmapSearchDelta(), cancellationToken).ConfigureAwait(false))
+                return Ok(MindmapEditResult.Failure(Err(MindmapEditErrorCode.NotFound, $"Mindmap '{id}' was not found."), document.Revision));
+
             _changeLog.Record(id, renamed.Revision, new HashSet<string>());
             committed = Committed(document, renamed);
             return Ok(committed);
@@ -285,7 +287,9 @@ public sealed class MindmapDocumentService : IMindmapService
             if (invalid is not null)
                 return Ok(MindmapEditResult.Failure(invalid, before.Revision));
 
-            await _store.SaveAsync(replaced, FullSearchDelta(replaced), cancellationToken).ConfigureAwait(false);
+            if (!await _store.SaveAsync(replaced, FullSearchDelta(replaced), cancellationToken).ConfigureAwait(false))
+                return Result<MindmapEditResult>.Failure($"Mindmap '{document.Id}' is in the trash and cannot be written to.");
+
             _changeLog.Record(document.Id, nextRevision, TouchedBy(before, replaced));
             committed = Committed(before, replaced);
             return Ok(committed);
@@ -489,7 +493,9 @@ public sealed class MindmapDocumentService : IMindmapService
             if (invalid is not null)
                 return Ok(MindmapEditResult.Failure(invalid, document.Revision));
 
-            await _store.SaveAsync(updated, working.BuildSearchDelta(fullReplace: false), cancellationToken).ConfigureAwait(false);
+            if (!await _store.SaveAsync(updated, working.BuildSearchDelta(fullReplace: false), cancellationToken).ConfigureAwait(false))
+                return Ok(MindmapEditResult.Failure(Err(MindmapEditErrorCode.NotFound, $"Mindmap '{mapId}' was not found."), document.Revision));
+
             _changeLog.Record(mapId, newRevision, working.ChangeTouchedIds);
 
             committed = Committed(document, updated) with
@@ -598,7 +604,9 @@ public sealed class MindmapDocumentService : IMindmapService
             if (invalid is not null)
                 return Ok(MindmapEditResult.Failure(invalid, document.Revision));
 
-            await _store.SaveAsync(updated, working.BuildSearchDelta(fullReplace: false), cancellationToken).ConfigureAwait(false);
+            if (!await _store.SaveAsync(updated, working.BuildSearchDelta(fullReplace: false), cancellationToken).ConfigureAwait(false))
+                return Ok(MindmapEditResult.Failure(Err(MindmapEditErrorCode.NotFound, $"Mindmap '{mapId}' was not found."), document.Revision));
+
             _changeLog.Record(mapId, newRevision, working.ChangeTouchedIds);
             committed = Committed(document, updated);
             return Ok(committed);
