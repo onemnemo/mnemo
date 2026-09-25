@@ -53,6 +53,24 @@ export interface EdgeStrategySelector {
   current(): EdgeMode
 }
 
+/**
+ * The strategy for the engine the app runs on.
+ *
+ * WebKit gives an accelerated canvas its own compositing layer, and content overlapping it gets a
+ * layer too. The world overlaps the edge canvas, and on Safari its nodes, labels and shapes were seen
+ * to blur as the camera zoomed in while the canvas-drawn edges stayed sharp, which is a composited
+ * layer being scaled rather than repainted. SVG under the world composites nothing, so WebKit stays on
+ * it at every zoom and trades the canvas's pan speed for legible nodes.
+ */
+export function strategyForEngine(engine: string | undefined): EdgeStrategy {
+  return engine === 'webkit' ? 'svg' : 'hybrid'
+}
+
+/** The substrate a strategy starts on, for a camera at `zoom`. */
+export function initialMode(strategy: EdgeStrategy, zoom: number): EdgeMode {
+  return strategy === 'hybrid' ? initialHybridMode(zoom) : strategy
+}
+
 /** The substrate a hybrid run starts on, before any hysteresis applies. */
 export function initialHybridMode(zoom: number): EdgeMode {
   return zoom < HYBRID_ENTER_OVERVIEW_ZOOM ? 'svg' : 'canvas'

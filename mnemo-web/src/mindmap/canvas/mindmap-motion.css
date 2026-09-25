@@ -8,8 +8,12 @@
  * Off, the world and its elements raster at the zoom the camera settled at, which is the whole
  * point (see `motion.ts` for what leaving the hint on does to a map that has been zoomed into). On,
  * they are layers a gesture moves without repainting them.
+ *
+ * Chromium only. WebKit rasters a promoted layer at its untransformed size and scales that, so on
+ * Safari every pan and zoom blurred the whole map until the hint came off. There the map repaints
+ * each frame instead.
  */
-.mm-world[data-mm-motion],
-[data-mm-motion] .mm-node {
+:root[data-engine="chromium"] .mm-world[data-mm-motion],
+:root[data-engine="chromium"] [data-mm-motion] .mm-node {
   will-change: transform;
 }

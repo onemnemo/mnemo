@@ -5,7 +5,32 @@ import {
   HYBRID_LEAVE_OVERVIEW_ZOOM,
   createEdgeStrategySelector,
   initialHybridMode,
+  initialMode,
+  strategyForEngine,
 } from './edge-strategy'
+
+describe('strategyForEngine', () => {
+  it('keeps WebKit off the canvas, whose layer blurs the nodes painted over it', () => {
+    expect(strategyForEngine('webkit')).toBe('svg')
+  })
+
+  it('keeps the measured hybrid on Chromium and wherever the engine is not stamped', () => {
+    expect(strategyForEngine('chromium')).toBe('hybrid')
+    expect(strategyForEngine(undefined)).toBe('hybrid')
+  })
+})
+
+describe('initialMode', () => {
+  it('starts a pinned strategy on its own substrate at any zoom', () => {
+    expect(initialMode('svg', 1)).toBe('svg')
+    expect(initialMode('canvas', 0.05)).toBe('canvas')
+  })
+
+  it('defers to the hybrid bands otherwise', () => {
+    expect(initialMode('hybrid', 1)).toBe('canvas')
+    expect(initialMode('hybrid', 0.05)).toBe('svg')
+  })
+})
 
 describe('initialHybridMode', () => {
   it('starts on the substrate the starting zoom was measured to need', () => {

@@ -7,7 +7,7 @@ import "./mindmap-motion.css"
 import "./mindmap-shape.css"
 
 import type { ElementBox } from "./edge-paths"
-import { initialHybridMode } from "./edge-strategy"
+import { initialMode, strategyForEngine } from "./edge-strategy"
 import type { EdgeMode } from "./edge-style"
 import { MindmapBackground } from "./MindmapBackground"
 import { MindmapEdgeLabels, MindmapEdgeLayer } from "./MindmapEdgeLayer"
@@ -174,8 +174,12 @@ export function MindmapCanvas({
     onFitClamped,
   }
 
+  // Read from the stamp the entry writes rather than resolved here, so a test that never ran the
+  // entry keeps the hybrid the map was measured with.
+  const [strategy] = useState(() => strategyForEngine(document.documentElement.dataset.engine))
+
   // Starts wherever a camera at 1:1 belongs, which is where every runtime starts before it fits.
-  const [edgeMode, setEdgeMode] = useState<EdgeMode>(() => initialHybridMode(1))
+  const [edgeMode, setEdgeMode] = useState<EdgeMode>(() => initialMode(strategy, 1))
 
   // Rebuilt whenever the scene identity changes, because the index reads the DOM React just wrote and
   // the culler's grid is built from it. Both are snapshots by design: making them incremental is the
@@ -187,6 +191,7 @@ export function MindmapCanvas({
 
     const created = createCanvasRuntime({
       scene,
+      strategy,
       edgeMode,
       elements: {
         pane: pane.current,
@@ -268,7 +273,7 @@ export function MindmapCanvas({
     // Deliberately not on edgeMode: a swap must not tear the runtime down and lose the camera. The
     // runtime is told about the new layer by the effect below instead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene, runtimeRef])
+  }, [scene, runtimeRef, strategy])
 
   // Layout rather than passive, so the new substrate is drawing before the browser paints the frame
   // the swap happened on; otherwise the edges blink out for one frame at every threshold crossing.
