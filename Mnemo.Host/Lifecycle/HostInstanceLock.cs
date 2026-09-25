@@ -7,9 +7,9 @@ namespace Mnemo.Host.Lifecycle;
 /// other live instance shares it.
 /// </summary>
 /// <remarks>
-/// Nothing stops a user launching the app twice against the same profile, and most of the
-/// app tolerates that: SQLite serializes the writes and the note version check catches
-/// logical races. The asset sweep does not tolerate it, because its editing-session registry
+/// <see cref="PrimaryInstance"/> keeps a second launch of the app off a profile, but a dev host
+/// may still run beside the installed app on it, and most of the app tolerates that: SQLite
+/// serializes the writes and the note version check catches logical races. The asset sweep does not tolerate it, because its editing-session registry
 /// is per process: instance A cannot see the session whose undo history keeps a file alive in
 /// instance B, so A's sweep would delete what B can still redo. Destructive maintenance
 /// therefore stands down while another instance is running.

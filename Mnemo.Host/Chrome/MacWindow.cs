@@ -55,6 +55,13 @@ internal static class MacWindow
         });
     }
 
+    /// <summary>
+    /// Makes Mnemo the active app. Ordering its window to the front does not do that on its own
+    /// while another app is active. Call on the main thread.
+    /// </summary>
+    public static void ActivateApp(ILoggerService? logger) =>
+        Run("app activation", () => Send(Send(Class("NSApplication"), Sel("sharedApplication")), Sel("activateIgnoringOtherApps:"), true), logger);
+
     private static void Run(string what, Action step, ILoggerService? logger)
     {
         try

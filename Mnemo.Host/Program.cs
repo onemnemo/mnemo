@@ -88,10 +88,34 @@ public static class Program
         WaitForPredecessor(args);
         var startupLogger = new LoggerService();
         CrashLog.UseLogger(startupLogger);
+
+        // Settled before anything opens the profile: a second launch hands over to the window
+        // already running on it and exits without touching the database.
+        var dataRoot = MnemoAppPaths.GetLocalUserDataRoot();
+        var claim = Task.Run(() => PrimaryInstance.ClaimOrActivateAsync(
+            dataRoot,
+            options.DevMode ? PrimaryInstance.DevRole : PrimaryInstance.AppRole,
+            HandOverPatience,
+            startupLogger)).GetAwaiter().GetResult();
+        if (claim.Primary is null)
+        {
+            if (claim.Activated)
+                return 0;
+
+            // The holder is shutting down or hung; say so rather than exit silently.
+            FatalDialog.ShowNotice(
+                "Mnemo is still running",
+                "Mnemo is still running but did not respond, so it was not opened a second time. Wait a moment and try again, or close Mnemo first.");
+            return 1;
+        }
+
+        using var primary = claim.Primary;
+        var activation = new WindowActivation(startupLogger);
+        primary.Listen(activation.Activate, startupLogger);
         using var instanceLock = HostInstanceLock.Acquire();
 
         Task.Run(() => ProfileRestoreStartup.ApplyPendingAsync(
-            MnemoAppPaths.GetLocalUserDataRoot(),
+            dataRoot,
             CurrentAppVersion(),
             startupLogger,
             allowProfileReplacement: !instanceLock.AnotherInstanceIsRunning())).GetAwaiter().GetResult();
@@ -102,12 +126,14 @@ public static class Program
         var restart = false;
         try
         {
-            RunWindow(options, server);
+            RunWindow(options, server, activation);
             restart = server.App.Services.GetRequiredService<AppRestartCoordinator>().Requested;
             return 0;
         }
         finally
         {
+            // From here a launch waits for the claim instead of handing over to a closing instance.
+            Task.Run(primary.StopListeningAsync).GetAwaiter().GetResult();
             StopServer(server);
             if (restart)
                 Relaunch(args);
@@ -443,7 +469,13 @@ public static class Program
     /// </summary>
     private static readonly TimeSpan ShutdownGrace = TimeSpan.FromSeconds(3);
 
-    private static void RunWindow(HostOptions options, ServerHandle server)
+    /// <summary>
+    /// How long a launch retries against a holder that does not answer. Outlasts the save
+    /// grace plus server shutdown of an instance on its way out.
+    /// </summary>
+    private static readonly TimeSpan HandOverPatience = TimeSpan.FromSeconds(15);
+
+    private static void RunWindow(HostOptions options, ServerHandle server, WindowActivation activation)
     {
         var url = server.WindowUrl;
         var logger = server.App.Services.GetRequiredService<ILoggerService>();
@@ -504,6 +536,7 @@ public static class Program
         ExitSignals.Attach(window, logger);
         server.App.Services.GetRequiredService<NativeFileDialogs>().Attach(window);
         server.App.Services.GetRequiredService<AppRestartCoordinator>().Attach(window);
+        activation.Attach(window);
 
         logger.Info(CrashLog.Category, $"Load({url})");
         window.Load(url);

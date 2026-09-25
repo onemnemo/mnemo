@@ -21,6 +21,7 @@ internal static class FatalDialog
 {
     private const uint MessageBoxOk = 0x00000000;
     private const uint MessageBoxIconError = 0x00000010;
+    private const uint MessageBoxIconWarning = 0x00000030;
     private const uint MessageBoxSetForeground = 0x00010000;
     private const uint MessageBoxTopMost = 0x00040000;
 
@@ -41,11 +42,18 @@ internal static class FatalDialog
     public static void ShowCrash(Exception error) => Show(error, "Mnemo has stopped");
 
     /// <summary>
-    /// Shows the fault, if there is anyone there to see it. Never throws: this
-    /// runs while the process is already failing, and a second fault raised by
-    /// the code reporting the first would replace it.
+    /// Explains why a launch ended without a window when nothing is broken. Never throws.
     /// </summary>
-    private static void Show(Exception error, string title)
+    public static void ShowNotice(string title, string message) => Show(message, title, isError: false);
+
+    private static void Show(Exception error, string title) =>
+        Show(ComposeMessage(error, title, SafeLogsDirectory()), title, isError: true);
+
+    /// <summary>
+    /// Shows the message if anyone can see it. Never throws: a second fault raised while
+    /// reporting the first would replace it.
+    /// </summary>
+    private static void Show(string message, string title, bool isError)
     {
         // A service or a CI run has no desktop to put a modal on and must not be
         // blocked by one. This is only ever false on Windows: .NET reports every
@@ -54,13 +62,11 @@ internal static class FatalDialog
         if (!Environment.UserInteractive)
             return;
 
-        var message = ComposeMessage(error, title, SafeLogsDirectory());
-
         try
         {
             if (OperatingSystem.IsWindows())
             {
-                ShowOnWindows(message, title);
+                ShowOnWindows(message, title, isError);
                 return;
             }
 
@@ -71,9 +77,9 @@ internal static class FatalDialog
             Console.Error.WriteLine($"{title}{Environment.NewLine}{message}");
 
             if (OperatingSystem.IsMacOS())
-                ShowOnMacOS(message, title);
+                ShowOnMacOS(message, title, isError);
             else if (OperatingSystem.IsLinux())
-                ShowOnLinux(message, title);
+                ShowOnLinux(message, title, isError);
         }
         catch
         {
@@ -82,12 +88,12 @@ internal static class FatalDialog
     }
 
     [SupportedOSPlatform("windows")]
-    private static void ShowOnWindows(string message, string title) =>
+    private static void ShowOnWindows(string message, string title, bool isError) =>
         MessageBoxW(
             IntPtr.Zero,
             message,
             title,
-            MessageBoxOk | MessageBoxIconError | MessageBoxSetForeground | MessageBoxTopMost);
+            MessageBoxOk | (isError ? MessageBoxIconError : MessageBoxIconWarning) | MessageBoxSetForeground | MessageBoxTopMost);
 
     /// <remarks>
     /// osascript is part of the base system, so this needs nothing installed. The
@@ -95,10 +101,10 @@ internal static class FatalDialog
     /// pasted into the script text, so a fault message containing a quote cannot
     /// change what AppleScript ends up running.
     /// </remarks>
-    private static void ShowOnMacOS(string message, string title) =>
+    private static void ShowOnMacOS(string message, string title, bool isError) =>
         Run("/usr/bin/osascript",
             "-e", "on run argv",
-            "-e", $"display dialog (item 1 of argv) with title \"{title}\" buttons {{\"OK\"}} default button \"OK\" with icon stop",
+            "-e", $"display dialog (item 1 of argv) with title \"{title}\" buttons {{\"OK\"}} default button \"OK\" with icon {(isError ? "stop" : "caution")}",
             "-e", "end run",
             message);
 
@@ -107,7 +113,7 @@ internal static class FatalDialog
     /// usual set and stops at the first one that runs: zenity ships with GNOME,
     /// kdialog with KDE, and xmessage with X itself.
     /// </remarks>
-    private static void ShowOnLinux(string message, string title)
+    private static void ShowOnLinux(string message, string title, bool isError)
     {
         // No session means nobody to show a dialog to, and a helper left waiting on a
         // display that is not there would hold a dying process open indefinitely.
@@ -115,10 +121,10 @@ internal static class FatalDialog
             && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")))
             return;
 
-        if (Run("zenity", "--error", "--title", title, "--text", message))
+        if (Run("zenity", isError ? "--error" : "--warning", "--title", title, "--text", message))
             return;
 
-        if (Run("kdialog", "--title", title, "--error", message))
+        if (Run("kdialog", "--title", title, isError ? "--error" : "--sorry", message))
             return;
 
         Run("xmessage", "-center", message);
@@ -155,10 +161,8 @@ internal static class FatalDialog
     }
 
     /// <summary>
-    /// Builds the text a person sees. Kept pure of the environment it usually
-    /// draws on: <see cref="Show"/> passes in the result of <see cref="SafeLogsDirectory"/>
-    /// rather than this method resolving it, so the wording can be unit tested without
-    /// needing a real data root to resolve against.
+    /// Builds the text a person sees for a fault. The logs directory is passed in so the
+    /// wording can be tested without a real data root.
     /// </summary>
     internal static string ComposeMessage(Exception error, string title, string? logsDirectory)
     {
