@@ -11,7 +11,6 @@ import { initialMode, strategyForEngine } from "./edge-strategy"
 import type { EdgeMode } from "./edge-style"
 import { MindmapBackground } from "./MindmapBackground"
 import { MindmapEdgeLabels, MindmapEdgeLayer } from "./MindmapEdgeLayer"
-import { MindmapMarkerDefs } from "./MindmapMarkerDefs"
 import { createSelectionRepainter } from "./edge-highlight"
 import { MindmapSelectionLayer } from "./MindmapSelectionLayer"
 import { MindmapNode } from "./MindmapNode"
@@ -361,7 +360,6 @@ export function MindmapCanvas({
       data-mm-canvas
     >
       <MindmapBackground ref={background} background={scene.background} />
-      <MindmapMarkerDefs />
 
       {edgeMode === "canvas" ? (
         <canvas ref={edgeCanvas} className="pointer-events-none absolute inset-0 size-full" aria-hidden />

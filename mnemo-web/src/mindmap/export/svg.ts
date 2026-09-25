@@ -161,9 +161,8 @@ function emitEdge(edge: SceneEdge, from: SceneElement, to: SceneElement, paint: 
         ` stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`,
     )
 
-    // Caps as geometry rather than as markers. The canvas takes their colour from `context-stroke`,
-    // which two markers can then serve every branch hue with, but that is a browser reading a live
-    // document; a file opened in a drawing tool would get arrowheads with no colour at all.
+    // Caps as geometry rather than as markers, so a file opened in a drawing tool gets arrowheads in
+    // the branch colour without depending on how that tool resolves markers.
     const caps = capsOf(stroke)
     if (caps) {
       out.push(emitCap(edge.startCap, caps.start, style.width, color))

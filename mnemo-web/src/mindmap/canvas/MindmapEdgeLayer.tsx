@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 
 import { boxOf, anchorsFor, edgeShape, strokeToPathData, isFilled } from "./edge-paths"
 import { strokeFor } from "./edge-canvas"
+import { CapMarkers } from "./CapMarkers"
 import { capMarker } from "./line-marks"
 import { dashAttribute, strokeStyleFor } from "./edge-style"
 import type { Scene, SceneEdge, SceneElement } from "../model/scene"
@@ -53,23 +54,27 @@ function EdgePath({ edge, from, to }: { edge: SceneEdge; from: SceneElement; to:
   const stroke = strokeFor(edge, anchorsFor(boxOf(from), boxOf(to)))
   const style = strokeStyleFor(edge)
   const filled = isFilled(stroke)
+  const owner = `edge-${edge.id}`
 
   return (
-    <path
-      data-mm-edge={edge.id}
-      d={strokeToPathData(stroke)}
-      // A ribbon is a closed shape, so it is filled and never stroked; stroking one outlines it
-      // instead of filling it, and filling an open curve closes it into a lens.
-      fill={filled ? style.color : "none"}
-      stroke={filled ? "none" : style.color}
-      strokeWidth={filled ? undefined : style.width}
-      strokeDasharray={filled ? undefined : dashAttribute(style.dash)}
-      strokeLinecap="round"
-      // A ribbon has no stroke for a marker to take its colour from, and a tapering branch that
-      // ended in an arrowhead would be two ideas about the same end anyway.
-      markerStart={filled ? undefined : capMarker(edge.startCap)}
-      markerEnd={filled ? undefined : capMarker(edge.endCap)}
-    />
+    <>
+      {filled ? null : <CapMarkers owner={owner} color={style.color} start={edge.startCap} end={edge.endCap} />}
+      <path
+        data-mm-edge={edge.id}
+        d={strokeToPathData(stroke)}
+        // A ribbon is a closed shape, so it is filled and never stroked; stroking one outlines it
+        // instead of filling it, and filling an open curve closes it into a lens.
+        fill={filled ? style.color : "none"}
+        stroke={filled ? "none" : style.color}
+        strokeWidth={filled ? undefined : style.width}
+        strokeDasharray={filled ? undefined : dashAttribute(style.dash)}
+        strokeLinecap="round"
+        // A ribbon has no stroke for a marker to take its colour from, and a tapering branch that
+        // ended in an arrowhead would be two ideas about the same end anyway.
+        markerStart={filled ? undefined : capMarker(edge.startCap, owner, "start")}
+        markerEnd={filled ? undefined : capMarker(edge.endCap, owner, "end")}
+      />
+    </>
   )
 }
 
