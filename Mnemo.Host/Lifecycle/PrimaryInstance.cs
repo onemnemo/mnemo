@@ -195,40 +195,80 @@ public sealed class PrimaryInstance : IDisposable
     private async Task ServeAsync(Func<bool> onActivate, ILoggerService logger, CancellationToken stop)
     {
         var backoff = TimeSpan.Zero;
-        while (!stop.IsCancellationRequested)
+        var exchangeFailing = false;
+        NamedPipeServerStream? waiting = null;
+        try
         {
-            try
+            while (!stop.IsCancellationRequested)
             {
-                await using var pipe = new NamedPipeServerStream(_endpoint, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
-                await pipe.WaitForConnectionAsync(stop).ConfigureAwait(false);
-
-                using var exchange = CancellationTokenSource.CreateLinkedTokenSource(stop);
-                exchange.CancelAfter(ExchangeTimeout);
-                await AnswerAsync(pipe, onActivate, exchange.Token).ConfigureAwait(false);
-                backoff = TimeSpan.Zero;
-            }
-            catch (OperationCanceledException) when (stop.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception ex)
-            {
-                // Logged once per run of failures, since a broken endpoint fails on every pass.
-                if (backoff == TimeSpan.Zero)
-                    logger.Warning(LogCategory, $"A launch on this profile could not be answered: {ex.Message}");
-                backoff = NextBackoff(backoff);
+                NamedPipeServerStream? connected = null;
                 try
                 {
-                    await Task.Delay(backoff, stop).ConfigureAwait(false);
+                    waiting ??= CreateServer();
+                    await waiting.WaitForConnectionAsync(stop).ConfigureAwait(false);
+
+                    // Next instance first: on Unix the endpoint closes with its last instance.
+                    (connected, waiting) = (waiting, null);
+                    waiting = CreateServer();
+                    backoff = TimeSpan.Zero;
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (stop.IsCancellationRequested)
                 {
                     return;
                 }
+                catch (Exception ex)
+                {
+                    connected?.Dispose();
+                    waiting?.Dispose();
+                    waiting = null;
+
+                    // Logged once per run of failures, since a broken endpoint fails on every pass.
+                    if (backoff == TimeSpan.Zero)
+                        logger.Warning(LogCategory, $"A launch on this profile could not be answered: {ex.Message}");
+                    backoff = NextBackoff(backoff);
+                    try
+                    {
+                        await Task.Delay(backoff, stop).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+                    continue;
+                }
+
+                await using (connected)
+                {
+                    try
+                    {
+                        using var exchange = CancellationTokenSource.CreateLinkedTokenSource(stop);
+                        exchange.CancelAfter(ExchangeTimeout);
+                        await AnswerAsync(connected, onActivate, exchange.Token).ConfigureAwait(false);
+                        exchangeFailing = false;
+                    }
+                    catch (OperationCanceledException) when (stop.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        // One launch failed; the endpoint itself is fine. Logged once per run of failures.
+                        if (!exchangeFailing)
+                            logger.Warning(LogCategory, $"A launch on this profile failed partway through its answer: {ex.Message}");
+                        exchangeFailing = true;
+                    }
+                }
             }
         }
+        finally
+        {
+            waiting?.Dispose();
+        }
     }
+
+    // Two instances: the one answering a launch and the next one already waiting.
+    private NamedPipeServerStream CreateServer() =>
+        new(_endpoint, PipeDirection.InOut, 2, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
     private static async Task AnswerAsync(Stream pipe, Func<bool> onActivate, CancellationToken cancellationToken)
     {

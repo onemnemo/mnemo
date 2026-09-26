@@ -77,9 +77,10 @@ public sealed class PrimaryInstanceTests : IDisposable
         var count = 0;
         primary.Listen(() => Interlocked.Increment(ref count) > 0, new RecordingLogger());
 
-        Assert.True(await PrimaryInstance.TryActivateAsync(_root, PrimaryInstance.AppRole, Wait));
-        Assert.True(await PrimaryInstance.TryActivateAsync(_root, PrimaryInstance.AppRole, Wait));
-        Assert.Equal(2, Volatile.Read(ref count));
+        // Back to back, so each launch connects while the previous exchange is still closing.
+        for (var launch = 1; launch <= 10; launch++)
+            Assert.True(await PrimaryInstance.TryActivateAsync(_root, PrimaryInstance.AppRole, Wait), $"launch {launch}");
+        Assert.Equal(10, Volatile.Read(ref count));
     }
 
     [Fact]
