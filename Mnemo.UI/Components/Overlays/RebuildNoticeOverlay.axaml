@@ -1,0 +1,115 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Mnemo.UI.Modules.Updates.ViewModels"
+             x:Class="Mnemo.UI.Components.Overlays.RebuildNoticeOverlay"
+             x:DataType="vm:RebuildNoticeViewModel">
+    <Border MaxWidth="520"
+            Padding="24"
+            CornerRadius="12"
+            Background="{DynamicResource OverlayBackgroundBrush}"
+            BorderBrush="{DynamicResource IconsSeparationBarBrush}"
+            BorderThickness="1">
+        <StackPanel Spacing="16">
+            <!-- Illustration: two overlapping cards on a tinted panel, with a beta pill -->
+            <Border Height="184"
+                    CornerRadius="10"
+                    ClipToBounds="True"
+                    Background="{DynamicResource CardBackgroundSecondaryBrush}">
+                <Grid>
+                    <Canvas Width="336" Height="184"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                        <!-- Back card -->
+                        <Border Canvas.Left="40" Canvas.Top="30"
+                                Width="224" Height="100"
+                                Padding="14"
+                                CornerRadius="10"
+                                RenderTransform="rotate(-6deg)"
+                                Background="{DynamicResource OverlayBackgroundBrush}"
+                                BorderBrush="{DynamicResource IconsSeparationBarBrush}"
+                                BorderThickness="1">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Grid.Column="0"
+                                        Width="32" Height="32"
+                                        CornerRadius="8"
+                                        VerticalAlignment="Top"
+                                        Background="{DynamicResource ToastIconBadgeInfoBrush}">
+                                    <Path Width="16" Height="16"
+                                          Stretch="Uniform"
+                                          Fill="{DynamicResource ToastAccentInfoBrush}"
+                                          Data="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                                </Border>
+                                <StackPanel Grid.Column="1"
+                                            Margin="12,4,0,0"
+                                            Spacing="8"
+                                            HorizontalAlignment="Left">
+                                    <Border Width="112" Height="8" CornerRadius="4"
+                                            Background="{DynamicResource IconsSeparationBarBrush}" />
+                                    <Border Width="72" Height="8" CornerRadius="4"
+                                            Background="{DynamicResource IconsSeparationBarBrush}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <!-- Front card -->
+                        <Border Canvas.Left="88" Canvas.Top="64"
+                                Width="224" Height="100"
+                                Padding="14"
+                                CornerRadius="10"
+                                RenderTransform="rotate(3deg)"
+                                Background="{DynamicResource OverlayBackgroundBrush}"
+                                BorderBrush="{DynamicResource IconsSeparationBarBrush}"
+                                BorderThickness="1">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Grid.Column="0"
+                                        Width="32" Height="32"
+                                        CornerRadius="8"
+                                        VerticalAlignment="Top"
+                                        Background="{DynamicResource ToastIconBadgeActionBrush}">
+                                    <Path Width="16" Height="16"
+                                          Stretch="Uniform"
+                                          Fill="{DynamicResource ToastAccentActionBrush}"
+                                          Data="M2.53 19.65l1.34.56v-9.03l-2.43 5.86c-.41 1.02.08 2.19 1.09 2.61zm19.5-3.7L17.07 3.98c-.31-.75-1.04-1.21-1.81-1.23-.26 0-.53.04-.79.15L7.1 5.95c-.75.31-1.21 1.03-1.23 1.8-.01.27.04.54.15.8l4.96 11.97c.31.76 1.05 1.22 1.83 1.23.26 0 .52-.05.77-.15l7.36-3.05c1.02-.42 1.51-1.59 1.09-2.6zM7.88 8.75c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-2 11c0 1.1.9 2 2 2h1.45l-3.45-8.34v6.34z" />
+                                </Border>
+                                <StackPanel Grid.Column="1"
+                                            Margin="12,4,0,0"
+                                            Spacing="8"
+                                            HorizontalAlignment="Left">
+                                    <Border Width="96" Height="8" CornerRadius="4"
+                                            Background="{DynamicResource IconsSeparationBarBrush}" />
+                                    <Border Width="128" Height="8" CornerRadius="4"
+                                            Background="{DynamicResource IconsSeparationBarBrush}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Canvas>
+                    <!-- Beta pill -->
+                    <Border HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="12"
+                            Padding="10,4"
+                            CornerRadius="999"
+                            Background="{DynamicResource AccentPrimaryBrush}">
+                        <TextBlock Text="{Binding BetaLabel}"
+                                   FontSize="{DynamicResource FontSize.Caption}"
+                                   FontFamily="{DynamicResource Font.SemiBold}"
+                                   Foreground="{DynamicResource AccentButtonForegroundBrush}" />
+                    </Border>
+                </Grid>
+            </Border>
+            <TextBlock Text="{Binding Title}"
+                       FontSize="{DynamicResource FontSize.Heading4}"
+                       FontFamily="{DynamicResource Font.Bold}"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+            <TextBlock Text="{Binding Body}"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="{Binding LaterLabel}"
+                        Command="{Binding LaterCommand}" />
+                <Button Content="{Binding DownloadLabel}"
+                        Command="{Binding DownloadCommand}"
+                        Classes="accent" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

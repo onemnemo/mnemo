@@ -10,7 +10,7 @@ using Mnemo.UI.Modules.Updates.ViewModels;
 
 namespace Mnemo.UI.Modules.Updates.Services;
 
-/// <summary>Startup / manual update checks, gating, manual overlay, automatic toast prompt, and settings badge.</summary>
+/// <summary>Startup / manual update checks, gating, manual overlay, automatic toast prompt, settings badge, and the rebuild notice.</summary>
 public sealed class UpdateOrchestrator : IDisposable
 {
     private const int CooldownHours = 6;
@@ -31,6 +31,8 @@ public sealed class UpdateOrchestrator : IDisposable
     private bool _overlayOpen;
     private readonly object _overlayGate = new();
     private bool _started;
+    private readonly RebuildNoticeGate _rebuildNotice = new();
+    private bool _rebuildNoticeOpen;
 
     public UpdateOrchestrator(
         IUpdateService updateService,
@@ -71,7 +73,59 @@ public sealed class UpdateOrchestrator : IDisposable
         _navigationService.Navigated -= OnNavigated;
     }
 
-    private void OnNavigated(object? sender, NavigationChangedEventArgs e) => _ = TryPresentAsync(userForced: false);
+    private void OnNavigated(object? sender, NavigationChangedEventArgs e)
+    {
+        _ = TryPresentAsync(userForced: false);
+        _ = TryPresentRebuildNoticeAsync();
+    }
+
+    /// <summary>
+    /// Startup flows are done: show the rebuild notice once this launch, now if an allowed
+    /// route is current, otherwise on the first navigation to one.
+    /// </summary>
+    public void ArmRebuildNotice()
+    {
+        _rebuildNotice.Arm();
+        _ = TryPresentRebuildNoticeAsync();
+    }
+
+    private Task TryPresentRebuildNoticeAsync() =>
+        _mainThreadDispatcher.InvokeAsync(() =>
+        {
+            if (_rebuildNotice.TryClaim(_navigationService.CurrentRoute))
+                ShowRebuildNotice();
+            return Task.CompletedTask;
+        });
+
+    private Task ShowRebuildNoticeAsync() =>
+        _mainThreadDispatcher.InvokeAsync(() =>
+        {
+            _rebuildNotice.MarkShown();
+            ShowRebuildNotice();
+            return Task.CompletedTask;
+        });
+
+    private void ShowRebuildNotice()
+    {
+        if (_rebuildNoticeOpen)
+            return;
+        _rebuildNoticeOpen = true;
+
+        var vm = new RebuildNoticeViewModel(_localizationService, _overlayService);
+        vm.OverlayClosed += () => _rebuildNoticeOpen = false;
+
+        var view = new RebuildNoticeOverlay(vm);
+        var options = new OverlayOptions
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            ShowBackdrop = true,
+            CloseOnOutsideClick = false,
+            CloseOnEscape = false
+        };
+        var overlayId = _overlayService.CreateOverlay(view, options, "RebuildNotice");
+        vm.SetOverlayId(overlayId);
+    }
 
     private async Task InitializeAfterStartupAsync()
     {
@@ -135,11 +189,16 @@ public sealed class UpdateOrchestrator : IDisposable
 
             if (result.Value == null)
             {
-                if (userInitiated)
-                    LastManualCheckMessage = T("UpdatesUpToDate");
                 _pendingUpdate = null;
                 SetSettingsUpdateBadge(false);
                 await ClearPersistedPendingOfferAsync().ConfigureAwait(false);
+                if (userInitiated)
+                {
+                    // The feed for this release line never carries the rebuilt app, so an
+                    // up-to-date answer is the moment to point at its download page.
+                    LastManualCheckMessage = T("UpdatesPromptShown");
+                    await ShowRebuildNoticeAsync().ConfigureAwait(false);
+                }
                 return;
             }
 

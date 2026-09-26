@@ -195,7 +195,12 @@
     "UpdateNow": "今すぐ更新",
     "UpdateToastLater": "あとで",
     "PostUpdateToastTitle": "更新をインストールしました",
-    "PostUpdateToastDescriptionFormat": "バージョン {0} に更新しました。"
+    "PostUpdateToastDescriptionFormat": "バージョン {0} に更新しました。",
+    "RebuildNoticeTitle": "Mnemo 0.8 が登場しました",
+    "RebuildNoticeBody": "Mnemo は一から作り直されました。このバージョンからは自動で更新できないため、今後も更新を受け取るには新しいバージョンをダウンロードしてください。ノート、フラッシュカード、マインドマップはそのまま引き継がれます。",
+    "RebuildNoticeBetaPill": "ベータ",
+    "RebuildNoticeDownload": "Mnemo 0.8 をダウンロード",
+    "RebuildNoticeLater": "あとで"
   },
   "Onboarding": {
     "WelcomeTitle": "Mnemoへようこそ",

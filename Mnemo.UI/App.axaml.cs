@@ -145,6 +145,15 @@ public partial class App : Application
         {
             Services?.GetService<ILoggerService>()?.Error("Updates", "ShowPostUpdateToastIfNeededAsync threw.", ex);
         }
+
+        try
+        {
+            Services?.GetService<UpdateOrchestrator>()?.ArmRebuildNotice();
+        }
+        catch (Exception ex)
+        {
+            Services?.GetService<ILoggerService>()?.Error("Updates", "ArmRebuildNotice threw.", ex);
+        }
     }
 
     private async Task ShowPostUpdateToastIfNeededAsync()

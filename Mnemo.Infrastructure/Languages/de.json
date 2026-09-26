@@ -195,7 +195,12 @@
     "UpdateNow": "Jetzt aktualisieren",
     "UpdateToastLater": "Später",
     "PostUpdateToastTitle": "Update installiert",
-    "PostUpdateToastDescriptionFormat": "Aktualisiert auf Version {0}."
+    "PostUpdateToastDescriptionFormat": "Aktualisiert auf Version {0}.",
+    "RebuildNoticeTitle": "Mnemo 0.8 ist da",
+    "RebuildNoticeBody": "Mnemo wurde von Grund auf neu entwickelt. Diese Version kann nicht von selbst darauf aktualisieren. Laden Sie die neue Version herunter, um weiterhin Updates zu erhalten. Ihre Notizen, Karteikarten und Mindmaps werden übernommen.",
+    "RebuildNoticeBetaPill": "Beta",
+    "RebuildNoticeDownload": "Mnemo 0.8 herunterladen",
+    "RebuildNoticeLater": "Später"
   },
   "Onboarding": {
     "WelcomeTitle": "Willkommen bei Mnemo",

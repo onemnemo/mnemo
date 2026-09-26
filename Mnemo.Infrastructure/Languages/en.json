@@ -198,7 +198,12 @@
     "UpdateNow": "Update now",
     "UpdateToastLater": "Later",
     "PostUpdateToastTitle": "Update installed",
-    "PostUpdateToastDescriptionFormat": "Updated to version {0}."
+    "PostUpdateToastDescriptionFormat": "Updated to version {0}.",
+    "RebuildNoticeTitle": "Mnemo 0.8 is here",
+    "RebuildNoticeBody": "Mnemo has been rebuilt from the ground up. This version cannot update to it on its own, so download the new one to keep receiving updates. Your notes, flashcards and mind maps carry over.",
+    "RebuildNoticeBetaPill": "Beta",
+    "RebuildNoticeDownload": "Download Mnemo 0.8",
+    "RebuildNoticeLater": "Later"
   },
   "Onboarding": {
     "WelcomeTitle": "Welcome to Mnemo",
