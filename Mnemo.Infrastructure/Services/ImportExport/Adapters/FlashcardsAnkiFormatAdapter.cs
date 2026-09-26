@@ -245,7 +245,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     if (drafts.Count == 0 && material.Count == 0)
                         continue;
 
-                    var (folderId, deckName) = await folders.ResolveAsync(deckPath, cancellationToken).ConfigureAwait(false);
+                    var (folderId, deckName) = await folders.ResolvePathAsync(deckPath, cancellationToken).ConfigureAwait(false);
                     var deck = await _library.CreateDeckAsync(deckName, folderId, preset.Id, cancellationToken).ConfigureAwait(false);
                     createdDeckId = deck.Id;
                     await _library.SaveDeckAsync(
@@ -1667,13 +1667,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
     private async Task<Dictionary<string, string>> BuildFolderPathsAsync(CancellationToken cancellationToken)
     {
-        var folders = await _library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
-        var byId = folders.ToDictionary(f => f.Id, StringComparer.Ordinal);
-        var paths = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var folder in folders)
-            paths[folder.Id] = DeckFolderResolver.BuildPath(folder, byId);
-
-        return paths;
+        var chains = await DeckFolderResolver.ChainsByFolderIdAsync(_library, cancellationToken).ConfigureAwait(false);
+        return chains.ToDictionary(c => c.Key, c => string.Join(DeckPathSeparator, c.Value), StringComparer.Ordinal);
     }
 
     private async Task<List<AnkiExportCard>> LoadExportCardsAsync(string deckId, CancellationToken cancellationToken)
@@ -2537,89 +2532,6 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // The deck stays, empty. Failing the cleanup must not replace the real failure.
-        }
-    }
-
-    /// <summary>
-    /// Maps an Anki deck path onto Mnemo's folders, creating the chain it needs and reusing whatever
-    /// already exists so a second import of the same collection does not build a parallel tree.
-    /// </summary>
-    private sealed class DeckFolderResolver
-    {
-        private readonly IFlashcardLibraryService _library;
-        private readonly Dictionary<string, string> _folderIdByPath = new(StringComparer.OrdinalIgnoreCase);
-        private int _nextOrder;
-
-        private DeckFolderResolver(IFlashcardLibraryService library) => _library = library;
-
-        public static async Task<DeckFolderResolver> CreateAsync(IFlashcardLibraryService library, CancellationToken cancellationToken)
-        {
-            var resolver = new DeckFolderResolver(library);
-            var folders = await library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
-            var byId = folders.ToDictionary(f => f.Id, StringComparer.Ordinal);
-            foreach (var folder in folders)
-            {
-                var path = BuildPath(folder, byId);
-                if (!string.IsNullOrEmpty(path))
-                    resolver._folderIdByPath.TryAdd(path, folder.Id);
-                resolver._nextOrder = Math.Max(resolver._nextOrder, folder.Order + 1);
-            }
-
-            return resolver;
-        }
-
-        /// <summary>Splits a deck path into the folder it belongs in and the deck's own name.</summary>
-        public async Task<(string? FolderId, string DeckName)> ResolveAsync(string deckPath, CancellationToken cancellationToken)
-        {
-            var segments = deckPath
-                .Split(DeckPathSeparator, StringSplitOptions.None)
-                .Select(segment => segment.Trim())
-                .Where(segment => segment.Length > 0)
-                .ToArray();
-
-            if (segments.Length == 0)
-                return (null, deckPath);
-            if (segments.Length == 1)
-                return (null, segments[0]);
-
-            string? parentId = null;
-            var path = new StringBuilder();
-            for (var i = 0; i < segments.Length - 1; i++)
-            {
-                if (path.Length > 0)
-                    path.Append(DeckPathSeparator);
-                path.Append(segments[i]);
-
-                var key = path.ToString();
-                if (!_folderIdByPath.TryGetValue(key, out var folderId))
-                {
-                    folderId = Guid.NewGuid().ToString();
-                    await _library.SaveFolderAsync(
-                        new FlashcardFolder(folderId, segments[i], parentId, _nextOrder++),
-                        cancellationToken).ConfigureAwait(false);
-                    _folderIdByPath[key] = folderId;
-                }
-
-                parentId = folderId;
-            }
-
-            return (parentId, segments[^1]);
-        }
-
-        public static string BuildPath(FlashcardFolder folder, IReadOnlyDictionary<string, FlashcardFolder> byId)
-        {
-            var segments = new List<string>();
-            var current = folder;
-            // Saved data can carry a parent cycle; the depth cap keeps a bad row from hanging a walk.
-            for (var depth = 0; current is not null && depth < 64; depth++)
-            {
-                segments.Add(current.Name);
-                if (string.IsNullOrEmpty(current.ParentId) || !byId.TryGetValue(current.ParentId, out current))
-                    break;
-            }
-
-            segments.Reverse();
-            return string.Join(DeckPathSeparator, segments);
         }
     }
 

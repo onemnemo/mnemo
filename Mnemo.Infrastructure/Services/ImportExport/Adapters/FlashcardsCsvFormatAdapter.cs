@@ -122,12 +122,14 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
                 Attachments: Array.Empty<FlashcardAttachment>()));
         }
 
+        var folders = await DeckFolderResolver.CreateAsync(_library, cancellationToken).ConfigureAwait(false);
         var createdCards = 0;
         foreach (var deckName in deckNames)
         {
+            var (folderId, name) = await folders.ResolvePathAsync(deckName, cancellationToken).ConfigureAwait(false);
             var deck = await _library.CreateDeckAsync(
-                deckName,
-                folderId: null,
+                name,
+                folderId,
                 presetId: preset.Id,
                 cancellationToken).ConfigureAwait(false);
 
@@ -280,13 +282,19 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
             var decks = selectedIds is { Count: > 0 }
                 ? summaries.Where(d => selectedIds.Contains(d.Id))
                 : summaries;
+            var chains = await DeckFolderResolver.ChainsByFolderIdAsync(_library, cancellationToken).ConfigureAwait(false);
 
             exportedCards = 0;
             foreach (var deck in decks)
             {
+                // A deck in a folder is written with its folders, since a bare name would merge it
+                // on the way back in with a same-named deck from another folder.
+                var folderId = deck.Header.FolderId;
+                var chain = !string.IsNullOrEmpty(folderId) && chains.TryGetValue(folderId, out var c) ? c : [];
+                var path = EscapeCsv(DeckFolderResolver.PathOf(chain, deck.Name));
                 exportedCards += await AppendCardsAsync(
                     deck.Id,
-                    (front, back) => sb.AppendLine($"{EscapeCsv(deck.Name)},{EscapeCsv(front)},{EscapeCsv(back)}"),
+                    (front, back) => sb.AppendLine($"{path},{EscapeCsv(front)},{EscapeCsv(back)}"),
                     cancellationToken).ConfigureAwait(false);
             }
         }
