@@ -53,15 +53,26 @@ public static class ProfileBackupScratch
                     continue;
                 if (IsLink(path) || !IsAbandoned(path))
                     continue;
-                if (ProfileBackupService.TryDeleteDirectory(path, logger))
+                try
+                {
+                    Directory.Delete(path, recursive: true);
                     logger.Info(LogCategory, $"Removed abandoned backup scratch {path}.");
+                }
+                catch (DirectoryNotFoundException)
+                {
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    logger.Warning(LogCategory, $"Could not remove abandoned backup scratch {path}: {ex.Message}");
+                }
             }
         }
     }
 
     /// <summary>
-    /// Removes unfinished archives a killed backup left beside <paramref name="outputPath"/>. Files
-    /// still open elsewhere are skipped.
+    /// Removes unfinished archives a killed backup left beside <paramref name="outputPath"/>: those
+    /// for the same file name, and any <c>.name.mnemo-backup.id.building</c>, since default names
+    /// change daily. Files still open elsewhere are skipped.
     /// </summary>
     internal static void SweepAbandonedBuilds(string outputPath, ILoggerService logger)
     {
@@ -81,25 +92,38 @@ public static class ProfileBackupScratch
         foreach (var path in candidates)
         {
             var name = Path.GetFileName(path);
-            if (!name.StartsWith(prefix, StringComparison.Ordinal) ||
-                name.Length != prefix.Length + 32 + BuildingSuffix.Length ||
-                !ProfileBackupService.IsOperationId(name.Substring(prefix.Length, 32)) ||
-                Active.ContainsKey(path) || IsLink(path))
-            {
+            if (!(IsBuildingOf(name, prefix) || IsBackupBuilding(name)) || Active.ContainsKey(path) || IsLink(path))
                 continue;
-            }
 
             try
             {
                 // Opening exclusively fails while a writer holds it; closing deletes it.
-                using var _ = new FileStream(
-                    path, FileMode.Open, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
+                using (new FileStream(
+                    path, FileMode.Open, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose))
+                {
+                }
                 logger.Info(LogCategory, $"Removed unfinished backup {path}.");
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
             }
         }
+    }
+
+    private static bool IsBuildingOf(string name, string prefix) =>
+        name.StartsWith(prefix, StringComparison.Ordinal) &&
+        name.Length == prefix.Length + 32 + BuildingSuffix.Length &&
+        ProfileBackupService.IsOperationId(name.Substring(prefix.Length, 32));
+
+    private static bool IsBackupBuilding(string name)
+    {
+        const string extension = ".mnemo-backup.";
+        var idStart = name.Length - BuildingSuffix.Length - 32;
+        var extensionStart = idStart - extension.Length;
+        return extensionStart > 1 && name[0] == '.' &&
+            name.EndsWith(BuildingSuffix, StringComparison.Ordinal) &&
+            ProfileBackupService.IsOperationId(name.Substring(idStart, 32)) &&
+            string.Compare(name, extensionStart, extension, 0, extension.Length, StringComparison.OrdinalIgnoreCase) == 0;
     }
 
     internal static Lease CreateDirectory(string dataRoot, string purpose, ILoggerService logger)

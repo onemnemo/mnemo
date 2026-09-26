@@ -42,38 +42,93 @@ public sealed class ProfileBackupScratchTests
     public async Task CreateAsync_SweepsWhatAKilledBackupLeftButNeverItsOwnWork()
     {
         using var profile = await TestProfile.CreateAsync();
-        var archive = Path.Combine(profile.Parent, "out", "profile.mnemo-backup");
-        Directory.CreateDirectory(Path.GetDirectoryName(archive)!);
+        var outFolder = Path.Combine(profile.Parent, "out");
+        var archive = Path.Combine(outFolder, "profile.mnemo-backup");
+        Directory.CreateDirectory(outFolder);
         var leftoverScratch = MakeScratch(profile.Root, "backup-create", withLock: true);
-        var leftoverBuild = BuildingPath(archive, Guid.NewGuid().ToString("N"));
-        var otherBuild = BuildingPath(Path.Combine(profile.Parent, "out", "other.mnemo-backup"), Guid.NewGuid().ToString("N"));
-        var foreignBuild = BuildingPath(archive, "mine");
-        foreach (var path in new[] { leftoverBuild, otherBuild, foreignBuild })
+        var leftoverBuild = BuildingPath(archive, NewId());
+        var datedBuild = BuildingPath(Path.Combine(outFolder, "mnemo-2026-09-20.mnemo-backup"), NewId());
+        var foreignShape = BuildingPath(Path.Combine(outFolder, "notes.txt"), NewId());
+        var foreignId = BuildingPath(archive, "mine");
+        foreach (var path in new[] { leftoverBuild, datedBuild, foreignShape, foreignId })
             await File.WriteAllTextAsync(path, "partial archive");
         var logger = new TestLogger();
         string[] liveScratch = [];
-        string[] liveBuilds = [];
+        string? liveBuild = null;
 
         var service = profile.Service(checkpoint: _ =>
         {
-            // A sweep from startup or a second backup while this one is mid-write.
+            liveBuild = Directory.GetFiles(outFolder, ".profile.mnemo-backup.*.building").Single(path => path != foreignId);
+            // The finished archive is closed here, so only in-process tracking keeps it safe.
+            using (new FileStream(liveBuild, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+            }
             ProfileBackupScratch.SweepAbandoned(profile.Root, logger);
             ProfileBackupScratch.SweepAbandonedBuilds(archive, logger);
             liveScratch = Directory.GetDirectories(profile.Root, ".backup-create-*");
-            liveBuilds = Directory.GetFiles(Path.GetDirectoryName(archive)!, ".profile.mnemo-backup.*.building");
         });
         await service.CreateAsync(archive, "0.8.0-beta");
+        await service.LastSweep;
 
         Assert.NotEqual(leftoverScratch, Assert.Single(liveScratch));
-        Assert.NotEqual(leftoverBuild, Assert.Single(liveBuilds, path => path != foreignBuild));
+        Assert.NotEqual(leftoverBuild, liveBuild);
+        Assert.False(File.Exists(liveBuild));
         Assert.False(Directory.Exists(leftoverScratch));
         Assert.False(File.Exists(leftoverBuild));
-        Assert.True(File.Exists(otherBuild));
-        Assert.True(File.Exists(foreignBuild));
+        Assert.False(File.Exists(datedBuild));
+        Assert.True(File.Exists(foreignShape));
+        Assert.True(File.Exists(foreignId));
         Assert.Empty(Directory.EnumerateDirectories(profile.Root, ".backup-create-*"));
         await service.InspectAsync(archive, "0.8.0-beta");
         Assert.Empty(Directory.EnumerateDirectories(profile.Root, ".backup-inspect-*"));
         Assert.Empty(logger.Errors);
+    }
+
+    [Fact]
+    public async Task SweepAbandoned_SkipsAScratchThisProcessIsTracking()
+    {
+        using var profile = await TestProfile.CreateAsync();
+        var scratch = MakeScratch(profile.Root, "backup-create", withLock: true, age: LongAgo);
+
+        using (ProfileBackupScratch.Track(scratch, new TestLogger()))
+            ProfileBackupScratch.SweepAbandoned(profile.Root, new TestLogger());
+        Assert.True(Directory.Exists(scratch));
+
+        ProfileBackupScratch.SweepAbandoned(profile.Root, new TestLogger());
+        Assert.False(Directory.Exists(scratch));
+    }
+
+    [Fact]
+    public async Task SweepAbandoned_KeepsALocklessScratchWithAFreshFileInside()
+    {
+        using var profile = await TestProfile.CreateAsync();
+        var scratch = MakeScratch(profile.Root, "backup-create", withLock: false, age: LongAgo);
+        var assets = Directory.CreateDirectory(Path.Combine(scratch, "assets", "images"));
+        await File.WriteAllTextAsync(Path.Combine(assets.FullName, "card.png"), "still copying");
+        Directory.SetLastWriteTimeUtc(assets.FullName, LongAgo);
+        Directory.SetLastWriteTimeUtc(Path.Combine(scratch, "assets"), LongAgo);
+        Directory.SetLastWriteTimeUtc(scratch, LongAgo);
+
+        ProfileBackupScratch.SweepAbandoned(profile.Root, new TestLogger());
+
+        Assert.True(Directory.Exists(scratch));
+    }
+
+    [Fact]
+    public async Task SweepAbandoned_NeverFollowsOrRemovesALink()
+    {
+        using var profile = await TestProfile.CreateAsync();
+        var elsewhere = Path.Combine(profile.Parent, "elsewhere");
+        Directory.CreateDirectory(elsewhere);
+        await File.WriteAllTextAsync(Path.Combine(elsewhere, "keep.txt"), "not scratch");
+        await File.WriteAllTextAsync(Path.Combine(elsewhere, ProfileBackupScratch.LockFileName), string.Empty);
+        var link = Path.Combine(profile.Root, $".backup-create-{NewId()}");
+        CreateDirectoryLink(link, elsewhere);
+
+        ProfileBackupScratch.SweepAbandoned(profile.Root, new TestLogger());
+
+        Assert.True(Directory.Exists(link));
+        Assert.Equal("not scratch", await File.ReadAllTextAsync(Path.Combine(elsewhere, "keep.txt")));
     }
 
     [Fact]
@@ -103,6 +158,28 @@ public sealed class ProfileBackupScratchTests
             Directory.SetLastWriteTimeUtc(path, stamp);
         }
         return path;
+    }
+
+    private static string NewId() => Guid.NewGuid().ToString("N");
+
+    // A junction needs no privilege on Windows, where a symbolic link can.
+    private static void CreateDirectoryLink(string link, string target)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Directory.CreateSymbolicLink(link, target);
+            return;
+        }
+
+        using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            "cmd.exe", $"/c mklink /J \"{link}\" \"{target}\"")
+        {
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+        })!;
+        process.WaitForExit();
+        Assert.True((File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0);
     }
 
     private static string BuildingPath(string output, string id) =>

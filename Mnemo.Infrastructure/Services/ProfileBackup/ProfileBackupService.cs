@@ -58,8 +58,8 @@ public sealed class ProfileBackupService : IProfileBackupService
         var output = Path.GetFullPath(outputFilePath);
         var outputDirectory = Path.GetDirectoryName(output)!;
         Directory.CreateDirectory(outputDirectory);
-        ProfileBackupScratch.SweepAbandoned(_dataRoot, _logger);
-        ProfileBackupScratch.SweepAbandonedBuilds(output, _logger);
+        // Leftovers can run to gigabytes, so they go without holding up this backup.
+        LastSweep = Task.Run(() => SweepLeftovers(output));
         var building = Path.Combine(outputDirectory, $".{Path.GetFileName(output)}.{Guid.NewGuid():N}.building");
         using var buildingLease = ProfileBackupScratch.Track(building, _logger);
         using var scratchLease = ProfileBackupScratch.CreateDirectory(_dataRoot, "backup-create", _logger);
@@ -226,6 +226,22 @@ public sealed class ProfileBackupService : IProfileBackupService
         TryDeleteFile(Path.Combine(staging, pending.ArchiveFileName), _logger);
         _logger.Info(LogCategory, $"Cancelled staged profile restore {validOperationId}.");
         return Task.FromResult(true);
+    }
+
+    /// <summary>The leftover sweep the latest backup started.</summary>
+    internal Task LastSweep { get; private set; } = Task.CompletedTask;
+
+    private void SweepLeftovers(string output)
+    {
+        try
+        {
+            ProfileBackupScratch.SweepAbandoned(_dataRoot, _logger);
+            ProfileBackupScratch.SweepAbandonedBuilds(output, _logger);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(LogCategory, $"Could not sweep backup leftovers: {ex.Message}");
+        }
     }
 
     private void AbandonBuild(string building, Exception cause)
