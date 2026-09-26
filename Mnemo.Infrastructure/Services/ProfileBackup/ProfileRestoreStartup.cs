@@ -324,6 +324,17 @@ public static class ProfileRestoreStartup
             if (!File.Exists(current) && !Directory.Exists(current))
                 throw new InvalidDataException($"The restore recovery copy is missing '{target}'.");
         }
+
+        // Emptied by the rollback. Pruning skips an empty folder anyway, so a handle held on it
+        // must not turn a finished rollback into a failed one.
+        try
+        {
+            if (Directory.Exists(recovery) && !Directory.EnumerateFileSystemEntries(recovery).Any())
+                Directory.Delete(recovery);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     private static void ValidatePending(ProfileBackupService.PendingRestore pending)
@@ -377,7 +388,7 @@ public static class ProfileRestoreStartup
     /// <summary>
     /// Keeps the newest <see cref="RecoveryCopiesKept"/> recovery copies and drops those older than
     /// <see cref="RecoveryCopyLifetime"/>, but never the one just written. Folders not named by a
-    /// restore are left alone.
+    /// restore, or holding no profile copy, are neither counted nor removed.
     /// </summary>
     private static void PruneRecoveries(string root, string keep, ILoggerService logger, DateTimeOffset? now = null)
     {
@@ -388,7 +399,8 @@ public static class ProfileRestoreStartup
         var older = Directory.EnumerateDirectories(directory)
             .Select(path => (Path: path, Stamp: RecoveryStamp(Path.GetFileName(path))))
             .Where(entry => entry.Stamp is not null &&
-                !string.Equals(Path.GetFileName(entry.Path), keep, StringComparison.Ordinal))
+                !string.Equals(Path.GetFileName(entry.Path), keep, StringComparison.Ordinal) &&
+                HoldsProfileCopy(entry.Path))
             .OrderByDescending(entry => entry.Stamp)
             .ThenByDescending(entry => Path.GetFileName(entry.Path), StringComparer.Ordinal)
             .ToArray();
@@ -398,6 +410,11 @@ public static class ProfileRestoreStartup
                 ProfileBackupService.TryDeleteDirectory(older[i].Path, logger);
         }
     }
+
+    // A failed restore can leave a folder with no copy in it; ranking it would evict a real one.
+    private static bool HoldsProfileCopy(string recovery) =>
+        File.Exists(Path.Combine(recovery, "mnemo.db")) ||
+        ProfileBackupService.ManagedDirectoryNames.Any(name => Directory.Exists(Path.Combine(recovery, name)));
 
     internal static void PruneRecoveriesAt(string root, string keep, DateTimeOffset now) =>
         PruneRecoveries(root, keep, DiscardLogger.Instance, now);

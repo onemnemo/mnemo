@@ -3,7 +3,7 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 02dd2377517ab50c4315a42597f4104601ef81661a1c02ed9de3b8e12a23695f
+sha256 614a165866331e68c8c127c97e8521a4d8f0891503cc36a6c8f94355b62c691d
 namespaces 39
 keys 2527
   App 35
@@ -47,7 +47,7 @@ keys 2527
   WidgetToday 9
 
 culture de
-sha256 22bfae2c18a067362fb6020604ac056dfebd21a1b54bd52b5acabf015b9bfafe
+sha256 b6cddbba34b466d2a0fc316073ab4e26650a7bc5886e5fecf031e5190a41ee8b
 namespaces 39
 keys 2527
   App 35
@@ -91,7 +91,7 @@ keys 2527
   WidgetToday 9
 
 culture es
-sha256 ecc23bf3697027e352b5e8a41e2161df26556054795c6bdc8be68c0fcf0dfbe5
+sha256 9889db5cde1bcc7c578ca80af8ea226db703c74d84362d115f9e8d058f20c9ee
 namespaces 39
 keys 2527
   App 35
@@ -135,7 +135,7 @@ keys 2527
   WidgetToday 9
 
 culture ja
-sha256 6b5bc1f8bdca2e95a7c3ca774354a3cbc61a051da80e05fb95affe8e9dcb8418
+sha256 cc89e889821d16b135bfd90a2835fa7ea06314320331559a8854e311edf9138a
 namespaces 39
 keys 2527
   App 35
@@ -179,7 +179,7 @@ keys 2527
   WidgetToday 9
 
 culture nb
-sha256 e48bb3d05fdf84ee1c0391ae00e4d8e09b3faf47c096da46b3c85f4c2393967f
+sha256 cce458cf6ab89146e2d242e18a9184838db7b6665d6bccbb6879775f22882e01
 namespaces 39
 keys 2527
   App 35

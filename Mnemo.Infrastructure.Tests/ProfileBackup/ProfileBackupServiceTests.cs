@@ -546,6 +546,7 @@ public sealed class ProfileBackupServiceTests
         Assert.False(File.Exists(Path.Combine(staging, "operation.json")));
         Assert.False(File.Exists(Path.Combine(staging, archiveName)));
         Assert.False(ProfileRestoreStartup.ReadStatus(target.Root)!.Success);
+        Assert.False(Directory.Exists(recovery));
     }
 
     [Fact]
@@ -593,6 +594,7 @@ public sealed class ProfileBackupServiceTests
         Directory.CreateDirectory(staging);
         Directory.CreateDirectory(recovery);
         Directory.CreateDirectory(oldRecovery);
+        await File.WriteAllTextAsync(Path.Combine(oldRecovery, "mnemo.db"), "older profile");
         await File.WriteAllTextAsync(Path.Combine(staging, archiveName), "staged archive");
         await File.WriteAllTextAsync(Path.Combine(staging, ProfileBackupService.PendingRestoreFileName), "pending");
         await File.WriteAllTextAsync(

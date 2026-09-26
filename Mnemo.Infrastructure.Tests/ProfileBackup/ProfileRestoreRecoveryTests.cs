@@ -74,6 +74,40 @@ public sealed class ProfileRestoreRecoveryTests
         Assert.False(Directory.Exists(Path.Combine(RecoveryRoot(target), expired)));
     }
 
+    [Fact]
+    public async Task Empty_folders_from_failed_restores_do_not_push_out_a_real_copy()
+    {
+        using var target = await TestProfile.CreateAsync("target");
+        var now = DateTimeOffset.UtcNow;
+        var good = MakeRecovery(target, now.AddHours(-4));
+        var failedOnce = MakeRecovery(target, now.AddHours(-3), holdsCopy: false);
+        var failedTwice = MakeRecovery(target, now.AddHours(-2), holdsCopy: false);
+        var latest = MakeRecovery(target, now.AddHours(-1));
+        await File.WriteAllTextAsync(Path.Combine(RecoveryRoot(target), failedTwice, "note.txt"), "left by hand");
+
+        ProfileRestoreStartup.PruneRecoveriesAt(target.Root, latest, now);
+
+        Assert.True(Directory.Exists(Path.Combine(RecoveryRoot(target), good)));
+        Assert.True(Directory.Exists(Path.Combine(RecoveryRoot(target), failedOnce)));
+        Assert.True(Directory.Exists(Path.Combine(RecoveryRoot(target), failedTwice)));
+    }
+
+    [Fact]
+    public async Task The_copy_just_written_is_kept_even_when_its_stamp_is_not_the_newest()
+    {
+        using var target = await TestProfile.CreateAsync("target");
+        var now = DateTimeOffset.UtcNow;
+        var justWritten = MakeRecovery(target, now.AddHours(-5));
+        var newer = new[] { 3, 2, 1 }.Select(hours => MakeRecovery(target, now.AddHours(-hours))).ToArray();
+
+        ProfileRestoreStartup.PruneRecoveriesAt(target.Root, justWritten, now);
+
+        Assert.True(Directory.Exists(Path.Combine(RecoveryRoot(target), justWritten)));
+        Assert.False(Directory.Exists(Path.Combine(RecoveryRoot(target), newer[0])));
+        Assert.True(Directory.Exists(Path.Combine(RecoveryRoot(target), newer[1])));
+        Assert.True(Directory.Exists(Path.Combine(RecoveryRoot(target), newer[2])));
+    }
+
     private static async Task<string> RestoreAsync(TestProfile target, string archive)
     {
         await target.Service().StageRestoreAsync(archive, "0.8.0-beta");
@@ -82,10 +116,13 @@ public sealed class ProfileRestoreRecoveryTests
         return status!.RecoveryDirectoryName!;
     }
 
-    private static string MakeRecovery(TestProfile target, DateTimeOffset stamp)
+    private static string MakeRecovery(TestProfile target, DateTimeOffset stamp, bool holdsCopy = true)
     {
         var name = $"{stamp.UtcDateTime:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}";
-        Directory.CreateDirectory(Path.Combine(RecoveryRoot(target), name));
+        var path = Path.Combine(RecoveryRoot(target), name);
+        Directory.CreateDirectory(path);
+        if (holdsCopy)
+            File.WriteAllText(Path.Combine(path, "mnemo.db"), "profile copy");
         return name;
     }
 
