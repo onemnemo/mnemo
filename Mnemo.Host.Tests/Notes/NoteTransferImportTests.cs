@@ -10,6 +10,7 @@ using Mnemo.Core.Services;
 using Mnemo.Host.Lifecycle;
 using Mnemo.Host.Notes;
 using Mnemo.Host.Transfer;
+using Mnemo.Host.Tests.Trash;
 using Mnemo.Host.Trash;
 using Mnemo.Infrastructure.Services.Trash;
 using LogLevel = Mnemo.Core.Enums.LogLevel;
@@ -174,15 +175,7 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
 
         // The import route stays closed until the first trash reconciliation, like every route
         // that can send content to the trash.
-        var maintenance = _app.Services.GetRequiredService<TrashMaintenance>();
-        maintenance.StartInBackground();
-        var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (!maintenance.IsReady)
-        {
-            if (DateTime.UtcNow > deadline)
-                throw new TimeoutException("The trash never finished starting.");
-            await Task.Delay(10);
-        }
+        await TrashStartup.StartAsync(_app.Services.GetRequiredService<TrashMaintenance>(), _trashDatabase);
 
         return _client;
     }

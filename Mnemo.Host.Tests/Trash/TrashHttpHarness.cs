@@ -89,19 +89,8 @@ internal sealed class TrashHttpHarness : IAsyncDisposable
         if (!reconciled)
             return;
 
-        var maintenance = _app.Services.GetRequiredService<TrashMaintenance>();
-        maintenance.StartInBackground();
-
-        // The first pass constructs the trash service and reads every source off a data root that
-        // has just been created. On a cold CI runner, with the other test classes on the same disk,
-        // that has taken longer than ten seconds; a genuinely stuck pass is still caught.
-        var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (!maintenance.IsReady)
-        {
-            if (DateTime.UtcNow > deadline)
-                throw new TimeoutException("The trash never finished starting.");
-            await Task.Delay(10).ConfigureAwait(false);
-        }
+        await TrashStartup.StartAsync(_app.Services.GetRequiredService<TrashMaintenance>(), Database)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Deletes one item of the fake module's kind, as a module endpoint would.</summary>

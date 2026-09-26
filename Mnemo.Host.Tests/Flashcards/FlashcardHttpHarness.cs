@@ -9,6 +9,7 @@ using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Core.Services.Search;
 using Mnemo.Host.Flashcards;
+using Mnemo.Host.Tests.Trash;
 using Mnemo.Host.Trash;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
@@ -142,21 +143,14 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         _started = true;
         _client = _app.GetTestClient();
 
+        // The app initializes the flashcard store at startup, before the trash loop starts, so
+        // building it stays out of the wait for the first pass.
+        await Store.InitializeAsync().ConfigureAwait(false);
+
         // Every trash route, and so every delete route, stays closed until the first reconciliation
         // pass finishes.
-        var maintenance = _app.Services.GetRequiredService<TrashMaintenance>();
-        maintenance.StartInBackground();
-
-        // The first pass constructs the trash service and reads every source off a data root that
-        // has just been created. On a cold CI runner, with the other test classes on the same disk,
-        // that has taken longer than ten seconds; a genuinely stuck pass is still caught.
-        var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (!maintenance.IsReady)
-        {
-            if (DateTime.UtcNow > deadline)
-                throw new TimeoutException("The trash never finished starting.");
-            await Task.Delay(10).ConfigureAwait(false);
-        }
+        await TrashStartup.StartAsync(_app.Services.GetRequiredService<TrashMaintenance>(), _trashDatabase)
+            .ConfigureAwait(false);
     }
 
     /// <summary>The trash coordinator the delete routes run through.</summary>
