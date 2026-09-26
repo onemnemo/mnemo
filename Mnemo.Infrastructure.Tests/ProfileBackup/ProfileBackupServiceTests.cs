@@ -588,7 +588,8 @@ public sealed class ProfileBackupServiceTests
         var recoveryName = "20260911-120000-" + operationId;
         var staging = Path.Combine(target.Root, ProfileBackupService.RestoreStagingDirectoryName);
         var recovery = Path.Combine(target.Root, ProfileRestoreStartup.RecoveryDirectoryName, recoveryName);
-        var oldRecovery = Path.Combine(target.Root, ProfileRestoreStartup.RecoveryDirectoryName, "old");
+        var oldRecovery = Path.Combine(
+            target.Root, ProfileRestoreStartup.RecoveryDirectoryName, "20250101-000000-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
         Directory.CreateDirectory(recovery);
         Directory.CreateDirectory(oldRecovery);

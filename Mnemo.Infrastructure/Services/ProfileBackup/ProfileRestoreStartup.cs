@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Mnemo.Core.Enums;
 using Mnemo.Core.Services;
@@ -13,6 +14,8 @@ public static class ProfileRestoreStartup
     public const string RecoveryDirectoryName = "restore-recovery";
     public const string StatusFileName = "restore-status.json";
     private static readonly TimeSpan PendingLifetime = TimeSpan.FromHours(24);
+    internal const int RecoveryCopiesKept = 3;
+    internal static readonly TimeSpan RecoveryCopyLifetime = TimeSpan.FromDays(30);
     private const string LogCategory = "ProfileRestore";
 
     public static async Task<RestoreStatus?> ApplyPendingAsync(
@@ -370,17 +373,44 @@ public static class ProfileRestoreStartup
         }
     }
 
-    private static void PruneRecoveries(string root, string keep, ILoggerService logger)
+    /// <summary>
+    /// Keeps the newest <see cref="RecoveryCopiesKept"/> recovery copies and drops those older than
+    /// <see cref="RecoveryCopyLifetime"/>, but never the one just written. Folders not named by a
+    /// restore are left alone.
+    /// </summary>
+    private static void PruneRecoveries(string root, string keep, ILoggerService logger, DateTimeOffset? now = null)
     {
         var directory = Path.Combine(root, RecoveryDirectoryName);
         if (!Directory.Exists(directory))
             return;
-        foreach (var path in Directory.EnumerateDirectories(directory))
+        var cutoff = (now ?? DateTimeOffset.UtcNow) - RecoveryCopyLifetime;
+        var older = Directory.EnumerateDirectories(directory)
+            .Select(path => (Path: path, Stamp: RecoveryStamp(Path.GetFileName(path))))
+            .Where(entry => entry.Stamp is not null &&
+                !string.Equals(Path.GetFileName(entry.Path), keep, StringComparison.Ordinal))
+            .OrderByDescending(entry => entry.Stamp)
+            .ThenByDescending(entry => Path.GetFileName(entry.Path), StringComparer.Ordinal)
+            .ToArray();
+        for (var i = 0; i < older.Length; i++)
         {
-            if (string.Equals(Path.GetFileName(path), keep, StringComparison.Ordinal))
-                continue;
-            ProfileBackupService.TryDeleteDirectory(path, logger);
+            if (i + 1 >= RecoveryCopiesKept || older[i].Stamp < cutoff)
+                ProfileBackupService.TryDeleteDirectory(older[i].Path, logger);
         }
+    }
+
+    internal static void PruneRecoveriesAt(string root, string keep, DateTimeOffset now) =>
+        PruneRecoveries(root, keep, DiscardLogger.Instance, now);
+
+    private static DateTimeOffset? RecoveryStamp(string name)
+    {
+        var parts = name.Split('-');
+        if (parts.Length != 3 || !ProfileBackupService.IsOperationId(parts[2]))
+            return null;
+        return DateTimeOffset.TryParseExact(
+            parts[0] + parts[1], "yyyyMMddHHmmss", CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var stamp)
+            ? stamp
+            : null;
     }
 
     private static void CleanupStagingArtifacts(string staging, ILoggerService logger)
