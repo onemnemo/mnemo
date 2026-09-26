@@ -209,7 +209,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     // ids.
                     var draftRows = new List<CardRow>();
                     var material = new List<FlashcardFactDraft>();
-                    var materialNotes = new List<AnkiClozeNote>();
+                    var materialNotes = new List<AnkiMaterialNote>();
 
                     foreach (var cardRow in deckPlan.Rows)
                     {
@@ -222,7 +222,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                         draftRows.Add(cardRow);
                     }
 
-                    foreach (var clozeNote in deckPlan.ClozeNotes)
+                    foreach (var clozeNote in deckPlan.MaterialNotes)
                     {
                         var sides = await ReadSidesAsync(
                             clozeNote.Note, ord: 0, clozeNote.Rows.Count, collectionInfo, opened, warnings, tally, cancellationToken)
@@ -522,6 +522,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// makes one card, and a note filed under the wrong one arrives with the wrong cards.
     /// </summary>
     private static long ClozeModelId => 1_608_194_021_002L;
+
+    /// <summary>The note type basic and reverse material is written under, Anki's own two-card shape.</summary>
+    private static long BasicReverseModelId => 1_608_194_021_003L;
 
     private async Task<OpenedApkg> OpenApkgAsync(string apkgPath, CancellationToken cancellationToken)
     {
@@ -863,18 +866,22 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         IReadOnlyDictionary<long, AnkiNoteType> noteTypes)
     {
         var rowsByDeck = new Dictionary<long, List<CardRow>>();
-        var clozeRowsByNote = new Dictionary<long, List<CardRow>>();
+        var materialRowsByNote = new Dictionary<long, List<CardRow>>();
+        var reverseNotes = new HashSet<long>();
 
         foreach (var row in cards)
         {
             if (!notes.TryGetValue(row.NoteId, out var note))
                 continue;
 
-            if (MakesOneCardPerDeletion(note, noteTypes))
+            var isReverse = IsBasicAndReversed(note, noteTypes);
+            if (isReverse || MakesOneCardPerDeletion(note, noteTypes))
             {
-                if (!clozeRowsByNote.TryGetValue(row.NoteId, out var sibling))
-                    clozeRowsByNote[row.NoteId] = sibling = [];
+                if (!materialRowsByNote.TryGetValue(row.NoteId, out var sibling))
+                    materialRowsByNote[row.NoteId] = sibling = [];
                 sibling.Add(row);
+                if (isReverse)
+                    reverseNotes.Add(row.NoteId);
                 continue;
             }
 
@@ -883,30 +890,47 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             rows.Add(row);
         }
 
-        var clozeByDeck = new Dictionary<long, List<AnkiClozeNote>>();
+        var materialByDeck = new Dictionary<long, List<AnkiMaterialNote>>();
         var filedTogether = 0;
-        foreach (var (noteId, rows) in clozeRowsByNote.OrderBy(pair => pair.Key))
+        foreach (var (noteId, rows) in materialRowsByNote.OrderBy(pair => pair.Key))
         {
+            var isReverse = reverseNotes.Contains(noteId);
             var homes = rows.GroupBy(r => r.HomeDeckId).ToArray();
+
+            // A reversed pair lands as one fact only when both its cards are here and in one deck.
+            // Otherwise each row lands as the plain card it is, in its own deck, rather than the
+            // fact making a card the package did not have or moving one out of its deck.
+            if (isReverse && (homes.Length > 1 || !rows.Any(r => r.Ord == 0) || !rows.Any(r => r.Ord == 1)))
+            {
+                foreach (var row in rows)
+                {
+                    if (!rowsByDeck.TryGetValue(row.HomeDeckId, out var plain))
+                        rowsByDeck[row.HomeDeckId] = plain = [];
+                    plain.Add(row);
+                }
+
+                continue;
+            }
+
             if (homes.Length > 1)
                 filedTogether++;
 
             var deckId = homes.OrderByDescending(g => g.Count()).ThenBy(g => g.Key).First().Key;
             var byOrdinal = new SortedDictionary<int, CardRow>();
             foreach (var row in rows)
-                byOrdinal.TryAdd(ClozeOrdinalFor(row), row);
+                byOrdinal.TryAdd(isReverse ? row.Ord : ClozeOrdinalFor(row), row);
 
-            if (!clozeByDeck.TryGetValue(deckId, out var forDeck))
-                clozeByDeck[deckId] = forDeck = [];
-            forDeck.Add(new AnkiClozeNote(notes[noteId], byOrdinal));
+            if (!materialByDeck.TryGetValue(deckId, out var forDeck))
+                materialByDeck[deckId] = forDeck = [];
+            forDeck.Add(new AnkiMaterialNote(notes[noteId], byOrdinal, isReverse));
         }
 
-        var deckIds = rowsByDeck.Keys.Concat(clozeByDeck.Keys).Distinct().OrderBy(id => id);
+        var deckIds = rowsByDeck.Keys.Concat(materialByDeck.Keys).Distinct().OrderBy(id => id);
         var decks = deckIds
             .Select(id => new AnkiDeckPlan(
                 id,
                 rowsByDeck.TryGetValue(id, out var rows) ? rows : [],
-                clozeByDeck.TryGetValue(id, out var cloze) ? cloze : []))
+                materialByDeck.TryGetValue(id, out var cloze) ? cloze : []))
             .ToArray();
 
         return new AnkiImportPlan(decks, filedTogether);
@@ -920,6 +944,25 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     {
         noteTypes.TryGetValue(note.ModelId, out var noteType);
         return ClozeFieldFor(note.Fields, noteType) is not null;
+    }
+
+    /// <summary>
+    /// Whether a note is written under Anki's basic and reversed shape: two fields, and two templates
+    /// that each ask one and answer with the other. Read from the templates rather than the note
+    /// type's name, which Anki translates.
+    /// </summary>
+    private static bool IsBasicAndReversed(NoteRow note, IReadOnlyDictionary<long, AnkiNoteType> noteTypes)
+    {
+        if (!noteTypes.TryGetValue(note.ModelId, out var type) || type.IsCloze
+            || type.FieldNames.Count != 2 || type.Templates.Count != 2)
+            return false;
+
+        return Asks(type.TemplateFor(0), 0, 1) && Asks(type.TemplateFor(1), 1, 0);
+
+        static bool Asks(AnkiTemplate? template, int front, int back) =>
+            template is not null
+            && template.FrontFields.SequenceEqual([front])
+            && template.BackFields.SequenceEqual([back]);
     }
 
     /// <summary>
@@ -1006,7 +1049,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// the plain cards they describe rather than losing them to a classification nobody typed.
     /// </returns>
     private static FlashcardFactDraft? MaterialFor(
-        AnkiClozeNote note,
+        AnkiMaterialNote note,
         NoteSides sides,
         CollectionInfo collectionInfo,
         IReadOnlyDictionary<long, List<AnkiRevlogRow>> revlog,
@@ -1014,6 +1057,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         DateTimeOffset now,
         ImportTally tally)
     {
+        if (note.IsReverse)
+            return ReverseMaterialFor(note, sides, collectionInfo, revlog, weights, now, tally);
         if (FlashcardGeneration.ClozeOrdinals(sides.Front.Text).Count == 0)
             return null;
 
@@ -1044,6 +1089,57 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             Tags: ParseTags(note.Note.Tags),
             Cards: carried);
     }
+
+    /// <summary>
+    /// A basic and reversed note as one basic and reverse fact, each of its two card rows carried
+    /// onto the layout that asks the same side.
+    /// </summary>
+    private static FlashcardFactDraft ReverseMaterialFor(
+        AnkiMaterialNote note,
+        NoteSides sides,
+        CollectionInfo collectionInfo,
+        IReadOnlyDictionary<long, List<AnkiRevlogRow>> revlog,
+        double[] weights,
+        DateTimeOffset now,
+        ImportTally tally)
+    {
+        var carried = new Dictionary<string, FlashcardImportedCard>(StringComparer.Ordinal);
+        foreach (var (ord, row) in note.Rows)
+        {
+            if (ReverseLayoutFor(ord) is not { } layout)
+                continue;
+            carried[layout] = new FlashcardImportedCard(
+                BuildImportedSchedule(row, collectionInfo.CollectionCreatedAt, revlog, weights, now, tally),
+                row.Queue == AnkiQueueSuspended ? FlashcardCardState.Suspended : FlashcardCardState.Active);
+        }
+
+        var media = new Dictionary<string, IReadOnlyList<FlashcardAttachment>>(StringComparer.Ordinal);
+        if (sides.Front.Attachments.Count > 0)
+            media[FlashcardCardType.BasicFrontFieldId] = sides.Front.Attachments;
+        if (sides.Back.Attachments.Count > 0)
+            media[FlashcardCardType.BasicBackFieldId] = sides.Back.Attachments;
+
+        return new FlashcardFactDraft(
+            Id: null,
+            DeckId: string.Empty,
+            TypeId: FlashcardCardType.BasicReverseId,
+            Values: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [FlashcardCardType.BasicFrontFieldId] = sides.Front.Text,
+                [FlashcardCardType.BasicBackFieldId] = sides.Back.Text,
+            },
+            Media: media,
+            Tags: ParseTags(note.Note.Tags),
+            Cards: carried);
+    }
+
+    /// <summary>The layout a basic and reversed card row stands for, by its template's ordinal.</summary>
+    private static string? ReverseLayoutFor(int ord) => ord switch
+    {
+        0 => FlashcardCardType.RecognitionLayoutId,
+        1 => FlashcardCardType.RecallLayoutId,
+        _ => null,
+    };
 
     private static string JoinFields(string[] fields, IReadOnlyList<int> positions) =>
         string.Join(
@@ -1194,11 +1290,15 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// keep the answers that were given to that deletion rather than to one of its siblings.
     /// </remarks>
     private static IEnumerable<(long PackageCardId, string CardId)> PairDeletions(
-        FlashcardFactSaved saved, AnkiClozeNote note)
+        FlashcardFactSaved saved, AnkiMaterialNote note)
     {
         foreach (var card in saved.Cards)
         {
-            if (FlashcardGeneration.ClozeOrdinalFromKey(card.LayoutKey) is not { } ordinal)
+            int? key = note.IsReverse
+                ? (card.LayoutKey == FlashcardCardType.RecognitionLayoutId ? 0
+                    : card.LayoutKey == FlashcardCardType.RecallLayoutId ? 1 : null)
+                : FlashcardGeneration.ClozeOrdinalFromKey(card.LayoutKey);
+            if (key is not { } ordinal)
                 continue;
             if (note.Rows.TryGetValue(ordinal, out var row))
                 yield return (row.Id, card.Id);
@@ -1553,7 +1653,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         foreach (var summary in selected)
         {
             var cards = await LoadExportCardsAsync(summary.Id, cancellationToken).ConfigureAwait(false);
-            var material = await LoadClozeMaterialAsync(cards, cancellationToken).ConfigureAwait(false);
+            var material = await LoadMaterialAsync(cards, cancellationToken).ConfigureAwait(false);
             result.Add(new AnkiExportDeck(
                 summary.Id,
                 QualifiedDeckName(summary, folderPaths),
@@ -1565,25 +1665,36 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     }
 
     /// <summary>
-    /// The material behind the cards being exported whose cards are its deletions, keyed by id.
+    /// The material behind the cards being exported that leaves as one note, keyed by id: material
+    /// whose cards are its deletions, and basic and reverse material with both cards in the deck.
     /// </summary>
     /// <remarks>
     /// A card renders one deletion of its material with the rest of the sentence showing, which is
     /// not what the note the receiving app wants holds. The note holds the text as it was written,
     /// deletions and all, so it is read from the material rather than reassembled from the cards.
     /// </remarks>
-    private async Task<Dictionary<string, AnkiClozeMaterial>> LoadClozeMaterialAsync(
+    private async Task<Dictionary<string, AnkiExportMaterial>> LoadMaterialAsync(
         IReadOnlyList<AnkiExportCard> cards, CancellationToken cancellationToken)
     {
-        var byFact = new Dictionary<string, AnkiClozeMaterial>(StringComparer.Ordinal);
+        var byFact = new Dictionary<string, AnkiExportMaterial>(StringComparer.Ordinal);
         var considered = new HashSet<string>(StringComparer.Ordinal);
         var types = new Dictionary<string, FlashcardCardType?>(StringComparer.Ordinal);
+
+        // A pair with one card deleted or in another deck leaves as the plain cards it has, since a
+        // two-card note would bring the missing one back on the way in.
+        var bothSides = cards
+            .Where(c => c.FactId is not null)
+            .GroupBy(c => c.FactId!, StringComparer.Ordinal)
+            .Where(g => g.Any(c => c.LayoutKey == FlashcardCardType.RecognitionLayoutId)
+                && g.Any(c => c.LayoutKey == FlashcardCardType.RecallLayoutId))
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.Ordinal);
 
         foreach (var card in cards)
         {
             if (card.FactId is not { } factId || !considered.Add(factId))
                 continue;
-            if (FlashcardGeneration.ClozeOrdinalFromKey(card.LayoutKey) is null)
+            if (FlashcardGeneration.ClozeOrdinalFromKey(card.LayoutKey) is null && !bothSides.Contains(factId))
                 continue;
 
             var fact = await _facts.GetFactAsync(factId, cancellationToken).ConfigureAwait(false);
@@ -1596,6 +1707,21 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 types[fact.TypeId] = type;
             }
 
+            if (string.Equals(fact.TypeId, FlashcardCardType.BasicReverseId, StringComparison.Ordinal))
+            {
+                byFact[factId] = new AnkiExportMaterial(
+                    fact.Value(FlashcardCardType.BasicFrontFieldId),
+                    fact.Value(FlashcardCardType.BasicBackFieldId),
+                    fact.Tags,
+                    IsReverse: true,
+                    Attachments:
+                    [
+                        .. fact.MediaOn(FlashcardCardType.BasicFrontFieldId).Select(a => a with { Side = FlashcardAttachment.FrontSide }),
+                        .. fact.MediaOn(FlashcardCardType.BasicBackFieldId).Select(a => a with { Side = FlashcardAttachment.BackSide }),
+                    ]);
+                continue;
+            }
+
             // The generator is what decides that this material's cards are deletions. A key that
             // merely looks like one is not enough: a card type could name a layout the same way.
             if (type is null || !string.Equals(type.Generator, FlashcardGenerators.Cloze, StringComparison.Ordinal))
@@ -1603,7 +1729,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
             var source = type.EffectiveGenerateFrom;
             var extra = type.Fields.FirstOrDefault(f => !string.Equals(f.Id, source, StringComparison.Ordinal));
-            byFact[factId] = new AnkiClozeMaterial(
+            byFact[factId] = new AnkiExportMaterial(
                 fact.Value(source),
                 extra is null ? string.Empty : fact.Value(extra.Id),
                 fact.Tags);
@@ -1616,7 +1742,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// Divides a deck's cards into the notes they are written out as, in the order they were read.
     /// </summary>
     private static List<AnkiExportNote> PlanExportNotes(
-        IReadOnlyList<AnkiExportCard> cards, IReadOnlyDictionary<string, AnkiClozeMaterial> clozeMaterial)
+        IReadOnlyList<AnkiExportCard> cards, IReadOnlyDictionary<string, AnkiExportMaterial> materialByFact)
     {
         var notes = new List<AnkiExportNote>();
         var noteByFact = new Dictionary<string, AnkiExportNote>(StringComparer.Ordinal);
@@ -1624,20 +1750,20 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         foreach (var card in cards)
         {
             if (card.FactId is { } factId
-                && clozeMaterial.TryGetValue(factId, out var material)
-                && FlashcardGeneration.ClozeOrdinalFromKey(card.LayoutKey) is { } ordinal)
+                && materialByFact.TryGetValue(factId, out var material)
+                && RowOrdinalFor(card, material) is { } ord)
             {
                 if (!noteByFact.TryGetValue(factId, out var note))
                 {
                     note = new AnkiExportNote(
-                        ClozeModelId,
+                        material.IsReverse ? BasicReverseModelId : ClozeModelId,
                         StableAnkiId($"note:fact:{factId}"),
                         BuildGuid($"fact:{factId}"),
                         material.Text,
                         FirstFieldBlocks: null,
                         material.Extra,
                         SecondFieldBlocks: null,
-                        card.Attachments,
+                        material.Attachments ?? card.Attachments,
                         material.Tags,
                         material.Text,
                         []);
@@ -1645,7 +1771,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     notes.Add(note);
                 }
 
-                note.Rows.Add(new AnkiExportRow(card.Id, ordinal - 1, card.State, card.IsFlagged, card.Schedule));
+                note.Rows.Add(new AnkiExportRow(card.Id, ord, card.State, card.IsFlagged, card.Schedule));
                 continue;
             }
 
@@ -1664,6 +1790,25 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         }
 
         return notes;
+    }
+
+    /// <summary>
+    /// Which of its note's card rows a card is: its template for basic and reverse, its deletion
+    /// counted from zero for cloze. Null for a card the note has no row for.
+    /// </summary>
+    private static int? RowOrdinalFor(AnkiExportCard card, AnkiExportMaterial material)
+    {
+        if (material.IsReverse)
+        {
+            return card.LayoutKey switch
+            {
+                FlashcardCardType.RecognitionLayoutId => 0,
+                FlashcardCardType.RecallLayoutId => 1,
+                _ => null,
+            };
+        }
+
+        return FlashcardGeneration.ClozeOrdinalFromKey(card.LayoutKey) - 1;
     }
 
     /// <summary>
@@ -1893,6 +2038,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var model = new Dictionary<string, object?>
         {
             [ClozeModelId.ToString(CultureInfo.InvariantCulture)] = BuildClozeModel(mod),
+            [BasicReverseModelId.ToString(CultureInfo.InvariantCulture)] = BuildBasicReverseModel(mod),
             [BasicModelId.ToString(CultureInfo.InvariantCulture)] = new Dictionary<string, object?>
             {
                 ["id"] = BasicModelId,
@@ -1958,6 +2104,55 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     }
 
     /// <summary>
+    /// Anki's stock "Basic (and reversed card)" note type: Front and Back, and a card asking each.
+    /// Its fields and templates are named as Anki ships them so the note lands on the type a user
+    /// of the other app already knows.
+    /// </summary>
+    private static Dictionary<string, object?> BuildBasicReverseModel(long mod) => new()
+    {
+        ["id"] = BasicReverseModelId,
+        ["name"] = "Basic (and reversed card)",
+        ["type"] = 0,
+        ["mod"] = mod,
+        ["usn"] = 0,
+        ["vers"] = Array.Empty<object>(),
+        ["tags"] = Array.Empty<object>(),
+        ["sortf"] = 0,
+        ["did"] = 1,
+        ["req"] = new object[]
+        {
+            new object[] { 0, "any", new object[] { 0 } },
+            new object[] { 1, "any", new object[] { 1 } },
+        },
+        ["flds"] = new[]
+        {
+            ModelField("Front", 0),
+            ModelField("Back", 1),
+        },
+        ["tmpls"] = new[]
+        {
+            ReverseTemplate("Card 1", 0, "{{Front}}", "{{Back}}"),
+            ReverseTemplate("Card 2", 1, "{{Back}}", "{{Front}}"),
+        },
+        ["css"] = ".card { font-family: arial; font-size: 20px; text-align: center; color: black; background-color: white; }",
+        ["latexPre"] = "\\documentclass[12pt]{article}\n\\special{papersize=3in,5in}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amssymb,amsmath}\n\\pagestyle{empty}\n\\setlength{\\parindent}{0in}\n\\begin{document}\n",
+        ["latexPost"] = "\\end{document}"
+    };
+
+    private static Dictionary<string, object?> ReverseTemplate(string name, int ord, string question, string answer) => new()
+    {
+        ["name"] = name,
+        ["ord"] = ord,
+        ["qfmt"] = question,
+        ["afmt"] = $"{{{{FrontSide}}}}\n\n<hr id=answer>\n\n{answer}",
+        ["bqfmt"] = string.Empty,
+        ["bafmt"] = string.Empty,
+        ["did"] = null,
+        ["bfont"] = "Arial",
+        ["bsize"] = 20
+    };
+
+    /// <summary>
     /// The cloze note type a package is written with: two fields, one template, and the kind marker
     /// that tells the receiving app to make a card per deletion off it.
     /// </summary>
@@ -1978,8 +2173,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         },
         ["flds"] = new[]
         {
-            ClozeField("Text", 0),
-            ClozeField("Extra", 1),
+            ModelField("Text", 0),
+            ModelField("Extra", 1),
         },
         ["tmpls"] = new[]
         {
@@ -2002,7 +2197,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         ["latexPost"] = "\\end{document}"
     };
 
-    private static Dictionary<string, object?> ClozeField(string name, int ord) => new()
+    private static Dictionary<string, object?> ModelField(string name, int ord) => new()
     {
         ["name"] = name,
         ["ord"] = ord,
@@ -2629,10 +2824,13 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     private sealed record AnkiDeckPlan(
         long DeckId,
         IReadOnlyList<CardRow> Rows,
-        IReadOnlyList<AnkiClozeNote> ClozeNotes);
+        IReadOnlyList<AnkiMaterialNote> MaterialNotes);
 
-    /// <summary>A note whose cards are its deletions, with the row that stands for each one.</summary>
-    private sealed record AnkiClozeNote(NoteRow Note, IReadOnlyDictionary<int, CardRow> Rows);
+    /// <summary>
+    /// A note that lands as one piece of material. Its rows are keyed by deletion number for cloze,
+    /// and by template ordinal for a basic and reversed note.
+    /// </summary>
+    private sealed record AnkiMaterialNote(NoteRow Note, IReadOnlyDictionary<int, CardRow> Rows, bool IsReverse = false);
 
     /// <summary>
     /// The package's media table: which file inside the package backs each referenced filename.
@@ -2761,10 +2959,16 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         FlashcardSchedule Schedule);
 
     /// <summary>
-    /// Material whose cards are its deletions, as the receiving app's note type wants it: the text
-    /// with every deletion still written into it, and what every card off it also shows.
+    /// Material written out as one note of several cards. For cloze, the text with every deletion
+    /// still in it and what every card also shows; for basic and reverse, its front and back.
     /// </summary>
-    private sealed record AnkiClozeMaterial(string Text, string Extra, IReadOnlyList<string> Tags);
+    /// <param name="Attachments">The note's media by side, or null to take the first card's.</param>
+    private sealed record AnkiExportMaterial(
+        string Text,
+        string Extra,
+        IReadOnlyList<string> Tags,
+        bool IsReverse = false,
+        IReadOnlyList<FlashcardAttachment>? Attachments = null);
 
     /// <summary>
     /// One note being written out, and the card rows it makes.

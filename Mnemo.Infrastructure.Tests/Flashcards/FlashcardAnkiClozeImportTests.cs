@@ -233,10 +233,10 @@ public sealed class FlashcardAnkiClozeImportTests
     }
 
     [Fact]
-    public async Task Import_NoteWhoseRowsAreTemplates_IsLeftExactlyAsItWas()
+    public async Task Import_NoteWhoseRowsAreTemplates_IsNotReadAsDeletions()
     {
-        // The reversed pair is what a cloze note is not: its rows name templates, so each one keeps
-        // standing for itself, with its own material, exactly as before.
+        // The reversed pair is what a cloze note is not: its rows name templates, so they land on
+        // the layouts those templates stand for rather than on deletions.
         var reversed = new AnkiFixtureNoteType(
             Id: 1700000000002L,
             Name: "Basic (and reversed card)",
@@ -258,12 +258,11 @@ public sealed class FlashcardAnkiClozeImportTests
                 new[] { "Ephemeral", "Short lived" },
                 world.Cards.Select(c => c.Front).OrderBy(f => f, StringComparer.Ordinal).ToArray());
 
-            // Each row still gets material of its own, which is the shape every non cloze import has
-            // always had and the shape a card written side by side gets everywhere else.
-            var factIds = world.Cards.Select(c => c.FactId).Distinct(StringComparer.Ordinal).ToArray();
-            Assert.Equal(2, factIds.Length);
+            Assert.Single(world.Cards.Select(c => c.FactId).Distinct(StringComparer.Ordinal));
             Assert.All(world.Cards, c => Assert.Equal(FlashcardType.Classic, c.Type));
-            Assert.All(world.Cards, c => Assert.Equal(FlashcardCardType.RecognitionLayoutId, c.LayoutKey));
+            Assert.Equal(
+                new[] { FlashcardCardType.RecallLayoutId, FlashcardCardType.RecognitionLayoutId },
+                world.Cards.Select(c => c.LayoutKey).OrderBy(k => k, StringComparer.Ordinal).ToArray());
         }
         finally
         {
