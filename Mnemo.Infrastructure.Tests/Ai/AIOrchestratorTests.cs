@@ -223,8 +223,12 @@ public class AIOrchestratorTests
             }
         });
 
-        // Stopped promptly at the cancellation point rather than running away.
-        Assert.InRange(received.Count, 1, 6);
+        // How many buffered tokens the consumer drains before the throw varies under load; what
+        // must hold is that the producer never advances again once cancellation has propagated.
+        Assert.NotEmpty(received);
+        var emittedAtCancellation = client.InfiniteStreamEmitted;
+        await Task.Delay(200);
+        Assert.Equal(emittedAtCancellation, client.InfiniteStreamEmitted);
     }
 
     [Fact]

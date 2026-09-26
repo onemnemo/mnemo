@@ -26,6 +26,15 @@ internal sealed class ScriptedChatModelClient : IChatModelClient
     /// <summary>When true, yields visible tokens forever, paced by a cancellable delay.</summary>
     public bool InfiniteSlowStream { get; set; }
 
+    private int _infiniteStreamEmitted;
+
+    /// <summary>
+    /// Count of tokens actually produced by the <see cref="InfiniteSlowStream"/> loop. A
+    /// cancellation test reads this after the consumer stops to prove the producer itself
+    /// stopped advancing, rather than counting how many tokens the consumer happened to see.
+    /// </summary>
+    public int InfiniteStreamEmitted => Volatile.Read(ref _infiniteStreamEmitted);
+
     /// <summary>When set, thrown after the current sequence's deltas are emitted.</summary>
     public Exception? ThrowAfterSequence { get; set; }
 
@@ -47,6 +56,7 @@ internal sealed class ScriptedChatModelClient : IChatModelClient
             while (true)
             {
                 await Task.Delay(15, ct).ConfigureAwait(false);
+                Interlocked.Increment(ref _infiniteStreamEmitted);
                 yield return new ChatStreamDelta.Content($"token{i++} ");
             }
         }
