@@ -6,7 +6,8 @@
  * going near React. Keeping one geometry function is what stops those two from disagreeing.
  */
 
-import { anchorsFor, edgeGeometry, type ElementBox } from "./edge-paths"
+import { centreStrokeFor } from "./edge-drawing"
+import { anchorsFor, edgeShape, strokeToPathData, type ElementBox } from "./edge-paths"
 import type { Point, Scene, SceneEdge } from "../model/scene"
 
 export interface HighlightGeometry {
@@ -25,9 +26,12 @@ export function highlightGeometry(edge: SceneEdge, boxOf: BoxLookup): HighlightG
   }
 
   const anchors = anchorsFor(from, to)
-  const geometry = edgeGeometry(edge.routing ?? "curve", anchors)
+  // Traces the line as drawn, stopped under any arrowhead; a ribbon or a line its heads cover is
+  // traced along its untrimmed centre instead.
+  const drawn = centreStrokeFor(edge, anchors)
+  const traced = drawn && drawn.kind !== "ribbon" ? drawn : edgeShape(edge.routing ?? "curve", anchors).stroke
   return {
-    path: geometry.path,
+    path: strokeToPathData(traced),
     start: { x: anchors.sx, y: anchors.sy },
     end: { x: anchors.tx, y: anchors.ty },
   }

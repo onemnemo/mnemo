@@ -17,6 +17,7 @@ import type { AnchorSide } from '../model/document'
 import type { EdgeRouting, SceneElement, SceneLine } from '../model/scene'
 import type { Point } from '../model/scene'
 import { pointOnRotatedBoxToward } from '../scene/element-geometry'
+import { heading } from '../scene/stroke-trim'
 
 /**
  * How far a curve's control points reach along the chord, as a fraction.
@@ -77,9 +78,13 @@ export interface CapPlacement {
  */
 export function capsOf(stroke: EdgeStroke): { start: CapPlacement; end: CapPlacement } | null {
   if (stroke.kind === 'cubic') {
+    const s = { x: stroke.sx, y: stroke.sy }
+    const c1 = { x: stroke.c1x, y: stroke.c1y }
+    const c2 = { x: stroke.c2x, y: stroke.c2y }
+    const t = { x: stroke.tx, y: stroke.ty }
     return {
-      start: { x: stroke.sx, y: stroke.sy, angle: Math.atan2(stroke.sy - stroke.c1y, stroke.sx - stroke.c1x) },
-      end: { x: stroke.tx, y: stroke.ty, angle: Math.atan2(stroke.ty - stroke.c2y, stroke.tx - stroke.c2x) },
+      start: capFrom(s, [c1, c2, t]),
+      end: capFrom(t, [c2, c1, s]),
     }
   }
 
@@ -95,6 +100,11 @@ export function capsOf(stroke: EdgeStroke): { start: CapPlacement; end: CapPlace
 
   // A ribbon is a filled shape whose ends are already its own statement about direction.
   return null
+}
+
+function capFrom(end: Point, inward: readonly Point[]): CapPlacement {
+  const direction = heading(end, inward)
+  return { x: end.x, y: end.y, angle: Math.atan2(direction.y, direction.x) }
 }
 
 function capsOfPoints(points: readonly Point[]): { start: CapPlacement; end: CapPlacement } | null {

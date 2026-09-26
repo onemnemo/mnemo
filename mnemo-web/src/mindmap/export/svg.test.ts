@@ -333,9 +333,12 @@ describe("a free shape", () => {
       }),
     )
 
-    expect(picture!.markup).toContain('<path d="M8,8 Q58,40 108,8" fill="none" stroke="#abcdef" stroke-width="3"')
+    // The arrow end stops short under its head, whose tip is where the line ends; the dot end does not.
+    const stroke = /<path d="M8,8 C[^"]* ([\d.]+),([\d.]+)" fill="none" stroke="#abcdef" stroke-width="3"/.exec(picture!.markup)
+    expect(stroke).not.toBeNull()
+    expect(Math.hypot(108 - Number(stroke![1]), 8 - Number(stroke![2]))).toBeCloseTo(3 * (7 * 5) / 8, 2)
     expect(picture!.markup).toContain('<circle cx="8" cy="8" r="4.8"')
-    expect(picture!.markup).toMatch(/<polygon points="[^"]*" fill="#abcdef"\/>/)
+    expect(picture!.markup).toMatch(/<polygon points="[^" ]* 108,8 [^"]*" fill="#abcdef"\/>/)
     expect(picture!.markup).not.toContain("M0,56 L116,0")
   })
 

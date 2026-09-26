@@ -118,7 +118,7 @@ describe("open shapes", () => {
     expect(ALL.filter(isOpenShape)).toEqual(["line", "arrow"])
   })
 
-  it("share one shaft, since an arrow's head is a marker rather than geometry", () => {
+  it("share one shaft, since an arrow's head is a cap drawn over it", () => {
     expect(shapePath("arrow", W, H)).toBe(shapePath("line", W, H))
   })
 

@@ -2,11 +2,10 @@ import { memo } from "react"
 
 import { cn } from "@/lib/utils"
 
-import { boxOf, anchorsFor, edgeShape, strokeToPathData, isFilled } from "./edge-paths"
-import { strokeFor } from "./edge-canvas"
-import { CapMarkers } from "./CapMarkers"
-import { capMarker } from "./line-marks"
+import { boxOf, anchorsFor, edgeShape, isFilled } from "./edge-paths"
+import { drawingFor, drawingPathData } from "./edge-drawing"
 import { dashAttribute, strokeStyleFor } from "./edge-style"
+import { capsPathData } from "../scene/cap-geometry"
 import type { Scene, SceneEdge, SceneElement } from "../model/scene"
 import { useFieldFlush } from "./useFieldFlush"
 
@@ -51,17 +50,15 @@ export const MindmapEdgeLayer = memo(function MindmapEdgeLayer({
 })
 
 function EdgePath({ edge, from, to }: { edge: SceneEdge; from: SceneElement; to: SceneElement }) {
-  const stroke = strokeFor(edge, anchorsFor(boxOf(from), boxOf(to)))
+  const { stroke, caps, width } = drawingFor(edge, anchorsFor(boxOf(from), boxOf(to)))
   const style = strokeStyleFor(edge)
-  const filled = isFilled(stroke)
-  const owner = `edge-${edge.id}`
+  const filled = stroke !== null && isFilled(stroke)
 
   return (
     <>
-      {filled ? null : <CapMarkers owner={owner} color={style.color} start={edge.startCap} end={edge.endCap} />}
       <path
         data-mm-edge={edge.id}
-        d={strokeToPathData(stroke)}
+        d={drawingPathData(stroke)}
         // A ribbon is a closed shape, so it is filled and never stroked; stroking one outlines it
         // instead of filling it, and filling an open curve closes it into a lens.
         fill={filled ? style.color : "none"}
@@ -69,11 +66,12 @@ function EdgePath({ edge, from, to }: { edge: SceneEdge; from: SceneElement; to:
         strokeWidth={filled ? undefined : style.width}
         strokeDasharray={filled ? undefined : dashAttribute(style.dash)}
         strokeLinecap="round"
-        // A ribbon has no stroke for a marker to take its colour from, and a tapering branch that
-        // ended in an arrowhead would be two ideas about the same end anyway.
-        markerStart={filled ? undefined : capMarker(edge.startCap, owner, "start")}
-        markerEnd={filled ? undefined : capMarker(edge.endCap, owner, "end")}
       />
+      {/* Geometry rather than a marker, which would sit on the path's last vertex, short of the tip.
+          Styled rather than attributed so a var() colour resolves. */}
+      {caps.length > 0 ? (
+        <path data-mm-edge-caps={edge.id} d={capsPathData(caps, width)} style={{ fill: style.color }} />
+      ) : null}
     </>
   )
 }

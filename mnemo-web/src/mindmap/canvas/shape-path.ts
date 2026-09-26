@@ -165,8 +165,8 @@ function blobPath(w: number, h: number): string {
  *
  * Bottom left to top right so that dragging a corner handle moves the end of the stroke that the
  * handle is nearest, which is the only behaviour anyone expects from resizing a line. The arrow adds
- * nothing to the geometry: its head is the same marker the edge layer already defines for an arrow
- * cap, so a shape arrow and an edge's arrow are the same glyph rather than two drawings of one idea.
+ * nothing to this outline: its head is the same cap geometry an edge's arrow draws from, so the two
+ * are one glyph rather than two drawings of one idea.
  */
 function diagonalPath(w: number, h: number): string {
   return `M0,${n(h)} L${n(w)},0`

@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import type { ShapeContent } from "../model/document"
 
 import { shapePath } from "../canvas/shape-path"
+import { capInset } from "./cap-geometry"
 import {
+  lineDrawing,
   absoluteLine,
   anchorPoint,
   chordDistance,
@@ -208,5 +210,66 @@ describe("two geometries", () => {
     expect(sameLine(a, { ...a, endAt: { elementId: "n" } })).toBe(false)
     expect(sameLine({ ...a, endAt: { elementId: "n" } }, { ...a, endAt: { elementId: "n", side: "top" } })).toBe(true)
     expect(sameLine(a, { ...a, bend: { x: 5, y: 5 } })).toBe(false)
+  })
+})
+
+describe("a drawn line", () => {
+  const straight = resolveLine(
+    { $type: "shape", shape: "arrow", line: { start: { x: 0, y: 0 }, end: { x: 100, y: 0 } }, thickness: 4 },
+    BOX,
+    none,
+  )
+
+  it("stops its stroke under the arrowhead and puts the tip on its end", () => {
+    const drawing = lineDrawing(straight)
+
+    expect(drawing.stroke).toBe(`M0,0 L${100 - capInset("arrow", 4)},0`)
+    expect(drawing.caps).toEqual([{ kind: "arrow", x: 100, y: 0, angle: 0 }])
+  })
+
+  it("trims a bent line along its curve", () => {
+    const drawing = lineDrawing({ ...straight, bend: { x: 50, y: 40 } })
+
+    expect(drawing.stroke.startsWith("M0,0 C")).toBe(true)
+    const [x, y] = drawing.stroke.split(" ").at(-1)!.split(",").map(Number)
+    expect(Math.hypot(100 - x, y)).toBeCloseTo(capInset("arrow", 4), 2)
+  })
+
+  it("ends a bent line on its arrowhead's axis, so the head sits straight and centred", () => {
+    const drawing = lineDrawing({ ...straight, bend: { x: 50, y: 40 } })
+    const [x, y] = drawing.stroke.split(" ").at(-1)!.split(",").map(Number)
+    const [cap] = drawing.caps
+
+    expect(Math.abs(Math.sin(cap.angle) * (x - cap.x) - Math.cos(cap.angle) * (y - cap.y))).toBeLessThan(0.01)
+    expect(cap.angle).toBeCloseTo(Math.atan2(0 - 40, 100 - 50), 9)
+  })
+
+  it("points a head the same way its stroke pulls back when the bend sits on the end", () => {
+    const drawing = lineDrawing({ ...straight, bend: { x: 100, y: 0 } })
+    const [x, y] = drawing.stroke.split(" ").at(-1)!.split(",").map(Number)
+
+    expect(Math.abs(Math.sin(drawing.caps[0].angle) * (x - 100) - Math.cos(drawing.caps[0].angle) * y)).toBeLessThan(0.01)
+  })
+
+  it("points a start arrow on a bent line back along the bend, and trims the stroke's start", () => {
+    const bent = { ...straight, bend: { x: 50, y: 40 }, startCap: "arrow" as const, endCap: "none" as const }
+    const drawing = lineDrawing(bent)
+
+    expect(drawing.caps).toEqual([{ kind: "arrow", x: 0, y: 0, angle: Math.atan2(-40, -50) }])
+    const [x, y] = drawing.stroke.slice(1).split(" ")[0].split(",").map(Number)
+    expect(Math.hypot(x, y)).toBeCloseTo(capInset("arrow", 4), 2)
+    expect(drawing.stroke.endsWith(" 100,0")).toBe(true)
+  })
+
+  it("strokes nothing when the heads cover the whole line", () => {
+    const stub = { ...straight, end: { x: 10, y: 0 }, startCap: "arrow" as const }
+    expect(lineDrawing(stub).stroke).toBe("")
+    expect(lineDrawing({ ...stub, bend: { x: 5, y: 3 } }).stroke).toBe("")
+  })
+
+  it("draws an uncapped or dotted line through its own points", () => {
+    const dotted = { ...straight, startCap: "dot" as const, endCap: "none" as const }
+    expect(lineDrawing(dotted).stroke).toBe(linePath(dotted.start, dotted.end, null))
+    expect(lineDrawing(dotted).caps).toEqual([{ kind: "dot", x: 0, y: 0, angle: Math.PI }])
   })
 })

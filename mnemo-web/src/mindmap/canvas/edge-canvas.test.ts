@@ -9,6 +9,7 @@ import {
   type EdgeCanvasSurface,
 } from './edge-canvas'
 import { anchorsFor, edgeShape, type ElementBox } from './edge-paths'
+import { capInset } from '../scene/cap-geometry'
 
 /**
  * The canvas edge mode has no proof in the harness: no scenario asserts edge geometry, so a
@@ -95,7 +96,9 @@ const SOURCE: ElementBox = { x: 0, y: 0, width: 100, height: 40 }
 const TARGET: ElementBox = { x: 300, y: 100, width: 100, height: 40 }
 const FAR_SOURCE: ElementBox = { x: 1000, y: 1000, width: 100, height: 40 }
 
-const BOXES: Record<string, ElementBox> = { s: SOURCE, t: TARGET, far: FAR_SOURCE }
+const NEAR: ElementBox = { x: 104, y: 0, width: 100, height: 40 }
+
+const BOXES: Record<string, ElementBox> = { s: SOURCE, t: TARGET, far: FAR_SOURCE, near: NEAR }
 
 function boxOf(id: string): ElementBox | undefined {
   return BOXES[id]
@@ -469,6 +472,38 @@ describe('arrow and dot caps', () => {
     const tip = h.entries.filter((e) => e.op === 'moveTo').at(-1)!
     expect(tip.args[0]).toBeCloseTo(anchors.tx, 6)
     expect(tip.args[1]).toBeCloseTo(anchors.ty, 6)
+  })
+
+  it('stops the stroke under the arrowhead instead of running it on to the tip', () => {
+    const h = mount([edge('e1', { endCap: 'arrow', lineStyle: 'dashed' })])
+    h.draw(['e1'])
+
+    const anchors = anchorsFor(SOURCE, TARGET)
+    const curve = h.entries.find((e) => e.op === 'bezierCurveTo')!
+    const [x, y] = curve.args.slice(4) as number[]
+    expect(Math.hypot(anchors.tx - x, anchors.ty - y)).toBeCloseTo(capInset('arrow', 1.5), 6)
+  })
+
+  it('puts a start arrow on the line\'s start, pointing back out of it', () => {
+    const h = mount([edge('e1', { startCap: 'arrow' })])
+    h.draw(['e1'])
+
+    const anchors = anchorsFor(SOURCE, TARGET)
+    const tip = h.entries.filter((e) => e.op === 'moveTo').at(-1)!
+    const base = h.entries.filter((e) => e.op === 'lineTo').slice(-2)
+    expect(tip.args[0]).toBeCloseTo(anchors.sx, 6)
+    expect(tip.args[1]).toBeCloseTo(anchors.sy, 6)
+    // The source is to the left, so the head's base lies to the right of its tip, along the line.
+    expect(((base[0].args[0] as number) + (base[1].args[0] as number)) / 2).toBeGreaterThan(anchors.sx)
+  })
+
+  it('traces no stroke for a line its two heads cover, only the heads', () => {
+    const h = mount([edge('e1', { fromId: 's', toId: 'near', routing: 'straight', startCap: 'arrow', endCap: 'arrow' })])
+    h.draw(['e1'])
+
+    // One moveTo per head and none for a zero-length stroke, whose round cap would paint a dot.
+    expect(h.entries.filter((e) => e.op === 'moveTo')).toHaveLength(2)
+    expect(h.entries.filter((e) => e.op === 'lineTo')).toHaveLength(4)
   })
 
   it('points the arrow along the curve rather than along the chord', () => {

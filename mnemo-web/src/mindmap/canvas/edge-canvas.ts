@@ -14,17 +14,11 @@
  * the one thing being measured.
  */
 
-import type { ArrowCap, SceneEdge } from '../model/scene'
+import type { SceneEdge } from '../model/scene'
 import type { Viewport } from '../model/scene'
-import {
-  anchorsFor,
-  branchShape,
-  capsOf,
-  edgeShape,
-  railsFor,
-  type EdgeStroke,
-  type ElementBox,
-} from './edge-paths'
+import { arrowCapPoints, dotRadius, type CapDraw } from '../scene/cap-geometry'
+import { drawingFor, type EdgeDrawing } from './edge-drawing'
+import { anchorsFor, type ElementBox } from './edge-paths'
 import { strokeStyleFor, type EdgeStrokeStyle } from './edge-style'
 
 /**
@@ -135,48 +129,9 @@ interface CachedStroke {
   readonly caps: readonly CapDraw[]
 }
 
-interface CapDraw {
-  readonly kind: ArrowCap
-  readonly x: number
-  readonly y: number
-  readonly angle: number
-}
-
-/**
- * The shape an edge draws as.
- *
- * A hierarchy edge that carries two different end weights is a tapering ribbon; everything else is
- * an ordinary stroke. The widths come from the projector rather than being derived here, so the two
- * substrates and the thumbnail all widen the same edge by the same amount.
- */
-export function strokeFor(edge: SceneEdge, anchors: ReturnType<typeof anchorsFor>): EdgeStroke {
-  const routing = edge.routing ?? 'curve'
-  const stroke =
-    edge.fromWidth !== undefined && edge.toWidth !== undefined
-      ? branchShape(routing, anchors, edge.fromWidth, edge.toWidth).stroke
-      : edgeShape(routing, anchors).stroke
-
-  // A double line is geometry rather than a dash pattern, so it is decided here with the rest of the
-  // shape and every consumer downstream just draws what it is handed.
-  if (edge.lineStyle === 'double') {
-    return railsFor(stroke, doubleSeparation(strokeStyleFor(edge).width))
-  }
-  return stroke
-}
-
-/**
- * How far apart the two lines of a double line sit, centre to centre.
- *
- * Two strokes with a gap the same weight as themselves, which is what makes it read as one doubled
- * line rather than as two lines that happen to be near each other. Scaled by the edge's own weight so
- * a thick double and a thin one look like the same idea.
- */
-function doubleSeparation(width: number): number {
-  return width * 2
-}
-
-function cacheStroke(stroke: EdgeStroke, edge: SceneEdge): CachedStroke {
-  const caps = capsFor(stroke, edge)
+function cacheStroke({ stroke, caps }: EdgeDrawing): CachedStroke {
+  // Rails with no runs trace nothing, which is what a line covered by its heads draws.
+  if (stroke === null) return { kind: 'rails', sx: 0, sy: 0, rest: NO_NUMBERS, runs: [], caps }
 
   if (stroke.kind === 'cubic') {
     return {
@@ -215,32 +170,11 @@ function cacheStroke(stroke: EdgeStroke, edge: SceneEdge): CachedStroke {
   return { kind: 'polyline', sx: points[0].x, sy: points[0].y, rest, caps }
 }
 
-const NO_CAPS: readonly CapDraw[] = []
-
-function capsFor(stroke: EdgeStroke, edge: SceneEdge): readonly CapDraw[] {
-  const wantsStart = edge.startCap !== undefined && edge.startCap !== 'none'
-  const wantsEnd = edge.endCap !== undefined && edge.endCap !== 'none'
-  if (!wantsStart && !wantsEnd) return NO_CAPS
-
-  const ends = capsOf(stroke)
-  if (!ends) return NO_CAPS
-
-  const caps: CapDraw[] = []
-  if (wantsStart) caps.push({ kind: edge.startCap!, ...ends.start })
-  if (wantsEnd) caps.push({ kind: edge.endCap!, ...ends.end })
-  return caps
-}
-
-/** Arrow length and half-width, and the dot's radius, all in multiples of the line's own weight. */
-const ARROW_LENGTH = 5
-const ARROW_HALF_WIDTH = 2
-const DOT_RADIUS = 2
-
 function traceCap(context: EdgeCanvasContext, cap: CapDraw, width: number): void {
   if (cap.kind === 'dot') {
     // No arc() in the context this renderer is written against, and a four-segment bezier circle is
     // indistinguishable from one at the sizes a cap is drawn at.
-    const r = DOT_RADIUS * width
+    const r = dotRadius(width)
     const k = r * 0.5523
     context.moveTo(cap.x + r, cap.y)
     context.bezierCurveTo(cap.x + r, cap.y + k, cap.x + k, cap.y + r, cap.x, cap.y + r)
@@ -251,15 +185,10 @@ function traceCap(context: EdgeCanvasContext, cap: CapDraw, width: number): void
     return
   }
 
-  const cos = Math.cos(cap.angle)
-  const sin = Math.sin(cap.angle)
-  const length = ARROW_LENGTH * width
-  const half = ARROW_HALF_WIDTH * width
-  const bx = cap.x - cos * length
-  const by = cap.y - sin * length
-  context.moveTo(cap.x, cap.y)
-  context.lineTo(bx - sin * half, by + cos * half)
-  context.lineTo(bx + sin * half, by - cos * half)
+  const [left, tip, right] = arrowCapPoints(cap, width)
+  context.moveTo(tip.x, tip.y)
+  context.lineTo(right.x, right.y)
+  context.lineTo(left.x, left.y)
   context.closePath()
 }
 
@@ -397,7 +326,7 @@ export function createEdgeCanvasRenderer(deps: EdgeCanvasDeps): EdgeCanvasRender
           const from = boxOf(edge.fromId)
           const to = boxOf(edge.toId)
           if (!from || !to) continue
-          cached = cacheStroke(strokeFor(edge, anchorsFor(from, to)), edge)
+          cached = cacheStroke(drawingFor(edge, anchorsFor(from, to)))
           strokes.set(edgeId, cached)
         }
         drawn += 1

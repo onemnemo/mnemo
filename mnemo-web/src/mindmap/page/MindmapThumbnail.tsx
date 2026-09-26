@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react"
 
 import { anchorsFor, boxOf, isFilled, strokeToPathData } from "../canvas/edge-paths"
-import { strokeFor } from "../canvas/edge-canvas"
+import { strokeFor } from "../canvas/edge-drawing"
 import { dashAttribute, strokeStyleFor } from "../canvas/edge-style"
 import { accentOf, markColor } from "../scene/branch"
 import { estimateWidth, measurersFrom } from "../scene/measure"

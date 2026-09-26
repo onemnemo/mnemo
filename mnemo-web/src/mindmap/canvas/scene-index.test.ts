@@ -10,6 +10,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { Scene, SceneEdge, SceneElement } from "../model/scene"
+import { capInset } from "../scene/cap-geometry"
 import { lineLabelPoint } from "../scene/element-geometry"
 import { absoluteLine, linePath } from "../scene/line-geometry"
 
@@ -477,5 +478,100 @@ describe("lines", () => {
     expect(rotor.style.rotate).toBe("30deg")
     expect(lines.rotationOf("a")).toBe(30)
     expect(lines.anchorTargets().find((t) => t.id === "a")!.rotation).toBe(30)
+  })
+})
+
+describe("caps during a drag", () => {
+  const svgNs = "http://www.w3.org/2000/svg"
+  const arrowLine: SceneElement = {
+    ...element("arrowed", 500, 500),
+    kind: "shape",
+    content: { $type: "shape", shape: "arrow", line: { start: { x: 8, y: 8 }, end: { x: 108, y: 8 } } },
+    width: 116,
+    height: 16,
+    line: {
+      start: { x: 8, y: 8 },
+      end: { x: 108, y: 8 },
+      bend: null,
+      startAt: null,
+      endAt: null,
+      startCap: "none",
+      endCap: "arrow",
+      thickness: 2,
+      extent: { minX: 500, minY: 500, maxX: 620, maxY: 520 },
+    },
+  }
+  const capped: Scene = {
+    ...SCENE,
+    elements: [element("a", 0, 0), element("b", 300, 0), arrowLine],
+    edges: [{ id: "cap", fromId: "a", toId: "b", kind: "link", endCap: "arrow" }],
+  }
+
+  const mountCapped = (): SceneIndex => {
+    document.body.replaceChildren()
+    pane = document.createElement("div")
+    for (const e of capped.elements) {
+      const host = document.createElement("div")
+      host.className = "mm-node"
+      host.dataset.mmId = e.id
+      host.style.transform = `translate(${e.x}px, ${e.y}px)`
+      if (e.line) {
+        const svg = document.createElementNS(svgNs, "svg")
+        for (const part of ["stroke", "caps", "hit", "select"]) {
+          const path = document.createElementNS(svgNs, "path")
+          path.setAttribute(`data-mm-line-${part}`, "")
+          svg.append(path)
+        }
+        host.append(svg)
+      }
+      pane.append(host)
+    }
+    const svg = document.createElementNS(svgNs, "svg")
+    const path = document.createElementNS(svgNs, "path")
+    path.dataset.mmEdge = "cap"
+    const caps = document.createElementNS(svgNs, "path")
+    caps.dataset.mmEdgeCaps = "cap"
+    svg.append(path, caps)
+    pane.append(svg)
+    document.body.append(pane)
+    return createSceneIndex(capped, pane, "svg")
+  }
+
+  it("moves an edge's arrowhead with the edge", () => {
+    const capIndex = mountCapped()
+    const caps = pane.querySelector('[data-mm-edge-caps="cap"]')!
+
+    capIndex.repaintEdges(["cap"])
+    expect(caps.getAttribute("d")).toMatch(/^M300,20 /)
+
+    capIndex.writePositions(["b"], () => ({ x: 600, y: 0 }))
+    capIndex.repaintEdges(["cap"])
+    expect(caps.getAttribute("d")).toMatch(/^M600,20 /)
+  })
+
+  it("hides an edge's arrowhead with the edge", () => {
+    const capIndex = mountCapped()
+    const target = capIndex.cullTargets().find((t) => t.key === edgeCullKey("cap"))!
+
+    expect(target.nodes).toContain(pane.querySelector('[data-mm-edge-caps="cap"]'))
+    expect(target.nodes).toContain(pane.querySelector('path[data-mm-edge="cap"]'))
+  })
+
+  it("moves a free line's arrowhead as the line is dragged", () => {
+    const capIndex = mountCapped()
+    capIndex.writeLine("arrowed", {
+      start: { x: 508, y: 508 },
+      end: { x: 700, y: 508 },
+      bend: null,
+      startAt: null,
+      endAt: null,
+    })
+
+    const host = pane.querySelector<HTMLElement>('[data-mm-id="arrowed"]')!
+    expect(host.querySelector("[data-mm-line-caps]")!.getAttribute("d")).toMatch(/^M200,8 /)
+    // The stroke stops under the head rather than at the tip.
+    expect(host.querySelector("[data-mm-line-stroke]")!.getAttribute("d")).toBe(
+      `M8,8 L${200 - capInset("arrow", 2)},8`,
+    )
   })
 })

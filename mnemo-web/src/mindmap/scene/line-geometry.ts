@@ -3,7 +3,8 @@
 import type { AnchorSide, ArrowCap, LineAttachment, ShapeContent, ShapeType } from "../model/document"
 import { pointOf } from "../model/document"
 import type { Bounds, Point, SceneElement, SceneLine } from "../model/scene"
-import { capRadiusFactor } from "./cap-geometry"
+import { capInset, capRadiusFactor, hasCap, type CapDraw } from "./cap-geometry"
+import { heading, quadAsCubic, trimCubic, trimPolyline } from "./stroke-trim"
 
 export interface Box {
   readonly x: number
@@ -229,6 +230,33 @@ export function linePath(start: Point, end: Point, bend: Point | null): string {
     return `M${n(start.x)},${n(start.y)} Q${n(bend.x)},${n(bend.y)} ${n(end.x)},${n(end.y)}`
   }
   return `M${n(start.x)},${n(start.y)} L${n(end.x)},${n(end.y)}`
+}
+
+/** A line's stroke, stopped short under any arrowhead, and the caps drawn over its ends. */
+export function lineDrawing(line: SceneLine): { readonly stroke: string; readonly caps: readonly CapDraw[] } {
+  const caps: CapDraw[] = []
+  const inward = (other: Point) => (line.bend ? [line.bend, other] : [other])
+  if (hasCap(line.startCap)) caps.push({ kind: line.startCap, ...capAt(line.start, inward(line.end)) })
+  if (hasCap(line.endCap)) caps.push({ kind: line.endCap, ...capAt(line.end, inward(line.start)) })
+
+  const fromStart = capInset(line.startCap, line.thickness)
+  const fromEnd = capInset(line.endCap, line.thickness)
+  if (fromStart === 0 && fromEnd === 0) {
+    return { stroke: linePath(line.start, line.end, line.bend), caps }
+  }
+  // An empty stroke when the heads cover the whole line, or its round cap paints a dot under them.
+  if (!line.bend) {
+    const ends = trimPolyline([line.start, line.end], fromStart, fromEnd)
+    return { stroke: ends ? linePath(ends[0], ends[1], null) : "", caps }
+  }
+  const c = trimCubic(quadAsCubic(line.start, line.bend, line.end), fromStart, fromEnd)
+  if (!c) return { stroke: "", caps }
+  return { stroke: `M${n(c.sx)},${n(c.sy)} C${n(c.c1x)},${n(c.c1y)} ${n(c.c2x)},${n(c.c2y)} ${n(c.tx)},${n(c.ty)}`, caps }
+}
+
+function capAt(end: Point, inward: readonly Point[]): { x: number; y: number; angle: number } {
+  const direction = heading(end, inward)
+  return { x: end.x, y: end.y, angle: Math.atan2(direction.y, direction.x) }
 }
 
 function n(value: number): string {

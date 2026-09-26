@@ -21,6 +21,7 @@ import {
   extentOf,
   isAttachmentTarget,
   lineBox,
+  lineDrawing,
   linePath,
   midpoint,
   relative,
@@ -29,8 +30,9 @@ import {
   type AnchorTarget,
 } from '../scene/line-geometry'
 import type { CullableNode, CullBounds, CullTarget } from './culler'
-import { strokeFor } from './edge-canvas'
-import { anchorsFor, edgeShape, strokeToPathData, type ElementBox } from './edge-paths'
+import { capsPathData } from '../scene/cap-geometry'
+import { drawingFor, drawingPathData } from './edge-drawing'
+import { anchorsFor, edgeShape, type ElementBox } from './edge-paths'
 import type { EdgeMode } from './edge-style'
 import { bendRingLook } from './line-marks'
 import { shapePath } from './shape-path'
@@ -62,6 +64,7 @@ export function edgeIdFromCullKey(key: string): string | null {
 
 interface LineDom {
   readonly stroke: Element | null
+  readonly caps: Element | null
   readonly hit: Element | null
   readonly select: Element | null
   readonly rings: Readonly<Record<'start' | 'end' | 'bend', SVGGElement | null>>
@@ -151,17 +154,23 @@ export function createSceneIndex(
   const elementsById = new Map(scene.elements.map((element) => [element.id, element] as const))
 
   const paths = new Map<string, SVGPathElement>()
+  const capPaths = new Map<string, SVGPathElement>()
   const labels = new Map<string, HTMLElement>()
   // Mutable because a hybrid run changes it mid-flight, and `cullTargets` reads it.
   let mode = edgeMode
 
   const readEdgeDom = (): void => {
     paths.clear()
+    capPaths.clear()
     labels.clear()
     if (mode === 'svg') {
       for (const path of pane.querySelectorAll<SVGPathElement>('path[data-mm-edge]')) {
         const id = path.dataset.mmEdge
         if (id) paths.set(id, path)
+      }
+      for (const path of pane.querySelectorAll<SVGPathElement>('path[data-mm-edge-caps]')) {
+        const id = path.dataset.mmEdgeCaps
+        if (id) capPaths.set(id, path)
       }
     }
     if (mode !== 'off') {
@@ -280,6 +289,7 @@ export function createSceneIndex(
     if (!host) return undefined
     const dom: LineDom = {
       stroke: host.querySelector('[data-mm-line-stroke]'),
+      caps: host.querySelector('[data-mm-line-caps]'),
       hit: host.querySelector('[data-mm-line-hit]'),
       select: host.querySelector('[data-mm-line-select]'),
       rings: {
@@ -302,7 +312,9 @@ export function createSceneIndex(
     const dom = domOf(id)
     if (!dom) return
     const d = linePath(line.start, line.end, line.bend)
-    dom.stroke?.setAttribute('d', d)
+    const drawing = lineDrawing(line)
+    dom.stroke?.setAttribute('d', drawing.stroke)
+    dom.caps?.setAttribute('d', capsPathData(drawing.caps, line.thickness))
     dom.hit?.setAttribute('d', d)
     dom.select?.setAttribute('d', d)
     const bend = line.bend ?? midpoint(line.start, line.end)
@@ -504,7 +516,11 @@ export function createSceneIndex(
         // path string that no element will ever read. Routed through the same decision the canvas
         // renderer makes, or a tapered branch would repaint as a plain stroke the moment it moved.
         const anchors = anchorsFor(from, to)
-        if (path) path.setAttribute('d', strokeToPathData(strokeFor(edge, anchors)))
+        if (path) {
+          const drawing = drawingFor(edge, anchors)
+          path.setAttribute('d', drawingPathData(drawing.stroke))
+          capPaths.get(edgeId)?.setAttribute('d', capsPathData(drawing.caps, drawing.width))
+        }
         if (label) {
           const at = edgeShape(edge.routing ?? 'curve', anchors).label
           label.style.transform = `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)`
@@ -546,6 +562,8 @@ export function createSceneIndex(
         const nodes: CullableNode[] = []
         const path = paths.get(edge.id)
         if (path) nodes.push(path)
+        const caps = capPaths.get(edge.id)
+        if (caps) nodes.push(caps)
         const label = labels.get(edge.id)
         if (label) nodes.push(label)
         targets.push({

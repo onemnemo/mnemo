@@ -15,27 +15,19 @@
  * and neither survives leaving the app. The desktop exporter makes both of the same calls.
  */
 
-import { strokeFor } from "../canvas/edge-canvas"
-import {
-  anchorsFor,
-  boxOf,
-  capsOf,
-  edgeShape,
-  isFilled,
-  strokeToPathData,
-  type CapPlacement,
-} from "../canvas/edge-paths"
+import { drawingFor } from "../canvas/edge-drawing"
+import { anchorsFor, boxOf, edgeShape, isFilled, strokeToPathData } from "../canvas/edge-paths"
 import { dashAttribute, strokeStyleFor } from "../canvas/edge-style"
 import { shapePath } from "../canvas/shape-path"
-import { arrowCapPoints, DOT_MARKER } from "../scene/cap-geometry"
+import { arrowCapPoints, dotRadius, type CapDraw } from "../scene/cap-geometry"
 import { lineLabelPoint } from "../scene/element-geometry"
-import { linePath } from "../scene/line-geometry"
+import { lineDrawing } from "../scene/line-geometry"
 import { bodyOf, imageRefOf, refGlyphOf, runsOf, type ImageRef } from "../scene/content"
 import { FONT_FAMILY, MONO_FAMILY, type TextMeasurer } from "../scene/measure"
 import { accentOf } from "../scene/branch"
 import { mixColor, washOf } from "../scene/tokens"
 import { boundsOf, type Scene, type SceneEdge, type SceneElement, type SceneLine } from "../model/scene"
-import type { ArrowCap, CodeContent, FrameContent, ShapeContent, ShapeType } from "../model/document"
+import type { CodeContent, FrameContent, ShapeContent, ShapeType } from "../model/document"
 import { sliceRuns, type Fragment } from "./rich-text"
 
 /** Room around the drawing, the same as the desktop leaves. */
@@ -145,29 +137,27 @@ const ROOT_SHADOW =
 
 function emitEdge(edge: SceneEdge, from: SceneElement, to: SceneElement, paint: Paint): string {
   const anchors = anchorsFor(boxOf(from), boxOf(to))
-  const stroke = strokeFor(edge, anchors)
+  const { stroke, caps } = drawingFor(edge, anchors)
   const style = strokeStyleFor(edge)
   const color = paint.color(style.color)
   const out: string[] = []
 
   // A ribbon is a closed shape, so it is filled and never stroked; stroking one outlines it instead
   // of filling it, and filling an open curve closes it into a lens.
-  if (isFilled(stroke)) {
+  if (stroke && isFilled(stroke)) {
     out.push(`<path d="${strokeToPathData(stroke)}" fill="${color}"/>`)
   } else {
     const dash = dashAttribute(style.dash)
-    out.push(
-      `<path d="${strokeToPathData(stroke)}" fill="none" stroke="${color}" stroke-width="${n(style.width)}"` +
-        ` stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`,
-    )
+    if (stroke) {
+      out.push(
+        `<path d="${strokeToPathData(stroke)}" fill="none" stroke="${color}" stroke-width="${n(style.width)}"` +
+          ` stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`,
+      )
+    }
 
     // Caps as geometry rather than as markers, so a file opened in a drawing tool gets arrowheads in
     // the branch colour without depending on how that tool resolves markers.
-    const caps = capsOf(stroke)
-    if (caps) {
-      out.push(emitCap(edge.startCap, caps.start, style.width, color))
-      out.push(emitCap(edge.endCap, caps.end, style.width, color))
-    }
+    for (const cap of caps) out.push(emitCap(cap, style.width, color))
   }
 
   if (edge.label) {
@@ -178,19 +168,14 @@ function emitEdge(edge: SceneEdge, from: SceneElement, to: SceneElement, paint: 
   return out.join("")
 }
 
-function emitCap(cap: ArrowCap | undefined, at: CapPlacement, width: number, color: string): string {
-  if (cap === "arrow") {
-    const points = arrowCapPoints(at, width)
+function emitCap(cap: CapDraw, width: number, color: string): string {
+  if (cap.kind === "arrow") {
+    const points = arrowCapPoints(cap, width)
       .map((point) => `${n(point.x)},${n(point.y)}`)
       .join(" ")
     return `<polygon points="${points}" fill="${color}"/>`
   }
-
-  if (cap === "dot") {
-    return `<circle cx="${n(at.x)}" cy="${n(at.y)}" r="${n(width * DOT_MARKER.radius * DOT_MARKER.scale)}" fill="${color}"/>`
-  }
-
-  return ""
+  return `<circle cx="${n(cap.x)}" cy="${n(cap.y)}" r="${n(dotRadius(width))}" fill="${color}"/>`
 }
 
 /* -------------------------------------------------------------------------- */
@@ -335,24 +320,13 @@ function emitShape(element: SceneElement, accent: string | undefined, paint: Pai
 
 function emitLine(element: SceneElement, line: SceneLine, accent: string | undefined, paint: Paint): string {
   const color = paint.color(accent ?? "var(--line)")
-  const path =
-    `<path d="${linePath(line.start, line.end, line.bend)}" fill="none" stroke="${color}"` +
-    ` stroke-width="${n(line.thickness)}" stroke-linecap="round"/>`
-  const towardsStart = line.bend ?? line.end
-  const towardsEnd = line.bend ?? line.start
-  const startCap = emitCap(
-    line.startCap,
-    { x: line.start.x, y: line.start.y, angle: Math.atan2(line.start.y - towardsStart.y, line.start.x - towardsStart.x) },
-    line.thickness,
-    color,
-  )
-  const endCap = emitCap(
-    line.endCap,
-    { x: line.end.x, y: line.end.y, angle: Math.atan2(line.end.y - towardsEnd.y, line.end.x - towardsEnd.x) },
-    line.thickness,
-    color,
-  )
-  return `<g transform="translate(${n(element.x)}, ${n(element.y)})">${path}${startCap}${endCap}</g>`
+  const drawing = lineDrawing(line)
+  const path = drawing.stroke
+    ? `<path d="${drawing.stroke}" fill="none" stroke="${color}"` +
+      ` stroke-width="${n(line.thickness)}" stroke-linecap="round"/>`
+    : ""
+  const caps = drawing.caps.map((cap) => emitCap(cap, line.thickness, color)).join("")
+  return `<g transform="translate(${n(element.x)}, ${n(element.y)})">${path}${caps}</g>`
 }
 
 /**

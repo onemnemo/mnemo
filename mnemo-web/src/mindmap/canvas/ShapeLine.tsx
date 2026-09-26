@@ -5,9 +5,9 @@ import { useLayoutEffect, useRef } from "react"
 import { useT } from "@/i18n/useT"
 
 import type { Point, SceneElement, SceneLine } from "../model/scene"
-import { linePath, midpoint } from "../scene/line-geometry"
-import { CapMarkers } from "./CapMarkers"
-import { bendRingLook, capMarker, LINE_HIT_WIDTH } from "./line-marks"
+import { capsPathData } from "../scene/cap-geometry"
+import { lineDrawing, linePath, midpoint } from "../scene/line-geometry"
+import { bendRingLook, LINE_HIT_WIDTH } from "./line-marks"
 
 const RING_RADIUS = 5
 
@@ -24,7 +24,7 @@ export function ShapeLine({
   stroke: string | undefined
 }) {
   const d = linePath(line.start, line.end, line.bend)
-  const owner = `line-${element.id}`
+  const drawing = lineDrawing(line)
   const color = stroke ?? "var(--line)"
 
   return (
@@ -35,17 +35,16 @@ export function ShapeLine({
       style={{ pointerEvents: "none" }}
       role="group"
     >
-      <CapMarkers owner={owner} color={color} start={line.startCap} end={line.endCap} />
       <path
         data-mm-line-stroke=""
-        d={d}
+        d={drawing.stroke}
         fill="none"
         stroke={color}
         strokeWidth={line.thickness}
         strokeLinecap="round"
-        markerStart={capMarker(line.startCap, owner, "start")}
-        markerEnd={capMarker(line.endCap, owner, "end")}
       />
+      {/* Always mounted, so a live drag can rewrite it without waiting for React. */}
+      <path data-mm-line-caps="" d={capsPathData(drawing.caps, line.thickness)} style={{ fill: color }} />
       <path
         data-mm-line-select=""
         className="mm-line-select"
