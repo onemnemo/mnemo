@@ -132,28 +132,6 @@ jobs:
           name: vpk-${{ matrix.rid }}
           path: vpk-out/**
 
-  upload-to-release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: vpk-*
-          merge-multiple: false
-
-      - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: |
-            artifacts/**/Mnemo-Portable-*.zip
-            artifacts/**/*.AppImage
-            artifacts/**/*Setup.exe
-            artifacts/**/*Setup.pkg
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   upload-update-feed-artifact:
     needs: build
     runs-on: ubuntu-latest
