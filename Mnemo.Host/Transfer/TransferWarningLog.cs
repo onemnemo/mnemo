@@ -71,15 +71,9 @@ public static partial class TransferWarningLog
             var core = token[..end];
             var trailingPunctuation = token[end..];
 
-            string fileName;
-            try
-            {
-                fileName = Path.GetFileName(core);
-            }
-            catch (ArgumentException)
-            {
-                return token;
-            }
+            // Both separators on every platform: Path.GetFileName only splits on the host's own,
+            // so a Windows path in a reason would pass through whole on macOS and Linux.
+            var fileName = core[(core.LastIndexOfAny(['\\', '/']) + 1)..];
 
             return fileName.Length > 0 ? fileName + trailingPunctuation : token;
         });
