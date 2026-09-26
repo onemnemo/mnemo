@@ -95,8 +95,9 @@ public static class ProfileRestoreStartup
                 currentAppVersion,
                 extractionDirectory: extraction,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
-            await ProfileBackupDatabase.ValidateAsync(
-                    Path.Combine(extraction, ProfileBackupArchive.DatabasePath), cancellationToken)
+            var restoredDatabase = Path.Combine(extraction, ProfileBackupArchive.DatabasePath);
+            await ProfileBackupDatabase.ValidateAsync(restoredDatabase, cancellationToken).ConfigureAwait(false);
+            await ProfileBackupDatabase.MarkOnboardingCompletedAsync(restoredDatabase, cancellationToken)
                 .ConfigureAwait(false);
 
             Directory.CreateDirectory(recovery);

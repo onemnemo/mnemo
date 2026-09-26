@@ -24,6 +24,19 @@ internal static class ProfileBackupDatabase
         }
     }
 
+    /// <summary>
+    /// Records onboarding as finished in a restored database. Backups leave the mark out, and a
+    /// restore is never a first run.
+    /// </summary>
+    public static async Task MarkOnboardingCompletedAsync(string databasePath, CancellationToken cancellationToken)
+    {
+        await using var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False");
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "INSERT OR IGNORE INTO Storage (Key, Value) VALUES ('Onboarding.Completed', 'true')";
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public static async Task<ProfileBackupContentSummary> SanitizeAndDescribeAsync(
         string databasePath,
         CancellationToken cancellationToken)
