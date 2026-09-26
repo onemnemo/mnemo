@@ -16,6 +16,24 @@ public static class MnemoPayloadOptionKeys
     public const string NoteIds = "notes.noteIds";
 }
 
+/// <summary>
+/// The kinds of id an import can rename, as keys of <see cref="MnemoPayloadImportResult.RemappedIds"/>
+/// and <see cref="MnemoPayloadImportContext.RemappedIds"/>.
+/// </summary>
+public static class MnemoIdKinds
+{
+    public const string Notes = "notes";
+    public const string FlashcardDecks = "flashcards.decks";
+    public const string FlashcardCards = "flashcards.cards";
+
+    /// <summary>The renames of <paramref name="kind"/>, or an empty table when none were made.</summary>
+    public static IReadOnlyDictionary<string, string> Of(
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> remapped, string kind) =>
+        remapped.TryGetValue(kind, out var ids) ? ids : Empty;
+
+    private static readonly IReadOnlyDictionary<string, string> Empty = new Dictionary<string, string>();
+}
+
 public sealed class MnemoPackageExportOptions
 {
     public IReadOnlyCollection<string>? PayloadTypes { get; set; }
@@ -81,10 +99,21 @@ public sealed class MnemoPayloadImportResult
     public int SkippedCount { get; set; }
 
     /// <summary>
-    /// Ids this payload had to change on the way in, from the id the package carried to the one now
-    /// stored. Only the ones that moved; an id that is absent was stored as it arrived.
+    /// Ids this payload had to change on the way in, by id kind (see <see cref="MnemoIdKinds"/>) and
+    /// then from the id the package carried to the one now stored. Only the ones that moved; an id
+    /// that is absent was stored as it arrived, and a kind with nothing moved has no entry.
     /// </summary>
-    public Dictionary<string, string> RemappedIds { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, Dictionary<string, string>> RemappedIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Records that <paramref name="from"/> of <paramref name="kind"/> was stored as <paramref name="to"/>. A no-op when they match.</summary>
+    public void Remap(string kind, string from, string to)
+    {
+        if (string.Equals(from, to, StringComparison.Ordinal))
+            return;
+        if (!RemappedIds.TryGetValue(kind, out var ids))
+            RemappedIds[kind] = ids = new Dictionary<string, string>(StringComparer.Ordinal);
+        ids[from] = to;
+    }
 
     public List<TransferWarning> Warnings { get; set; } = new();
 }
@@ -109,14 +138,14 @@ public sealed class MnemoPayloadImportContext
     public MnemoPackageManifest Manifest { get; init; } = new();
 
     /// <summary>
-    /// What the payloads already imported from this package had to rename, by payload type and then
-    /// by the id the package carried. A payload keyed by another payload's ids reads it from here so
-    /// its rows land on what was actually stored. Empty for the first payload in the package, and
-    /// for any id that came through unchanged.
+    /// What the payloads already imported from this package had to rename, by id kind (see
+    /// <see cref="MnemoIdKinds"/>) and then by the id the package carried. A payload that refers to
+    /// another payload's ids reads it from here so its references land on what was actually stored.
+    /// Empty for any id that came through unchanged.
     /// </summary>
     /// <remarks>
-    /// Payloads are imported in the order the manifest lists them, and an export writes that list in
-    /// payload type order, so a payload only ever sees the renames of the types that sort before it.
+    /// A payload sees the renames of the payload types it names in
+    /// <see cref="Services.IMnemoPayloadHandler.ImportsAfter"/>, since those are imported before it.
     /// </remarks>
     public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> RemappedIds { get; init; }
         = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);

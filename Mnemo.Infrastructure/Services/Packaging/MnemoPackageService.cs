@@ -196,12 +196,11 @@ public sealed class MnemoPackageService : IMnemoPackageService
                 ? new HashSet<string>(options.PayloadTypes, StringComparer.OrdinalIgnoreCase)
                 : null;
 
-            // Carried forward so a payload keyed by another payload's ids can follow whatever that
-            // one renamed. Entries are walked in manifest order, which an export writes in payload
-            // type order, so notes are always stored before anything keyed by a note id is read.
+            // Carried forward so a payload that refers to another payload's ids can follow whatever
+            // that one renamed.
             var remappedIds = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var entry in manifest.Entries)
+            foreach (var entry in InImportOrder(manifest.Entries, _handlers))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (selectedTypes != null && !selectedTypes.Contains(entry.PayloadType))
@@ -224,8 +223,8 @@ public sealed class MnemoPackageService : IMnemoPackageService
                     RemappedIds = new Dictionary<string, IReadOnlyDictionary<string, string>>(remappedIds, StringComparer.OrdinalIgnoreCase)
                 }, cancellationToken).ConfigureAwait(false);
 
-                if (importResult.RemappedIds.Count > 0)
-                    remappedIds[entry.PayloadType] = importResult.RemappedIds;
+                foreach (var (kind, ids) in importResult.RemappedIds)
+                    remappedIds[kind] = ids;
 
                 result.ImportedCountsByPayload[entry.PayloadType] = importResult.ImportedCount;
                 result.DuplicatedCountsByPayload[entry.PayloadType] = importResult.DuplicatedCount;
@@ -320,6 +319,39 @@ public sealed class MnemoPackageService : IMnemoPackageService
             _logger.Error("MnemoPackageService", "Failed to inspect package.", ex);
             return Result<MnemoPackageEvidence>.Failure("Failed to inspect .mnemo package.", ex);
         }
+    }
+
+    /// <summary>
+    /// The manifest's entries, reordered so each payload comes after the ones it names in
+    /// <see cref="IMnemoPayloadHandler.ImportsAfter"/>. Otherwise manifest order is kept, and a
+    /// dependency loop between handlers is broken where it closes rather than dropping anything.
+    /// </summary>
+    internal static List<MnemoPackageEntry> InImportOrder(
+        IReadOnlyList<MnemoPackageEntry> entries,
+        IReadOnlyDictionary<string, IMnemoPayloadHandler> handlers)
+    {
+        var byType = entries
+            .GroupBy(e => e.PayloadType, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+        var ordered = new List<MnemoPackageEntry>(entries.Count);
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void Visit(string payloadType)
+        {
+            if (!visited.Add(payloadType) || !byType.TryGetValue(payloadType, out var group))
+                return;
+            if (handlers.TryGetValue(payloadType, out var handler))
+            {
+                foreach (var dependency in handler.ImportsAfter)
+                    Visit(dependency);
+            }
+
+            ordered.AddRange(group);
+        }
+
+        foreach (var entry in entries)
+            Visit(entry.PayloadType);
+        return ordered;
     }
 
     /// <summary>The archive entries belonging to one payload, keyed by their path inside it.</summary>

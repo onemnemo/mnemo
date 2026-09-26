@@ -115,7 +115,7 @@ public sealed class ReimportAfterDeleteTests
         Assert.Equal("Rocks", live.Title);
         Assert.NotEqual(note.NoteId, live.NoteId);
         Assert.Equal(1, result.ImportedCount);
-        Assert.Equal(live.NoteId, result.RemappedIds[note.NoteId]);
+        Assert.Equal(live.NoteId, result.RemappedIds[MnemoIdKinds.Notes][note.NoteId]);
         Assert.Equal("granite", (await h.Storage.LoadAsync<Note>($"note_{note.NoteId}")).Value?.Content);
     }
 

@@ -48,6 +48,8 @@ public sealed class ProofingMnemoPayloadHandler : IMnemoPayloadHandler
 
     public string PayloadType => "proofing";
 
+    public IReadOnlyCollection<string> ImportsAfter { get; } = ["notes"];
+
     public async Task<MnemoPayloadExportData> ExportAsync(
         MnemoPayloadExportContext context,
         CancellationToken cancellationToken = default)
@@ -108,7 +110,7 @@ public sealed class ProofingMnemoPayloadHandler : IMnemoPayloadHandler
         var noteIgnores = snapshot.NoteIgnores ?? [];
 
         var result = new MnemoPayloadImportResult();
-        var storedNoteIds = context.RemappedIds.TryGetValue("notes", out var noteRenames)
+        var storedNoteIds = context.RemappedIds.TryGetValue(MnemoIdKinds.Notes, out var noteRenames)
             ? noteRenames
             : null;
 

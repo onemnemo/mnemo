@@ -47,6 +47,8 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
 
     public string PayloadType => "mindmaps";
 
+    public IReadOnlyCollection<string> ImportsAfter { get; } = ["notes", "flashcards"];
+
     public async Task<MnemoPayloadExportData> ExportAsync(MnemoPayloadExportContext context, CancellationToken cancellationToken = default)
     {
         var library = await _mindmaps.GetLibraryAsync(cancellationToken).ConfigureAwait(false);
@@ -156,6 +158,10 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
         await RestoreTemplatesAsync(snapshot.Templates, cancellationToken).ConfigureAwait(false);
         var folderIdMap = await RestoreFoldersAsync(snapshot.Folders, policy, result, cancellationToken).ConfigureAwait(false);
 
+        var noteIds = MnemoIdKinds.Of(context.RemappedIds, MnemoIdKinds.Notes);
+        var deckIds = MnemoIdKinds.Of(context.RemappedIds, MnemoIdKinds.FlashcardDecks);
+        var cardIds = MnemoIdKinds.Of(context.RemappedIds, MnemoIdKinds.FlashcardCards);
+
         foreach (var map in snapshot.Maps)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -176,6 +182,8 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
                 result.Warnings.Add(TransferWarning.Of("MindmapDeserializeFailed"));
                 continue;
             }
+
+            document = PackageReferenceRewriter.RewriteMap(document, noteIds, deckIds, cardIds);
 
             if (heldMapIds.Contains(document.Id))
             {

@@ -88,6 +88,8 @@ internal sealed class FlashcardCollectionRestore
         var imagesDirectory = _imagesDirectory;
         var now = DateTimeOffset.UtcNow;
 
+        IReadOnlyDictionary<string, string> decksStored = new Dictionary<string, string>();
+        IReadOnlyDictionary<string, string> cardsStored = new Dictionary<string, string>();
         await _store.WriteAsync(async (conn, tx, ct) =>
         {
             await RestorePresetsAsync(conn, tx, snapshot, policy, ct).ConfigureAwait(false);
@@ -97,7 +99,15 @@ internal sealed class FlashcardCollectionRestore
             var factMap = await RestoreFactsAsync(conn, tx, snapshot, policy, deckMap, imagesDirectory, ct).ConfigureAwait(false);
             var cardMap = await RestoreCardsAsync(conn, tx, snapshot, policy, deckMap, factMap, imagesDirectory, now, ct).ConfigureAwait(false);
             await RestoreHistoryAsync(conn, tx, snapshot, deckMap, cardMap, ct).ConfigureAwait(false);
+            decksStored = deckMap;
+            cardsStored = cardMap;
         }, cancellationToken).ConfigureAwait(false);
+
+        // Published only once the transaction has committed, so no rename points at a rolled back row.
+        foreach (var (from, to) in decksStored)
+            result.Remap(MnemoIdKinds.FlashcardDecks, from, to);
+        foreach (var (from, to) in cardsStored)
+            result.Remap(MnemoIdKinds.FlashcardCards, from, to);
 
         return result;
     }

@@ -104,6 +104,10 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
                 result.Warnings.Add(TransferWarning.Of("NoteFolderImportFailed", ("folderName", folder.Name), ("error", save.ErrorMessage ?? string.Empty)));
         }
 
+        // Every note's id is settled before any is written, so a note that refers to another note in
+        // the package follows it whichever of the two is stored first.
+        var planned = new List<(Note Source, Note Imported)>(snapshot.Notes.Count);
+        var noteIdMap = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var note in snapshot.Notes)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -132,6 +136,16 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
             if (!string.IsNullOrWhiteSpace(imported.FolderId) && folderIdMap.TryGetValue(imported.FolderId, out var remappedFolder))
                 imported.FolderId = remappedFolder;
 
+            if (!string.Equals(imported.NoteId, note.NoteId, StringComparison.Ordinal))
+                noteIdMap[note.NoteId] = imported.NoteId;
+            planned.Add((note, imported));
+        }
+
+        foreach (var (note, imported) in planned)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            PackageReferenceRewriter.RewriteNote(imported, noteIdMap);
+
             var save = await _noteService.SaveNoteAsync(imported).ConfigureAwait(false);
             if (!save.IsSuccess)
             {
@@ -141,9 +155,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
 
             // Published so the payloads keyed by note id can follow the note that moved. Recorded
             // only after the save, because an id nothing was written under points at no note.
-            if (!string.Equals(imported.NoteId, note.NoteId, StringComparison.Ordinal))
-                result.RemappedIds[note.NoteId] = imported.NoteId;
-
+            result.Remap(MnemoIdKinds.Notes, note.NoteId, imported.NoteId);
             result.ImportedCount++;
         }
 

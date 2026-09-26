@@ -15,6 +15,12 @@ public interface IMnemoPayloadHandler
     string PayloadType { get; }
 
     /// <summary>
+    /// Payload types whose id renames this payload follows, so an import stores them first. Empty
+    /// for a payload that refers to nothing outside itself.
+    /// </summary>
+    IReadOnlyCollection<string> ImportsAfter => Array.Empty<string>();
+
+    /// <summary>
     /// Exports payload data into package files.
     /// </summary>
     Task<MnemoPayloadExportData> ExportAsync(MnemoPayloadExportContext context, CancellationToken cancellationToken = default);
