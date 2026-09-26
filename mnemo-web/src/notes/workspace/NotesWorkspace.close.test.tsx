@@ -98,10 +98,13 @@ function tabFor(id: string): HTMLElement {
 }
 
 /** With no bundle loaded, every label is its own key. */
-function chooseFromMenu(tabId: string, key: string): void {
+async function chooseFromMenu(tabId: string, key: string): Promise<void> {
   act(() => {
     tabFor(tabId).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   });
+  // The menu mounts a tick after the event, not synchronously with it; querying
+  // right away is a race that only shows up under machine load.
+  await settle();
   const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((el) => el.textContent === key);
   expect(item, `no menu item labelled ${key}`).toBeDefined();
   act(() => item!.click());
@@ -143,7 +146,7 @@ describe('closing a row of tabs', () => {
     await open(['note-1', 'note-2', 'note-3', 'note-4'], 'note-1');
     expect(tabElements().length).toBe(4);
 
-    chooseFromMenu('note-3', 'CloseOtherTabs');
+    await chooseFromMenu('note-3', 'CloseOtherTabs');
     await settle();
 
     // Stepping one place from note-1 would open note-2, which this just closed.
@@ -154,7 +157,7 @@ describe('closing a row of tabs', () => {
   it('falls back to the nearest tab still standing on one side', async () => {
     await open(['note-1', 'note-2', 'note-3', 'note-4'], 'note-4');
 
-    chooseFromMenu('note-2', 'CloseTabsToTheRight');
+    await chooseFromMenu('note-2', 'CloseTabsToTheRight');
     await settle();
 
     expect(window.location.hash).toBe('#/notes/note-2');
@@ -164,7 +167,7 @@ describe('closing a row of tabs', () => {
   it('leaves the note that is open alone when the range does not reach it', async () => {
     await open(['note-1', 'note-2', 'note-3', 'note-4'], 'note-1');
 
-    chooseFromMenu('note-3', 'CloseTabsToTheRight');
+    await chooseFromMenu('note-3', 'CloseTabsToTheRight');
     await settle();
 
     expect(window.location.hash).toBe('');
@@ -176,7 +179,7 @@ describe('closing a row of tabs', () => {
     await open(['note-1', 'ghost', 'note-2', 'note-3'], 'note-1');
     expect(tabElements().map((el) => el.dataset.tabId)).toEqual(['note-1', 'note-2', 'note-3']);
 
-    chooseFromMenu('note-3', 'CloseTabsToTheLeft');
+    await chooseFromMenu('note-3', 'CloseTabsToTheLeft');
     await settle();
 
     // Left behind, 'ghost' would become a tab the moment the library named it.
@@ -189,7 +192,7 @@ describe('opening a tab in the side peek', () => {
   it('hands the peek the note the menu was raised on, not the one that is open', async () => {
     await open(['note-1', 'note-2', 'note-3'], 'note-1');
 
-    chooseFromMenu('note-2', 'OpenInSidePeek');
+    await chooseFromMenu('note-2', 'OpenInSidePeek');
     await settle();
 
     expect(usePeekStore.getState().item).toEqual({ kind: 'note', id: 'note-2' });
