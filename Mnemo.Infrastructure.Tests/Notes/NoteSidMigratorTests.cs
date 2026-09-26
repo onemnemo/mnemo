@@ -254,6 +254,50 @@ public class NoteSidMigratorTests
     }
 
     [Fact]
+    public async Task A_corpus_that_already_carries_every_sid_completes_without_a_database_copy()
+    {
+        await using var h = new NoteSidMigrationHarness();
+        await h.SeedAsync(NoteSidMigrationHarness.NoteWith(NoteSidMigrationHarness.TextBlock()));
+        await h.NewMigrator().MigrateAsync();
+        var migrated = (await h.Notes.GetAllNotesAsync()).Single();
+        foreach (var path in Directory.GetFiles(h.BackupDirectory))
+            File.Delete(path);
+
+        // What a restore leaves: migrated notes, no mark.
+        await h.Storage.DeleteAsync(NoteSidMigrator.MarkKey);
+        var migrator = h.NewMigrator();
+        await migrator.MigrateAsync();
+
+        Assert.True(migrator.IsComplete);
+        Assert.Empty(Directory.GetFiles(h.BackupDirectory));
+        Assert.Equal(
+            NoteSidMigrator.CompleteStatus,
+            (await h.Storage.LoadAsync<NoteSidMigrator.NoteSidMigrationMark>(NoteSidMigrator.MarkKey)).Value?.Status);
+        var after = (await h.Notes.GetAllNotesAsync()).Single();
+        Assert.Equal(migrated.Sid, after.Sid);
+        Assert.Equal(migrated.Blocks![0].Sid, after.Blocks![0].Sid);
+    }
+
+    [Fact]
+    public async Task A_restored_corpus_with_one_note_missing_its_sid_still_migrates_with_a_copy()
+    {
+        await using var h = new NoteSidMigrationHarness();
+        await h.SeedAsync(NoteSidMigrationHarness.NoteWith(NoteSidMigrationHarness.TextBlock()));
+        await h.NewMigrator().MigrateAsync();
+        foreach (var path in Directory.GetFiles(h.BackupDirectory))
+            File.Delete(path);
+        await h.Storage.DeleteAsync(NoteSidMigrator.MarkKey);
+        var unmigrated = await h.SeedAsync(NoteSidMigrationHarness.NoteWith(NoteSidMigrationHarness.TextBlock()));
+
+        var migrator = h.NewMigrator();
+        await migrator.MigrateAsync();
+
+        Assert.True(migrator.IsComplete);
+        Assert.Single(Directory.GetFiles(h.BackupDirectory, "mnemo-pre-sid-*.db"));
+        Assert.True(Sid.IsWellFormedNoteSid((await h.Notes.GetNoteAsync(unmigrated.NoteId))!.Sid));
+    }
+
+    [Fact]
     public async Task An_empty_corpus_completes_without_a_note_to_migrate()
     {
         await using var h = new NoteSidMigrationHarness();

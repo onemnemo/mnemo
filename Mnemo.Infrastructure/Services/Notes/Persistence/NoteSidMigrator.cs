@@ -69,6 +69,16 @@ public sealed class NoteSidMigrator : INoteSidMigrator
 
             await _store.InitializeAsync(cancellationToken).ConfigureAwait(false);
 
+            // A restored profile arrives without the mark but already migrated; copying the whole
+            // database again would protect nothing.
+            if (mark is null && (await ValidateCorpusAsync(cancellationToken).ConfigureAwait(false)).Count == 0)
+            {
+                var now = DateTime.UtcNow;
+                await _storage.SaveAsync(MarkKey, new NoteSidMigrationMark(1, CompleteStatus, null, now, now)).ConfigureAwait(false);
+                IsComplete = true;
+                return;
+            }
+
             // Reuse the backup a previous attempt took. Re-taking it would snapshot a partially
             // migrated database over the only copy of the original.
             var backupPath = mark?.BackupPath is { Length: > 0 } existing && File.Exists(existing)
