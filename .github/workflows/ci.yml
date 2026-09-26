@@ -1,6 +1,7 @@
 # Runs on every push and pull request against main. This is the merge gate: it typechecks,
-# lints and tests the web UI, and builds and tests the two .NET projects, but it never packages
-# the desktop app, that stays in release.yml and only runs off a version tag.
+# lints and tests the web UI, and builds the .NET solution and runs its two test projects on
+# Windows, Linux and macOS. It never packages the desktop app; that stays in release.yml and
+# only runs off a version tag.
 
 name: CI
 
@@ -50,10 +51,12 @@ jobs:
         run: npx vitest run
 
   dotnet:
-    # windows-latest rather than ubuntu-latest: it is the platform release.yml's own gate has
-    # actually built and tested this solution on. Linux and macOS builds exist in that matrix
-    # too, but neither has completed a real run yet, so there is nothing to point at for them.
-    runs-on: windows-latest
+    # Every platform release.yml ships, so a platform-only failure shows up here and not at a tag.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
