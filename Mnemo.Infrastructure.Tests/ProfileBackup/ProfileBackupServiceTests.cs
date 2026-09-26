@@ -725,7 +725,7 @@ public sealed class ProfileBackupServiceTests
         return await command.ExecuteScalarAsync();
     }
 
-    private sealed class TestProfile : IDisposable
+    internal sealed class TestProfile : IDisposable
     {
         private TestProfile(string parent, string root)
         {

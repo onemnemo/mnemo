@@ -119,6 +119,8 @@ public static class Program
             CurrentAppVersion(),
             startupLogger,
             allowProfileReplacement: !instanceLock.AnotherInstanceIsRunning())).GetAwaiter().GetResult();
+        // A killed backup can leave gigabytes of cleartext scratch; removing it must not delay the window.
+        _ = Task.Run(() => ProfileBackupScratch.SweepAbandoned(dataRoot, startupLogger));
 
         // Photino needs the window on this (STA) entry thread, so asynchronous server startup
         // is completed before the native message loop takes ownership of this thread.

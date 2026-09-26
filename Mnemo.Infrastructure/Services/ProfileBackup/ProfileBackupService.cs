@@ -58,9 +58,12 @@ public sealed class ProfileBackupService : IProfileBackupService
         var output = Path.GetFullPath(outputFilePath);
         var outputDirectory = Path.GetDirectoryName(output)!;
         Directory.CreateDirectory(outputDirectory);
+        ProfileBackupScratch.SweepAbandoned(_dataRoot, _logger);
+        ProfileBackupScratch.SweepAbandonedBuilds(output, _logger);
         var building = Path.Combine(outputDirectory, $".{Path.GetFileName(output)}.{Guid.NewGuid():N}.building");
-        var scratch = WorkingDirectory("backup-create");
-        Directory.CreateDirectory(scratch);
+        using var buildingLease = ProfileBackupScratch.Track(building, _logger);
+        using var scratchLease = ProfileBackupScratch.CreateDirectory(_dataRoot, "backup-create", _logger);
+        var scratch = scratchLease.Path;
 
         try
         {
@@ -101,10 +104,6 @@ public sealed class ProfileBackupService : IProfileBackupService
             AbandonBuild(building, ex);
             throw;
         }
-        finally
-        {
-            TryDeleteDirectory(scratch, _logger);
-        }
     }
 
     public async Task<ProfileBackupInspection> InspectAsync(
@@ -112,9 +111,8 @@ public sealed class ProfileBackupService : IProfileBackupService
         string currentAppVersion,
         CancellationToken cancellationToken = default)
     {
-        var scratch = WorkingDirectory("backup-inspect");
-        var databasePath = Path.Combine(scratch, ProfileBackupArchive.DatabasePath);
-        Directory.CreateDirectory(scratch);
+        var scratch = ProfileBackupScratch.CreateDirectory(_dataRoot, "backup-inspect", _logger);
+        var databasePath = Path.Combine(scratch.Path, ProfileBackupArchive.DatabasePath);
         ProfileBackupManifest manifest;
         try
         {
@@ -144,7 +142,7 @@ public sealed class ProfileBackupService : IProfileBackupService
         }
         finally
         {
-            TryDeleteDirectory(scratch, _logger);
+            scratch.Dispose();
         }
         string? localCollectionId;
         try
@@ -346,9 +344,6 @@ public sealed class ProfileBackupService : IProfileBackupService
         await output.FlushAsync(cancellationToken).ConfigureAwait(false);
         output.Flush(flushToDisk: true);
     }
-
-    private string WorkingDirectory(string purpose) =>
-        Path.Combine(_dataRoot, $".{purpose}-{Guid.NewGuid():N}");
 
     private void SweepStagedRestore(string staging)
     {
