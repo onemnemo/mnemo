@@ -183,3 +183,6 @@ Mnemo.Host/TypstRuntime/binaries/
 # Local working notes, not shipped repo content. One rule so a new note never
 # needs a .gitignore change.
 plans/
+
+# Bytecode left behind by running the release script tests locally.
+__pycache__/

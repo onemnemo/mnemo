@@ -4,6 +4,10 @@
 # are beta, v0.8.0-alpha.1 and v0.8.0-nightly.* are nightly. Nothing is packed until the
 # tests pass, so a tag on a broken commit fails here rather than on someone's machine.
 #
+# Semver sorts prerelease labels alphabetically, so 0.8.0-nightly.14 is below 0.8.0-rc.1.
+# Once a version has an rc or a release, nightlies are numbered as prereleases of the next
+# version (v0.8.1-nightly.1). The meta job refuses a tag that would read as a downgrade.
+#
 # The release itself is the update feed: Velopack publishes releases.{channel}.json
 # alongside the packages, and the app reads it from there. The feed is also kept as a
 # workflow artifact so a bad publish can be inspected without downloading a release.
@@ -67,6 +71,18 @@ jobs:
           echo "channels=$CHANNELS" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "$TAG is a $CHANNEL release, published to: $CHANNELS"
+
+      # A nightly must sort above every tag, a beta above every stable and beta tag, a
+      # stable above every stable tag. ls-remote lists the names without deepening the clone.
+      - uses: actions/checkout@v4
+
+      - name: Refuse a tag that sorts below an existing release
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git ls-remote --tags --refs origin | python3 scripts/release_version_guard.py "$TAG"
 
   build:
     needs: meta
