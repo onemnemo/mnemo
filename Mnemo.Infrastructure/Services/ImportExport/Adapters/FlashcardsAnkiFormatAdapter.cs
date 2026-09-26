@@ -78,6 +78,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// <summary>Table cells sit side by side on their row's line rather than each taking one of their own.</summary>
     private static readonly Regex CellCloseRegex = new(@"<\s*/\s*(td|th)\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex AllTagsRegex = new(@"<[^>]+>", RegexOptions.Compiled);
+    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
     /// <summary>How Anki references an audio clip inside a field. Cards here hold images only.</summary>
     private static readonly Regex SoundTagRegex = new(@"\[sound:[^\]]+\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -426,7 +427,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                             cancellationToken.ThrowIfCancellationRequested();
 
                             var mod = nowSec;
-                            var tags = note.Tags.Count > 0 ? $" {string.Join(' ', note.Tags)} " : string.Empty;
+                            var tags = ExportTags(note.Tags);
 
                             var frontHtml = BuildFieldHtml(
                                 note.FirstFieldText, note.FirstFieldBlocks, note.Attachments,
@@ -1507,6 +1508,19 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var normalized = AnkiMathDelimiters.ToCardText(NormalizeHtmlLineBreaks(html));
         var stripped = AllTagsRegex.Replace(normalized, string.Empty);
         return WebUtility.HtmlDecode(stripped).Trim();
+    }
+
+    /// <summary>
+    /// The note's tags field. Anki separates tags with spaces, so a space inside a tag becomes an
+    /// underscore rather than splitting it into two tags on the way in.
+    /// </summary>
+    private static string ExportTags(IReadOnlyList<string> tags)
+    {
+        var written = tags
+            .Select(tag => WhitespaceRegex.Replace(tag.Trim(), "_"))
+            .Where(tag => tag.Length > 0)
+            .ToArray();
+        return written.Length > 0 ? $" {string.Join(' ', written)} " : string.Empty;
     }
 
     private static IReadOnlyList<string> ParseTags(string rawTags)
