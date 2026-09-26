@@ -37,6 +37,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// <summary>Anki's card.queue value for a suspended card.</summary>
     private const int AnkiQueueSuspended = -1;
 
+    /// <summary>Anki's card.flags value for the red flag, the first of its colors.</summary>
+    private const int AnkiFlagRed = 1;
+
     /// <summary>
     /// Anki's note type kind for cloze. Such a type makes one card per deletion off a single
     /// template, so its card ordinals name deletions rather than templates.
@@ -176,6 +179,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             }
 
             var plan = PlanDecks(cards, notes, collectionInfo.NoteTypes);
+            var flaggedRows = cards.Where(c => c.IsFlagged).Select(c => c.Id).ToHashSet();
             var revlog = await ReadRevlogAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
 
             var now = DateTimeOffset.UtcNow;
@@ -270,6 +274,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                         for (var i = 0; i < saved.Count && i < materialNotes.Count; i++)
                             landed.AddRange(PairDeletions(saved[i], materialNotes[i]));
                     }
+
+                    await ApplyFlagsAsync(landed, flaggedRows, cancellationToken).ConfigureAwait(false);
 
                     importedReviews += await AttachHistoryAsync(
                         deck.Id, landed, revlog, importSessionId, cancellationToken).ConfigureAwait(false);
@@ -440,7 +446,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                                 var cid = StableAnkiId($"card:{row.CardId}");
                                 await InsertCardAsync(
                                     connection, cid, note.NoteId, did, mod, row.Ord,
-                                    BuildExportScheduling(row, collectionCreatedAt),
+                                    BuildExportScheduling(row, collectionCreatedAt), row.IsFlagged ? AnkiFlagRed : 0,
                                     cancellationToken).ConfigureAwait(false);
                                 exported.Add((row.CardId, cid));
                                 exportedCards++;
@@ -1165,6 +1171,21 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     }
 
     /// <summary>
+    /// Flags the cards whose package row carried a flag. Anki has seven colors and a card here has
+    /// one flag, so any color counts.
+    /// </summary>
+    private Task ApplyFlagsAsync(
+        IReadOnlyList<(long PackageCardId, string CardId)> landed,
+        HashSet<long> flaggedRows,
+        CancellationToken cancellationToken)
+    {
+        var flagged = landed.Where(l => flaggedRows.Contains(l.PackageCardId)).Select(l => l.CardId).ToArray();
+        return flagged.Length == 0
+            ? Task.CompletedTask
+            : _cards.SetFlaggedAsync(flagged, flagged: true, cancellationToken);
+    }
+
+    /// <summary>
     /// Which card each of a note's deletions became, paired with the package row that deletion had.
     /// </summary>
     /// <remarks>
@@ -1213,7 +1234,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         await using var command = connection.CreateCommand();
         // odue/odid hold the real due date and home deck of a card parked in a filtered deck. Read
         // without them such a card imports into the temporary deck, due whenever the filter said.
-        command.CommandText = "SELECT id, nid, did, ord, type, queue, due, ivl, factor, reps, lapses, mod, odue, odid, data FROM cards";
+        command.CommandText = "SELECT id, nid, did, ord, type, queue, due, ivl, factor, reps, lapses, mod, odue, odid, data, flags FROM cards";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -1232,7 +1253,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 reader.IsDBNull(11) ? DateTimeOffset.UtcNow : ParseUnixTimestamp(reader.GetInt64(11)),
                 reader.IsDBNull(12) ? 0 : reader.GetInt64(12),
                 reader.IsDBNull(13) ? 0 : reader.GetInt64(13),
-                reader.IsDBNull(14) ? string.Empty : reader.GetString(14)));
+                reader.IsDBNull(14) ? string.Empty : reader.GetString(14),
+                // The low three bits are the flag color; Anki keeps other state above them.
+                !reader.IsDBNull(15) && (reader.GetInt64(15) & 7) != 0));
         }
 
         return cards;
@@ -1608,7 +1631,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     notes.Add(note);
                 }
 
-                note.Rows.Add(new AnkiExportRow(card.Id, ordinal - 1, card.State, card.Schedule));
+                note.Rows.Add(new AnkiExportRow(card.Id, ordinal - 1, card.State, card.IsFlagged, card.Schedule));
                 continue;
             }
 
@@ -1623,7 +1646,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 card.Attachments,
                 card.Tags,
                 card.Front,
-                [new AnkiExportRow(card.Id, 0, card.State, card.Schedule)]));
+                [new AnkiExportRow(card.Id, 0, card.State, card.IsFlagged, card.Schedule)]));
         }
 
         return notes;
@@ -1668,7 +1691,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 var card = view.Card;
                 cards.Add(new AnkiExportCard(
                     card.Id, card.Front, card.Back, card.Tags, card.Attachments, card.FrontBlocks, card.BackBlocks,
-                    card.FactId, card.LayoutKey, card.State, view.Schedule));
+                    card.FactId, card.LayoutKey, card.State, card.IsFlagged, view.Schedule));
             }
 
             offset += page.Items.Count;
@@ -2042,6 +2065,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         long mod,
         int ord,
         AnkiDueData dueData,
+        int flags,
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
@@ -2049,7 +2073,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         // carries its phase and due time and resumes at the receiving scheduler's first step.
         command.CommandText = """
                               INSERT INTO cards(id, nid, did, ord, mod, usn, type, queue, due, ivl, factor, reps, lapses, left, odue, odid, flags, data)
-                              VALUES(@id, @nid, @did, @ord, @mod, 0, @type, @queue, @due, @ivl, @factor, @reps, @lapses, 0, 0, 0, 0, @data)
+                              VALUES(@id, @nid, @did, @ord, @mod, 0, @type, @queue, @due, @ivl, @factor, @reps, @lapses, 0, 0, 0, @flags, @data)
                               """;
         command.Parameters.AddWithValue("@id", id);
         command.Parameters.AddWithValue("@nid", noteId);
@@ -2063,6 +2087,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         command.Parameters.AddWithValue("@factor", dueData.Factor);
         command.Parameters.AddWithValue("@reps", dueData.Reps);
         command.Parameters.AddWithValue("@lapses", dueData.Lapses);
+        command.Parameters.AddWithValue("@flags", flags);
         command.Parameters.AddWithValue("@data", dueData.Data);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -2770,7 +2795,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         DateTimeOffset LastModifiedAt,
         long OriginalDue,
         long OriginalDeckId,
-        string Data)
+        string Data,
+        /// <summary>Whether the card carries any of Anki's colored flags.</summary>
+        bool IsFlagged)
     {
         /// <summary>The deck the card belongs to once it leaves whatever filtered deck holds it.</summary>
         public long HomeDeckId => OriginalDeckId != 0 ? OriginalDeckId : DeckId;
@@ -2804,6 +2831,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string? FactId,
         string? LayoutKey,
         FlashcardCardState State,
+        bool IsFlagged,
         FlashcardSchedule Schedule);
 
     /// <summary>
@@ -2843,6 +2871,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         string CardId,
         int Ord,
         FlashcardCardState State,
+        bool IsFlagged,
         FlashcardSchedule Schedule);
 
     /// <summary>

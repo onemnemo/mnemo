@@ -86,12 +86,14 @@ internal sealed record AnkiFixtureReview(
 /// <param name="DeckName">Which deck this one row sits in, or null for the note's own deck.</param>
 /// <param name="Reviews">What the collection's review log holds against this one row.</param>
 /// <param name="Data">The row's <c>data</c> column, where Anki keeps FSRS memory as JSON.</param>
+/// <param name="Flags">The row's <c>flags</c> column: zero for none, one to seven for a color.</param>
 internal sealed record AnkiFixtureCardRow(
     int Ord,
     AnkiFixtureScheduling? Scheduling = null,
     string? DeckName = null,
     IReadOnlyList<AnkiFixtureReview>? Reviews = null,
-    string Data = "");
+    string Data = "",
+    int Flags = 0);
 
 /// <summary>
 /// One note in a fixture package, and the deck it belongs to. <paramref name="ExtraFields"/> stands
@@ -374,7 +376,7 @@ internal static class AnkiPackageFixture
                 await ExecAsync(
                     connection,
                     "INSERT INTO cards(id,nid,did,ord,mod,usn,type,queue,due,ivl,factor,reps,lapses,left,odue,odid,flags,data) " +
-                    "VALUES(@id, @nid, @did, @ord, 0, 0, @type, @queue, @due, @ivl, @factor, @reps, @lapses, 0, @odue, @odid, 0, @data);",
+                    "VALUES(@id, @nid, @did, @ord, 0, 0, @type, @queue, @due, @ivl, @factor, @reps, @lapses, 0, @odue, @odid, @flags, @data);",
                     ("@id", cardId),
                     ("@nid", noteId),
                     ("@did", deckIds[row.DeckName ?? card.DeckName]),
@@ -388,6 +390,7 @@ internal static class AnkiPackageFixture
                     ("@lapses", scheduling.Lapses),
                     ("@odue", scheduling.OriginalDue),
                     ("@odid", scheduling.OriginalDeckId),
+                    ("@flags", row.Flags),
                     ("@data", row.Data)).ConfigureAwait(false);
 
                 // A note that lists its rows carries its history per row, because each deletion was

@@ -22,7 +22,8 @@ internal sealed record AnkiPackageCard(
     int Factor,
     int Reps,
     int Lapses,
-    string Data);
+    string Data,
+    int Flags);
 
 /// <summary>One answer as a written package's review log holds it.</summary>
 internal sealed record AnkiPackageReview(long Id, long CardId, int Ease, int Interval, int LastInterval, int Type);
@@ -72,7 +73,7 @@ internal static class AnkiPackageInspector
             var cards = new List<AnkiPackageCard>();
             await ReadAsync(
                 connection,
-                "SELECT id, nid, ord, type, queue, due, ivl, factor, reps, lapses, data FROM cards ORDER BY nid, ord",
+                "SELECT id, nid, ord, type, queue, due, ivl, factor, reps, lapses, data, flags FROM cards ORDER BY nid, ord",
                 reader => cards.Add(new AnkiPackageCard(
                     reader.GetInt64(0),
                     reader.GetInt64(1),
@@ -84,7 +85,8 @@ internal static class AnkiPackageInspector
                     reader.GetInt32(7),
                     reader.GetInt32(8),
                     reader.GetInt32(9),
-                    reader.GetString(10))))
+                    reader.GetString(10),
+                    reader.GetInt32(11))))
                 .ConfigureAwait(false);
 
             var reviews = new List<AnkiPackageReview>();
