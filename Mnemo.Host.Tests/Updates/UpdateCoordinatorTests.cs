@@ -54,6 +54,34 @@ public sealed class UpdateCoordinatorTests
     }
 
     [Fact]
+    public async Task AReleaseCandidateOnNightlyWaitsOnceACheckFindsNothingNewer()
+    {
+        // Nightly only carries nightly builds, and 0.8.0-nightly.14 sorts below 0.8.0-rc.1.
+        var world = new World();
+        world.Updates.CurrentDisplayVersion = "0.8.0-rc.1";
+        world.Updates.Channel = UpdateChannels.Nightly;
+
+        Assert.False((await world.Coordinator.GetStatusAsync()).AwaitingChannelCatchUp);
+
+        var status = await world.Coordinator.CheckAsync(automatic: false);
+        Assert.Equal(UpdateStage.UpToDate, status.Stage);
+        Assert.True(status.AwaitingChannelCatchUp);
+
+        world.Updates.Available = new AppUpdateInfo("0.8.1-nightly.1", null, null, false);
+        Assert.False((await world.Coordinator.CheckAsync(automatic: false)).AwaitingChannelCatchUp);
+    }
+
+    [Fact]
+    public async Task AFinishedReleaseOnBetaIsUpToDate()
+    {
+        var world = new World();
+        world.Updates.CurrentDisplayVersion = "0.9.0";
+        world.Updates.Channel = UpdateChannels.Beta;
+
+        Assert.False((await world.Coordinator.CheckAsync(automatic: false)).AwaitingChannelCatchUp);
+    }
+
+    [Fact]
     public async Task TheStatusNamesTheChannelTheRunningBuildCameFrom()
     {
         // Nightly remains available for nightly builds even after selecting another channel.

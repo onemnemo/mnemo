@@ -130,6 +130,14 @@ describe("updateNote", () => {
       key: "UpdateChannelCatchUpNotice",
     })
   })
+
+  it("explains a release candidate that no nightly has passed yet", () => {
+    const rcOnNightly = { channel: "nightly", runningChannel: "beta", version: "0.8.0-rc.1" } as const
+    expect(updateNote(status({ ...rcOnNightly, stage: "UpToDate", awaitingChannelCatchUp: true }))).toEqual({
+      key: "UpdateChannelCatchUpNotice",
+    })
+    expect(updateNote(status({ ...rcOnNightly, stage: "UpToDate" }))).toEqual({ key: "UpdatesUpToDate" })
+  })
 })
 
 describe("isUpdateWorking", () => {

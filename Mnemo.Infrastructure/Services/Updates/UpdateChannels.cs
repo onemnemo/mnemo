@@ -128,16 +128,36 @@ public static class UpdateChannels
     public static bool Offers(string selected, string released) => Rank(selected) >= Rank(released);
 
     /// <summary>
-    /// True when the running build is less settled than the channel now selected, so
-    /// the selected channel has nothing to offer until it catches up.
+    /// True when the selected channel has nothing to offer until it catches up with the
+    /// running build: the build is less settled than the channel, or a check just found
+    /// nothing newer on a feed that never carries the running build's track.
     /// </summary>
     /// <remarks>
-    /// This is the state behind the "you are on a newer Beta build" note. Velopack could
-    /// install the older Stable build instead (that is what AllowVersionDowngrade is
+    /// This is the state behind the "your build is newer than this channel" note. Velopack
+    /// could install the older build instead (that is what AllowVersionDowngrade is
     /// for), and it is deliberately not enabled: a downgrade would run an older schema
     /// reader against a database a newer build has already written, and nothing gates
     /// that today. Waiting is the safe half of the trade, and the user is told why.
     /// </remarks>
-    public static bool IsAwaitingCatchUp(string selected, SemanticVersion? current) =>
-        current is not null && Rank(ForVersion(current)) > Rank(selected);
+    public static bool IsAwaitingCatchUp(string selected, SemanticVersion? current, bool nothingNewerFound)
+    {
+        if (current is null)
+            return false;
+
+        var running = ForVersion(current);
+        if (Rank(running) > Rank(selected))
+            return true;
+
+        return nothingNewerFound && !FeedCarries(selected, running);
+    }
+
+    /// <summary>
+    /// Whether a channel's feed lists builds published to <paramref name="released"/>. The
+    /// release workflow puts a finished release on Beta too, and crosses no other tracks.
+    /// </summary>
+    private static bool FeedCarries(string feed, string released)
+    {
+        feed = Normalize(feed);
+        return feed == released || (feed == Beta && released == Stable);
+    }
 }

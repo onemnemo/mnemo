@@ -390,7 +390,7 @@
     "UpdateCheckFailed": "Kunne ikke se etter oppdateringer.",
     "UpdateApplyFailed": "Kunne ikke installere oppdateringen.",
     "UpdateManualDownloadHint": "Denne versjonen kan ikke oppdatere seg selv. Last ned den nye versjonen fra GitHub.",
-    "UpdateChannelCatchUpNotice": "Du kjører akkurat nå en nyere Beta-versjon. Mnemo bytter til Stable når en stabil utgivelse når versjonen du har.",
+    "UpdateChannelCatchUpNotice": "Versjonen du har er nyere enn noe som er gitt ut på denne kanalen ennå. Oppdateringer kommer igjen når kanalen går forbi den.",
     "ReleaseChannel": "Utgivelseskanal",
     "ReleaseChannelStable": "Stable",
     "ReleaseChannelBeta": "Beta",

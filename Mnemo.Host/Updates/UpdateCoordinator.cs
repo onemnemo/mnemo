@@ -535,7 +535,7 @@ public sealed class UpdateCoordinator
             channel,
             parsed is null ? UpdateChannels.Stable : UpdateChannels.ForVersion(parsed),
             _updates.SupportsInAppApply,
-            UpdateChannels.IsAwaitingCatchUp(channel, parsed),
+            UpdateChannels.IsAwaitingCatchUp(channel, parsed, _stage == UpdateStage.UpToDate),
             lastChecked,
             _available?.Version,
             _available?.ReleaseNotesMarkdown,

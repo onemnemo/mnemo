@@ -88,20 +88,42 @@ public class UpdateChannelsTests
     /// </summary>
     [Fact]
     public void IsAwaitingCatchUp_IsTrueForABetaBuildFollowingStable() =>
-        Assert.True(UpdateChannels.IsAwaitingCatchUp(UpdateChannels.Stable, SemanticVersion.Parse("0.9.0-beta.2")));
+        Assert.True(UpdateChannels.IsAwaitingCatchUp(UpdateChannels.Stable, SemanticVersion.Parse("0.9.0-beta.2"), nothingNewerFound: false));
 
     [Theory]
     [InlineData(UpdateChannels.Stable, "0.9.0")]
     [InlineData(UpdateChannels.Beta, "0.9.0-beta.2")]
     [InlineData(UpdateChannels.Beta, "0.9.0")]
     [InlineData(UpdateChannels.Nightly, "0.9.0-nightly.3")]
+    [InlineData(UpdateChannels.Nightly, "0.9.0-rc.1")]
     public void IsAwaitingCatchUp_IsFalseWhenTheChannelCanStillOfferSomething(string selected, string current) =>
-        Assert.False(UpdateChannels.IsAwaitingCatchUp(selected, SemanticVersion.Parse(current)));
+        Assert.False(UpdateChannels.IsAwaitingCatchUp(selected, SemanticVersion.Parse(current), nothingNewerFound: false));
+
+    /// <summary>
+    /// A nightly feed carries only nightly builds, so a release candidate or a finished release
+    /// can be newer than all of it; a check that finds nothing then means waiting, not up to date.
+    /// </summary>
+    [Theory]
+    [InlineData(UpdateChannels.Nightly, "0.8.0-rc.1")]
+    [InlineData(UpdateChannels.Nightly, "0.8.0")]
+    public void IsAwaitingCatchUp_IsTrueWhenACheckFindsNothingOnAnotherTrack(string selected, string current) =>
+        Assert.True(UpdateChannels.IsAwaitingCatchUp(selected, SemanticVersion.Parse(current), nothingNewerFound: true));
+
+    /// <summary>The Beta feed also carries every finished release, so a stable build on Beta is simply current.</summary>
+    [Theory]
+    [InlineData(UpdateChannels.Beta, "0.9.0")]
+    [InlineData(UpdateChannels.Beta, "0.9.0-rc.1")]
+    [InlineData(UpdateChannels.Stable, "0.9.0")]
+    [InlineData(UpdateChannels.Nightly, "0.9.1-nightly.1")]
+    public void IsAwaitingCatchUp_IsFalseWhenTheFeedCarriesTheRunningBuildsTrack(string selected, string current) =>
+        Assert.False(UpdateChannels.IsAwaitingCatchUp(selected, SemanticVersion.Parse(current), nothingNewerFound: true));
 
     /// <summary>An unreadable version is no evidence of being ahead of anything.</summary>
-    [Fact]
-    public void IsAwaitingCatchUp_IsFalseWithoutAVersion() =>
-        Assert.False(UpdateChannels.IsAwaitingCatchUp(UpdateChannels.Stable, null));
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void IsAwaitingCatchUp_IsFalseWithoutAVersion(bool nothingNewerFound) =>
+        Assert.False(UpdateChannels.IsAwaitingCatchUp(UpdateChannels.Nightly, null, nothingNewerFound));
 
     [Theory]
     [InlineData("0.9.0", "0.9.0")]

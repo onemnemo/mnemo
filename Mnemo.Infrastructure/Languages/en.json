@@ -390,7 +390,7 @@
     "UpdateCheckFailed": "Could not check for updates.",
     "UpdateApplyFailed": "Could not install the update.",
     "UpdateManualDownloadHint": "This build cannot update itself. Download the new version from GitHub.",
-    "UpdateChannelCatchUpNotice": "You're currently running a newer Beta version. Mnemo will switch to Stable when a Stable release reaches your current version.",
+    "UpdateChannelCatchUpNotice": "Your build is newer than anything on this channel yet. Updates resume once the channel passes it.",
     "ReleaseChannel": "Release channel",
     "ReleaseChannelStable": "Stable",
     "ReleaseChannelBeta": "Beta",
