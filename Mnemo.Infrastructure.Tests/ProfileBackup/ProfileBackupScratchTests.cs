@@ -56,8 +56,14 @@ public sealed class ProfileBackupScratchTests
         string[] liveScratch = [];
         string? liveBuild = null;
 
-        var service = profile.Service(checkpoint: _ =>
+        ProfileBackupService? service = null;
+        service = profile.Service(checkpoint: _ =>
         {
+            // Wait for the backup's own sweep so no two sweeps overlap, and prove it ran.
+            service!.LastSweep.GetAwaiter().GetResult();
+            Assert.False(Directory.Exists(leftoverScratch));
+            Assert.False(File.Exists(leftoverBuild));
+            Assert.False(File.Exists(datedBuild));
             liveBuild = Directory.GetFiles(outFolder, ".profile.mnemo-backup.*.building").Single(path => path != foreignId);
             // The finished archive is closed here, so only in-process tracking keeps it safe.
             using (new FileStream(liveBuild, FileMode.Open, FileAccess.Read, FileShare.None))
