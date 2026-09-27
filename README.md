@@ -94,17 +94,20 @@ Mnemo is currently in the **0.8.0 beta**.
 
 | Platform | Build | Status |
 | --- | --- | --- |
-| Windows 10 and 11, x64 | Installer and portable zip | Used daily, unsigned |
-| macOS, Apple silicon | Installer package and portable archive | First preview, unsigned and not notarized |
+| Windows 10 and 11, x64 | Installer and portable zip | Most stable, unsigned |
+| macOS, Apple silicon | Installer package and portable app | Tested on an Apple silicon Mac, signed from 0.8.1-nightly.5 |
 | Linux, x64 | AppImage and portable archive | First preview |
 
-Windows has had months of daily use. The macOS and Linux packages are new and still need wider
-hardware coverage, so treat them as previews and report platform-specific problems.
+Windows has had months of daily use. macOS has been tested on an Apple silicon Mac but has seen
+far less use. Linux is the least tested, so treat it as a preview. Please report problems
+specific to your platform.
 
-The builds are not code signed yet. Windows SmartScreen and macOS Gatekeeper will therefore warn
-before the first run. Tagged releases are built from public source through GitHub Actions, and
-the 0.8 release workflow publishes a `SHA256SUMS.txt` file for its installers and portable
-archives.
+Starting with v0.8.1-nightly.5, the macOS downloads are signed and notarized. macOS still asks
+you to confirm the first time you open an app downloaded from the internet, but no longer blocks
+it. Earlier macOS releases, including the current beta v0.8.0-rc.2, are unsigned; see
+[macOS](#macos). The Windows builds are not code signed yet, so SmartScreen warns before the
+first run. Tagged releases are built from public source through GitHub Actions, and the 0.8
+release workflow publishes a `SHA256SUMS.txt` file for its installers and portable archives.
 
 This is pre-release software. Keep a current backup of anything important.
 
@@ -130,12 +133,22 @@ Server, LTSC and stripped Windows images may need it installed separately.
 
 ### macOS
 
-The current macOS build supports Apple silicon. Download the installer package and try to open
-it once. If macOS blocks it, open **System Settings > Privacy & Security**, scroll to Security,
-choose **Open Anyway**, then confirm **Open**. This adds an exception for that build.
+The current macOS build supports Apple silicon. Most people should use the installer package:
+download the `.pkg` file, open it and follow the installer.
 
-The package is unsigned and not notarized. Confirm that its checksum matches the release before
-using the Gatekeeper override.
+To use the portable app instead, download `Mnemo-Portable-osx-arm64.zip` and open it to unpack
+**Mnemo.app**. Move **Mnemo.app** into your **Applications** folder before you open it for the
+first time. If you open it from Downloads, macOS runs it from a temporary read-only copy and
+Mnemo cannot update itself.
+
+The first time you open Mnemo, macOS asks whether you want to open an app downloaded from the
+internet. Choose **Open**.
+
+Releases before v0.8.1-nightly.5, including v0.8.0-rc.2, are unsigned, and macOS blocks them.
+Their portable download is a `.tar.gz` folder rather than **Mnemo.app**. First check the
+download against the release's `SHA256SUMS.txt`. Then try to open it once, open **System
+Settings > Privacy & Security**, scroll to Security, choose **Open Anyway**, and confirm
+**Open**.
 
 ### Linux
 
@@ -172,10 +185,11 @@ removed after 30 days.
 
 ## Uninstall
 
-An installed copy can be removed through the operating system. A portable copy can be removed by
-deleting its extracted folder. Mnemo leaves your data directory in place so uninstalling or
-upgrading does not erase your work. Delete that directory yourself only when you want to remove
-all Mnemo data.
+An installed copy can be removed through the operating system; on macOS, drag **Mnemo.app** from
+Applications to the Trash. A portable copy can be removed by deleting its extracted folder, or
+**Mnemo.app** on macOS. Mnemo leaves your data directory in place so uninstalling or upgrading
+does not erase your work. Delete that directory yourself only when you want to remove all Mnemo
+data.
 
 Turn off **Launch at startup** before uninstalling. If Mnemo was removed first, clear the leftover
 startup entry named `Mnemo` from the Windows Startup Apps list, the macOS login items, or your
@@ -185,8 +199,8 @@ Linux desktop's autostart settings.
 
 Mnemo is in beta. The 0.8.x releases focus on fixes and platform coverage. Version 0.9 brings
 search across notes and the rebuilt assistant, which runs locally. Version 1.0 means signed
-builds, Windows, macOS and Linux validated on real hardware, and an assistant available to
-everyone.
+builds on every platform, Windows, macOS and Linux validated on real hardware, and an assistant
+available to everyone.
 
 Document reading, more ways to practise, optional sync and extensions follow. A full roadmap
 will be published soon.
