@@ -118,6 +118,7 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 - **App and platform.** Import and export now open in a single dialog instead of a separate overlay screen.
 - **App and platform.** The app starts faster. It no longer waits on the network's proxy discovery before showing the first screen, and pages you have not visited yet load in the background instead of upfront.
 - **App and platform.** The window is now sized against the display on macOS and Linux, so it can no longer open larger than the screen it is on.
+- **App and platform.** The macOS installer and portable download are signed and notarized by Apple, so macOS opens them without the unidentified developer warning. The portable download is now a zip of Mnemo.app instead of a tarball, and it updates itself like an installed copy.
 - **App and platform.** Log files are capped in size, and files older than two weeks are removed at startup. The logs folder previously grew for as long as the app was installed.
 
 ### Fixed

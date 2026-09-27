@@ -422,12 +422,19 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path "publish/*" -DestinationPath "vpk-out/Mnemo-Portable-${{ matrix.rid }}.zip" -Force
 
-      # tar rather than zip, because the executable bit is the only thing that makes an
-      # unpacked copy runnable and a zip does not carry one.
-      - name: Portable tarball (macOS and Linux)
-        if: runner.os != 'Windows'
+      # tar rather than zip, because a plain zip drops the executable bit an unpacked copy
+      # needs to run. The macOS zip below is made with ditto, which keeps it.
+      - name: Portable tarball (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: tar -czf "vpk-out/Mnemo-Portable-${{ matrix.rid }}.tar.gz" -C publish .
+
+      # vpk's portable zip holds the finished Mnemo.app, signed and notarized when signing is
+      # set up, where publish/ is only the loose unsigned files.
+      - name: Portable zip (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: cp "vpk-out/$PACK_ID-${{ matrix.rid }}-${{ needs.meta.outputs.channel }}-Portable.zip" "vpk-out/Mnemo-Portable-${{ matrix.rid }}.zip"
 
       # Fail here if packaging produced no installer matching the publish patterns.
       - name: List the packed artifacts
@@ -536,9 +543,8 @@ jobs:
       # track without saying so. The upload has to carry it, because it is in that
       # channel's asset manifest, so it comes off the release page here instead.
       #
-      # Velopack's own portable zip goes too. It is the same content as the one this
-      # workflow builds, under a name that says a channel a portable build does not
-      # follow, and two portable downloads is one too many.
+      # Velopack's own portable zip goes too, so each platform has one portable download.
+      # On macOS the Mnemo-Portable zip is a renamed copy of it.
       - name: Take the wrong-channel downloads off the release page
         shell: bash
         env:
