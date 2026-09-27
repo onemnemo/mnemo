@@ -52,6 +52,50 @@ public sealed class LaunchAtStartupServiceTests
     }
 
     [Fact]
+    public void ComposeMacLaunchAgent_NamesTheBundleWhenKnown()
+    {
+        var plist = LaunchAtStartupService.ComposeMacLaunchAgent("/Applications/Mnemo.app/Contents/MacOS/Mnemo", "com.example.mnemo");
+
+        Assert.Contains("    <true/>\n    <key>AssociatedBundleIdentifiers</key>\n    <array>\n        <string>com.example.mnemo</string>\n    </array>\n</dict>", plist.ReplaceLineEndings("\n"));
+        Assert.DoesNotContain("AssociatedBundleIdentifiers", LaunchAtStartupService.ComposeMacLaunchAgent("/opt/Mnemo"));
+    }
+
+    [Fact]
+    public void ReadMacBundleIdentifier_ReadsTheInfoPlistBesideMacOs()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "mnemo-bundle-" + Guid.NewGuid().ToString("N"));
+        var macOs = Directory.CreateDirectory(Path.Combine(root, "Mnemo.app", "Contents", "MacOS")).FullName;
+        try
+        {
+            var executable = Path.Combine(macOs, "Mnemo.Host");
+            Assert.Null(LaunchAtStartupService.ReadMacBundleIdentifier(executable));
+
+            File.WriteAllText(Path.Combine(macOs, "..", "Info.plist"), """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                <plist version="1.0">
+                <dict>
+                    <key>CFBundleName</key>
+                    <string>Mnemo</string>
+                    <key>CFBundleIdentifier</key>
+                    <string>Mnemo.Desktop.V2</string>
+                </dict>
+                </plist>
+                """);
+            Assert.Equal("Mnemo.Desktop.V2", LaunchAtStartupService.ReadMacBundleIdentifier(executable));
+
+            File.WriteAllBytes(Path.Combine(macOs, "..", "Info.plist"), "bplist00"u8.ToArray());
+            Assert.Null(LaunchAtStartupService.ReadMacBundleIdentifier(executable));
+
+            Assert.Null(LaunchAtStartupService.ReadMacBundleIdentifier(Path.Combine(root, "Mnemo.Host")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ComposeLinuxAutostart_QuotesTheExecutableForTheDesktopEntrySpec()
     {
         var entry = LaunchAtStartupService.ComposeLinuxAutostart("/opt/My Programs/Mnemo/mnemo");

@@ -1,5 +1,7 @@
 using System.Runtime.Versioning;
 using System.Security;
+using System.Xml;
+using System.Xml.Linq;
 
 using Mnemo.Core.Services;
 
@@ -55,7 +57,7 @@ public sealed class LaunchAtStartupService : IDisposable
             if (OperatingSystem.IsWindows())
                 ApplyOnWindows(enabled);
             else if (OperatingSystem.IsMacOS())
-                ApplyToFile(enabled, MacLaunchAgentPath(), ComposeMacLaunchAgent);
+                ApplyToFile(enabled, MacLaunchAgentPath(), exe => ComposeMacLaunchAgent(exe, ReadMacBundleIdentifier(exe)));
             else if (OperatingSystem.IsLinux())
                 ApplyToFile(enabled, LinuxAutostartPath(), ComposeLinuxAutostart);
         }
@@ -167,27 +169,67 @@ public sealed class LaunchAtStartupService : IDisposable
 
     /// <remarks>
     /// RunAtLoad and not KeepAlive: this starts the app once at login, and someone who then
-    /// quits it has quit it. Internal rather than private so the plist text has a unit test
-    /// of its own, including that the executable path is XML-escaped.
+    /// quits it has quit it. AssociatedBundleIdentifiers lets a signed build show as Mnemo
+    /// in Login Items rather than as the executable.
     /// </remarks>
-    internal static string ComposeMacLaunchAgent(string executable) =>
-        $"""
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>Label</key>
-            <string>{MacLaunchAgentLabel}</string>
-            <key>ProgramArguments</key>
-            <array>
-                <string>{SecurityElement.Escape(executable)}</string>
-            </array>
-            <key>RunAtLoad</key>
-            <true/>
-        </dict>
-        </plist>
+    internal static string ComposeMacLaunchAgent(string executable, string? bundleIdentifier = null)
+    {
+        var associated = string.IsNullOrWhiteSpace(bundleIdentifier)
+            ? ""
+            : $"""
 
-        """;
+                <key>AssociatedBundleIdentifiers</key>
+                <array>
+                    <string>{SecurityElement.Escape(bundleIdentifier)}</string>
+                </array>
+            """;
+
+        return $"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+                <key>Label</key>
+                <string>{MacLaunchAgentLabel}</string>
+                <key>ProgramArguments</key>
+                <array>
+                    <string>{SecurityElement.Escape(executable)}</string>
+                </array>
+                <key>RunAtLoad</key>
+                <true/>{associated}
+            </dict>
+            </plist>
+
+            """;
+    }
+
+    /// <summary>
+    /// The CFBundleIdentifier of the .app holding <paramref name="executable"/>, or null when
+    /// it is not in a bundle or the Info.plist cannot be read.
+    /// </summary>
+    internal static string? ReadMacBundleIdentifier(string executable)
+    {
+        var macOsDir = Path.GetDirectoryName(executable);
+        if (macOsDir is null || Path.GetFileName(macOsDir) != "MacOS")
+            return null;
+
+        var infoPlist = Path.Combine(Path.GetDirectoryName(macOsDir)!, "Info.plist");
+        try
+        {
+            if (!File.Exists(infoPlist))
+                return null;
+
+            using var reader = XmlReader.Create(infoPlist, new XmlReaderSettings { DtdProcessing = DtdProcessing.Ignore });
+            var dict = XDocument.Load(reader).Root?.Element("dict");
+            var key = dict?.Elements("key").FirstOrDefault(k => k.Value == "CFBundleIdentifier");
+            var value = key?.ElementsAfterSelf().FirstOrDefault()?.Value.Trim();
+            return string.IsNullOrEmpty(value) ? null : value;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or XmlException)
+        {
+            return null;
+        }
+    }
 
     /// <remarks>Internal rather than private so both branches of the fallback have a unit test.</remarks>
     internal static string LinuxAutostartPath()
