@@ -1,6 +1,9 @@
 using System;
 using System.IO;
+using System.IO.Compression;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 namespace Mnemo.Infrastructure.Services.Notes.Pdf;
 
@@ -18,18 +21,111 @@ namespace Mnemo.Infrastructure.Services.Notes.Pdf;
 public sealed class TypstBinaryProvider
 {
     private readonly string _runtimeRoot;
+    private readonly string _cacheRoot;
+    private readonly object _unpackLock = new();
+    private string? _unpacked;
+    private string? _unpackError;
 
     /// <param name="runtimeRoot">
     /// The <c>TypstRuntime</c> directory containing <c>binaries/</c> and <c>typst-packages/</c>.
     /// Defaults to the copy the build places beside the running app.
     /// </param>
-    public TypstBinaryProvider(string? runtimeRoot = null)
+    /// <param name="cacheRoot">Where a zipped package set is unpacked. Defaults to a per-user cache.</param>
+    public TypstBinaryProvider(string? runtimeRoot = null, string? cacheRoot = null)
     {
         _runtimeRoot = runtimeRoot ?? Path.Combine(AppContext.BaseDirectory, "TypstRuntime");
+        _cacheRoot = cacheRoot ?? DefaultCacheRoot();
     }
 
     /// <summary>The vendored mitex package root, passed to Typst as <c>--package-path</c>.</summary>
-    public string PackagePath => Path.Combine(_runtimeRoot, "typst-packages");
+    /// <remarks>
+    /// The macOS build ships the packages as <c>typst-packages.zip</c>, because codesign rejects
+    /// the dotted version folder inside an app bundle. That zip is unpacked into the cache here.
+    /// </remarks>
+    public string PackagePath
+    {
+        get
+        {
+            var shipped = Path.Combine(_runtimeRoot, "typst-packages");
+            var zip = shipped + ".zip";
+            if (Directory.Exists(shipped) || !File.Exists(zip))
+                return shipped;
+
+            lock (_unpackLock)
+            {
+                // The OS can clear the cache while the app runs.
+                if (_unpacked is not null && Directory.Exists(_unpacked))
+                    return _unpacked;
+
+                try
+                {
+                    _unpacked = Unpack(zip);
+                    _unpackError = null;
+                    return _unpacked;
+                }
+                catch (Exception ex)
+                {
+                    _unpacked = null;
+                    _unpackError = $"Could not unpack '{zip}' into '{_cacheRoot}': {ex.Message}";
+                    return shipped;
+                }
+            }
+        }
+    }
+
+    private string Unpack(string zip)
+    {
+        string hash;
+        using (var stream = File.OpenRead(zip))
+            hash = Convert.ToHexString(SHA256.HashData(stream))[..16].ToLowerInvariant();
+
+        var target = Path.Combine(_cacheRoot, hash);
+        if (IsComplete(zip, target))
+            return target;
+
+        var staging = target + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            ZipFile.ExtractToDirectory(zip, staging);
+            if (Directory.Exists(target))
+                Directory.Delete(target, recursive: true);
+            Directory.Move(staging, target);
+        }
+        catch (IOException) when (IsComplete(zip, target))
+        {
+            // Another process finished the same unpack first.
+        }
+        finally
+        {
+            if (Directory.Exists(staging))
+                Directory.Delete(staging, recursive: true);
+        }
+        return target;
+    }
+
+    // A cache the OS has partly cleaned is unpacked again.
+    private static bool IsComplete(string zip, string target)
+    {
+        if (!Directory.Exists(target))
+            return false;
+
+        using var archive = ZipFile.OpenRead(zip);
+        return archive.Entries
+            .Where(entry => entry.Name.Length > 0)
+            .All(entry =>
+            {
+                var file = new FileInfo(Path.Combine(target, entry.FullName));
+                return file.Exists && file.Length == entry.Length;
+            });
+    }
+
+    private static string DefaultCacheRoot()
+    {
+        var root = OperatingSystem.IsMacOS()
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Caches")
+            : Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(root, "Mnemo", "typst-packages");
+    }
 
     /// <summary>
     /// The bundled font directory, passed to Typst as <c>--font-path</c>. Holds the app's Geist
@@ -77,7 +173,7 @@ public sealed class TypstBinaryProvider
     public string ResolveBinaryPath()
     {
         if (!IsPackageAvailable)
-            throw new TypstToolchainUnavailableException(
+            throw new TypstToolchainUnavailableException(_unpackError ??
                 $"The vendored mitex package is missing at '{PackagePath}'. It is committed under " +
                 "Mnemo.Host/TypstRuntime/typst-packages and should ship with the app.");
 
