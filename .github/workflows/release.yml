@@ -243,6 +243,18 @@ jobs:
             throw "publish/wwwroot/index.html is missing; the SPA did not reach the published output."
           }
 
+      # codesign reads a dotted folder inside the app, like mitex/0.2.7, as a nested bundle and
+      # refuses to sign. The app unpacks this zip into a cache on first use.
+      - name: Zip the Typst packages (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd publish/TypstRuntime
+          (cd typst-packages && zip -qrX ../typst-packages.zip .)
+          rm -rf typst-packages
+          unzip -l typst-packages.zip | grep -q ' preview/mitex/[^/]*/typst.toml$'
+
       # Pack writes an index listing everything it finds beside it, and the upload refuses
       # to merge an index with one already published, so whatever is in this directory at
       # pack time is the entire published history from here on. Pulling the current
@@ -324,11 +336,20 @@ jobs:
           # vpk calls notarytool without --keychain, so the profile has to be in the default one.
           security default-keychain -d user -s "$kc"
 
-          app_id="$(security find-identity -v -p codesigning "$kc" | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"' || true)"
-          installer_id="$(security find-identity -v "$kc" | grep -o '"Developer ID Installer: [^"]*"' | head -1 | tr -d '"' || true)"
-          if [ -z "$app_id" ] || [ -z "$installer_id" ]; then
+          # The identities carry the account holder's legal name; mask it before any later step prints it.
+          identities="$(security find-identity -v "$kc" | grep -o '"Developer ID [^"]*"' | tr -d '"' || true)"
+          while IFS= read -r identity; do
+            [ -n "$identity" ] || continue
+            name="${identity#*: }"
+            name="${name% (*}"
+            echo "::add-mask::$identity"
+            echo "::add-mask::$name"
+            for part in $name; do
+              [ "${#part}" -lt 3 ] || echo "::add-mask::$part"
+            done
+          done <<< "$identities"
+          if ! grep -q '^Developer ID Application: ' <<< "$identities" || ! grep -q '^Developer ID Installer: ' <<< "$identities"; then
             echo "::error::Expected a Developer ID Application and a Developer ID Installer identity from the two certificate secrets."
-            security find-identity -v "$kc"
             exit 1
           fi
 
@@ -338,23 +359,21 @@ jobs:
             --keychain "$kc"
           rm -f "$RUNNER_TEMP/notary.p8"
 
-          {
-            echo "app=$app_id"
-            echo "installer=$installer_id"
-          } >> "$GITHUB_OUTPUT"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
 
       # Signs the loose native binaries, such as the bundled Typst, which notarization rejects
       # unsigned. The main executable is left to vpk, which adds the JIT entitlements .NET needs.
       - name: Sign the published binaries (macOS)
-        if: steps.macsign.outputs.app != ''
+        if: steps.macsign.outputs.signed == 'true'
         shell: bash
         env:
           SIGN_KEYCHAIN: ${{ steps.macsign.outputs.keychain }}
-          SIGN_APP: ${{ steps.macsign.outputs.app }}
         run: |
           set -euo pipefail
-          find publish -type f ! -path publish/Mnemo.Host ! -path 'publish/wwwroot/*' \
-            ! -path '*/typst-packages/*' ! -path '*/fonts/*' -print0 | while IFS= read -r -d '' f; do
+          SIGN_APP="$(security find-identity -v -p codesigning "$SIGN_KEYCHAIN" | grep -m1 -o '"Developer ID Application: [^"]*"' | tr -d '"' || true)"
+          [ -n "$SIGN_APP" ] || { echo "::error::No Developer ID Application identity in the signing keychain."; exit 1; }
+          find publish -type f ! -path publish/Mnemo.Host ! -path 'publish/wwwroot/*' ! -path '*/fonts/*' \
+            -print0 | while IFS= read -r -d '' f; do
             if file -b "$f" | grep -q '^Mach-O'; then
               codesign --force --timestamp --options runtime --keychain "$SIGN_KEYCHAIN" --sign "$SIGN_APP" "$f"
             fi
@@ -370,14 +389,16 @@ jobs:
         env:
           CHANNELS: ${{ needs.meta.outputs.channels }}
           SEMVER: ${{ needs.meta.outputs.semver }}
+          SIGNED: ${{ steps.macsign.outputs.signed }}
           SIGN_KEYCHAIN: ${{ steps.macsign.outputs.keychain }}
-          SIGN_APP: ${{ steps.macsign.outputs.app }}
-          SIGN_INSTALLER: ${{ steps.macsign.outputs.installer }}
         run: |
           set -euo pipefail
           sign=()
-          if [ -n "$SIGN_APP" ]; then
-            sign=(--signAppIdentity "$SIGN_APP" --signInstallIdentity "$SIGN_INSTALLER"
+          if [ "$SIGNED" = true ]; then
+            app="$(security find-identity -v -p codesigning "$SIGN_KEYCHAIN" | grep -m1 -o '"Developer ID Application: [^"]*"' | tr -d '"' || true)"
+            installer="$(security find-identity -v "$SIGN_KEYCHAIN" | grep -m1 -o '"Developer ID Installer: [^"]*"' | tr -d '"' || true)"
+            [ -n "$app" ] && [ -n "$installer" ] || { echo "::error::A Developer ID identity is missing from the signing keychain."; exit 1; }
+            sign=(--signAppIdentity "$app" --signInstallIdentity "$installer"
                   --notaryProfile mnemo-notary --keychain "$SIGN_KEYCHAIN")
           fi
           for ch in $CHANNELS; do
