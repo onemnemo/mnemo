@@ -6,7 +6,7 @@
  * one grows out through it.
  */
 
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useLayoutEffect, useRef } from "react"
 
 import type { SceneElement } from "../model/scene"
 import type { ElementBox } from "./edge-paths"
@@ -39,12 +39,14 @@ export function useLiveBox(element: SceneElement, onResize?: (id: string, box: E
   const report = useRef(onResize)
   report.current = onResize
 
-  useEffect(() => {
+  // Layout, not passive: the revert then lands before React writes the host's props in the same
+  // commit, so a label committed in the render that closes the field keeps its own size.
+  useLayoutEffect(() => {
     const box = host.current
     return () => {
-      // Escape leaves the document untouched, so nothing re-renders this node and the size typing
-      // wrote would otherwise stay on a box whose label went back to what it was. The branches are
-      // told as well, for the same reason they are told while it grows.
+      // Escape leaves the document untouched, so React writes no new size and the one typing wrote
+      // would otherwise stay on a box whose label went back to what it was. The branches are told as
+      // well, for the same reason they are told while it grows.
       if (box && auto.current) {
         const { id, x, y, width, height } = opened.current
         box.style.width = `${width}px`

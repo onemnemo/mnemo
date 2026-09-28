@@ -8,7 +8,7 @@
  * synchronous render sees; the editor itself is NodeEditor.test.tsx's.
  */
 
-import { StrictMode, act } from "react"
+import { StrictMode, act, useState } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -445,6 +445,38 @@ describe("the box under a label being typed into", () => {
     act(() => root.render(<MindmapNode element={element} onEditEnd={vi.fn()} />))
 
     expect(hostBox().style.width).toBe(before)
+  })
+
+  it("keeps the committed label's size when the document takes it in the render that closes the field", () => {
+    const opened = autoNode("Io")
+    const label = "Ganymede, the largest moon"
+    const committed = autoNode(label)
+    // Wraps to a second line, so the height the commit lands on differs from the one it opened on.
+    expect(committed.height).toBeGreaterThan(opened.height)
+
+    function Route() {
+      const [element, setElement] = useState(opened)
+      const [editing, setEditing] = useState(true)
+      return (
+        <MindmapNode
+          element={element}
+          editing={editing}
+          onEditEnd={() => {
+            setElement(committed)
+            setEditing(false)
+          }}
+        />
+      )
+    }
+
+    act(() => root.render(<Route />))
+    const field = container.querySelector("textarea")!
+    type(field, label)
+    pressKey(field, "Enter")
+
+    expect(container.querySelector("textarea")).toBeNull()
+    expect(hostBox().style.width).toBe(`${committed.width}px`)
+    expect(hostBox().style.height).toBe(`${committed.height}px`)
   })
 
   it("leaves a box that was given a size by hand, which the projector would keep anyway", () => {
