@@ -78,7 +78,7 @@ export function RadialPetals({ sectors, inert, hit }: PetalsProps) {
           const angle = sectorAngle(index, count)
           const half = (items * subStep(items)) / 2
           return (
-            <svg key={`band-${sector.id}`} className={layer} viewBox={viewBox} aria-hidden style={subring(hit.hot === index, 0)}>
+            <svg key={`band-${sector.id}`} className={layer} viewBox={viewBox} aria-hidden style={subring(hit.hot === index && !inert.has(sector.id), 0)}>
               <path
                 d={wedgePath(angle - half, angle + half, SUB_INNER, SUB_OUTER, -WEDGE_GAP)}
                 strokeWidth={WEDGE_ROUND * 2}
@@ -98,7 +98,7 @@ export function RadialPetals({ sectors, inert, hit }: PetalsProps) {
                 d={wedgePath(angle - step / 2, angle + step / 2, RING_INNER, RING_OUTER)}
                 strokeWidth={WEDGE_ROUND * 2}
                 strokeLinejoin="round"
-                style={paint(sectorFill(sector, hit, index))}
+                style={paint(sectorFill(inert.has(sector.id), hit, index))}
               />
             )
           })}
@@ -108,14 +108,14 @@ export function RadialPetals({ sectors, inert, hit }: PetalsProps) {
           (sector.sub ?? []).map((item, j, all) => {
             const angle = subAngle(index, count, j, all.length)
             const half = subStep(all.length) / 2
-            const on = hit.hot === index && hit.sub === j
+            const on = hit.hot === index && hit.sub === j && !inert.has(item.id)
             return (
               <svg
                 key={`sub-${sector.id}-${item.id}`}
                 className={layer}
                 viewBox={viewBox}
                 aria-hidden
-                style={subring(hit.hot === index, j)}
+                style={subring(hit.hot === index && !inert.has(sector.id), j)}
               >
                 <path
                   d={wedgePath(angle - half, angle + half, SUB_INNER, SUB_OUTER)}
@@ -141,12 +141,15 @@ export function RadialPetals({ sectors, inert, hit }: PetalsProps) {
       {sectors.flatMap((sector, index) =>
         (sector.sub ?? []).map((item, j, all) => {
           const at = polar(subAngle(index, count, j, all.length), SUB_RADIUS)
-          const on = hit.hot === index && hit.sub === j
+          const on = hit.hot === index && hit.sub === j && !inert.has(item.id)
           return (
             <div
               key={`face-${sector.id}-${item.id}`}
-              className={cn("absolute grid size-6 -translate-1/2 place-items-center", on ? "text-solid-fg" : "text-ink-2")}
-              style={{ left: RING_BOX + at.x, top: RING_BOX + at.y, ...subring(hit.hot === index, j) }}
+              className={cn(
+                "absolute grid size-6 -translate-1/2 place-items-center",
+                on ? "text-solid-fg" : inert.has(item.id) ? "text-ink-3 opacity-50" : "text-ink-2",
+              )}
+              style={{ left: RING_BOX + at.x, top: RING_BOX + at.y, ...subring(hit.hot === index && !inert.has(sector.id), j) }}
             >
               <GlyphView glyph={item.glyph} hot={on} />
             </div>
@@ -169,14 +172,11 @@ function faceState(sector: RingSector, inert: ReadonlySet<string>, hit: RingHit,
   return hit.sub === null ? "hot" : "parent"
 }
 
-function sectorFill(sector: RingSector, hit: RingHit, index: number): string {
-  if (hit.hot !== index) {
+function sectorFill(off: boolean, hit: RingHit, index: number): string {
+  if (off || hit.hot !== index) {
     return "--surface-float"
   }
-  if (hit.sub !== null) {
-    return "--ring-parent"
-  }
-  return sector.danger ? "--danger-wash" : "--ring-hot"
+  return hit.sub !== null ? "--ring-parent" : "--ring-hot"
 }
 
 function SectorFace({ sector, angle, state }: { sector: RingSector; angle: number; state: FaceState }) {
@@ -184,8 +184,8 @@ function SectorFace({ sector, angle, state }: { sector: RingSector; angle: numbe
   const at = polar(angle, LABEL_RADIUS)
   const chevron = polar(angle, CHEVRON_RADIUS)
   const lit = state === "hot" || state === "parent"
-  const icon = sector.danger ? "text-danger" : lit ? "text-ink" : "text-ink-2"
-  const label = sector.danger ? "text-danger" : lit ? "text-ink" : "text-ink-3"
+  const icon = lit ? "text-ink" : "text-ink-2"
+  const label = lit ? "text-ink" : "text-ink-3"
 
   return (
     <>

@@ -1,9 +1,6 @@
 /**
- * What the ring offers, and when.
- *
- * Three fixed sets, chosen by the selection: nothing, one element, or several. A set never changes
- * size with what is selected, because a ring is a gesture and its value is that a direction always
- * means the same thing. A sector that does not apply is dimmed in place rather than taken out.
+ * Two rings of eight: one over an element (the same for one target or many), one over empty canvas.
+ * A sector that does not apply is dimmed, never removed, so a direction always means one thing.
  */
 
 import { BRANCH_COUNT } from "../scene/tokens"
@@ -29,16 +26,17 @@ export interface RingItem {
   readonly action?: string
 }
 
+/**
+ * A sector with a sub-ring does not act on its own: releasing on it repeats the last item picked
+ * from that sub-ring, and does nothing until one has been.
+ */
 export interface RingSector extends RingItem {
   /** The short label drawn on the wedge. */
   readonly labelKey: string
-  readonly danger?: boolean
   readonly sub?: readonly RingItem[]
-  /** False for a sector that is only a way into its sub-ring: releasing on it picks nothing. */
-  readonly acts?: boolean
 }
 
-export type RingContext = "canvas" | "node" | "multi"
+export type RingContext = "canvas" | "element"
 
 const icon = (name: string): RingGlyph => ({ kind: "icon", name })
 
@@ -49,7 +47,6 @@ export const ON_CANVAS: readonly RingSector[] = [
     labelKey: "ToolShape",
     nameKey: "ToolShape",
     glyph: icon("shapes"),
-    action: "mindmap.shape-picker",
     // The toolbar's own list, so the flyout and the ring cannot offer different shapes.
     sub: GROUPS.shape.options.map((option) => ({
       id: `shape:${option.id}`,
@@ -63,36 +60,31 @@ export const ON_CANVAS: readonly RingSector[] = [
     labelKey: "RadialInsert",
     nameKey: "RadialInsert",
     glyph: icon("layers"),
-    acts: false,
     sub: [
-      { id: "image", nameKey: "RadialImage", glyph: icon("image"), action: "mindmap.new-image" },
-      { id: "frame", nameKey: "NewFrame", glyph: icon("frame"), action: "mindmap.new-frame" },
       { id: "note-link", nameKey: "RadialLinkToNote", glyph: icon("link") },
+      { id: "deck-link", nameKey: "RadialLinkToDeck", glyph: icon("square-stack") },
       { id: "equation", nameKey: "RadialEquation", glyph: icon("sigma") },
     ],
   },
+  { id: "image", labelKey: "RadialImage", nameKey: "ToolImage", glyph: icon("image"), action: "mindmap.new-image" },
+  { id: "frame", labelKey: "NewFrame", nameKey: "ToolFrame", glyph: icon("frame"), action: "mindmap.new-frame" },
   {
-    id: "arrange",
+    id: "layout",
     labelKey: "Layout",
     nameKey: "Layout",
     glyph: icon("network"),
     sub: [
       ...(["balanced", "treeRight", "treeDown", "radial"] as const).map(
-        (algorithm): RingItem => ({
-          id: `layout:${algorithm}`,
-          nameKey: LAYOUT_KEY[algorithm],
-          glyph: { kind: "layout", algorithm },
-        }),
+        (algorithm): RingItem => ({ id: `layout:${algorithm}`, nameKey: LAYOUT_KEY[algorithm], glyph: { kind: "layout", algorithm } }),
       ),
       { id: "arrange", nameKey: "RadialTidyUp", glyph: icon("wand-sparkles") },
     ],
   },
   {
-    id: "fit",
+    id: "view",
     labelKey: "View",
     nameKey: "View",
     glyph: icon("eye"),
-    action: "mindmap.recenter",
     sub: [
       { id: "fit", nameKey: "FitToScreen", glyph: icon("maximize"), action: "mindmap.recenter" },
       { id: "actual-size", nameKey: "RadialActualSize", glyph: icon("scan") },
@@ -101,16 +93,21 @@ export const ON_CANVAS: readonly RingSector[] = [
   },
 ]
 
-function nodeSectors(collapsed: boolean): readonly RingSector[] {
+/** How the element ring names the two sectors that toggle. */
+export interface ElementRingState {
+  /** Every target with children is already collapsed, so the sector expands. */
+  readonly collapsed: boolean
+  /** Every target node is already pinned, so the sector unpins. */
+  readonly pinned: boolean
+}
+
+function elementSectors({ collapsed, pinned }: ElementRingState): readonly RingSector[] {
   return [
-    { id: "child", labelKey: "AddChild", nameKey: "RadialAddChild", glyph: icon("circle-plus"), action: "mindmap.add-child" },
-    { id: "sibling", labelKey: "AddSibling", nameKey: "RadialAddSibling", glyph: icon("corner-down-left"), action: "mindmap.enter" },
     {
       id: "color",
       labelKey: "Color",
       nameKey: "BranchColor",
       glyph: icon("palette"),
-      acts: false,
       sub: Array.from({ length: BRANCH_COUNT }, (_, index) => ({
         id: `color:${index}`,
         nameKey: "Color",
@@ -122,71 +119,66 @@ function nodeSectors(collapsed: boolean): readonly RingSector[] {
       labelKey: "Shape",
       nameKey: "RadialNodeShape",
       glyph: icon("rectangle-horizontal"),
-      acts: false,
       sub: SHAPES.map((entry) => ({ id: `node-shape:${entry.value}`, nameKey: entry.key, glyph: { kind: "node", shape: entry.value } })),
     },
     { id: "connect", labelKey: "Connect", nameKey: "Connect", glyph: icon("spline"), action: "mindmap.connect" },
-    { id: "note", labelKey: "KindNote", nameKey: "RadialLinkANote", glyph: icon("link") },
+    {
+      id: "link",
+      labelKey: "RadialLink",
+      nameKey: "RadialLink",
+      glyph: icon("link"),
+      sub: [
+        { id: "link:note", nameKey: "RadialLinkANote", glyph: icon("link") },
+        { id: "link:flashcard", nameKey: "RadialLinkADeck", glyph: icon("square-stack") },
+      ],
+    },
     {
       id: "collapse",
-      labelKey: "RadialCollapse",
+      labelKey: collapsed ? "RadialExpand" : "RadialCollapse",
       nameKey: collapsed ? "ExpandBranch" : "CollapseBranch",
       glyph: icon(collapsed ? "chevrons-up-down" : "chevrons-down-up"),
     },
-    { id: "delete", labelKey: "Delete", nameKey: "Delete", glyph: icon("trash-2"), danger: true, action: "mindmap.delete-selection" },
-    { id: "edit", labelKey: "Edit", nameKey: "RadialEditText", glyph: icon("pencil"), action: "mindmap.edit-edge-label" },
+    { id: "group", labelKey: "NewFrame", nameKey: "RadialGroupInFrame", glyph: icon("frame") },
+    {
+      id: "align",
+      labelKey: "Align",
+      nameKey: "Align",
+      glyph: icon("common/align-start-vertical"),
+      sub: [...ALIGNS, ...DISTRIBUTES].map((entry) => ({ id: `align:${entry.op}`, nameKey: entry.key, glyph: icon(entry.icon) })),
+    },
+    { id: "pin", labelKey: pinned ? "Unpin" : "Pin", nameKey: pinned ? "Unpin" : "Pin", glyph: icon("pin") },
   ]
 }
 
-const ON_NODE_OPEN = nodeSectors(false)
-const ON_NODE_COLLAPSED = nodeSectors(true)
+const ELEMENT_RINGS = new Map<string, readonly RingSector[]>()
 
-/** With one element selected. Collapse names what a release would do, which depends on the node. */
-export function onNode(collapsed: boolean): readonly RingSector[] {
-  return collapsed ? ON_NODE_COLLAPSED : ON_NODE_OPEN
+/** The element ring, named for the state of its targets. Cached so a ring keeps its identity between renders. */
+export function onElements(state: ElementRingState): readonly RingSector[] {
+  const key = `${state.collapsed}:${state.pinned}`
+  let ring = ELEMENT_RINGS.get(key)
+  if (!ring) {
+    ring = elementSectors(state)
+    ELEMENT_RINGS.set(key, ring)
+  }
+  return ring
 }
 
-export const ON_SEVERAL: readonly RingSector[] = [
-  {
-    id: "align",
-    labelKey: "Align",
-    nameKey: "Align",
-    glyph: icon("common/align-start-vertical"),
-    acts: false,
-    sub: ALIGNS.map((entry) => ({ id: `align:${entry.op}`, nameKey: entry.key, glyph: icon(entry.icon) })),
-  },
-  {
-    id: "distribute",
-    labelKey: "Distribute",
-    nameKey: "Distribute",
-    glyph: icon("common/align-horizontal-distribute-center"),
-    acts: false,
-    sub: DISTRIBUTES.map((entry) => ({ id: `align:${entry.op}`, nameKey: entry.key, glyph: icon(entry.icon) })),
-  },
-  { id: "group", labelKey: "NewFrame", nameKey: "RadialGroupInFrame", glyph: icon("frame") },
-  { id: "match", labelKey: "RadialMatch", nameKey: "RadialMatchStyle", glyph: icon("paintbrush") },
-  { id: "duplicate", labelKey: "Duplicate", nameKey: "Duplicate", glyph: icon("copy"), action: "mindmap.duplicate" },
-  { id: "delete", labelKey: "Delete", nameKey: "RadialDeleteAll", glyph: icon("trash-2"), danger: true, action: "mindmap.delete-selection" },
-]
-
-/** Which set a selection of `count` elements opens. */
-export function ringContext(count: number): RingContext {
-  return count === 0 ? "canvas" : count === 1 ? "node" : "multi"
-}
-
-/** What a release over `hit` picks: a sub item, a sector that acts on its own, or nothing. */
-export function pickOf(sectors: readonly RingSector[], hit: RingHit): string | null {
-  if (hit.hot === null) {
+/**
+ * What a release over `hit` picks: a sub item, a sector with no sub-ring, or the item last picked
+ * from a sector's sub-ring. Nothing for a dimmed sector or item, or a sub-ring never picked from.
+ */
+export function pickOf(
+  sectors: readonly RingSector[],
+  hit: RingHit,
+  inert: ReadonlySet<string>,
+  remembered: (sectorId: string) => string | null,
+): string | null {
+  const sector = hit.hot === null ? undefined : sectors[hit.hot]
+  if (!sector || inert.has(sector.id)) {
     return null
   }
-  const sector = sectors[hit.hot]
-  if (!sector) {
-    return null
-  }
-  if (hit.sub !== null) {
-    return sector.sub?.[hit.sub]?.id ?? null
-  }
-  return sector.sub && sector.acts === false ? null : sector.id
+  const picked = hit.sub !== null ? (sector.sub?.[hit.sub]?.id ?? null) : sector.sub ? remembered(sector.id) : sector.id
+  return picked !== null && inert.has(picked) ? null : picked
 }
 
 /** A pick as its sector id and the value a sub item carries after the colon: "shape:ellipse". */

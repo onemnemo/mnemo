@@ -157,7 +157,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   /** Where the ring is and which key is holding it open, while it is open. Null when it is not. */
   // Tracked continuously rather than sampled when the key goes down, because a key event carries no
   // position of its own and the ring has to open where the hand already is.
-  const pointer = useRef<Point>({ x: 0, y: 0 })
+  const pointer = useRef<Point | null>(null)
   const stage = useRef<HTMLDivElement>(null)
   const corner = useRef<HTMLDivElement>(null)
   const presets = useToolPresets()
@@ -167,6 +167,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const minimapCamera = useRef<MinimapSink["current"]>(null)
   /** The picker behind the toolbar's image button. Hidden, since the button is what anyone presses. */
   const imageInput = useRef<HTMLInputElement>(null)
+  /** Where the picked pictures go when the ring asked for them at a point; the middle of the view otherwise. */
+  const imageAt = useRef<Point | null>(null)
   /** The node this edit created. Abandoning the edit takes it away again. */
   const blank = useRef<string | null>(null)
   /** Bumped when a label opens, so a commit that comes back late does not close the field that replaced it. */
@@ -540,8 +542,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
    * follows a link, so a link node that exists is a link node that goes somewhere.
    */
   const changeKind = useCallback(
-    async (kind: NodeKind) => {
-      const id = selection.primary?.kind === "element" ? selection.primary.id : null
+    async (kind: NodeKind, on?: string) => {
+      const id = on ?? (selection.primary?.kind === "element" ? selection.primary.id : null)
       const element = id ? scene?.elements.find((candidate) => candidate.id === id) : null
       if (!id || !element || nodeKindOf(element.content) === kind) {
         return
@@ -604,7 +606,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       const xy: [number, number] = [Math.round(picking.at.x), Math.round(picking.at.y)]
       const style = presets.nodeStyle ? { nodeShape: presets.nodeStyle } : undefined
       void editor
-        .apply([op.addNodes([{ ref: "n", content, xy, pin: false, style }])], { label: t("Mindmap", "RadialLinkToNote") })
+        .apply([op.addNodes([{ ref: "n", content, xy, pin: false, style }])], {
+          label: t("Mindmap", picking.target === "note" ? "RadialLinkToNote" : "RadialLinkToDeck"),
+        })
         .then((result) => {
           const created = result?.createdIds?.n
           if (created) {
@@ -622,10 +626,11 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
    * it different from Tab's child. Its position is the click, so nothing has to be worked out.
    */
   const plant = useCallback(
-    async (armed: MindmapTool, at: Point, opens?: "equation") => {
+    async (armed: MindmapTool, at: Point, extra?: { opens?: "equation"; shape?: ShapeType }) => {
       setTool("select")
       const xy: [number, number] = [Math.round(at.x), Math.round(at.y)]
-      const result = await editor.apply([plantOp(armed, xy, { shape, nodeStyle: presets.nodeStyle })], {
+      const planted = plantOp(armed, xy, { shape: extra?.shape ?? shape, nodeStyle: presets.nodeStyle })
+      const result = await editor.apply([planted], {
         label: t("Mindmap", PLANT_LABEL[armed] ?? "AddNode"),
       })
 
@@ -634,7 +639,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         // A shape with no label is still a shape someone meant to draw, so it is not taken back the
         // way an unlabelled node is.
         blank.current = armed === "shape" ? null : created
-        if (opens === "equation") {
+        if (extra?.opens === "equation") {
           openWithEquation(created)
         }
         setSelection(selectOnly("element", created))
@@ -696,7 +701,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   )
 
   /** Opens the picker. Where the files land is settled when they arrive, not now. */
-  const insertImage = useCallback(() => {
+  const insertImage = useCallback((at?: Point) => {
+    imageAt.current = at ?? null
     imageInput.current?.click()
   }, [])
 
@@ -1336,27 +1342,23 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     scene,
     document: map.data,
     selection,
+    setSelection,
     refs,
     boxes,
     align,
-    color,
-    collapse: nodeActions.collapse,
+    hasChildren: (id) => (hierarchy ? childrenIds(hierarchy, id).length > 0 : false),
+    shape,
+    connector: connectorStyle(presets.connector),
     editor,
     setTool,
     setShape,
     act: {
-      addChild: (id) => void addChild(id),
-      addSibling: (id) => void addSibling(id),
-      beginEdit,
-      deleteSelection,
+      plant: (armed, at, extra) => void plant(armed, at, extra),
+      pickRef: (target, at) => setPicking({ id: null, target, at }),
+      changeKind: (kind, id) => void changeKind(kind, id),
       insertImage,
-      pickNote: (at) => setPicking({ id: null, target: "note", at }),
-      plantEquation: (at) => void plant("node", at, "equation"),
       arrange,
-      styleNodes,
-      changeKind: (kind) => void changeKind(kind),
       group: (ids) => void group(ids),
-      duplicate: () => void duplicateSelection(),
     },
   })
   const openRing = radial.openRing
@@ -1604,8 +1606,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           // change to the input and no second event.
           event.target.value = ""
           if (files.length > 0) {
-            void placeImages(files, viewportCentre())
+            void placeImages(files, imageAt.current ?? viewportCentre())
           }
+          imageAt.current = null
         }}
       />
 
@@ -1669,6 +1672,19 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           const bounds = stage.current?.getBoundingClientRect()
           if (bounds) {
             pointer.current = { x: event.clientX - bounds.left, y: event.clientY - bounds.top }
+          }
+        }}
+        onPointerLeave={(event) => {
+          // Chrome portalled over the map counts as leaving; the pointer is still over the pane.
+          const bounds = stage.current?.getBoundingClientRect()
+          const inside =
+            bounds &&
+            event.clientX >= bounds.left &&
+            event.clientX < bounds.right &&
+            event.clientY >= bounds.top &&
+            event.clientY < bounds.bottom
+          if (!inside) {
+            pointer.current = null
           }
         }}
         onDragOver={(event) => {

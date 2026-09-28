@@ -5,11 +5,12 @@ import { eventKeyToken } from "@/keybinds/chord"
 import { RadialHint, RadialHub, SHOW_RING_HINT } from "./RadialHub"
 import { RadialPetals } from "./RadialPetals"
 import { RadialScrim, type PaneBox } from "./RadialScrim"
-import { NO_HIT, ringHit, type RingHit, type RingSlot } from "./radial"
+import { HANDOVER_DWELL, RING_START, stepRing, type RingSlot, type RingState } from "./radial"
 import { pickOf, type RingSector } from "./sectors"
 
 const NOTHING_INERT: ReadonlySet<string> = new Set()
 const NO_CUTOUTS: readonly PaneBox[] = []
+const NOTHING_REMEMBERED = () => null
 
 export interface RadialMenuProps {
   sectors: readonly RingSector[]
@@ -27,23 +28,18 @@ export interface RadialMenuProps {
   holdKey: string
   /** What the ring acts on, which the hub names at rest. */
   subject: string
-  /** Where the selection is on screen, kept clear of the scrim. */
+  /** Where the targets are on screen, kept clear of the scrim. */
   cutouts?: readonly PaneBox[]
-  onPick: (id: string) => void
+  /** The item last picked from a sector's sub-ring, which a release on the sector repeats. */
+  remembered?: (sectorId: string) => string | null
+  /** A pick, and the sector it came from. */
+  onPick: (id: string, sectorId: string) => void
   onClose: () => void
 }
 
 /**
- * The radial toolkit: hold, flick, release.
- *
- * A ring is not a menu, it is a gesture. Its value is that the target is always the same distance
- * and the same direction from wherever the pointer already is, so after a week the hand knows where
- * a sector lives and the eyes never leave the node. That only holds if it is held open rather than
- * toggled, because a ring you open and then click in is slower than the menu it replaced.
- *
- * Nothing it draws takes pointer events. It finds what is under the pointer by angle and distance
- * instead, which is what lets the ring open on top of the map without the map losing the gesture
- * underneath it.
+ * The radial toolkit: hold, flick, release. Nothing it draws takes pointer events; it hit-tests by
+ * angle and distance, so the map underneath keeps the gesture.
  */
 export function RadialMenu({
   sectors,
@@ -52,11 +48,13 @@ export function RadialMenu({
   holdKey,
   subject,
   cutouts = NO_CUTOUTS,
+  remembered = NOTHING_REMEMBERED,
   onPick,
   onClose,
 }: RadialMenuProps) {
   const root = useRef<HTMLDivElement>(null)
-  const [hit, setHit] = useState<RingHit>(NO_HIT)
+  const [ring, setRing] = useState<RingState>(RING_START)
+  const hit = ring.hit
 
   const slots = useMemo(
     (): RingSlot[] => sectors.map((sector) => ({ subs: sector.sub?.length ?? 0, inert: inert.has(sector.id) })),
@@ -66,10 +64,10 @@ export function RadialMenu({
   // The window listeners read the live hit and the live callbacks through refs. Closing over them
   // instead would mean tearing the listeners down and re-attaching them on every pointer move that
   // changes the highlight, which is listener churn at the rate of the flick itself.
-  const hitRef = useRef<RingHit>(NO_HIT)
-  hitRef.current = hit
-  const handlers = useRef({ onPick, onClose })
-  handlers.current = { onPick, onClose }
+  const ringRef = useRef<RingState>(RING_START)
+  ringRef.current = ring
+  const handlers = useRef({ onPick, onClose, remembered })
+  handlers.current = { onPick, onClose, remembered }
 
   useEffect(() => {
     const node = root.current
@@ -80,14 +78,23 @@ export function RadialMenu({
     // milliseconds, and a layout read per pointer event is exactly the cost this design avoids.
     const origin = node.getBoundingClientRect()
 
-    const move = (event: PointerEvent) => {
-      const previous = hitRef.current
-      const next = ringHit(event.clientX - origin.left - at.x, event.clientY - origin.top - at.y, slots, previous.hot)
-      if (next.hot !== previous.hot || next.sub !== previous.sub) {
-        hitRef.current = next
-        setHit(next)
+    let settle: ReturnType<typeof setTimeout> | undefined
+    const track = (dx: number, dy: number, t: number) => {
+      const previous = ringRef.current
+      const next = stepRing(previous, dx, dy, t, slots)
+      ringRef.current = next
+      // A pointer that stops dead sends no more events, so the handover dwell is stepped for it.
+      clearTimeout(settle)
+      if (next.candidate !== null) {
+        settle = setTimeout(() => track(dx, dy, t + HANDOVER_DWELL), HANDOVER_DWELL)
+      }
+      // Rendered only when what is lit changes; the rest of the state rides along in the ref.
+      if (next.hit.hot !== previous.hit.hot || next.hit.sub !== previous.hit.sub) {
+        setRing(next)
       }
     }
+    const move = (event: PointerEvent) =>
+      track(event.clientX - origin.left - at.x, event.clientY - origin.top - at.y, event.timeStamp)
 
     // Releasing the key fires whatever the pointer is over. That is the gesture, and a release over
     // the hub is how it is called off with nothing picked.
@@ -97,8 +104,9 @@ export function RadialMenu({
       // see the press first, on the way down to its target, and start a marquee under the ring.
       event?.stopPropagation()
       event?.preventDefault()
-      const picked = pickOf(sectors, hitRef.current)
-      if (picked !== null) handlers.current.onPick(picked)
+      const { hot } = ringRef.current.hit
+      const picked = pickOf(sectors, ringRef.current.hit, inert, handlers.current.remembered)
+      if (picked !== null && hot !== null) handlers.current.onPick(picked, sectors[hot].id)
       handlers.current.onClose()
     }
     const keyUp = (event: KeyboardEvent) => {
@@ -109,18 +117,29 @@ export function RadialMenu({
     const keyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") handlers.current.onClose()
     }
+    // The key-up of a hold released in another window never arrives, so leaving the window closes
+    // the ring with nothing picked.
+    const leave = () => handlers.current.onClose()
+    const hidden = () => {
+      if (document.hidden) leave()
+    }
 
     window.addEventListener("pointermove", move)
     window.addEventListener("pointerdown", commit, true)
     window.addEventListener("keyup", keyUp)
     window.addEventListener("keydown", keyDown)
+    window.addEventListener("blur", leave)
+    document.addEventListener("visibilitychange", hidden)
     return () => {
+      clearTimeout(settle)
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerdown", commit, true)
       window.removeEventListener("keyup", keyUp)
       window.removeEventListener("keydown", keyDown)
+      window.removeEventListener("blur", leave)
+      document.removeEventListener("visibilitychange", hidden)
     }
-  }, [at.x, at.y, holdKey, sectors, slots])
+  }, [at.x, at.y, holdKey, inert, sectors, slots])
 
   return (
     <div ref={root} className="pointer-events-none absolute inset-0 z-50 overflow-hidden">
@@ -134,7 +153,7 @@ export function RadialMenu({
       <div className="absolute inset-0 animate-pop-in" style={{ transformOrigin: `${at.x}px ${at.y}px` }}>
         <div className="absolute" style={{ left: at.x, top: at.y }}>
           <RadialPetals sectors={sectors} inert={inert} hit={hit} />
-          <RadialHub sectors={sectors} hit={hit} subject={subject} />
+          <RadialHub sectors={sectors} inert={inert} hit={hit} subject={subject} remembered={remembered} />
         </div>
       </div>
       {SHOW_RING_HINT ? <RadialHint holdKey={holdKey} /> : null}

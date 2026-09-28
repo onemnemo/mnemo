@@ -96,6 +96,7 @@ import {
   Palette,
   PanelLeft,
   Pencil,
+  Pin,
   Play,
   Plus,
   Printer,
@@ -209,6 +210,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   paintbrush: Paintbrush,
   scan: Scan,
   "wand-sparkles": WandSparkles,
+  pin: Pin,
 
   // The card editor's formatting bar.
   bold: Bold,

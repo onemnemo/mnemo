@@ -32,7 +32,7 @@ export interface RingSlot {
 }
 
 export interface RingHit {
-  /** The main sector under the pointer, or null over the hub. */
+  /** The main sector under the pointer, or null over the hub. A dimmed one is hot only to be named. */
   readonly hot: number | null
   /** The item in that sector's sub-ring, or null while the pointer is on the main ring. */
   readonly sub: number | null
@@ -49,9 +49,9 @@ function turn(a: number, b: number): number {
   return ((((a - b + 180) % 360) + 360) % 360) - 180
 }
 
-/** The angle one sub item spans. Short rings keep a fixed step, long ones share a fixed arc. */
+/** The angle one sub item spans. Short rings keep a fixed step; long ones share an arc that overlaps one neighbour a side. */
 export function subStep(items: number): number {
-  return Math.min(30, 250 / items)
+  return Math.min(30, 135 / items)
 }
 
 export function sectorAngle(index: number, count: number): number {
@@ -69,42 +69,136 @@ export function sectorAt(angle: number, count: number): number {
   return Math.floor((normal + step / 2) / step) % count
 }
 
-/** The item at an angle in sector `index`'s sub-ring, clamped to its ends; null outside the band plus half an item. */
-function subAt(angle: number, index: number, slots: readonly RingSlot[]): number | null {
+/** How far off its own axis a sector's sub-ring still claims the pointer: its band plus half an item. */
+function reach(items: number): number {
+  const step = subStep(items)
+  return (items * step) / 2 + step / 2
+}
+
+/** The item at an angle in sector `index`'s sub-ring, clamped to its ends. */
+function subAt(angle: number, index: number, slots: readonly RingSlot[]): number {
   const items = slots[index].subs
-  if (items === 0) {
-    return null
-  }
   const step = subStep(items)
   const offset = turn(angle, sectorAngle(index, slots.length))
-  if (Math.abs(offset) > (items * step) / 2 + step / 2) {
-    return null
-  }
   return Math.max(0, Math.min(items - 1, Math.round(offset / step + (items - 1) / 2)))
 }
 
-/**
- * What a pointer offset from the ring's centre is over. Past the rim, the sector already hot keeps
- * the pointer while it stays in its own band, so sliding along a wide sub-ring never flips the parent.
- */
-export function ringHit(dx: number, dy: number, slots: readonly RingSlot[], previous: number | null): RingHit {
+/** A sector keeps the pointer after this long hot, if it has a sub-ring to keep it for. */
+export const LATCH_DWELL = 120
+/** A latched sector lets go when the pointer comes back this close to the hub. */
+const LATCH_DROP_RADIUS = 60
+/** Below this speed (px/ms) the pointer is choosing, not travelling, so a neighbour takes over at once. */
+const SLOW = 0.35
+/** Above this the pointer is travelling, so a neighbour it passes through never takes over. */
+const FAST = 0.6
+/** Between the two, a neighbour takes over once the pointer has been in it this long. */
+export const HANDOVER_DWELL = 60
+
+/** What the hit test carries between pointer events: the latched parent, handover and speed. */
+export interface RingState {
+  readonly hit: RingHit
+  readonly latched: number | null
+  readonly hotSince: number
+  /** The sector hot before this one, which a fast throw may only be passing out of. */
+  readonly before: number | null
+  readonly candidate: number | null
+  readonly candidateSince: number
+  /** Smoothed pointer speed, px/ms. */
+  readonly speed: number
+  readonly last: { readonly x: number; readonly y: number; readonly t: number } | null
+}
+
+export const RING_START: RingState = {
+  hit: NO_HIT,
+  latched: null,
+  hotSince: 0,
+  before: null,
+  candidate: null,
+  candidateSince: 0,
+  speed: 0,
+  last: null,
+}
+
+/** The next state after the pointer moves to `dx`,`dy` from the centre at time `t` (ms). */
+export function stepRing(state: RingState, dx: number, dy: number, t: number, slots: readonly RingSlot[]): RingState {
+  const last = { x: dx, y: dy, t }
+  const dt = state.last ? t - state.last.t : 0
+  const speed =
+    state.last && dt > 0 ? 0.6 * (Math.hypot(dx - state.last.x, dy - state.last.y) / dt) + 0.4 * state.speed : state.speed
+
   const radius = Math.hypot(dx, dy)
   if (slots.length === 0 || radius < HUB_RADIUS) {
-    return NO_HIT
-  }
-  const angle = angleOf(dx, dy)
-  const main = sectorAt(angle, slots.length)
-  if (radius <= RING_EDGE) {
-    return slots[main].inert ? NO_HIT : { hot: main, sub: null }
+    return { ...RING_START, speed, last }
   }
 
-  if (previous !== null && previous < slots.length && !slots[previous].inert) {
-    const kept = subAt(angle, previous, slots)
-    if (kept !== null) {
-      return { hot: previous, sub: kept }
+  const latchable = (index: number | null): index is number =>
+    index !== null && index < slots.length && slots[index].subs > 0 && !slots[index].inert
+  const angle = angleOf(dx, dy)
+  const main = sectorAt(angle, slots.length)
+  const previous = state.hit.hot
+
+  let latched = state.latched
+  if (latched === null && latchable(previous) && t - state.hotSince >= LATCH_DWELL) {
+    latched = previous
+  }
+  if (
+    latched !== null &&
+    (radius < LATCH_DROP_RADIUS ||
+      Math.abs(turn(angle, sectorAngle(latched, slots.length))) > reach(slots[latched].subs))
+  ) {
+    latched = null
+  }
+
+  let hot = main
+  let candidate: number | null = null
+  let candidateSince = state.candidateSince
+  if (latched !== null && main !== latched && radius <= RING_EDGE) {
+    candidate = main
+    if (state.candidate !== main) {
+      candidateSince = t
+    }
+    const handover = speed < SLOW || (speed <= FAST && t - candidateSince >= HANDOVER_DWELL)
+    if (handover) {
+      latched = null
+      candidate = null
+    } else {
+      hot = latched
+    }
+  } else if (latched !== null) {
+    hot = latched
+  }
+
+  if (latched === null && radius > RING_EDGE) {
+    // Crossing the rim moments after leaving a sector, still inside its sub-ring's arc, is a throw
+    // at one of its far items rather than a move to the neighbour.
+    const hotFor = hot === previous ? t - state.hotSince : 0
+    const before = state.before
+    if (
+      before !== null &&
+      hot !== before &&
+      hotFor < HANDOVER_DWELL &&
+      speed >= SLOW &&
+      latchable(before) &&
+      Math.abs(turn(angle, sectorAngle(before, slots.length))) <= reach(slots[before].subs)
+    ) {
+      hot = before
+    }
+    if (latchable(hot)) {
+      latched = hot
     }
   }
-  return slots[main].inert ? NO_HIT : { hot: main, sub: subAt(angle, main, slots) }
+  const sub = radius > RING_EDGE && latchable(hot) && latched === hot ? subAt(angle, hot, slots) : null
+
+  return {
+    hit: { hot, sub },
+    latched,
+    hotSince: hot === previous ? state.hotSince : t,
+    before: hot === previous ? state.before : previous,
+    candidate,
+    candidateSince,
+    speed,
+    last,
+  }
 }
 
 /** Where the ring's centre goes so the main ring and its margin fit the pane. A pane too small for it gets the ring centred. */

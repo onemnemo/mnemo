@@ -12,27 +12,53 @@ export const SHOW_RING_HINT = true
 const CHIP = "grid place-items-center rounded-[5px] bg-canvas-sunken font-semibold text-ink-2 shadow-[inset_0_0_0_1px_var(--line)]"
 
 /**
- * The disc in the middle, which names what a release would do.
- *
- * At rest it names only what the ring acts on. With a sector hot it names that sector under it, and
- * with a sub item hot the sector moves up and the item takes its place, so the bottom line is
- * always the thing a release picks.
+ * The disc in the middle, which names what a release would do. At rest it names what the ring acts
+ * on. With a sub item hot, or a sector that repeats one, the sector moves up and the item takes the
+ * bottom line, so that line is always what a release picks. Anything a release would not do is muted.
  */
-export function RadialHub({ sectors, hit, subject }: { sectors: readonly RingSector[]; hit: RingHit; subject: string }) {
+export function RadialHub({
+  sectors,
+  inert,
+  hit,
+  subject,
+  remembered,
+}: {
+  sectors: readonly RingSector[]
+  inert: ReadonlySet<string>
+  hit: RingHit
+  subject: string
+  remembered: (sectorId: string) => string | null
+}) {
   const t = useT()
   const sector = hit.hot === null ? null : sectors[hit.hot]
-  const item = sector && hit.sub !== null ? sector.sub?.[hit.sub] : undefined
-  const chord = useShortcutLabel((item ?? sector)?.action ?? "")
+  const repeated = sector?.sub && hit.sub === null ? remembered(sector.id) : null
+  const item =
+    sector && hit.sub !== null ? sector.sub?.[hit.sub] : sector?.sub?.find((candidate) => candidate.id === repeated)
+  const off = sector !== null && (inert.has(sector.id) || (item !== undefined && inert.has(item.id)))
+  const chord = useShortcutLabel(off ? "" : ((item ?? (sector?.sub ? undefined : sector))?.action ?? ""))
 
-  const over = sector ? (item ? t("Mindmap", sector.nameKey) : subject) : null
-  const name = item ? itemName(t, item) : sector ? t("Mindmap", sector.nameKey) : subject
+  const over = sector ? (sector.sub ? t("Mindmap", sector.nameKey) : subject) : null
+  const name = item
+    ? itemName(t, item)
+    : sector?.sub
+      ? t("Mindmap", "RadialMoveOutToChoose")
+      : sector
+        ? t("Mindmap", sector.nameKey)
+        : subject
+  const muted = off || (sector?.sub !== undefined && item === undefined)
 
   return (
     <div className="absolute flex size-24 -translate-1/2 flex-col items-center justify-center gap-[3px] rounded-full bg-surface-float px-2 text-center shadow-float">
       {over !== null ? (
         <span className="max-w-20 truncate text-[10px] leading-[1.1] font-medium tracking-[0.02em] text-ink-3">{over}</span>
       ) : null}
-      <span aria-live="polite" className="line-clamp-2 max-w-[84px] text-[13px] leading-[1.15] font-semibold tracking-[-0.01em] text-ink">
+      <span
+        aria-live="polite"
+        className={cn(
+          "line-clamp-2 max-w-[84px] leading-[1.15] tracking-[-0.01em]",
+          muted ? "text-[11.5px] font-medium text-ink-3" : "text-[13px] font-semibold text-ink",
+        )}
+      >
         {name}
       </span>
       {chord ? <span className={cn(CHIP, "mt-0.5 h-[18px] min-w-[18px] px-[5px] text-[10.5px]")}>{chord}</span> : null}

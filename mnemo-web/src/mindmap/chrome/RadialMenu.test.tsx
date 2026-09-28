@@ -10,13 +10,14 @@ import type { Keybind } from "@/keybinds/types"
 
 import { englishMindmap } from "./panel/test-strings"
 import { MOST_CUTOUTS, subAngle } from "./radial"
-import { RadialMenu } from "./RadialMenu"
+import { RadialMenu, type RadialMenuProps } from "./RadialMenu"
 import { RadialScrim } from "./RadialScrim"
-import { ON_CANVAS, onNode } from "./sectors"
+import { ON_CANVAS, onElements } from "./sectors"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const AT = { x: 400, y: 300 }
+const ELEMENTS = onElements({ collapsed: false, pinned: false })
 
 let container: HTMLElement
 let root: Root
@@ -35,10 +36,10 @@ afterEach(() => {
   useKeybindStore.getState().setKeybinds([])
 })
 
-function mount(sectors = ON_CANVAS, inert: ReadonlySet<string> = new Set()) {
+function mount(props: Partial<RadialMenuProps> = {}) {
   const handlers = { onPick: vi.fn(), onClose: vi.fn() }
   act(() =>
-    root.render(<RadialMenu sectors={sectors} inert={inert} at={AT} holdKey="Q" subject="Canvas" {...handlers} />),
+    root.render(<RadialMenu sectors={ON_CANVAS} at={AT} holdKey="Q" subject="Canvas" {...handlers} {...props} />),
   )
   return handlers
 }
@@ -58,6 +59,7 @@ function point(degrees: number, radius: number) {
 
 const release = () => act(() => void window.dispatchEvent(new KeyboardEvent("keyup", { key: "q", code: "KeyQ" })))
 const hub = () => container.querySelector("[aria-live]")!.textContent
+const over = () => container.querySelector("[aria-live]")!.previousElementSibling?.textContent
 
 describe("the radial ring", () => {
   it("names what it acts on at rest, and the hot sector once the pointer moves out", () => {
@@ -67,94 +69,92 @@ describe("the radial ring", () => {
     expect(hub()).toBe("Add node")
   })
 
-  it("picks a sector with no sub-ring on release", () => {
+  it("picks a sector with no sub-ring on release, and says which sector it came from", () => {
     const { onPick, onClose } = mount()
-    point(120, 90)
+    point(90, 90)
     release()
-    expect(onPick).toHaveBeenCalledWith("text")
+    expect(onPick).toHaveBeenCalledWith("text", "text")
     expect(onClose).toHaveBeenCalled()
   })
 
-  it("picks the sub item under the pointer past the rim", () => {
+  it("picks the sub item under the pointer after going out through its sector", () => {
     const { onPick } = mount()
-    point(60, 164)
-    point(subAngle(1, 6, 2, 8), 164)
+    point(45, 90)
+    point(45, 164)
+    point(subAngle(1, 8, 2, 8), 164)
     expect(hub()).toBe("Diamond")
     release()
-    expect(onPick).toHaveBeenCalledWith("shape:diamond")
+    expect(onPick).toHaveBeenCalledWith("shape:diamond", "shape")
   })
 
-  it("keeps a sub-ring's parent while sliding along it into another sector's angle", () => {
-    const { onPick } = mount()
-    point(60, 164)
-    point(subAngle(1, 6, 7, 8), 164)
+  it("asks for a choice on a sector whose sub-ring was never picked from, and picks nothing there", () => {
+    const { onPick, onClose } = mount({ sectors: ELEMENTS })
+    point(0, 90)
+    expect(over()).toBe("Branch color")
+    expect(hub()).toBe("Move out to choose")
     release()
-    expect(onPick).toHaveBeenCalledWith("shape:blob")
+    expect(onPick).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalled()
   })
 
-  it("runs a sector's own action when released on the sector, and nothing for one that only opens its sub-ring", () => {
-    const layout = mount()
-    point(240, 90)
+  it("repeats the last item picked when released on its sector", () => {
+    const { onPick } = mount({ sectors: ELEMENTS, remembered: (id) => (id === "color" ? "color:2" : null) })
+    point(0, 90)
+    expect(hub()).toBe("Color 3")
     release()
-    expect(layout.onPick).toHaveBeenCalledWith("arrange")
-
-    const insert = mount()
-    point(180, 90)
-    expect(hub()).toBe("Insert")
-    release()
-    expect(insert.onPick).not.toHaveBeenCalled()
-    expect(insert.onClose).toHaveBeenCalled()
+    expect(onPick).toHaveBeenCalledWith("color:2", "color")
   })
 
-  it("cancels on a release over the hub", () => {
-    const { onPick, onClose } = mount()
+  it("names a dimmed sector without picking it", () => {
+    const { onPick, onClose } = mount({ sectors: ELEMENTS, inert: new Set(["connect"]) })
+    point(90, 90)
+    expect(hub()).toBe("Connect")
+    release()
+    expect(onPick).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("cancels on a release over the hub, and on Escape", () => {
+    const hubRelease = mount()
     point(0, 90)
     point(0, 20)
     release()
-    expect(onPick).not.toHaveBeenCalled()
-    expect(onClose).toHaveBeenCalled()
-  })
+    expect(hubRelease.onPick).not.toHaveBeenCalled()
 
-  it("cancels on Escape", () => {
-    const { onPick, onClose } = mount()
+    const escape = mount()
     point(0, 90)
     act(() => void window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })))
-    expect(onPick).not.toHaveBeenCalled()
+    expect(escape.onPick).not.toHaveBeenCalled()
+    expect(escape.onClose).toHaveBeenCalled()
+  })
+
+  it("closes with nothing picked when the window loses focus mid-hold", () => {
+    const { onPick, onClose } = mount()
+    point(90, 90)
+    act(() => void window.dispatchEvent(new Event("blur")))
     expect(onClose).toHaveBeenCalled()
+    expect(onPick).not.toHaveBeenCalled()
   })
 
   it("commits on a press without letting the press reach the pane underneath", () => {
     const { onPick } = mount()
     const pane = vi.fn()
     container.addEventListener("pointerdown", pane)
-    point(120, 90)
+    point(90, 90)
     act(() => void container.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })))
-    expect(onPick).toHaveBeenCalledWith("text")
+    expect(onPick).toHaveBeenCalledWith("text", "text")
     expect(pane).not.toHaveBeenCalled()
-  })
-
-  it("never lights or picks a dimmed sector", () => {
-    const sectors = onNode(false)
-    const { onPick, onClose } = mount(sectors, new Set(["child"]))
-    point(0, 90)
-    expect(hub()).toBe("Canvas")
-    release()
-    expect(onPick).not.toHaveBeenCalled()
-    expect(onClose).toHaveBeenCalled()
   })
 
   it("shows the chord the catalog binds, and none for a sector with no action", () => {
     useKeybindStore.getState().setKeybinds([
-      { actionId: "mindmap.add-child", bindings: [{ kind: "Chord", chord: "Tab" }] } as Keybind,
+      { actionId: "mindmap.new-node", bindings: [{ kind: "Chord", chord: "N" }] } as Keybind,
     ])
-    mount(onNode(false))
+    mount()
     point(0, 90)
-    const chip = container.querySelector("[aria-live]")!.nextElementSibling
-    expect(chip?.textContent).toBe("Tab")
-
-    // Color has no catalog action at all.
-    point(80, 90)
-    expect(hub()).toBe("Branch color")
+    expect(container.querySelector("[aria-live]")!.nextElementSibling?.textContent).toBe("N")
+    point(270, 90)
+    expect(hub()).toBe("Move out to choose")
     expect(container.querySelector("[aria-live]")!.nextElementSibling).toBeNull()
   })
 })
@@ -163,7 +163,7 @@ describe("the scrim", () => {
   const subpaths = () => (container.querySelector("path")!.getAttribute("d")!.match(/M/g) ?? []).length
   const box = { x: 10, y: 10, width: 40, height: 20 }
 
-  it("cuts each selected box out of the dimmed canvas", () => {
+  it("cuts each target's box out of the dimmed canvas", () => {
     act(() => root.render(<RadialScrim cutouts={[box, { ...box, x: 100 }]} />))
     expect(subpaths()).toBe(3)
   })
