@@ -53,7 +53,7 @@ export interface MindmapCanvasProps {
   onEdgeLabelEnd?: (id: string, text: string | null) => void | Promise<unknown>
   /** Descendants in the hierarchy, from the document rather than the scene. See the controller. */
   subtreeOf?: (id: string) => readonly string[]
-  /** What a press means. Select unless the dock says otherwise. */
+  /** What a press means. Select unless the toolbar says otherwise. */
   tool?: MindmapTool
   /** An armed creation tool was used on empty canvas. */
   onPlant?: (tool: MindmapTool, at: Point) => void
@@ -210,6 +210,7 @@ export function MindmapCanvas({
       onCameraSettled: (next) => live.current.onCameraSettled?.(next),
       onFitClamped: () => live.current.onFitClamped?.(),
       canPrimaryPan: () => isEmpty(live.current.selection),
+      primaryPans: () => live.current.tool === "pan",
     })
     runtime.current = created
     if (runtimeRef) {

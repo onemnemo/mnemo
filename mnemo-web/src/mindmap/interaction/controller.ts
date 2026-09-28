@@ -296,9 +296,15 @@ export function installInteraction(
     if (isEditableTarget(event.target) || inLabelEditor(event.target)) {
       return
     }
-    // Middle, alt-left and space-left are the runtime's pan, and a secondary click opens a menu
-    // rather than moving anything. None of them are this module's business.
-    if (event.button !== 0 || event.altKey || surface.spacePan?.() || gesture.kind !== "none") {
+    // Middle, alt-left, space-left and every press under the hand are the runtime's pan, and a
+    // secondary click opens a menu rather than moving anything. None of them are this module's business.
+    if (
+      event.button !== 0 ||
+      event.altKey ||
+      surface.spacePan?.() ||
+      handlers.tool() === "pan" ||
+      gesture.kind !== "none"
+    ) {
       return
     }
 
@@ -740,8 +746,9 @@ export function installInteraction(
   }
 
   const onDoubleClick = (event: MouseEvent): void => {
-    // A double click inside an open field, the label included, belongs to the caret.
-    if (isEditableTarget(event.target)) {
+    // A double click inside an open field, the label included, belongs to the caret. Under the hand
+    // both presses were pans, and opening the node they landed on would be a surprise.
+    if (isEditableTarget(event.target) || handlers.tool() === "pan") {
       return
     }
 

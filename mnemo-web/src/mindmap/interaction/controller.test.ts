@@ -489,6 +489,23 @@ describe("installInteraction", () => {
     h.uninstall()
   })
 
+  it("leaves every press under the hand to the runtime's pan", () => {
+    const h = harness()
+    h.arm("pan")
+
+    h.press("a", { x: 210, y: -50 })
+    h.move({ x: 260, y: 0 })
+    h.release({ x: 260, y: 0 })
+    h.press(null, { x: 900, y: 900 })
+    h.move({ x: 1000, y: 1000 })
+    h.release({ x: 1000, y: 1000 })
+
+    expect(h.selection()).toEqual(EMPTY_SELECTION)
+    expect(h.commits).toHaveLength(0)
+    expect(h.planted).toHaveLength(0)
+    h.uninstall()
+  })
+
   it("plants where the press landed, not where it was released", () => {
     const h = harness()
     h.arm("node")
@@ -1103,6 +1120,15 @@ function edgeScene(): Scene {
 }
 
 describe("double clicking", () => {
+  it("opens nothing under the hand, where both presses were pans", () => {
+    const h = harness()
+    h.arm("pan")
+    h.doubleClick({ x: 210, y: -50 }, h.hosts.get("a")!)
+
+    expect(h.activated).toEqual([])
+    h.uninstall()
+  })
+
   it("activates a node, the same as it always has", () => {
     const h = harness()
     h.doubleClick({ x: 210, y: -50 }, h.hosts.get("a")!)

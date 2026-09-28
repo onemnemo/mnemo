@@ -75,6 +75,8 @@ export interface CanvasRuntimeOptions {
   readonly onFitClamped?: () => void
   /** Whether the primary modifier may claim an empty-canvas press for panning. */
   readonly canPrimaryPan?: () => boolean
+  /** Whether a plain primary press pans, which is what the hand tool asks for. */
+  readonly primaryPans?: () => boolean
 }
 
 export interface CanvasRuntime {
@@ -386,11 +388,12 @@ export function createCanvasRuntime(options: CanvasRuntimeOptions): CanvasRuntim
   const onPointerDown = (event: PointerEvent): void => {
     // A press inside an open label field is the caret's. The node's field stops its own
     // propagation, but the edge-label editor lives outside any node, and a pan begun there
-    // prevents the very mousedown that was placing the caret.
-    if (isEditableTarget(event.target)) {
+    // prevents the very mousedown that was placing the caret. An equation atom in the field is not
+    // editable itself, so the editor's mount counts too.
+    if (isEditableTarget(event.target) || (event.target as HTMLElement | null)?.closest?.("[data-mm-editor]")) {
       return
     }
-    if (event.button === 1 || (event.button === 0 && (event.altKey || spaceHeld))) {
+    if (event.button === 1 || (event.button === 0 && (event.altKey || spaceHeld || options.primaryPans?.()))) {
       beginPan(event)
       return
     }

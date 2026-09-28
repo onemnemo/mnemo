@@ -331,6 +331,46 @@ describe("panning the map", () => {
     dispose()
   })
 
+  it("pans on a plain primary press while the hand is armed", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE, { primaryPans: () => true })
+    stubCapture(pane)
+
+    dragBy(pane, { button: 0 }, 12, 8)
+
+    expect(runtime.viewport()).toEqual({ x: -12, y: -8, zoom: 1 })
+    dispose()
+  })
+
+  it("leaves a press inside a label field to the caret, even under the hand", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE, { primaryPans: () => true })
+    stubCapture(pane)
+    const field = document.createElement("textarea")
+    pane.append(field)
+
+    field.dispatchEvent(pointer("pointerdown", { button: 0 }))
+    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, clientX: 25, clientY: 25 }))
+
+    expect(runtime.viewport()).toEqual({ x: 0, y: 0, zoom: 1 })
+    dispose()
+  })
+
+  it("leaves a press on an atom inside the label editor to the caret, even under the hand", () => {
+    const { runtime, pane, dispose } = mount(EMPTY_SCENE, { primaryPans: () => true })
+    stubCapture(pane)
+    const editor = document.createElement("div")
+    editor.setAttribute("data-mm-editor", "")
+    const atom = document.createElement("span")
+    atom.contentEditable = "false"
+    editor.append(atom)
+    pane.append(editor)
+
+    atom.dispatchEvent(pointer("pointerdown", { button: 0 }))
+    pane.dispatchEvent(pointer("pointermove", { pointerId: 1, clientX: 25, clientY: 25 }))
+
+    expect(runtime.viewport()).toEqual({ x: 0, y: 0, zoom: 1 })
+    dispose()
+  })
+
   it("leaves the primary modifier to selection when panning is reserved", () => {
     const { runtime, pane, dispose } = mount(EMPTY_SCENE, { canPrimaryPan: () => false })
     stubCapture(pane)
