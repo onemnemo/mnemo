@@ -99,7 +99,7 @@ export function calloutBlock(deps: BlockDeps): AnyBlockModule {
         {
           label: 'CalloutWarning',
           description: 'CalloutWarningDescription',
-          icon: 'triangle-alert',
+          icon: 'common/triangle-alert',
           keywords: ['warning', 'caution', 'alert'],
           group: 'text',
           insert: convertHere('callout', { emoji: warnEmoji, tone: 'warn' }),

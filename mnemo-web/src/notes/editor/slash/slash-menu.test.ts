@@ -277,6 +277,15 @@ describe('the rows', () => {
     ]);
   });
 
+  it('draws an icon in every tile', () => {
+    // The tile reads project art only, so a bare lucide name draws an empty square.
+    openMenu();
+    const bare = rows()
+      .filter((row) => row.querySelector('.notes-slash-menu-row-tile svg') === null)
+      .map((row) => row.dataset.row);
+    expect(bare).toEqual([]);
+  });
+
   it('heads each section with its group label', () => {
     openMenu();
     const groups = [...menuEl().querySelectorAll<HTMLElement>('.notes-slash-menu-group')].map(

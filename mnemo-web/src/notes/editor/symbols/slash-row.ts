@@ -13,7 +13,7 @@ import { blockContext } from '../commands/caret-block';
 export const symbolSlashRow: SlashContribution = {
   label: 'Symbol',
   description: 'SymbolDescription',
-  icon: 'omega',
+  icon: 'notes/symbol',
   keywords: ['greek', 'latex', 'character', 'math', 'arrow', 'unicode'],
   group: 'insert',
   insert: (state, dispatch) => {
