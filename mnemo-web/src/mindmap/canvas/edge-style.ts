@@ -19,9 +19,9 @@ import type { SceneEdge } from '../model/scene'
 export type EdgeMode = 'svg' | 'canvas' | 'off'
 
 const HIERARCHY_COLOR = '#4a5162'
-const HIERARCHY_WIDTH = 1.25
-const LINK_COLOR = '#7b869c'
-const LINK_WIDTH = 1.5
+export const HIERARCHY_WIDTH = 1.25
+export const LINK_COLOR = '#7b869c'
+export const LINK_WIDTH = 1.5
 
 /**
  * Dash patterns in canvas units, shared instances so a renderer can tell "same dash as the last

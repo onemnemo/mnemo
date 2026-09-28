@@ -1145,12 +1145,20 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     }
 
     const children = hierarchy ? childrenIds(hierarchy, primaryId) : []
+    // Read off the stored document: the scene's stroke is already resolved through the cascade, so it
+    // cannot tell a colour somebody chose from one the node inherited. Auto only while every selected
+    // node inherits.
+    const stored = new Map(map.data?.elements?.map((candidate) => [candidate.id, candidate]))
+    const inherited = ids.every((id) => stored.get(id)?.style?.stroke == null)
     return {
       slot: branchSwatchOf(element),
       color: accentOf(element),
+      inherited,
+      inheritedColor: inherited ? accentOf(element) : element.branchColor,
       // Only when one node is selected and there is something under it. A multi-selection can span
       // several branches, and "and everything under all of these" is not one thing to picture.
       hasSubtree: ids.length === 1 && children.length > 0,
+      below: ids.length === 1 && hierarchy ? descendantsOf(hierarchy, primaryId).length : 0,
       branching: element.branchColor !== undefined,
       onPick: (token, subtree) => {
         const reached = subtree && hierarchy ? [primaryId, ...descendantsOf(hierarchy, primaryId)] : ids
@@ -1178,6 +1186,12 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       },
     }
   }, [editor, hierarchy, map.data, scene, selection, t])
+
+  /** Whether an edge has no colour of its own, read off the stored document for the same reason. */
+  const edgeInherits = useCallback(
+    (edgeId: string) => map.data?.edges?.find((candidate) => candidate.id === edgeId)?.style?.color == null,
+    [map.data],
+  )
 
   /**
    * The one selected node, or null when there is not exactly one.
@@ -1720,6 +1734,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
               onNodeStyle={styleNodes}
               onLineStyle={styleLines}
               onEdgeLabel={setEditingEdge}
+              edgeInherits={edgeInherits}
               color={color}
               align={align}
               onKind={soleNode ? (kind) => void changeKind(kind) : null}

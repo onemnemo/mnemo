@@ -2,17 +2,16 @@ import { useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
+import { cn } from "@/lib/utils"
 
 import type { EdgeStyle } from "../model/document"
 import type { SceneEdge } from "../model/scene"
-import { branchColor } from "../scene/tokens"
-import { FloatBar, Sep, Slot } from "./bits"
-import { LINES, ROUTES } from "./choices"
-import { EndsPicker } from "./EndsPicker"
-import { EndsGlyph, LineGlyph, RouteGlyph, SwatchGlyph } from "./glyphs"
-import { Cell, Group, MenuToggle, Popped } from "./menu"
-import { PaletteGrid } from "./PaletteGrid"
-import { ThicknessPicker } from "./ThicknessPicker"
+import { EndsFace, PatternGlyph, RouteFace } from "./bar-glyphs"
+import { weightOf } from "./choices"
+import { EdgeColorPanel, EdgeEndsPanel, EdgeLinePanel, EdgeRoutePanel } from "./EdgePanels"
+import { BarButton, BarDivider, SwatchFace } from "./panel/BarButton"
+import { PanelBar } from "./panel/PanelBar"
+import { usePanel } from "./panel/usePanel"
 
 export interface EdgeBarProps {
   /** The edge the controls read their current values from. */
@@ -29,170 +28,131 @@ export interface EdgeBarProps {
   onStyle: (patch: EdgeStyle, deep: boolean) => void
   /** Start typing this edge's label, wherever the label itself lives. */
   onLabel: () => void
+  /** Whether the edge has no colour of its own, and what Auto would give it back. */
+  inherit: { inherited: boolean; color: string | undefined }
+  /** Changes whenever the selection does, which closes any open panel. */
+  selectionKey: string
 }
+
+type EdgePanel = "line" | "route" | "ends" | "color"
+
+const WIDTH = 296
 
 /**
  * What a selected edge can be.
  *
- * Four slots, one per decision. Laid out flat this was sixteen buttons, six of which were the same
- * three caps drawn twice in opposite directions, and the bar was wider than most of the maps it
- * floats over. Grouped, each slot shows what the edge is now and holds the values behind it, and
- * the two ends are one control that shows the direction the edge points rather than two that each
- * show half of it.
- *
- * How far a choice reaches lives inside each panel rather than in a slot of its own. It is part of
- * making a choice, not a choice in itself, and next to the values it applies to it says what it
- * means without a tooltip.
+ * One button per decision, each showing the edge as it is now, and the label filling the rest.
+ * How far a choice reaches is a switch inside the panels it qualifies rather than a button of its own.
  */
-export function EdgeBar({ edge, count, onStyle, onLabel }: EdgeBarProps) {
+export function EdgeBar({ edge, count, onStyle, onLabel, inherit, selectionKey }: EdgeBarProps) {
   const t = useT()
-  const [open, setOpen] = useState<"line" | "route" | "ends" | "color" | null>(null)
+  const panel = usePanel<EdgePanel>(selectionKey)
   const [cascade, setCascade] = useState(false)
   const line = edge.lineStyle ?? "solid"
   const routing = edge.routing ?? "curve"
   const startCap = edge.startCap ?? "none"
   const endCap = edge.endCap ?? "none"
-  const shown = (which: typeof open) => (on: boolean) => setOpen(on ? which : null)
+  const opens = (key: EdgePanel) => ({ key, open: panel.open === key })
 
-  // A link edge has nothing below it, so the toggle cannot be honoured on one however it was left by
+  // A link edge has nothing below it, so the switch cannot be honoured on one however it was left by
   // the last edge that was selected.
   const branching = edge.kind === "hierarchy"
   const deep = cascade && branching
   const style = (patch: EdgeStyle) => onStyle(patch, deep)
+  const reach = { branching, on: deep, onToggle: setCascade }
 
-  /** The same switch in every panel, because it qualifies whatever that panel is about to set. */
-  const reach = (
-    <MenuToggle
-      label={t("Mindmap", "ApplyBelow")}
-      on={deep}
-      // Off for a link edge rather than hidden, so a panel keeps the same rows whichever kind of
-      // edge is selected.
-      disabled={!branching}
-      onToggle={setCascade}
-    />
-  )
+  const panels = [
+    {
+      key: "line" as const,
+      label: t("Mindmap", "EdgeLine"),
+      content: <EdgeLinePanel edge={edge} style={style} reach={reach} />,
+    },
+    {
+      key: "route" as const,
+      label: t("Mindmap", "Routing"),
+      content: <EdgeRoutePanel routing={routing} style={style} reach={reach} />,
+    },
+    {
+      key: "ends" as const,
+      label: t("Mindmap", "Ends"),
+      // No switch here, so a cap never goes down the branch however another panel left it.
+      content: (
+        <EdgeEndsPanel start={startCap} end={endCap} canSwap={count === 1} style={(patch) => onStyle(patch, false)} />
+      ),
+    },
+    {
+      key: "color" as const,
+      label: t("Mindmap", "EdgeColor"),
+      content: <EdgeColorPanel edge={edge} inherit={inherit} style={style} reach={reach} />,
+    },
+  ]
 
   return (
-    <FloatBar>
-      <Popped
+    <PanelBar label={t("Mindmap", "EdgeOptions")} width={WIDTH} open={panel.open} onClose={panel.close} panels={panels}>
+      <BarButton
         label={t("Mindmap", "EdgeLine")}
-        face={<LineGlyph line={line} />}
-        open={open === "line"}
-        onOpen={shown("line")}
-        width="w-[196px]"
+        opens={opens("line")}
+        onClick={() => panel.toggle("line")}
+        className="w-12 gap-[3px] pr-1 pl-1.5"
       >
-        <Group label={t("Mindmap", "EdgeLine")}>
-          {LINES.map((entry) => (
-            <Cell
-              key={entry.value}
-              label={t("Mindmap", entry.key)}
-              active={line === entry.value}
-              onClick={() => style({ line: entry.value })}
-            >
-              <LineGlyph line={entry.value} />
-            </Cell>
-          ))}
-        </Group>
-        {/* With the line styles rather than in a slot of its own: a stroke's weight and its pattern
-            are one decision about how loud the edge is, and nobody sets one without looking at the
-            other. */}
-        <ThicknessPicker value={edge.thickness} onPick={(thickness) => style({ thickness })} />
-        {reach}
-      </Popped>
+        <PatternGlyph line={line} width={24} weight={Math.max(1.6, weightOf(edge) + 0.4)} />
+        <AppIcon name="chevron-down" size={11} strokeWidth={2.4} className="text-ink-3" />
+      </BarButton>
 
-      <Popped
+      <BarButton
         label={t("Mindmap", "Routing")}
-        face={<RouteGlyph routing={routing} />}
-        open={open === "route"}
-        onOpen={shown("route")}
-        width="w-[168px]"
+        opens={opens("route")}
+        onClick={() => panel.toggle("route")}
+        className="w-[34px] justify-center"
       >
-        <Group label={t("Mindmap", "Routing")}>
-          {ROUTES.map((entry) => (
-            <Cell
-              key={entry.value}
-              label={t("Mindmap", entry.key)}
-              active={routing === entry.value}
-              onClick={() => style({ routing: entry.value })}
-            >
-              <RouteGlyph routing={entry.value} />
-            </Cell>
-          ))}
-        </Group>
-        {reach}
-      </Popped>
+        <RouteFace routing={routing} />
+      </BarButton>
 
-      <Popped
+      <BarButton
         label={t("Mindmap", "Ends")}
-        face={<EndsGlyph start={startCap} end={endCap} />}
-        open={open === "ends"}
-        onOpen={shown("ends")}
-        width="w-[196px]"
+        opens={opens("ends")}
+        onClick={() => panel.toggle("ends")}
+        className="w-10 justify-center"
       >
-        <EndsPicker
-          start={startCap}
-          end={endCap}
-          onStart={(cap) => style({ startCap: cap })}
-          onEnd={(cap) => style({ endCap: cap })}
-        />
-        {reach}
-      </Popped>
+        <EndsFace start={startCap} end={endCap} />
+      </BarButton>
 
-      <Popped
+      <BarButton
         label={t("Mindmap", "EdgeColor")}
-        face={<SwatchGlyph color={edge.color ?? "var(--line)"} active={false} />}
-        open={open === "color"}
-        onOpen={shown("color")}
-        width="w-[188px]"
+        opens={opens("color")}
+        onClick={() => panel.toggle("color")}
+        className="w-8 justify-center"
       >
-        <PaletteGrid
-          label={t("Mindmap", "EdgeColor")}
-          active={(index) => edge.color === branchColor(index)}
-          onPick={(token) => {
-            style({ color: token })
-            setOpen(null)
-          }}
-        />
-        {reach}
-        {/* The way back out. An edge with no colour of its own takes the branch's, which is what
-            makes a coloured map read as branches rather than as a hundred separate lines, and
-            there has to be one press that gives that back. */}
-        <button
-          type="button"
-          onClick={() => {
-            style({ color: null })
-            setOpen(null)
-          }}
-          className="block w-full rounded-lg px-2 py-1.5 text-left text-[11.5px] text-ink-2 hover:bg-frame-hover hover:text-ink"
-        >
-          {t("Mindmap", branching ? "MatchBranch" : "DefaultColor")}
-        </button>
-      </Popped>
+        <SwatchFace color={edge.color ?? "var(--ink-3)"} pressed={panel.open === "color"} />
+      </BarButton>
 
-      <Sep />
+      <BarDivider />
 
-      <Slot
-        wide
-        label={t("Mindmap", "EditLabel")}
+      <BarButton
+        // Named after what it shows, so a spoken name and the words on screen agree.
+        label={edge.label ? `${t("Mindmap", "EditLabel")}: ${edge.label}` : t("Mindmap", "AddLabel")}
+        labelled
         // One edge at a time. A label belongs to one edge, and there is no sensible thing for typing
         // into a selection of four of them to mean.
         disabled={count > 1}
-        onClick={onLabel}
+        onClick={() => {
+          panel.close()
+          onLabel()
+        }}
+        className="min-w-0 grow cursor-text gap-[7px] px-2 text-[12.5px]"
       >
-        <span className="flex items-center gap-1">
-          <AppIcon name="type" size={12} strokeWidth={1.8} />
-          <span className={edge.label ? "max-w-[90px] truncate" : undefined}>
-            {edge.label || t("Mindmap", "LabelPlaceholder")}
-          </span>
+        <AppIcon name="type" size={14} strokeWidth={2} className="shrink-0" />
+        <span className={cn("truncate", edge.label ? "text-ink" : "text-ink-3")}>
+          {edge.label || t("Mindmap", "AddLabel")}
         </span>
-      </Slot>
+      </BarButton>
 
       {count > 1 ? (
         <>
-          <Sep />
+          <BarDivider />
           <span className="px-1 text-[11.5px] tabular-nums text-ink-3">{count}</span>
         </>
       ) : null}
-    </FloatBar>
+    </PanelBar>
   )
 }

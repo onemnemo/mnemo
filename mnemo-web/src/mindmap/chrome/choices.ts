@@ -7,7 +7,9 @@
  * to be nearer.
  */
 
+import { HIERARCHY_WIDTH, LINK_WIDTH } from "../canvas/edge-style"
 import type { ArrowCap, EdgeRouting, FontScale, LineStyle, NodeShape } from "../model/document"
+import type { SceneEdge } from "../model/scene"
 
 export interface Choice<T> {
   value: T
@@ -46,6 +48,11 @@ export const THICKNESSES: readonly Choice<number>[] = [
   { value: 1.5, key: "ThicknessNormal" },
   { value: 2.5, key: "ThicknessBold" },
 ]
+
+/** The weight a stroke is drawn at, the renderer's own default where the edge names none. */
+export function weightOf(edge: SceneEdge): number {
+  return edge.thickness ?? (edge.kind === "hierarchy" ? HIERARCHY_WIDTH : LINK_WIDTH)
+}
 
 export const SHAPES: readonly Choice<NodeShape>[] = [
   { value: "card", key: "ShapeCard" },

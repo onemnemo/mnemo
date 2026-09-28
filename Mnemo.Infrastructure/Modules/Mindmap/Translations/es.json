@@ -34,7 +34,6 @@
   "Mindmap": {
     "NewNode": "Nuevo nodo",
     "NewText": "Texto",
-    "LabelPlaceholder": "Etiqueta",
     "ToolSelect": "Seleccionar",
     "ToolPan": "Desplazar",
     "ToolLasso": "Lazo",
@@ -127,7 +126,6 @@
     "CollapseBranch": "Contraer la rama",
     "ExpandBranch": "Expandir la rama",
     "More": "Más",
-    "ApplyToSubtree": "Y todo lo que hay debajo",
     "EdgeLine": "Línea",
     "Routing": "Trazado",
     "Ends": "Extremos",
@@ -164,7 +162,6 @@
     "Stroke": "Contorno",
     "TextColor": "Texto",
     "Shape": "Forma",
-    "Size": "Tamaño",
     "ApplyColor": "Aplicar color",
     "AlignLeft": "Alinear a la izquierda",
     "AlignCenterH": "Centrar horizontalmente",
@@ -183,6 +180,19 @@
     "LineStartHandle": "Mover inicio de línea",
     "LineEndHandle": "Mover final de línea",
     "LineBendHandle": "Mover curva de línea",
-    "FindClose": "Cerrar la búsqueda"
+    "FindClose": "Cerrar la búsqueda",
+    "WholeBranch": "Toda la rama",
+    "RecolorsBelowFormat": "También cambia el color de los {0} nodos de debajo",
+    "RecolorsBelowOne": "También cambia el color del nodo de debajo",
+    "BranchesBelow": "Ramas de debajo",
+    "ApplyBelowDetail": "Aplicar a todas las conexiones por debajo",
+    "TextSize": "Tamaño del texto",
+    "ShapeAndSize": "Forma y tamaño",
+    "SwapEnds": "Invertir",
+    "AddLabel": "Añadir etiqueta",
+    "SelectedNodesFormat": "{0} nodos",
+    "DeleteCountFormat": "Eliminar {0} nodos",
+    "NodeOptions": "Opciones del nodo",
+    "EdgeOptions": "Opciones de la conexión"
   }
 }

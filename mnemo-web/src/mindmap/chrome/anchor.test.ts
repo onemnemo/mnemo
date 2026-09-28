@@ -5,8 +5,10 @@ import { dockClearance } from "./toolbar/placement"
 import {
   BAR_GAP,
   BAR_LIFT,
+  BAR_SCALE_FLOOR,
   FLYOUT_EDGE,
   FLYOUT_GAP,
+  barScale,
   boxesAnchor,
   clampBar,
   edgeAnchor,
@@ -195,5 +197,26 @@ describe("edgeAnchor", () => {
       const anchor = edgeAnchor(routing, from, to)
       expect(anchor).toEqual(edgeShape(routing, anchorsFor(from, to)).label)
     }
+  })
+})
+
+describe("barScale", () => {
+  it("follows the map down as it zooms out, to a floor", () => {
+    expect(barScale(0.85)).toBe(0.85)
+    expect(barScale(0.3)).toBe(BAR_SCALE_FLOOR)
+  })
+
+  it("never grows past full size when zoomed in", () => {
+    expect(barScale(2.5)).toBe(1)
+  })
+
+  it("clamps a shrunk bar by the size it is drawn at", () => {
+    const toPane = (point: { x: number; y: number }) => point
+    const measure = () => ({ bar: BAR, pane: PANE })
+    // Near the right edge: a full-size bar is pushed further in than the same bar drawn at 70%.
+    const full = nextPlacement({ world: { x: 990, y: 400 }, toPane, measure, last: null })!
+    const shrunk = nextPlacement({ world: { x: 990, y: 400 }, toPane, measure, last: null, scale: 0.7 })!
+    expect(shrunk.at.x).toBeGreaterThan(full.at.x)
+    expect(shrunk.at.x).toBe(clampBar({ x: 990, y: 400 }, { width: 210, height: 28 }, PANE).x)
   })
 })

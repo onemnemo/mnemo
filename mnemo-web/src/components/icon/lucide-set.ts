@@ -13,6 +13,7 @@ import {
   AlignLeft,
   AlignRight,
   ArrowDown,
+  ArrowLeftRight,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
@@ -148,6 +149,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   "arrow-down": ArrowDown,
   "arrow-left": ArrowLeft,
   "arrow-right": ArrowRight,
+  "arrow-left-right": ArrowLeftRight,
 
   // Actions
   plus: Plus,

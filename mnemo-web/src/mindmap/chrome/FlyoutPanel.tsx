@@ -42,13 +42,10 @@ export function FlyoutPanel({ children, onClose, className }: FlyoutPanelProps) 
       // The pane where there is one. The window is only a fallback, and a poor one, since a panel
       // that clears the top of the window is still behind the app's header.
       const bounds = node.closest("[data-mm-pane]")?.getBoundingClientRect()
-      setSide(
-        flyoutSide(
-          control.getBoundingClientRect(),
-          bounds ?? { top: 0, bottom: window.innerHeight },
-          node.offsetHeight,
-        ),
-      )
+      const rect = control.getBoundingClientRect()
+      // A selection bar is drawn shrunk at low zoom, and the panel inside it with it.
+      const scale = control instanceof HTMLElement && control.offsetHeight > 0 ? rect.height / control.offsetHeight : 1
+      setSide(flyoutSide(rect, bounds ?? { top: 0, bottom: window.innerHeight }, node.offsetHeight * scale))
     }
 
     choose()

@@ -51,9 +51,9 @@ export interface Span {
  * Neither side fitting is a short window, not a bug, and then the roomier side wins so the panel
  * loses as little of itself as it can.
  */
-export function flyoutSide(control: Span, bounds: Span, panelHeight: number): "above" | "below" {
+export function flyoutSide(control: Span, bounds: Span, panelHeight: number, gap = FLYOUT_GAP): "above" | "below" {
   const above = control.top - bounds.top
-  if (above >= panelHeight + FLYOUT_GAP + FLYOUT_EDGE) {
+  if (above >= panelHeight + gap + FLYOUT_EDGE) {
     return "above"
   }
   return bounds.bottom - control.bottom > above ? "below" : "above"
@@ -107,6 +107,8 @@ export interface FrameInput {
   /** Where the anchor landed last time, in pane pixels. Null before the first placement. */
   readonly last: Point | null
   readonly clearance?: Clearance
+  /** How far the bar is drawn shrunk, so it is clamped by the size it shows rather than its layout. */
+  readonly scale?: number
 }
 
 /**
@@ -125,7 +127,20 @@ export function nextPlacement(input: FrameInput): { anchor: Point; at: Point } |
     return null
   }
   const { bar, pane } = input.measure()
-  return { anchor, at: clampBar(anchor, bar, pane, input.clearance) }
+  const scale = input.scale ?? 1
+  const shown = { width: bar.width * scale, height: bar.height * scale }
+  return { anchor, at: clampBar(anchor, shown, pane, input.clearance) }
+}
+
+/** The smallest a bar gets when the map is zoomed out, so its words stay readable. */
+export const BAR_SCALE_FLOOR = 0.7
+
+/**
+ * How big a selection bar is drawn at a given map zoom: along with the map as it zooms out, down to
+ * the floor, and never past full size, since a bar that grew on zoom-in would cover what it is about.
+ */
+export function barScale(zoom: number): number {
+  return clamp(zoom, BAR_SCALE_FLOOR, 1)
 }
 
 /** The point a node bar hangs over: the top edge of everything selected, centred. */

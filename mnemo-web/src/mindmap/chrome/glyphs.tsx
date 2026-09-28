@@ -15,7 +15,6 @@ import type {
   ArrowCap,
   CanvasBackground,
   EdgeRouting,
-  FontScale,
   LayoutAlgorithm,
   LineStyle,
   NodeShape,
@@ -59,23 +58,6 @@ export function ThicknessGlyph({ thickness }: { thickness: number }) {
   )
 }
 
-/** A branch and what hangs off it, for the control that sends a style down the whole thing. */
-export function CascadeGlyph() {
-  return (
-    <svg width={22} height={14} aria-hidden>
-      <path
-        d="M5 3 V11 H18 M5 7 H13"
-        stroke="currentColor"
-        strokeWidth={1.4}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <circle cx={5} cy={3} r={1.7} fill="currentColor" />
-    </svg>
-  )
-}
-
 export function RouteGlyph({ routing }: { routing: EdgeRouting }) {
   const d =
     routing === "curve"
@@ -86,22 +68,6 @@ export function RouteGlyph({ routing }: { routing: EdgeRouting }) {
   return (
     <svg width={22} height={12} aria-hidden>
       <path d={d} stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </svg>
-  )
-}
-
-/**
- * A cap on the end of a stub of line.
- *
- * Mirrored rather than redrawn for the start end, so the two ends of an edge are visibly the same
- * three choices pointing opposite ways rather than six unrelated buttons.
- */
-export function CapGlyph({ cap, flipped }: { cap: ArrowCap; flipped?: boolean }) {
-  return (
-    <svg width={20} height={12} aria-hidden transform={flipped ? "scale(-1, 1)" : undefined}>
-      <path d="M2 6 H14" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" fill="none" />
-      {cap === "arrow" ? <path d="M12 2.5 L18 6 L12 9.5 Z" fill="currentColor" /> : null}
-      {cap === "dot" ? <circle cx={15} cy={6} r={2.6} fill="currentColor" /> : null}
     </svg>
   )
 }
@@ -155,27 +121,6 @@ export function NodeShapeGlyph({ shape }: { shape: NodeShape }) {
         strokeWidth={1.2}
       />
     </svg>
-  )
-}
-
-/** Sizes on the same table the measurer uses, so the four buttons step the way the canvas steps. */
-const SCALE_PX: Record<FontScale, number> = { s: 9.5, m: 11.5, l: 13.5, xl: 16 }
-
-/**
- * The size control's own sample, as a letter rather than a glyph.
- *
- * Type is the thing being set, so the button is set in it. Line height is pinned so four different
- * sizes still sit on one baseline inside a fixed slot.
- */
-export function ScaleGlyph({ scale }: { scale: FontScale }) {
-  return (
-    <span
-      className="font-semibold leading-none"
-      style={{ fontSize: SCALE_PX[scale] }}
-      aria-hidden
-    >
-      A
-    </span>
   )
 }
 

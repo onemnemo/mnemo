@@ -34,7 +34,6 @@
   "Mindmap": {
     "NewNode": "新しいノード",
     "NewText": "テキスト",
-    "LabelPlaceholder": "ラベル",
     "ToolSelect": "選択",
     "ToolPan": "手のひら",
     "ToolLasso": "投げ縄",
@@ -127,7 +126,6 @@
     "CollapseBranch": "枝を折りたたむ",
     "ExpandBranch": "枝を展開",
     "More": "その他",
-    "ApplyToSubtree": "配下すべてにも適用",
     "EdgeLine": "線",
     "Routing": "経路",
     "Ends": "端",
@@ -164,7 +162,6 @@
     "Stroke": "線",
     "TextColor": "テキスト",
     "Shape": "形状",
-    "Size": "サイズ",
     "ApplyColor": "色を適用",
     "AlignLeft": "左揃え",
     "AlignCenterH": "左右中央揃え",
@@ -183,6 +180,19 @@
     "LineStartHandle": "線の始点を移動",
     "LineEndHandle": "線の終点を移動",
     "LineBendHandle": "線の曲がりを移動",
-    "FindClose": "検索を閉じる"
+    "FindClose": "検索を閉じる",
+    "WholeBranch": "ブランチ全体",
+    "RecolorsBelowFormat": "配下の {0} 個のノードも色を変更",
+    "RecolorsBelowOne": "配下のノードも色を変更",
+    "BranchesBelow": "配下のブランチ",
+    "ApplyBelowDetail": "この下のすべての線に適用",
+    "TextSize": "文字サイズ",
+    "ShapeAndSize": "形とサイズ",
+    "SwapEnds": "入れ替え",
+    "AddLabel": "ラベルを追加",
+    "SelectedNodesFormat": "{0} 個のノード",
+    "DeleteCountFormat": "{0} 個のノードを削除",
+    "NodeOptions": "ノードのオプション",
+    "EdgeOptions": "線のオプション"
   }
 }

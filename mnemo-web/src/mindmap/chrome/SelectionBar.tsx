@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 
 import type { CanvasRuntime } from "../canvas/runtime"
+import { LINK_COLOR } from "../canvas/edge-style"
 import type { SceneIndex } from "../canvas/scene-index"
 import type { Selection } from "../interaction/selection"
 import type { EdgeStyle, ElementStyle } from "../model/document"
@@ -25,6 +26,8 @@ export interface SelectionBarProps {
   onNodeStyle: (patch: ElementStyle) => void
   onLineStyle: (patch: LinePatch) => void
   onEdgeLabel: (edgeId: string) => void
+  /** Whether an edge has no colour of its own. */
+  edgeInherits: (edgeId: string) => boolean
   /** Recolour the selection; null when there is no colour to set. */
   color: ColorControl | null
   /** Line the selection up; null when it is not several free elements. */
@@ -56,6 +59,7 @@ export function MindmapSelectionBar({
   onNodeStyle,
   onLineStyle,
   onEdgeLabel,
+  edgeInherits,
   color,
   align,
   onKind,
@@ -70,6 +74,13 @@ export function MindmapSelectionBar({
     if (!edge) {
       return null
     }
+    const inherited = [...selection.edges].every(edgeInherits)
+    // What clearing the colour gives back: the child's branch hue, as the projector falls back to, or
+    // the renderer's own colour for a link.
+    const branch =
+      edge.kind === "hierarchy"
+        ? scene.elements.find((element) => element.id === edge.toId)?.branchColor
+        : LINK_COLOR
     return (
       <Anchored runtime={runtime} pane={pane} locate={locateEdge(edge)}>
         <EdgeBar
@@ -77,6 +88,8 @@ export function MindmapSelectionBar({
           count={selection.edges.size}
           onStyle={onEdgeStyle}
           onLabel={() => onEdgeLabel(edge.id)}
+          inherit={{ inherited, color: inherited ? edge.color : branch }}
+          selectionKey={[...selection.edges].sort().join(" ")}
         />
       </Anchored>
     )
@@ -120,6 +133,7 @@ export function MindmapSelectionBar({
         color={color}
         onKind={onKind}
         actions={actions}
+        selectionKey={[...ids].sort().join(" ")}
       />
     </Anchored>
   )
@@ -147,7 +161,8 @@ function Anchored({
   return (
     <div
       ref={bar}
-      className="pointer-events-none absolute z-40 -translate-x-1/2 -translate-y-full"
+      // Scaled about its bottom centre, the point that hangs over the selection.
+      className="pointer-events-none absolute z-40 origin-bottom -translate-x-1/2 -translate-y-full"
       style={{ left: 0, top: 0, visibility: "hidden" }}
     >
       {children}

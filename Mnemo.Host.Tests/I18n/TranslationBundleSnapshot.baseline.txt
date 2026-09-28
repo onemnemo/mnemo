@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 3a655bff976e2f2907c549effd25d05e4a920c25209fd7c542c24605b74a8677
+sha256 2fb43d69e2131505f637009a3eacbf569332935227e5b6e3d72a55e9f334c95d
 namespaces 39
-keys 2542
+keys 2551
   App 35
   Chat 132
   Common 103
@@ -18,7 +18,7 @@ keys 2542
   GlobalSearch 18
   Hardware 2
   Keybinds 109
-  Mindmap 357
+  Mindmap 366
   Notes 223
   NotesEditor 225
   Onboarding 51
@@ -47,9 +47,9 @@ keys 2542
   WidgetToday 9
 
 culture de
-sha256 2c8c7d6b08af6f6be037a21d5eb35143d63e48ea8f543ac00d9c104e7ca1d987
+sha256 c04ba5461cea28ae128c740dd2ebcbdede62b065dbc6d5f754978bfb56476d43
 namespaces 39
-keys 2542
+keys 2551
   App 35
   Chat 132
   Common 103
@@ -62,7 +62,7 @@ keys 2542
   GlobalSearch 18
   Hardware 2
   Keybinds 109
-  Mindmap 357
+  Mindmap 366
   Notes 223
   NotesEditor 225
   Onboarding 51
@@ -91,9 +91,9 @@ keys 2542
   WidgetToday 9
 
 culture es
-sha256 8cd197f0f76e5c2f8bfc6e291496546bf0e7db318ccc8c74648bc17c40b76eda
+sha256 bf4404ea633dcb1a2e7d40d03ace8dbc53fbad08575fd6f49a7e86d7eb0fe409
 namespaces 39
-keys 2542
+keys 2551
   App 35
   Chat 132
   Common 103
@@ -106,7 +106,7 @@ keys 2542
   GlobalSearch 18
   Hardware 2
   Keybinds 109
-  Mindmap 357
+  Mindmap 366
   Notes 223
   NotesEditor 225
   Onboarding 51
@@ -135,9 +135,9 @@ keys 2542
   WidgetToday 9
 
 culture ja
-sha256 2f236bb8494b4b06b10cc537136b2dc0d4e91726c3923e8850f561eae0005ded
+sha256 80a5b168cba982c4e11bddd105e8aab28501389f2def4aa7ba649cee26588b7b
 namespaces 39
-keys 2542
+keys 2551
   App 35
   Chat 132
   Common 103
@@ -150,7 +150,7 @@ keys 2542
   GlobalSearch 18
   Hardware 2
   Keybinds 109
-  Mindmap 357
+  Mindmap 366
   Notes 223
   NotesEditor 225
   Onboarding 51
@@ -179,9 +179,9 @@ keys 2542
   WidgetToday 9
 
 culture nb
-sha256 06b4dfb20b89574f6fe0f9db68599c07367d72b35dfe37e61f997d12aa2853bd
+sha256 192c6bb46ec09d5c8c292fb42dc57b46b3d8b8c72f91bd326472b6ce405d3811
 namespaces 39
-keys 2542
+keys 2551
   App 35
   Chat 132
   Common 103
@@ -194,7 +194,7 @@ keys 2542
   GlobalSearch 18
   Hardware 2
   Keybinds 109
-  Mindmap 357
+  Mindmap 366
   Notes 223
   NotesEditor 225
   Onboarding 51

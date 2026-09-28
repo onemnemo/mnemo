@@ -1,19 +1,12 @@
 /**
- * What is inside a floating bar's menus.
+ * What is inside the line bar's flyouts: a heading, a row of samples, and each end's caps.
  *
- * A bar has room for a handful of controls and the styles behind it have far more values than that,
- * so each family gets one slot that says what the selection is now and opens the rest. This is what
- * the inside of one of those looks like: a heading, a row of samples, a switch for how far a choice
- * reaches, and plain items for the things that are not styles at all.
- *
- * Shared rather than written per bar. A menu that opens off the node bar and one that opens off the
- * edge bar are the same object, and two implementations of it would drift within a week.
+ * The node and edge bars stack full-width panels instead; their pieces live in ./panel.
  */
 
 import type { ReactNode } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
-import type { IconName } from "@/components/icon/icon-registry"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
@@ -148,92 +141,4 @@ export function CapRow({
       ))}
     </div>
   )
-}
-
-/** Something a selection can be told to do, as opposed to something it can be styled to look like. */
-export function MenuItem({
-  label,
-  icon,
-  danger,
-  disabled,
-  onClick,
-}: {
-  label: string
-  icon: IconName
-  /** Red, for the one item that cannot be walked back by pressing something else. */
-  danger?: boolean
-  disabled?: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12.5px] transition-colors duration-120",
-        disabled && "pointer-events-none opacity-35",
-        danger
-          ? "text-danger hover:bg-danger-wash"
-          : "text-ink-2 hover:bg-frame-hover hover:text-ink",
-      )}
-    >
-      <AppIcon name={icon} size={14} />
-      <span className="flex-1 truncate">{label}</span>
-    </button>
-  )
-}
-
-/**
- * How far the choices above it reach.
- *
- * The whole row is the control, which is why the track and knob are drawn here rather than by the
- * app's switch: that is a button of its own, and a row that is itself a button cannot hold one.
- */
-export function MenuToggle({
-  label,
-  on,
-  disabled,
-  onToggle,
-}: {
-  label: string
-  on: boolean
-  disabled?: boolean
-  onToggle: (on: boolean) => void
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      disabled={disabled}
-      onClick={() => onToggle(!on)}
-      className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11.5px] transition-colors duration-120",
-        disabled ? "pointer-events-none opacity-35" : "hover:bg-frame-hover",
-        on ? "text-ink" : "text-ink-2",
-      )}
-    >
-      <span className="flex-1">{label}</span>
-      <span
-        className={cn(
-          "relative inline-flex h-[16px] w-[27px] shrink-0 items-center rounded-full transition-colors",
-          on ? "bg-solid" : "bg-frame-active",
-        )}
-        aria-hidden
-      >
-        <span
-          className={cn(
-            "inline-block size-[11px] rounded-full bg-canvas shadow-sm transition-transform",
-            on ? "translate-x-[13px]" : "translate-x-[2px]",
-          )}
-        />
-      </span>
-    </button>
-  )
-}
-
-/** A hairline across a menu, between items that undo differently. */
-export function MenuSep() {
-  return <span className="my-1 block h-px bg-line" aria-hidden />
 }

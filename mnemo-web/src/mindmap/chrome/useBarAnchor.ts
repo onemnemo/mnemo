@@ -16,7 +16,7 @@ import { useLayoutEffect, useRef, type RefObject } from "react"
 import type { CanvasRuntime } from "../canvas/runtime"
 import type { SceneIndex } from "../canvas/scene-index"
 import type { Point } from "../model/scene"
-import { nextPlacement } from "./anchor"
+import { barScale, nextPlacement } from "./anchor"
 import { useDockedEdge } from "./toolbar/docked-edge"
 import { dockClearance } from "./toolbar/placement"
 
@@ -43,6 +43,7 @@ export function useBarAnchor(
   useLayoutEffect(() => {
     let frame = 0
     let last: Point | null = null
+    let lastScale = 0
     const clearance = dockClearance(docked)
 
     const place = () => {
@@ -53,6 +54,14 @@ export function useBarAnchor(
       const host = pane.current
       if (!node || !camera || !host) {
         return
+      }
+
+      const scale = barScale(camera.viewport().zoom)
+      if (scale !== lastScale) {
+        // A zoom about the anchor itself leaves it where it was, and the bar still has to be resized.
+        last = null
+        lastScale = scale
+        node.style.scale = String(scale)
       }
 
       const next = nextPlacement({
@@ -68,6 +77,7 @@ export function useBarAnchor(
         }),
         last,
         clearance,
+        scale,
       })
       if (!next) {
         return

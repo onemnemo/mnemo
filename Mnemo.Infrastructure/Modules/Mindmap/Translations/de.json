@@ -34,7 +34,6 @@
   "Mindmap": {
     "NewNode": "Neuer Knoten",
     "NewText": "Text",
-    "LabelPlaceholder": "Beschriftung",
     "ToolSelect": "Auswählen",
     "ToolPan": "Verschieben",
     "ToolLasso": "Lasso",
@@ -127,7 +126,6 @@
     "CollapseBranch": "Zweig einklappen",
     "ExpandBranch": "Zweig ausklappen",
     "More": "Mehr",
-    "ApplyToSubtree": "Und alles darunter",
     "EdgeLine": "Linie",
     "Routing": "Verlauf",
     "Ends": "Enden",
@@ -164,7 +162,6 @@
     "Stroke": "Kontur",
     "TextColor": "Text",
     "Shape": "Form",
-    "Size": "Größe",
     "ApplyColor": "Farbe anwenden",
     "AlignLeft": "Links ausrichten",
     "AlignCenterH": "Horizontal zentrieren",
@@ -183,6 +180,19 @@
     "LineStartHandle": "Linienanfang verschieben",
     "LineEndHandle": "Linienende verschieben",
     "LineBendHandle": "Linienbiegung verschieben",
-    "FindClose": "Suche schließen"
+    "FindClose": "Suche schließen",
+    "WholeBranch": "Ganzer Zweig",
+    "RecolorsBelowFormat": "Färbt auch die {0} Knoten darunter",
+    "RecolorsBelowOne": "Färbt auch den Knoten darunter",
+    "BranchesBelow": "Zweige darunter",
+    "ApplyBelowDetail": "Auf jede Kante darunter anwenden",
+    "TextSize": "Textgröße",
+    "ShapeAndSize": "Form und Größe",
+    "SwapEnds": "Tauschen",
+    "AddLabel": "Beschriftung hinzufügen",
+    "SelectedNodesFormat": "{0} Knoten",
+    "DeleteCountFormat": "{0} Knoten löschen",
+    "NodeOptions": "Knotenoptionen",
+    "EdgeOptions": "Kantenoptionen"
   }
 }

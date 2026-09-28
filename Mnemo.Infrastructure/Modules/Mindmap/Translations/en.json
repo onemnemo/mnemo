@@ -34,7 +34,6 @@
   "Mindmap": {
     "NewNode": "New node",
     "NewText": "Text",
-    "LabelPlaceholder": "Label",
     "ToolSelect": "Select",
     "ToolPan": "Pan",
     "ToolLasso": "Lasso",
@@ -127,7 +126,6 @@
     "CollapseBranch": "Collapse branch",
     "ExpandBranch": "Expand branch",
     "More": "More",
-    "ApplyToSubtree": "And everything under it",
     "EdgeLine": "Line",
     "Routing": "Routing",
     "Ends": "Ends",
@@ -164,7 +162,6 @@
     "Stroke": "Stroke",
     "TextColor": "Text",
     "Shape": "Shape",
-    "Size": "Size",
     "ApplyColor": "Apply color",
     "AlignLeft": "Align left",
     "AlignCenterH": "Align centers horizontally",
@@ -183,6 +180,19 @@
     "LineStartHandle": "Move line start",
     "LineEndHandle": "Move line end",
     "LineBendHandle": "Move line bend",
-    "FindClose": "Close find"
+    "FindClose": "Close find",
+    "WholeBranch": "Whole branch",
+    "RecolorsBelowFormat": "Also recolors the {0} nodes below",
+    "RecolorsBelowOne": "Also recolors the node below",
+    "BranchesBelow": "Branches below",
+    "ApplyBelowDetail": "Apply to every edge under this one",
+    "TextSize": "Text size",
+    "ShapeAndSize": "Shape and size",
+    "SwapEnds": "Swap",
+    "AddLabel": "Add label",
+    "SelectedNodesFormat": "{0} nodes",
+    "DeleteCountFormat": "Delete {0} nodes",
+    "NodeOptions": "Node options",
+    "EdgeOptions": "Edge options"
   }
 }

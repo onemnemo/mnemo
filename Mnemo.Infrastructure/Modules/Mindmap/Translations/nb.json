@@ -34,7 +34,6 @@
   "Mindmap": {
     "NewNode": "Ny node",
     "NewText": "Tekst",
-    "LabelPlaceholder": "Etikett",
     "ToolSelect": "Velg",
     "ToolPan": "Panorer",
     "ToolLasso": "Lasso",
@@ -127,7 +126,6 @@
     "CollapseBranch": "Slå sammen grenen",
     "ExpandBranch": "Utvid grenen",
     "More": "Mer",
-    "ApplyToSubtree": "Og alt under den",
     "EdgeLine": "Linje",
     "Routing": "Rute",
     "Ends": "Ender",
@@ -164,7 +162,6 @@
     "Stroke": "Strek",
     "TextColor": "Tekst",
     "Shape": "Form",
-    "Size": "Størrelse",
     "ApplyColor": "Bruk farge",
     "AlignLeft": "Venstrejuster",
     "AlignCenterH": "Sentrer vannrett",
@@ -183,6 +180,19 @@
     "LineStartHandle": "Flytt linjestart",
     "LineEndHandle": "Flytt linjeslutt",
     "LineBendHandle": "Flytt linjebue",
-    "FindClose": "Lukk søk"
+    "FindClose": "Lukk søk",
+    "WholeBranch": "Hele grenen",
+    "RecolorsBelowFormat": "Farger også de {0} nodene under",
+    "RecolorsBelowOne": "Farger også noden under",
+    "BranchesBelow": "Grener under",
+    "ApplyBelowDetail": "Bruk på hver kant under denne",
+    "TextSize": "Tekststørrelse",
+    "ShapeAndSize": "Form og størrelse",
+    "SwapEnds": "Bytt",
+    "AddLabel": "Legg til etikett",
+    "SelectedNodesFormat": "{0} noder",
+    "DeleteCountFormat": "Slett {0} noder",
+    "NodeOptions": "Nodealternativer",
+    "EdgeOptions": "Kantalternativer"
   }
 }
