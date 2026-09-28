@@ -132,6 +132,15 @@ export function imageRefOf(content: ElementContent): ImageRef | null {
 }
 
 /**
+ * Whether a label can be opened for typing. A note or deck reference reads as its target's title,
+ * which is the target's to change, and a picture has nothing to type; committing a field over either
+ * would overwrite what it points at.
+ */
+export function labelEditable(content: ElementContent): boolean {
+  return content.$type !== "note" && content.$type !== "flashcard" && !imageRefOf(content)
+}
+
+/**
  * What a resolved reference turned out to be.
  *
  * A missing entry in the resolution map means the lookup is still out, which is drawn as nothing

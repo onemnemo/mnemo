@@ -16,6 +16,7 @@
 import { EditorState, Selection, TextSelection } from "prosemirror-state"
 import type { EditorView } from "prosemirror-view"
 
+import { insertEquation } from "@/notes/editor/atoms"
 import { lineOf } from "@/notes/editor/blocks/shared"
 import { editorSchema } from "@/notes/editor/schema"
 import { mountEditor } from "@/notes/editor/view/mount"
@@ -30,6 +31,8 @@ export interface LabelEditorOptions {
   readonly runs: readonly InlineSpan[]
   /** Where the caret opens: over the whole label, the way a field selects on open, or after it. */
   readonly caret?: "all" | "end"
+  /** Something to put at the caret as the editor opens: an empty equation, with its source card open. */
+  readonly insert?: "equation"
   /** The camera under the node. Every tick moves the chrome anchored to the caret. */
   readonly camera?: { subscribe(listener: () => void): () => void }
   /** Every change to the runs, for the field that tracks what a teardown has to flush. */
@@ -120,6 +123,9 @@ export function openLabelEditor(options: LabelEditorOptions): LabelEditor {
   })
 
   view.focus()
+  if (options.insert === "equation") {
+    insertEquation()(view.state, view.dispatch)
+  }
 
   let destroyed = false
   return {

@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils"
 import type { InlineSpan } from "@/notes/model/types"
 
 import type { FieldResult } from "../edit/label-commit"
+import { opensWithEquation } from "../edit/label-intent"
 import type { LabelEditor } from "../edit/label-editor"
 import { contentText } from "../model/document"
 import { canHoldRuns, flattenRuns, plainRuns } from "../model/runs"
@@ -307,6 +308,7 @@ function RichField({
       mount: host,
       runs,
       caret,
+      insert: opensWithEquation(element.id) ? "equation" : undefined,
       camera: cameraSignal,
       onChange: (next) => {
         track(next)
@@ -316,7 +318,9 @@ function RichField({
         void finish(result)
       },
     })
-    resize(host, { text: flattenRuns(runs), runs })
+    // What the editor holds, which is more than it opened on when it opened with an equation.
+    const opened = editor.runs()
+    resize(host, { text: flattenRuns(opened), runs: opened })
     open.current = editor
     return () => {
       open.current = null
@@ -324,7 +328,7 @@ function RichField({
     }
     // Every dependency is fixed for the life of the field, so this opens the editor once; a
     // re-render under the open field (the branches following its box) never reopens it.
-  }, [module, runs, caret, finish, track, resize])
+  }, [module, element.id, runs, caret, finish, track, resize])
 
   return (
     // The field is the whole label column, padding included, not only the words: a node's box is

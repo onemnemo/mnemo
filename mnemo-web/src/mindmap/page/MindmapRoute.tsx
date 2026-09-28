@@ -34,9 +34,7 @@ import type { DockEdge } from "../chrome/toolbar/placement"
 import { useToolPresets } from "../chrome/toolbar/useToolPresets"
 import type { ColorControl } from "../chrome/color-control"
 import type { NodeActions } from "../chrome/NodeBar"
-import { RadialMenu } from "../chrome/RadialMenu"
 import { RefPicker, type RefTarget } from "../chrome/RefPicker"
-import { ON_CANVAS, ON_NODE } from "../chrome/sectors"
 import { SaveTemplateDialog } from "../chrome/SaveTemplateDialog"
 import type { AlignControl } from "../chrome/AlignBar"
 import type { LinePatch } from "../chrome/LineBar"
@@ -58,6 +56,7 @@ import {
 } from "../edit/clipboard"
 import { carriedText, isPlainKind, linkContent, plainContent } from "../edit/convert"
 import { labelCommit, type FieldResult } from "../edit/label-commit"
+import { forgetOpenIntent, openWithEquation } from "../edit/label-intent"
 import { detachOps, lineContent, lineOps, moveOps, resizeLineOps, rotateLineOps } from "../edit/line-ops"
 import { placeChild, type PlacedBox } from "../edit/placement"
 import { palettePlan } from "../edit/palette"
@@ -89,7 +88,7 @@ import { usePageKeys } from "./usePageKeys"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import type { AbsoluteLine } from "../scene/line-geometry"
 import { accentOf, branchSwatchOf } from "../scene/branch"
-import { imageRefOf, nodeKindOf, runsOf, type NodeKind } from "../scene/content"
+import { labelEditable, nodeKindOf, runsOf, type NodeKind } from "../scene/content"
 import {
   analyzeHierarchy,
   childrenIds,
@@ -101,6 +100,7 @@ import {
 import { frameBox, projectScene, type FrameMemberBox } from "../scene/project"
 import { sceneMeasurers } from "../scene/measurers"
 import { useFontEpoch } from "../scene/useFontEpoch"
+import { useRadialRing } from "./useRadialRing"
 import { useMindmapRefs } from "../scene/useRefs"
 
 /** No rules at all: every node falls through to the theme. Stable, so it does not reproject a scene. */
@@ -155,7 +155,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const [selectMode, setSelectMode] = useState<SelectMode>("box")
   const toolbar = useRef<ToolbarCommands>(null)
   /** Where the ring is and which key is holding it open, while it is open. Null when it is not. */
-  const [radial, setRadial] = useState<{ at: Point; key: string } | null>(null)
   // Tracked continuously rather than sampled when the key goes down, because a key event carries no
   // position of its own and the ring has to open where the hand already is.
   const pointer = useRef<Point>({ x: 0, y: 0 })
@@ -175,7 +174,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   /** The node whose branch is being saved as a template, for as long as the dialog is up. */
   const [capturing, setCapturing] = useState<string | null>(null)
   /** The node waiting on a reference to point at, and which library it is being picked from. */
-  const [picking, setPicking] = useState<{ id: string; target: RefTarget } | null>(null)
+  const [picking, setPicking] = useState<
+    { id: string; target: RefTarget } | { id: null; target: RefTarget; at: Point } | null
+  >(null)
 
   // Waits for the templates to settle, not to succeed. They style a map rather than make one, so a
   // library that cannot be read costs the map its template rules and nothing else; refusing to draw
@@ -427,6 +428,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     (id: string, result: FieldResult): Promise<unknown> => {
       const wasBlank = blank.current === id
       blank.current = null
+      forgetOpenIntent(id)
 
       const content = scene?.elements.find((candidate) => candidate.id === id)?.content
       const commit = labelCommit(content, wasBlank, result)
@@ -469,12 +471,11 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const beginEdit = useCallback(
     (id: string) => {
       const content = scene?.elements.find((candidate) => candidate.id === id)?.content
-      if (!content || content.$type === "note" || content.$type === "flashcard") {
+      if (!content || !labelEditable(content)) {
         return
       }
-      if (imageRefOf(content)) {
-        return
-      }
+      // An equation asked for by a field that never opened is not a thing this edit wants.
+      forgetOpenIntent(id)
       editSession.current += 1
       setEditing(id)
     },
@@ -594,10 +595,24 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         picking.target === "note"
           ? { $type: "note", noteId: targetId }
           : { $type: "flashcard", deckId: targetId }
-      void editor.apply([op.set(picking.id, { content })], { label: t("Mindmap", "ChangeType") })
       setPicking(null)
+      if (picking.id !== null) {
+        void editor.apply([op.set(picking.id, { content })], { label: t("Mindmap", "ChangeType") })
+        return
+      }
+      // Asked for before the node existed, so a picker closed with nothing picked leaves nothing behind.
+      const xy: [number, number] = [Math.round(picking.at.x), Math.round(picking.at.y)]
+      const style = presets.nodeStyle ? { nodeShape: presets.nodeStyle } : undefined
+      void editor
+        .apply([op.addNodes([{ ref: "n", content, xy, style }])], { label: t("Mindmap", "RadialLinkToNote") })
+        .then((result) => {
+          const created = result?.createdIds?.n
+          if (created) {
+            setSelection(selectOnly("element", created))
+          }
+        })
     },
-    [editor, picking, t],
+    [editor, picking, presets.nodeStyle, t],
   )
 
   /**
@@ -607,7 +622,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
    * it different from Tab's child. Its position is the click, so nothing has to be worked out.
    */
   const plant = useCallback(
-    async (armed: MindmapTool, at: Point) => {
+    async (armed: MindmapTool, at: Point, opens?: "equation") => {
       setTool("select")
       const xy: [number, number] = [Math.round(at.x), Math.round(at.y)]
       const result = await editor.apply([plantOp(armed, xy, { shape, nodeStyle: presets.nodeStyle })], {
@@ -619,6 +634,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         // A shape with no label is still a shape someone meant to draw, so it is not taken back the
         // way an unlabelled node is.
         blank.current = armed === "shape" ? null : created
+        if (opens === "equation") {
+          openWithEquation(created)
+        }
         setSelection(selectOnly("element", created))
         setEditing(created)
       }
@@ -1311,52 +1329,37 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     [editor, scene, t],
   )
 
-  /** What a sector does. Everything here is something the map already answers to. */
-  const onRadial = useCallback(
-    (id: string) => {
-      const primary = selection.primary?.kind === "element" ? selection.primary.id : null
-      switch (id) {
-        case "child":
-          if (primary) void addChild(primary)
-          return
-        case "sibling":
-          if (primary) void addSibling(primary)
-          return
-        case "edit":
-          if (primary) beginEdit(primary)
-          return
-        case "collapse":
-          if (primary) {
-            void editor.apply([op.set(primary, { collapsed: !collapsed(scene, primary) })], {
-              label: t("Mindmap", "ToggleCollapse"),
-            })
-          }
-          return
-        case "delete":
-          deleteSelection()
-          return
-        case "connect":
-          setTool("connect")
-          return
-        case "node":
-        case "text":
-        case "shape":
-          // Armed rather than planted: the ring closes under the pointer, and planting there would
-          // put a node exactly where the hand was resting rather than where it is about to point.
-          setTool(id)
-          return
-        case "arrange":
-          arrange()
-          return
-        case "fit":
-          runtime.current?.fit()
-          return
-        default:
-          return
-      }
+  const radial = useRadialRing({
+    stage,
+    runtime,
+    pointer,
+    scene,
+    document: map.data,
+    selection,
+    refs,
+    boxes,
+    align,
+    color,
+    collapse: nodeActions.collapse,
+    editor,
+    setTool,
+    setShape,
+    act: {
+      addChild: (id) => void addChild(id),
+      addSibling: (id) => void addSibling(id),
+      beginEdit,
+      deleteSelection,
+      insertImage,
+      pickNote: (at) => setPicking({ id: null, target: "note", at }),
+      plantEquation: (at) => void plant("node", at, "equation"),
+      arrange,
+      styleNodes,
+      changeKind: (kind) => void changeKind(kind),
+      group: (ids) => void group(ids),
+      duplicate: () => void duplicateSelection(),
     },
-    [addChild, addSibling, arrange, beginEdit, deleteSelection, editor, scene, selection, t],
-  )
+  })
+  const openRing = radial.openRing
 
   // Selecting the match is what marks it: the ring is the canvas's one way of pointing at a node,
   // and a found node left unselected would be centred and then indistinguishable from its neighbours.
@@ -1384,7 +1387,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
 
       // The ring owns the keyboard while it is up. It reads its own release from the window, and
       // everything else the map answers to would be a second thing happening inside one gesture.
-      if (radial) {
+      if (radial.open) {
         return
       }
 
@@ -1421,7 +1424,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           // times a second, and each one would reopen the ring around a pointer that had moved on.
           if (!event.repeat) {
             event.preventDefault()
-            setRadial({ at: pointer.current, key: parseChord(hit.chord).key })
+            openRing(parseChord(hit.chord).key)
           }
           return
 
@@ -1550,9 +1553,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       duplicateSelection,
       editor,
       find,
+      openRing,
       outdent,
       pasteCopy,
-      radial,
+      radial.open,
       scene,
       selection,
       tool,
@@ -1757,7 +1761,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           edge={presets.edge}
           onEdge={presets.setEdge}
           onDocked={setDocked}
-          keysSuspended={radial !== null}
+          keysSuspended={radial.open}
           commands={toolbar}
         />
 
@@ -1778,15 +1782,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
 
         <MindmapFindBar find={find} />
 
-        {radial ? (
-          <RadialMenu
-            sectors={selection.elements.size > 0 ? ON_NODE : ON_CANVAS}
-            at={radial.at}
-            holdKey={radial.key}
-            onPick={onRadial}
-            onClose={() => setRadial(null)}
-          />
-        ) : null}
+        {radial.menu}
       </div>
 
       {scene.elements.length === 0 ? (

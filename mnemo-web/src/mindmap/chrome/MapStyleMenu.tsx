@@ -16,6 +16,7 @@ import {
   type StyleTemplate,
 } from "../model/document"
 import { branchColor } from "../scene/tokens"
+import { LAYOUT_KEY } from "./choices"
 import { BackgroundGlyph, BranchGlyph, LayoutGlyph } from "./glyphs"
 import { BRANCH_MATERIALS, type BranchMaterial } from "./material"
 
@@ -24,16 +25,6 @@ const BACKGROUNDS: readonly { value: CanvasBackground; key: string }[] = [
   { value: "grid", key: "BackgroundGrid" },
   { value: "plain", key: "BackgroundPlain" },
 ]
-
-/** Layout names, in the order the algorithms are declared. */
-const LAYOUT_KEY: Record<LayoutAlgorithm, string> = {
-  balanced: "LayoutBalanced",
-  treeRight: "LayoutTreeRight",
-  treeDown: "LayoutTreeDown",
-  radial: "LayoutRadial",
-  timeline: "LayoutTimeline",
-  free: "LayoutFree",
-}
 
 /** The four hues a template's ramp starts with, which is enough to tell two palettes apart. */
 const PREVIEW_HUES = [0, 1, 2, 3]

@@ -8,7 +8,8 @@
  */
 
 import { HIERARCHY_WIDTH, LINK_WIDTH } from "../canvas/edge-style"
-import type { ArrowCap, EdgeRouting, FontScale, LineStyle, NodeShape } from "../model/document"
+import type { AlignOp } from "../edit/align"
+import type { ArrowCap, EdgeRouting, FontScale, LayoutAlgorithm, LineStyle, NodeShape } from "../model/document"
 import type { SceneEdge } from "../model/scene"
 
 export interface Choice<T> {
@@ -66,4 +67,33 @@ export const SCALES: readonly Choice<FontScale>[] = [
   { value: "m", key: "SizeMedium" },
   { value: "l", key: "SizeLarge" },
   { value: "xl", key: "SizeExtraLarge" },
+]
+
+/** Layout names, in the order the algorithms are declared. */
+export const LAYOUT_KEY: Readonly<Record<LayoutAlgorithm, string>> = {
+  balanced: "LayoutBalanced",
+  treeRight: "LayoutTreeRight",
+  treeDown: "LayoutTreeDown",
+  radial: "LayoutRadial",
+  timeline: "LayoutTimeline",
+  free: "LayoutFree",
+}
+
+/**
+ * The order a hand reaches for: the three horizontal edges, the three vertical ones, then the two
+ * that spread things out. The icon names read as the axis the line is drawn on, which is why
+ * "start-vertical" lines left edges up.
+ */
+export const ALIGNS: readonly { op: AlignOp; key: string; icon: string }[] = [
+  { op: "left", key: "AlignLeft", icon: "common/align-start-vertical" },
+  { op: "centerHorizontal", key: "AlignCenterH", icon: "common/align-center-vertical" },
+  { op: "right", key: "AlignRight", icon: "common/align-end-vertical" },
+  { op: "top", key: "AlignTop", icon: "common/align-start-horizontal" },
+  { op: "middleVertical", key: "AlignMiddleV", icon: "common/align-center-horizontal" },
+  { op: "bottom", key: "AlignBottom", icon: "common/align-end-horizontal" },
+]
+
+export const DISTRIBUTES: readonly { op: AlignOp; key: string; icon: string }[] = [
+  { op: "distributeHorizontal", key: "DistributeH", icon: "common/align-horizontal-distribute-center" },
+  { op: "distributeVertical", key: "DistributeV", icon: "common/align-vertical-distribute-center" },
 ]

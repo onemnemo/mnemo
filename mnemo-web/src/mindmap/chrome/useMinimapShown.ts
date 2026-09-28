@@ -18,10 +18,20 @@ export function useMinimapShown(offScreen: boolean): {
 } {
   const stored = useSettingValue(KEY, "Auto")
   const setValue = useSettingsStore((state) => state.setValue)
-  const mode: MinimapMode = stored === "On" || stored === "Off" ? stored : "Auto"
+  const mode = modeOf(stored)
   return {
     mode,
     shown: mode === "On" || (mode === "Auto" && offScreen),
     setMode: (next) => void setValue(KEY, next),
   }
+}
+
+function modeOf(stored: unknown): MinimapMode {
+  return stored === "On" || stored === "Off" ? stored : "Auto"
+}
+
+/** Moves the setting on one step, as a press of the dock's map button does, from outside the dock. */
+export function stepMinimapMode(): void {
+  const { values, setValue } = useSettingsStore.getState()
+  void setValue(KEY, NEXT_MODE[modeOf(values[KEY] ?? "Auto")])
 }

@@ -172,6 +172,13 @@
   --duration-card: calc(320ms * var(--motion-scale));
   --duration-turn: calc(240ms * var(--motion-scale));
 
+  /* The mind map's radial ring. A wedge's fill follows the pointer; a sub-ring fades in quickly and
+     settles outward from the ring's centre, one item a beat after the last. */
+  --duration-petal: calc(140ms * var(--motion-scale));
+  --duration-subring-fade: calc(180ms * var(--motion-scale));
+  --duration-subring: calc(300ms * var(--motion-scale));
+  --stagger-subring: calc(16ms * var(--motion-scale));
+
   /* How far a thing travels when it enters. A toast moves further than a menu because
      it arrives unasked and the movement is what makes you look at it. */
   --travel-pop: 6px;
@@ -403,6 +410,13 @@
   --e-handle:
     0 0 0 0.5px oklch(0.2 0.01 var(--neutral-hue) / 0.08),
     0 1px 2px oklch(0.2 0.01 var(--neutral-hue) / 0.18);
+  /* The radial ring, as a filter: its wedges are separate shapes, so a box shadow would outline
+     each one instead of the ring. */
+  --ring-hot: var(--frame-active);
+  --ring-parent: var(--frame-hover);
+  --ring-shadow:
+    drop-shadow(0 0 0.6px oklch(0.2 0.01 var(--neutral-hue) / 0.3))
+    drop-shadow(0 18px 36px oklch(0.2 0.01 var(--neutral-hue) / 0.12));
 }
 
 /* ---- Dark ---- */
@@ -548,4 +562,11 @@
   --e-handle:
     0 0 0 0.5px oklch(0 0 0 / 0.5),
     0 1px 2px oklch(0 0 0 / 0.5);
+  /* The ring rests on the bar surface, which is lighter than the frame's hover here, so its hot
+     and parent steps are its own. */
+  --ring-hot: oklch(0.34 0.009 var(--neutral-hue));
+  --ring-parent: oklch(0.315 0.008 var(--neutral-hue));
+  --ring-shadow:
+    drop-shadow(0 0 0.6px oklch(0 0 0 / 0.8))
+    drop-shadow(0 18px 36px oklch(0 0 0 / 0.45));
 }
