@@ -604,7 +604,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       const xy: [number, number] = [Math.round(picking.at.x), Math.round(picking.at.y)]
       const style = presets.nodeStyle ? { nodeShape: presets.nodeStyle } : undefined
       void editor
-        .apply([op.addNodes([{ ref: "n", content, xy, style }])], { label: t("Mindmap", "RadialLinkToNote") })
+        .apply([op.addNodes([{ ref: "n", content, xy, pin: false, style }])], { label: t("Mindmap", "RadialLinkToNote") })
         .then((result) => {
           const created = result?.createdIds?.n
           if (created) {

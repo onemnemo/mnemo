@@ -6,7 +6,7 @@ describe("plantOp", () => {
   it("plants a node with the picked style", () => {
     const planted = plantOp("node", [10, 20], { shape: "rectangle", nodeStyle: "pill" })
 
-    expect(planted).toMatchObject({ op: "add", nodes: [{ ref: "n", xy: [10, 20], style: { nodeShape: "pill" } }] })
+    expect(planted).toMatchObject({ op: "add", nodes: [{ ref: "n", xy: [10, 20], pin: false, style: { nodeShape: "pill" } }] })
   })
 
   it("leaves the style to the template when nothing is picked", () => {

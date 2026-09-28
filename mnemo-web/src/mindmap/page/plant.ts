@@ -34,5 +34,6 @@ export function plantOp(tool: MindmapTool, xy: [number, number], choices: PlantC
     return op.addElement("text", xy[0], xy[1], { $type: "freeText", text: "" }, { ref: "n" })
   }
   const style = choices.nodeStyle ? { nodeShape: choices.nodeStyle } : undefined
-  return op.addNodes([{ ref: "n", t: "", xy, style }])
+  // Unpinned: a node dropped by hand stays where it lands until an Arrange, and still takes part in one.
+  return op.addNodes([{ ref: "n", t: "", xy, pin: false, style }])
 }
