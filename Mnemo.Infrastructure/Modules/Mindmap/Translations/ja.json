@@ -35,6 +35,8 @@
     "LabelPlaceholder": "ラベル",
     "ToolSelect": "選択",
     "ToolPan": "手のひら",
+    "ToolLasso": "投げ縄",
+    "ToolSelectBox": "矩形選択",
     "ToolNode": "ノードを追加",
     "ToolText": "テキストを追加",
     "ToolRectangle": "四角形を追加",

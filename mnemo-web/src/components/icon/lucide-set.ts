@@ -63,6 +63,7 @@ import {
   Info,
   Italic,
   Keyboard,
+  Lasso,
   Layers,
   LayoutGrid,
   Library,
@@ -177,6 +178,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   // The mindmap's toolbar. Drawing-tool glyphs, and the project has no art of its own for them.
   "mouse-pointer-2": MousePointer2,
   hand: Hand,
+  lasso: Lasso,
   "square-plus": SquarePlus,
   spline: Spline,
   maximize: Maximize,

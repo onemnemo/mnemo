@@ -35,6 +35,8 @@
     "LabelPlaceholder": "Beschriftung",
     "ToolSelect": "Auswählen",
     "ToolPan": "Verschieben",
+    "ToolLasso": "Lasso",
+    "ToolSelectBox": "Rechteckauswahl",
     "ToolNode": "Knoten hinzufügen",
     "ToolText": "Text hinzufügen",
     "ToolRectangle": "Rechteck hinzufügen",

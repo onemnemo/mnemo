@@ -35,6 +35,8 @@
     "LabelPlaceholder": "Label",
     "ToolSelect": "Select",
     "ToolPan": "Pan",
+    "ToolLasso": "Lasso",
+    "ToolSelectBox": "Box select",
     "ToolNode": "Add node",
     "ToolText": "Add text",
     "ToolRectangle": "Add rectangle",

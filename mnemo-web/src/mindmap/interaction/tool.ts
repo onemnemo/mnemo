@@ -7,6 +7,9 @@
 
 export type MindmapTool = "select" | "pan" | "node" | "shape" | "text" | "connect" | "frame"
 
+/** How the select tool sweeps empty canvas: a rectangle, or a free-hand loop. */
+export type SelectMode = "box" | "lasso"
+
 /**
  * The action that arms each tool.
  *

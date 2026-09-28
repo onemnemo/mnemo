@@ -6,14 +6,14 @@
 import type { MindmapTool } from "../../interaction/tool"
 import type { Placeable } from "./placement"
 
-export type GroupId = "node" | "shape" | "connect"
+export type GroupId = "select" | "node" | "shape" | "connect"
 
 export interface GroupOption {
   readonly id: string
   /** Translation key in the Mindmap namespace. */
   readonly label: string
-  /** The key that picks it while its group is open. */
-  readonly key: string
+  /** The key that picks it while its group is open, if one does. */
+  readonly key?: string
 }
 
 export interface ToolbarGroup extends Placeable {
@@ -26,6 +26,15 @@ const numbered = (options: readonly Omit<GroupOption, "key">[]): GroupOption[] =
   options.map((option, index) => ({ ...option, key: String(index + 1) }))
 
 export const GROUPS: Readonly<Record<GroupId, ToolbarGroup>> = {
+  select: {
+    id: "select",
+    label: "ToolSelect",
+    options: [
+      // No key of its own: V already arms select, and a second meaning for it would surprise.
+      { id: "box", label: "ToolSelectBox" },
+      { id: "lasso", label: "ToolLasso", key: "L" },
+    ],
+  },
   node: {
     id: "node",
     label: "GroupNodeStyle",
@@ -75,7 +84,7 @@ export interface ToolEntry {
 }
 
 export const TOOLBAR: readonly (ToolEntry | "sep")[] = [
-  { id: "select", label: "ToolSelect", icon: "mouse-pointer-2" },
+  { id: "select", label: "ToolSelect", icon: "mouse-pointer-2", group: "select" },
   { id: "pan", label: "ToolPan", icon: "hand" },
   "sep",
   { id: "node", label: "ToolNode", icon: "square-plus", group: "node" },
@@ -99,5 +108,5 @@ export function optionForKey(group: ToolbarGroup, key: string): GroupOption | un
     return undefined
   }
   const pressed = key.toUpperCase()
-  return group.options.find((option) => option.key === pressed)
+  return group.options.find((option) => option.key !== undefined && option.key === pressed)
 }

@@ -35,6 +35,8 @@
     "LabelPlaceholder": "Etikett",
     "ToolSelect": "Velg",
     "ToolPan": "Panorer",
+    "ToolLasso": "Lasso",
+    "ToolSelectBox": "Rektangelvalg",
     "ToolNode": "Legg til node",
     "ToolText": "Legg til tekst",
     "ToolRectangle": "Legg til rektangel",

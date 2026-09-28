@@ -117,16 +117,17 @@ export function MindmapToolbar(props: MindmapToolbarProps) {
       : { x: dock.drag.point.x - GRIP_CENTER, y: dock.drag.point.y - BAR_THICKNESS / 2 }
     : dockOrigin(dock.edge, dock.pane, size, dock.reserve)
 
-  const { shape, nodeStyle, connector, onShape, onNodeStyle, onConnector } = props
+  const { selectMode, shape, nodeStyle, connector, onSelectMode, onShape, onNodeStyle, onConnector } = props
   const bindings = useMemo(() => {
-    const choices = { shape, nodeStyle, connector }
-    const setters = { onShape, onNodeStyle, onConnector }
+    const choices = { selectMode, shape, nodeStyle, connector }
+    const setters = { onSelectMode, onShape, onNodeStyle, onConnector }
     return {
+      select: bindGroup("select", choices, setters),
       node: bindGroup("node", choices, setters),
       shape: bindGroup("shape", choices, setters),
       connect: bindGroup("connect", choices, setters),
     } satisfies Record<GroupId, GroupBinding>
-  }, [shape, nodeStyle, connector, onShape, onNodeStyle, onConnector])
+  }, [selectMode, shape, nodeStyle, connector, onSelectMode, onShape, onNodeStyle, onConnector])
 
   // Focus inside a closing shelf goes back to the tool that opened it rather than falling to the page,
   // where the map would stop hearing its own keys.
@@ -186,7 +187,8 @@ export function MindmapToolbar(props: MindmapToolbarProps) {
       return
     }
     onTool(entry.id)
-    setOpen(group)
+    // Select is the tool everyone returns to, so arming it never opens its tray; pressing it again does.
+    setOpen(group === "select" ? null : group)
   }
 
   // After the bar in the document, so Tab from an opened tool lands in its shelf.

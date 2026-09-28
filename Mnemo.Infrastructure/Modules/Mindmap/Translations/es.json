@@ -35,6 +35,8 @@
     "LabelPlaceholder": "Etiqueta",
     "ToolSelect": "Seleccionar",
     "ToolPan": "Desplazar",
+    "ToolLasso": "Lazo",
+    "ToolSelectBox": "Selección rectangular",
     "ToolNode": "Añadir nodo",
     "ToolText": "Añadir texto",
     "ToolRectangle": "Añadir rectángulo",

@@ -57,6 +57,9 @@ export function ToolButtonWithTray({
 
 /** What a tool shows: its icon, or for Shapes and Connect, the option it will use next. */
 function ToolFace({ entry, binding, armed }: { entry: ToolEntry; binding: GroupBinding | null; armed: boolean }) {
+  if (entry.group === "select" && binding?.faceId === "lasso") {
+    return <AppIcon name="lasso" size={18} strokeWidth={1.7} />
+  }
   if (entry.group === "shape" && binding?.faceId) {
     return <ShapeGlyph shape={binding.faceId as ShapeType} width={22} height={16} filled={armed} />
   }

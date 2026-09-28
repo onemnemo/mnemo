@@ -31,11 +31,13 @@ import {
   type LineDrag,
 } from "./line-drag"
 import type { LineEnd } from "./line-gesture"
+import { elementsInLoop } from "./lasso"
+import { beginLasso, dropLasso, endLasso, moveLasso, SVG_NS, type LassoDrag } from "./lasso-drag"
 import { elementsInRect, rectBetween } from "./marquee"
 import { boxChanged, type ResizeBox, type ResizeDir } from "./resize"
 import { normalizeDeg, resizeRotated } from "./rotate"
 import { beginRotate, cancelRotate, endRotate, moveRotate, type RotateDrag } from "./rotate-drag"
-import type { MindmapTool } from "./tool"
+import type { MindmapTool, SelectMode } from "./tool"
 import {
   addElements,
   EMPTY_SELECTION,
@@ -110,6 +112,8 @@ export interface InteractionHandlers {
   /** A piece of a node's own chrome was pressed rather than the node itself. */
   chrome(id: string, part: NodeChrome): void
   armedShape(): ShapeType
+  /** How a sweep on empty canvas selects with the select tool: a rectangle, or a free-hand loop. */
+  selectMode(): SelectMode
   commitRotate(id: string, degrees: number): void
   commitLine(id: string, line: AbsoluteLine): void
   draw(shape: ShapeType, line: AbsoluteLine): void
@@ -169,6 +173,7 @@ type Gesture =
       readonly groups: boolean
       readonly box: HTMLElement
     }
+  | LassoDrag<MarqueeIntent>
   | {
       readonly kind: "connect"
       readonly pointerId: number
@@ -497,6 +502,9 @@ export function installInteraction(
 
   const beginMarquee = (press: Extract<Gesture, { kind: "press" }>): Gesture => {
     pane.setPointerCapture(press.pointerId)
+    if (handlers.tool() === "select" && handlers.selectMode() === "lasso") {
+      return beginLasso(surface, press.pointerId, press.marqueeIntent, press.startCanvas, press.startClient)
+    }
     return {
       kind: "marquee",
       pointerId: press.pointerId,
@@ -604,6 +612,10 @@ export function installInteraction(
     if (gesture.kind === "marquee") {
       drawMarquee(gesture.box, pane, gesture.startClient, { x: event.clientX, y: event.clientY })
     }
+
+    if (gesture.kind === "lasso") {
+      moveLasso(surface, gesture, event.clientX, event.clientY)
+    }
   }
 
   const onPointerUp = (event: PointerEvent): void => {
@@ -666,6 +678,14 @@ export function installInteraction(
       return
     }
 
+    if (finished.kind === "lasso") {
+      const loop = endLasso(surface, finished, event.clientX, event.clientY)
+      if (loop) {
+        applySweep(finished.intent, elementsInLoop(loop, sweepable(scene), sweepBounds))
+      }
+      return
+    }
+
     finished.box.remove()
     const rect = rectBetween(finished.startCanvas, surface.toCanvas(event.clientX, event.clientY))
     // A band this small is a click that wobbled, and treating it as a sweep would clear the
@@ -685,11 +705,15 @@ export function installInteraction(
       return
     }
 
+    applySweep(finished.intent, hits)
+  }
+
+  const applySweep = (intent: MarqueeIntent, hits: readonly string[]): void => {
     const selection = handlers.selection()
     handlers.setSelection(
-      finished.intent === "add"
+      intent === "add"
         ? addElements(selection, hits)
-        : finished.intent === "subtract"
+        : intent === "subtract"
           ? removeElements(selection, hits)
           : selectElements(hits),
     )
@@ -707,6 +731,9 @@ export function installInteraction(
     const pointerId = gesture.pointerId
     if (gesture.kind === "marquee") {
       gesture.box.remove()
+    }
+    if (gesture.kind === "lasso") {
+      dropLasso(gesture)
     }
     if (gesture.kind === "connect") {
       gesture.line.remove()
@@ -838,7 +865,19 @@ export function installInteraction(
     handlers.commitLine(elementId, next)
   }
 
+  // A wheel zoom or pan moves the map under a pointer that may not move at all, and the loop is
+  // redrawn from the frame after the camera has taken it.
+  let wheelFrame = 0
+  const onWheel = (): void => {
+    if (gesture.kind !== "lasso") return
+    cancelAnimationFrame(wheelFrame)
+    wheelFrame = requestAnimationFrame(() => {
+      if (gesture.kind === "lasso") moveLasso(surface, gesture, gesture.client.x, gesture.client.y)
+    })
+  }
+
   pane.addEventListener("pointerdown", onPointerDown)
+  pane.addEventListener("wheel", onWheel, { passive: true })
   pane.addEventListener("pointermove", onPointerMove)
   pane.addEventListener("pointerup", onPointerUp)
   pane.addEventListener("pointercancel", onPointerCancel)
@@ -848,6 +887,8 @@ export function installInteraction(
   return {
     uninstall: () => {
       pane.removeEventListener("pointerdown", onPointerDown)
+      pane.removeEventListener("wheel", onWheel)
+      cancelAnimationFrame(wheelFrame)
       pane.removeEventListener("pointermove", onPointerMove)
       pane.removeEventListener("pointerup", onPointerUp)
       pane.removeEventListener("pointercancel", onPointerCancel)
@@ -855,6 +896,9 @@ export function installInteraction(
       pane.removeEventListener("keydown", onKeyDown)
       if (gesture.kind === "marquee") {
         gesture.box.remove()
+      }
+      if (gesture.kind === "lasso") {
+        dropLasso(gesture)
       }
       if (gesture.kind === "connect") {
         gesture.line.remove()
@@ -924,8 +968,6 @@ function drawMarquee(box: HTMLElement, pane: HTMLElement, from: Point, to: Point
 /* -------------------------------------------------------------------------- */
 /* The connect preview                                                        */
 /* -------------------------------------------------------------------------- */
-
-const SVG_NS = "http://www.w3.org/2000/svg"
 
 /**
  * Drawn in pane pixels rather than canvas ones.

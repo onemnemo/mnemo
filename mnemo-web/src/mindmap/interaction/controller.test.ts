@@ -8,7 +8,7 @@
  * this module has had actually lived.
  */
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import type { ElementBox } from "../canvas/edge-paths"
 import type { SceneIndex } from "../canvas/scene-index"
@@ -19,7 +19,7 @@ import type { AbsoluteLine } from "../scene/line-geometry"
 import { installInteraction, type MovedElement, type NodeChrome } from "./controller"
 import type { ResizeBox, ResizeDir } from "./resize"
 import { EMPTY_SELECTION, type Selection } from "./selection"
-import type { MindmapTool } from "./tool"
+import type { MindmapTool, SelectMode } from "./tool"
 
 function element(id: string, x: number, y: number): SceneElement {
   return {
@@ -178,6 +178,8 @@ function harness(scene: Scene = SCENE, options: { zoom?: number } = {}) {
   let selection: Selection = EMPTY_SELECTION
   let tool: MindmapTool = "select"
   let armedShape: ShapeType = "rectangle"
+  let selectMode: SelectMode = "box"
+  let panned = 0
 
   const installed = installInteraction(
     {
@@ -187,8 +189,8 @@ function harness(scene: Scene = SCENE, options: { zoom?: number } = {}) {
       subtreeOf: (id) => SUBTREES[id] ?? [],
       // The camera is the runtime's business, and an identity one keeps the arithmetic here about
       // the gesture rather than about a projection.
-      toCanvas: (x, y) => ({ x, y }),
-      toPane: (point) => point,
+      toCanvas: (x, y) => ({ x: x + panned, y }),
+      toPane: (point) => ({ x: point.x - panned, y: point.y }),
       zoom: () => zoomLevel,
       redraw: (moved) => void redraws.push(moved),
       pin: (elements, edges) => void pins.push({ elements, edges }),
@@ -211,6 +213,7 @@ function harness(scene: Scene = SCENE, options: { zoom?: number } = {}) {
       group: (ids) => void grouped.push([...ids]),
       chrome: (id, part) => void chromed.push([id, part]),
       armedShape: () => armedShape,
+      selectMode: () => selectMode,
       commitRotate: (id, degrees) => void rotated.push({ id, degrees }),
       commitLine: (id, line) => void lineCommits.push({ id, line }),
       draw: (shape, line) => void drawn.push({ shape, line }),
@@ -246,6 +249,12 @@ function harness(scene: Scene = SCENE, options: { zoom?: number } = {}) {
     drawn,
     armShape: (shape: ShapeType) => {
       armedShape = shape
+    },
+    lasso: () => {
+      selectMode = "lasso"
+    },
+    panBy: (dx: number) => {
+      panned += dx
     },
     activated,
     activatedEdges,
@@ -447,6 +456,112 @@ describe("installInteraction", () => {
     // a is swallowed whole and a1 is only clipped down its left edge, which is the point: a band
     // catches what it touches. b starts at y 60 and loose at y 400, so the band reaches neither.
     expect([...h.selection().elements].sort()).toEqual(["a", "a1"])
+    h.uninstall()
+  })
+
+  it("sweeps a free-hand loop in lasso mode, catching only what the loop itself touches", () => {
+    const h = harness()
+    h.lasso()
+    // A triangle whose bounding box covers b as well as a. A rectangle of that size would take both.
+    h.press(null, { x: 150, y: -120 })
+    for (let x = 160; x <= 360; x += 20) h.move({ x, y: -120 })
+    for (let y = -100; y <= 120; y += 20) h.move({ x: 360, y })
+    h.release({ x: 360, y: 120 })
+
+    expect([...h.selection().elements]).toEqual(["a"])
+    expect(h.pane.querySelectorAll("svg")).toHaveLength(0)
+    h.uninstall()
+  })
+
+  it("drops the loop without selecting when the lasso is cancelled", () => {
+    const h = harness()
+    h.lasso()
+    h.press(null, { x: 150, y: -120 })
+    h.move({ x: 360, y: -120 })
+    h.move({ x: 360, y: 120 })
+    expect(h.pane.querySelectorAll("svg")).toHaveLength(1)
+
+    h.cancelGesture()
+
+    expect(h.pane.querySelectorAll("svg")).toHaveLength(0)
+    expect(h.selection().elements.size).toBe(0)
+    h.uninstall()
+  })
+
+  it("adds what a Shift-drawn loop catches to the selection", () => {
+    const h = harness()
+    h.lasso()
+    h.press("loose", { x: 210, y: 410 }, { shiftKey: true })
+    h.press(null, { x: 150, y: -120 }, { shiftKey: true })
+    for (let x = 160; x <= 360; x += 20) h.move({ x, y: -120 })
+    for (let y = -100; y <= 120; y += 20) h.move({ x: 360, y })
+    h.release({ x: 360, y: 120 }, { shiftKey: true })
+
+    expect([...h.selection().elements].sort()).toEqual(["a", "loose"])
+    h.uninstall()
+  })
+
+  it("measures the loop on screen, so a small one zoomed far out is a click", () => {
+    const draw = (zoom: number) => {
+      const h = harness(SCENE, { zoom })
+      h.lasso()
+      // Down onto a's top edge, clear of its connectors, whose hit band widens as the map zooms out.
+      // A 12 unit square: every step is recorded at a quarter, yet the loop spans only 3 pixels.
+      h.press(null, { x: 245, y: -72 })
+      h.move({ x: 257, y: -72 })
+      h.move({ x: 257, y: -60 })
+      h.release({ x: 245, y: -60 })
+      const caught = [...h.selection().elements]
+      h.uninstall()
+      return caught
+    }
+
+    expect(draw(1)).toEqual(["a"])
+    expect(draw(0.25)).toEqual([])
+  })
+
+  it("redraws the loop when a wheel moves the map under a still pointer", () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] })
+    const h = harness()
+    h.lasso()
+    h.press(null, { x: 150, y: -120 })
+    h.move({ x: 360, y: -120 })
+    const path = () => h.pane.querySelector("svg path")!.getAttribute("d")!
+    expect(path().startsWith("M150 -120")).toBe(true)
+
+    h.panBy(100)
+    h.pane.dispatchEvent(new WheelEvent("wheel", { deltaY: 10 }))
+    vi.advanceTimersToNextFrame()
+
+    expect(path().startsWith("M50 -120")).toBe(true)
+    h.uninstall()
+    vi.useRealTimers()
+  })
+
+  it("takes the loop down when the pointer is cancelled or the canvas goes away mid-loop", () => {
+    const h = harness()
+    h.lasso()
+    h.press(null, { x: 150, y: -120 })
+    h.move({ x: 360, y: -120 })
+    h.cancel({ x: 360, y: -120 })
+    expect(h.pane.querySelectorAll("svg")).toHaveLength(0)
+    expect(h.selection().elements.size).toBe(0)
+
+    h.press(null, { x: 150, y: -120 })
+    h.move({ x: 360, y: -120 })
+    h.uninstall()
+    expect(h.pane.querySelectorAll("svg")).toHaveLength(0)
+  })
+
+  it("keeps the rectangle for the frame tool, whatever the select tool is set to", () => {
+    const h = harness()
+    h.lasso()
+    h.arm("frame")
+    h.press(null, { x: 150, y: -100 })
+    h.move({ x: 450, y: 20 })
+    h.release({ x: 450, y: 20 })
+
+    expect(h.grouped).toEqual([["a", "a1"]])
     h.uninstall()
   })
 

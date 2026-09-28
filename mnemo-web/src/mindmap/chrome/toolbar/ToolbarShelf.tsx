@@ -81,7 +81,7 @@ export function ToolbarShelf({ group, binding, open, at, travel }: ToolbarShelfP
 
       <span aria-hidden className="flex w-[104px] shrink-0 items-center justify-between gap-1.5 pr-1">
         <span className="truncate text-[12.5px] text-ink">{t("Mindmap", named?.label ?? group.label)}</span>
-        {named ? (
+        {named?.key ? (
           <kbd className="grid h-5 min-w-5 shrink-0 place-items-center rounded-[5px] px-1 font-sans text-[11px] font-medium text-ink-2 shadow-[0_0_0_1px_var(--line)]">
             {named.key}
           </kbd>

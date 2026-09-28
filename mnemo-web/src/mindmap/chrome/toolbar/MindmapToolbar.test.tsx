@@ -35,6 +35,8 @@ function mount(over: Partial<MindmapToolbarProps> = {}): MindmapToolbarProps {
   const all: MindmapToolbarProps = {
     tool: "select",
     onTool: vi.fn(),
+    selectMode: "box",
+    onSelectMode: vi.fn(),
     shape: "rectangle",
     onShape: vi.fn(),
     nodeStyle: null,
@@ -249,12 +251,57 @@ describe("the toolbar", () => {
   it("marks the tools that own a group, and whether it is open", () => {
     mount()
 
-    for (const label of ["ToolSelect", "ToolPan", "ToolText", "ToolFrame", "ToolImage"]) {
+    for (const label of ["ToolPan", "ToolText", "ToolFrame", "ToolImage"]) {
       expect(button(label).getAttribute("aria-haspopup"), label).toBeNull()
     }
     expect(button("ToolShape").getAttribute("aria-expanded")).toBe("false")
     press("ToolShape")
     expect(button("ToolShape").getAttribute("aria-expanded")).toBe("true")
+    expect(button("ToolSelect").getAttribute("aria-haspopup")).toBe("true")
+  })
+
+  it("arms select from another tool without opening its group", () => {
+    const all = mount({ tool: "node" })
+
+    press("ToolSelect")
+
+    expect(all.onTool).toHaveBeenCalledWith("select")
+    expect(button("ToolSelect").getAttribute("aria-expanded")).toBe("false")
+  })
+
+  it("opens the select group inside the bar, pushing the tools after it along", () => {
+    const all = mount()
+    const bar = stage.querySelector<HTMLElement>('[role="toolbar"]')!
+    const resting = parseFloat(bar.style.width)
+
+    press("ToolSelect")
+
+    const tray = bar.querySelector('[role="group"][aria-label="ToolSelect"]')!
+    expect(tray.hasAttribute("inert")).toBe(false)
+    expect(tray.querySelectorAll("button")).toHaveLength(2)
+    expect(button("ToolSelectBox", tray)).toBeTruthy()
+    expect(parseFloat(bar.style.width)).toBeGreaterThan(resting)
+    expect(all.onTool).not.toHaveBeenCalled()
+  })
+
+  it("switches the select tool to the lasso by its letter", () => {
+    const all = mount()
+    press("ToolSelect")
+
+    key({ key: "v" })
+    expect(all.onSelectMode).not.toHaveBeenCalled()
+    key({ key: "l" })
+
+    expect(all.onSelectMode).toHaveBeenCalledWith("lasso")
+  })
+
+  it("wears the lasso while the select tool is set to it", () => {
+    mount({ selectMode: "lasso" })
+
+    const tray = stage.querySelector('[role="group"][aria-label="ToolSelect"]')!
+    expect(button("ToolLasso", tray).getAttribute("aria-pressed")).toBe("true")
+    const tool = stage.querySelector('[role="toolbar"] [data-tb-tool][aria-label="ToolSelect"]')!
+    expect(tool.querySelector(".lucide-lasso")).not.toBeNull()
   })
 
   it("wears the shape it will plant", () => {

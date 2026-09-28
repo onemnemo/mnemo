@@ -66,7 +66,7 @@ import { clearsAnything, restyled } from "../edit/restyle"
 import type { MovedElement, NodeChrome } from "../interaction/controller"
 import type { ResizeBox } from "../interaction/resize"
 import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
-import { isOneShot, TOOL_OF_ACTION, type MindmapTool } from "../interaction/tool"
+import { isOneShot, TOOL_OF_ACTION, type MindmapTool, type SelectMode } from "../interaction/tool"
 import { MapStyleMenu } from "../chrome/MapStyleMenu"
 import { edgeDefaultsFor, materialOf } from "../chrome/material"
 import { exportMap, type MapExportFormat } from "../export/save"
@@ -152,6 +152,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const [tool, setTool] = useState<MindmapTool>("select")
   const [zoom, setZoom] = useState(1)
   const [shape, setShape] = useState<ShapeType>("rectangle")
+  const [selectMode, setSelectMode] = useState<SelectMode>("box")
   /** Where the ring is and which key is holding it open, while it is open. Null when it is not. */
   const [radial, setRadial] = useState<{ at: Point; key: string } | null>(null)
   // Tracked continuously rather than sampled when the key goes down, because a key event carries no
@@ -1654,6 +1655,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           onCommitMove={commitMove}
           onCommitResize={commitResize}
           armedShape={shape}
+          selectMode={selectMode}
           onCommitRotate={commitRotate}
           onCommitLine={commitLine}
           onDraw={(drawn, line) => void draw(drawn, line)}
@@ -1701,6 +1703,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         <MindmapToolbar
           tool={tool}
           onTool={setTool}
+          selectMode={selectMode}
+          onSelectMode={setSelectMode}
           shape={shape}
           onShape={setShape}
           nodeStyle={presets.nodeStyle}

@@ -21,7 +21,7 @@ import type { ResizeBox } from "../interaction/resize"
 import type { ShapeType } from "../model/document"
 import type { AbsoluteLine } from "../scene/line-geometry"
 import { EMPTY_SELECTION, isEmpty, type Selection } from "../interaction/selection"
-import { cursorFor, type MindmapTool } from "../interaction/tool"
+import { cursorFor, type MindmapTool, type SelectMode } from "../interaction/tool"
 import type { Point, Scene, Viewport } from "../model/scene"
 
 const NO_SUBTREE: readonly string[] = []
@@ -64,6 +64,8 @@ export interface MindmapCanvasProps {
   /** A node's own chrome was pressed: a task's box, or a reference's mark. */
   onChrome?: (id: string, part: NodeChrome) => void
   armedShape?: ShapeType
+  /** How a sweep with the select tool selects. */
+  selectMode?: SelectMode
   onCommitRotate?: (id: string, degrees: number) => void
   onCommitLine?: (id: string, line: AbsoluteLine) => void
   onDraw?: (shape: ShapeType, line: AbsoluteLine) => void
@@ -110,6 +112,7 @@ export function MindmapCanvas({
   onConnect,
   onChrome,
   armedShape = "rectangle",
+  selectMode = "box",
   onCommitRotate,
   onCommitLine,
   onDraw,
@@ -149,6 +152,7 @@ export function MindmapCanvas({
     onConnect,
     onChrome,
     armedShape,
+    selectMode,
     onCommitRotate,
     onCommitLine,
     onDraw,
@@ -170,6 +174,7 @@ export function MindmapCanvas({
     onConnect,
     onChrome,
     armedShape,
+    selectMode,
     onCommitRotate,
     onCommitLine,
     onDraw,
@@ -259,6 +264,7 @@ export function MindmapCanvas({
         connect: (fromId, toId) => live.current.onConnect?.(fromId, toId),
         chrome: (id, part) => live.current.onChrome?.(id, part),
         armedShape: () => live.current.armedShape,
+        selectMode: () => live.current.selectMode,
         commitRotate: (id, degrees) => live.current.onCommitRotate?.(id, degrees),
         commitLine: (id, line) => live.current.onCommitLine?.(id, line),
         draw: (shape, line) => live.current.onDraw?.(shape, line),
