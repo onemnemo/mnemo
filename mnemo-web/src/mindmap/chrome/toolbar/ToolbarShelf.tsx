@@ -7,6 +7,7 @@ import type { Point } from "../../model/scene"
 import type { GroupBinding } from "./binding"
 import type { ToolbarGroup } from "./groups"
 import { OptionGlyph } from "./OptionGlyph"
+import { useOptionChord } from "./useOptionChord"
 
 export interface ToolbarShelfProps {
   readonly group: ToolbarGroup
@@ -26,6 +27,8 @@ export function ToolbarShelf({ group, binding, open, at, travel }: ToolbarShelfP
   const t = useT()
   const [pointed, setPointed] = useState<string | null>(null)
   const named = group.options.find((option) => option.id === (pointed ?? binding.captionId))
+  const chordOf = useOptionChord()
+  const namedChord = named ? chordOf(named) : undefined
 
   return (
     <div
@@ -59,7 +62,7 @@ export function ToolbarShelf({ group, binding, open, at, travel }: ToolbarShelfP
             tabIndex={open ? 0 : -1}
             aria-label={t("Mindmap", option.label)}
             aria-pressed={picked}
-            aria-keyshortcuts={option.key}
+            aria-keyshortcuts={chordOf(option)}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => binding.pick(option.id)}
             onPointerEnter={() => setPointed(option.id)}
@@ -81,9 +84,9 @@ export function ToolbarShelf({ group, binding, open, at, travel }: ToolbarShelfP
 
       <span aria-hidden className="flex w-[104px] shrink-0 items-center justify-between gap-1.5 pr-1">
         <span className="truncate text-[12.5px] text-ink">{t("Mindmap", named?.label ?? group.label)}</span>
-        {named?.key ? (
+        {namedChord ? (
           <kbd className="grid h-5 min-w-5 shrink-0 place-items-center rounded-[5px] px-1 font-sans text-[11px] font-medium text-ink-2 shadow-[0_0_0_1px_var(--line)]">
-            {named.key}
+            {namedChord}
           </kbd>
         ) : null}
       </span>

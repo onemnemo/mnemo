@@ -7,6 +7,7 @@ import type { GroupBinding } from "./binding"
 import type { ToolbarGroup } from "./groups"
 import { OptionGlyph } from "./OptionGlyph"
 import { inlineLength, inlineSlot } from "./placement"
+import { useOptionChord } from "./useOptionChord"
 
 export interface ToolbarInlineTrayProps {
   readonly group: ToolbarGroup
@@ -22,6 +23,7 @@ export interface ToolbarInlineTrayProps {
  */
 export function ToolbarInlineTray({ group, binding, open, vertical, tip }: ToolbarInlineTrayProps) {
   const t = useT()
+  const chordOf = useOptionChord()
   const count = group.options.length
   const length = open ? inlineSlot(count) : 0
   const strip = inlineLength(count)
@@ -50,14 +52,15 @@ export function ToolbarInlineTray({ group, binding, open, vertical, tip }: Toolb
         {group.options.map((option) => {
           const picked = binding.isPicked(option.id)
           const label = t("Mindmap", option.label)
+          const chord = chordOf(option)
           return (
-            <Tooltip key={option.id} label={tip ? label : ""} chord={option.key} side={tip ?? undefined}>
+            <Tooltip key={option.id} label={tip ? label : ""} chord={chord} side={tip ?? undefined}>
               <button
                 type="button"
                 tabIndex={open ? 0 : -1}
                 aria-label={label}
                 aria-pressed={picked}
-                aria-keyshortcuts={option.key}
+                aria-keyshortcuts={chord}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => binding.pick(option.id)}
                 className={cn(

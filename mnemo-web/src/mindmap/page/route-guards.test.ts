@@ -11,7 +11,7 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { isChromeControl, isTyping } from "./route-guards"
+import { isChromeControl, isTyping, keyBelongsToMap } from "./route-guards"
 
 describe("isTyping", () => {
   it("is true for the field elements a key could be typed into", () => {
@@ -58,5 +58,33 @@ describe("isChromeControl", () => {
     expect(isChromeControl(link)).toBe(false)
     expect(isChromeControl(document.createElement("div"))).toBe(false)
     expect(isChromeControl(null)).toBe(false)
+  })
+})
+
+describe("keyBelongsToMap", () => {
+  const toolbarButton = () => {
+    const bar = document.createElement("div")
+    bar.dataset.mmToolbar = ""
+    const button = document.createElement("button")
+    bar.append(button)
+    return button
+  }
+
+  it("gives the map every key pressed on the canvas", () => {
+    expect(keyBelongsToMap(document.createElement("div"), "mindmap.add-child")).toBe(true)
+  })
+
+  it("lets tool keys and F6 through a focused toolbar button, and nothing a button answers itself", () => {
+    const button = toolbarButton()
+    for (const action of ["mindmap.shape-picker", "mindmap.tool-lasso", "mindmap.new-image", "mindmap.focus-toolbar"]) {
+      expect(keyBelongsToMap(button, action), action).toBe(true)
+    }
+    expect(keyBelongsToMap(button, "mindmap.add-child")).toBe(false)
+    expect(keyBelongsToMap(button, "mindmap.clear-selection")).toBe(false)
+  })
+
+  it("keeps tool keys away from buttons that are not on the toolbar, but not F6", () => {
+    expect(keyBelongsToMap(document.createElement("button"), "mindmap.tool-pan")).toBe(false)
+    expect(keyBelongsToMap(document.createElement("button"), "mindmap.focus-toolbar")).toBe(true)
   })
 })

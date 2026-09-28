@@ -99,6 +99,7 @@ internal static class MindmapKeybindManifest
         Chords("mindmap.outdent", "Shift+Tab"),
         Chords("mindmap.edit-edge-label", "F2"),
         Chords("mindmap.tool-select", "V"),
+        Chords("mindmap.tool-lasso", "L"),
         Chords("mindmap.tool-pan", "H"),
         Chords("mindmap.connect", "C"),
         Chords("mindmap.new-node", "N"),
@@ -111,6 +112,7 @@ internal static class MindmapKeybindManifest
         // A bare letter because the ring is held open rather than toggled, and a chord is not
         // something a hand can hold down while the other one flicks the pointer at a sector.
         Chords("mindmap.radial", "Q"),
+        Chords("mindmap.focus-toolbar", "F6"),
     ];
 
     private static KeybindActionDefinition Chords(string actionId, params string[] gestures) =>

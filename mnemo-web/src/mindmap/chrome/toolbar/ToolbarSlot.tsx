@@ -7,7 +7,11 @@ import { cn } from "@/lib/utils"
 import { MenuMark } from "../bits"
 
 export interface ToolbarSlotProps {
+  /** Which tool this is, for finding its button again. */
+  readonly id: string
   readonly label: string
+  /** What the tooltip says, when it names more than the tool: the mode Select is in, for one. */
+  readonly hint?: string
   readonly chord?: string | null
   /** Which side of the bar a tooltip opens on, or none at all while the bar is being carried. */
   readonly tip: TooltipSide | null
@@ -21,13 +25,14 @@ export interface ToolbarSlotProps {
 }
 
 /** One tool on the toolbar, a 36 square the sliding chip can sit under. */
-export function ToolbarSlot({ label, chord, tip, armed, menu, vertical, onPress, children }: ToolbarSlotProps) {
+export function ToolbarSlot({ id, label, hint, chord, tip, armed, menu, vertical, onPress, children }: ToolbarSlotProps) {
   return (
-    <Tooltip label={tip ? label : ""} chord={chord} side={tip ?? undefined}>
+    <Tooltip label={tip ? (hint ?? label) : ""} chord={chord} side={tip ?? undefined}>
       <button
         type="button"
-        data-tb-tool=""
+        data-tb-tool={id}
         aria-label={label}
+        aria-keyshortcuts={chord ?? undefined}
         aria-pressed={armed}
         aria-haspopup={menu ? "true" : undefined}
         aria-expanded={menu ? menu.open : undefined}

@@ -5,7 +5,7 @@ import { useT } from "@/i18n/useT"
 import { useShortcutChord } from "@/keybinds/store"
 import { cn } from "@/lib/utils"
 
-import { TOOL_ACTIONS } from "../../interaction/tool"
+import { SELECT_MODE_ACTIONS, TOOL_ACTIONS, type SelectMode } from "../../interaction/tool"
 import type { EdgeRouting, ShapeType } from "../../model/document"
 import { RouteGlyph, ShapeGlyph } from "../glyphs"
 import type { GroupBinding } from "./binding"
@@ -32,13 +32,20 @@ export function ToolButtonWithTray({
   onPress: () => void
 }) {
   const t = useT()
-  const chord = useShortcutChord(entry.id === "image" ? "mindmap.new-image" : TOOL_ACTIONS[entry.id])
   const group = entry.group ? GROUPS[entry.group] : null
+  // Select's tooltip names the mode it sweeps in, and the key that arms that mode.
+  const mode = entry.group === "select" ? (binding?.faceId as SelectMode | undefined) : undefined
+  const modeOption = mode ? group?.options.find((option) => option.id === mode) : undefined
+  const chord = useShortcutChord(
+    entry.id === "image" ? "mindmap.new-image" : mode ? SELECT_MODE_ACTIONS[mode] : TOOL_ACTIONS[entry.id],
+  )
 
   return (
     <>
       <ToolbarSlot
+        id={entry.id}
         label={t("Mindmap", entry.label)}
+        hint={modeOption ? t("Mindmap", modeOption.label) : undefined}
         chord={chord}
         tip={tip}
         armed={armed}

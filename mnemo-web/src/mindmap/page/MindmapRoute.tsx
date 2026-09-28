@@ -29,7 +29,7 @@ import { MindmapMinimap, type MinimapSink } from "../chrome/Minimap"
 import { MindmapZoomBar } from "../chrome/MindmapZoomBar"
 import { connectorStyle } from "../chrome/toolbar/connector"
 import { DockedEdgeContext } from "../chrome/toolbar/docked-edge"
-import { MindmapToolbar } from "../chrome/toolbar/MindmapToolbar"
+import { MindmapToolbar, type ToolbarCommands } from "../chrome/toolbar/MindmapToolbar"
 import type { DockEdge } from "../chrome/toolbar/placement"
 import { useToolPresets } from "../chrome/toolbar/useToolPresets"
 import type { ColorControl } from "../chrome/color-control"
@@ -66,7 +66,7 @@ import { clearsAnything, restyled } from "../edit/restyle"
 import type { MovedElement, NodeChrome } from "../interaction/controller"
 import type { ResizeBox } from "../interaction/resize"
 import { EMPTY_SELECTION, retain, selectElements, selectOnly, type Selection } from "../interaction/selection"
-import { isOneShot, TOOL_OF_ACTION, type MindmapTool, type SelectMode } from "../interaction/tool"
+import { isOneShot, SELECT_MODE_OF_ACTION, TOOL_OF_ACTION, type MindmapTool, type SelectMode } from "../interaction/tool"
 import { MapStyleMenu } from "../chrome/MapStyleMenu"
 import { edgeDefaultsFor, materialOf } from "../chrome/material"
 import { exportMap, type MapExportFormat } from "../export/save"
@@ -85,7 +85,7 @@ import {
 import { op, type FrameOp, type MindmapOp, type NodeSpec } from "../model/ops"
 import { absoluteUrl, followRef, isFollowable } from "./follow"
 import { PLANT_LABEL, plantOp } from "./plant"
-import { isChromeControl, isTyping } from "./route-guards"
+import { focusCanvas, isOnToolbar, isTyping, keyBelongsToMap } from "./route-guards"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import type { AbsoluteLine } from "../scene/line-geometry"
 import { accentOf, branchSwatchOf } from "../scene/branch"
@@ -153,6 +153,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const [zoom, setZoom] = useState(1)
   const [shape, setShape] = useState<ShapeType>("rectangle")
   const [selectMode, setSelectMode] = useState<SelectMode>("box")
+  const toolbar = useRef<ToolbarCommands>(null)
   /** Where the ring is and which key is holding it open, while it is open. Null when it is not. */
   const [radial, setRadial] = useState<{ at: Point; key: string } | null>(null)
   // Tracked continuously rather than sampled when the key goes down, because a key event carries no
@@ -1356,6 +1357,24 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     onReveal: (id) => setSelection(selectElements([id])),
   })
 
+  // Focus that has fallen to the page reaches no handler on the route, and F6 is the way back from
+  // there, so it is also heard on the window.
+  const liveKeys = useRef({ actionFor, radial })
+  liveKeys.current = { actionFor, radial }
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.target !== document.body || liveKeys.current.radial) {
+        return
+      }
+      if (liveKeys.current.actionFor(event)?.actionId === "mindmap.focus-toolbar") {
+        event.preventDefault()
+        toolbar.current?.focus()
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [])
+
   /**
    * The keyboard, as the catalog defines it.
    *
@@ -1365,7 +1384,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
    */
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (isTyping(event.target) || isChromeControl(event.target)) {
+      if (isTyping(event.target)) {
         return
       }
 
@@ -1376,14 +1395,27 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       }
 
       const hit = actionFor(event.nativeEvent)
-      if (!hit) {
+      if (!hit || !keyBelongsToMap(event.target, hit.actionId)) {
+        return
+      }
+
+      // Checked before the tools, since V is both the select tool and its box.
+      const mode = SELECT_MODE_OF_ACTION[hit.actionId]
+      if (mode) {
+        event.preventDefault()
+        setTool("select")
+        setSelectMode(mode)
         return
       }
 
       const tooled = TOOL_OF_ACTION[hit.actionId]
       if (tooled) {
         event.preventDefault()
-        setTool(tooled)
+        // A held key repeats, and a press that toggles a group would flicker it open and shut.
+        if (event.repeat) {
+          return
+        }
+        toolbar.current?.press(tooled)
         return
       }
 
@@ -1428,7 +1460,19 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
 
         case "mindmap.new-image":
           event.preventDefault()
-          insertImage()
+          if (event.repeat) {
+            return
+          }
+          toolbar.current?.press("image")
+          return
+
+        case "mindmap.focus-toolbar":
+          event.preventDefault()
+          if (isOnToolbar(event.target)) {
+            focusCanvas(stage.current)
+          } else {
+            toolbar.current?.focus()
+          }
           return
 
         case "mindmap.undo":
@@ -1512,7 +1556,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       duplicateSelection,
       editor,
       find,
-      insertImage,
       outdent,
       pasteCopy,
       radial,
@@ -1718,6 +1761,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           onEdge={presets.setEdge}
           onDocked={setDocked}
           keysSuspended={radial !== null}
+          commands={toolbar}
         />
 
         <div ref={corner} className="pointer-events-none absolute right-4 bottom-4 z-40 flex flex-col items-end gap-2">

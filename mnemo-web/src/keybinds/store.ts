@@ -21,7 +21,7 @@ export const useKeybindStore = create<KeybindState>((set) => ({
 }))
 
 /** First chord binding of an action, or undefined if it has none. */
-function firstChord(keybind: Keybind | undefined): string | undefined {
+export function firstChord(keybind: Keybind | undefined): string | undefined {
   const binding = keybind?.bindings.find((b) => b.kind === "Chord" && b.chord)
   return binding?.chord ?? undefined
 }

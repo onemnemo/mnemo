@@ -31,6 +31,16 @@ export const TOOL_OF_ACTION: Readonly<Record<string, MindmapTool>> = Object.from
   Object.entries(TOOL_ACTIONS).map(([tool, action]) => [action, tool as MindmapTool]),
 )
 
+/** The action that arms select in each of its modes. The select action is the box's. */
+export const SELECT_MODE_ACTIONS: Readonly<Record<SelectMode, string>> = {
+  box: "mindmap.tool-select",
+  lasso: "mindmap.tool-lasso",
+}
+
+export const SELECT_MODE_OF_ACTION: Readonly<Record<string, SelectMode>> = Object.fromEntries(
+  Object.entries(SELECT_MODE_ACTIONS).map(([mode, action]) => [action, mode as SelectMode]),
+)
+
 /**
  * Every tool but select is taken back by Escape.
  *

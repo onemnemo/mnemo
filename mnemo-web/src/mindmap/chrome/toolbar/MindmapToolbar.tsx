@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
 
 import type { TooltipSide } from "@/components/ui/tooltip/placement"
 import { useT } from "@/i18n/useT"
@@ -7,6 +7,7 @@ import { createRovingFocus } from "@/notes/editor/floating/roving-focus"
 
 import type { MindmapTool } from "../../interaction/tool"
 import type { Point } from "../../model/scene"
+import { focusCanvas } from "../../page/route-guards"
 import { bindGroup, type GroupBinding, type ToolChoices, type ToolChoiceSetters } from "./binding"
 import { GROUPS, groupOfTool, TOOLBAR, type GroupId, type ToolEntry } from "./groups"
 import {
@@ -32,6 +33,14 @@ import { ToolbarShelf } from "./ToolbarShelf"
 import { useGroupKeys } from "./useGroupKeys"
 import { useToolbarDock } from "./useToolbarDock"
 
+/** What the map's keyboard asks of the bar. */
+export interface ToolbarCommands {
+  /** Exactly what a click on the tool does, so a tool's key opens its group the way a click does. */
+  press(id: ToolEntry["id"]): void
+  /** Moves the focus onto the bar, for F6. */
+  focus(): void
+}
+
 export interface MindmapToolbarProps extends ToolChoices, ToolChoiceSetters {
   readonly tool: MindmapTool
   readonly onTool: (tool: MindmapTool) => void
@@ -48,6 +57,7 @@ export interface MindmapToolbarProps extends ToolChoices, ToolChoiceSetters {
   readonly onDocked?: (edge: DockEdge) => void
   /** While something else owns the keyboard, the radial ring for one, an open group's keys stand down. */
   readonly keysSuspended?: boolean
+  readonly commands?: RefObject<ToolbarCommands | null>
 }
 
 const TIP_SIDE: Record<DockEdge, TooltipSide> = { bottom: "top", top: "bottom", left: "right", right: "left" }
@@ -88,7 +98,7 @@ const SHELF_MARGIN = 8
  * it inside the bar when the group is small, on a shelf beside it when it is not.
  */
 export function MindmapToolbar(props: MindmapToolbarProps) {
-  const { tool, onTool, onInsertImage, stage, corner, edge: stored, onEdge, onDocked, keysSuspended } = props
+  const { tool, onTool, onInsertImage, stage, corner, edge: stored, onEdge, onDocked, keysSuspended, commands } = props
   const t = useT()
   const root = useRef<HTMLDivElement>(null)
   const tools = useRef<HTMLDivElement>(null)
@@ -129,16 +139,26 @@ export function MindmapToolbar(props: MindmapToolbarProps) {
     } satisfies Record<GroupId, GroupBinding>
   }, [selectMode, shape, nodeStyle, connector, onSelectMode, onShape, onNodeStyle, onConnector])
 
-  // Focus inside a closing shelf goes back to the tool that opened it rather than falling to the page,
-  // where the map would stop hearing its own keys.
-  const closeGroup = () => {
-    const owner = tools.current?.querySelector<HTMLButtonElement>('[aria-expanded="true"]')
-    const active = document.activeElement
-    if (owner && active && root.current?.contains(active) && !tools.current?.contains(active)) {
-      owner.focus()
+  const closeGroup = () => setOpen(null)
+
+  // Focus stranded in a group that closed, which is inert by then, goes to the armed tool rather than
+  // falling to the page, where the map hears none of its keys. The last focus seen covers a browser
+  // that has already dropped it.
+  const lastFocus = useRef<Element | null>(null)
+  const shown = useRef(open)
+  useLayoutEffect(() => {
+    const closed = shown.current
+    shown.current = open
+    if (!closed || closed === open) {
+      return
     }
-    setOpen(null)
-  }
+    const active = document.activeElement
+    const stranded = (element: Element | null | undefined) =>
+      !!element && !!root.current?.contains(element) && element.closest("[inert]") !== null
+    if (stranded(active) || (active === document.body && stranded(lastFocus.current))) {
+      tools.current?.querySelector<HTMLButtonElement>('[data-tb-tool][aria-pressed="true"]')?.focus()
+    }
+  }, [open])
 
   useGroupKeys(openGroup, open ? bindings[open] : null, closeGroup, stage, keysSuspended === true)
 
@@ -191,6 +211,16 @@ export function MindmapToolbar(props: MindmapToolbarProps) {
     setOpen(group === "select" ? null : group)
   }
 
+  useImperativeHandle(commands, () => ({
+    press: (id) => {
+      const entry = TOOLBAR.find((item) => item !== "sep" && item.id === id)
+      if (entry && entry !== "sep") {
+        press(entry)
+      }
+    },
+    focus: () => void roving.focus(),
+  }))
+
   // After the bar in the document, so Tab from an opened tool lands in its shelf.
   const shelves = (Object.keys(GROUPS) as GroupId[])
     .filter((id) => placementOf(GROUPS[id]) === "shelf")
@@ -216,7 +246,21 @@ export function MindmapToolbar(props: MindmapToolbarProps) {
 
   return (
     // Clipped to the pane, so a bar carried past its edge never gives the page a scrollbar to flash.
-    <div ref={root} className="pointer-events-none absolute inset-0 z-40 overflow-hidden">
+    <div
+      ref={root}
+      data-mm-toolbar=""
+      className="pointer-events-none absolute inset-0 z-40 overflow-hidden"
+      onFocus={(event) => {
+        lastFocus.current = event.target
+      }}
+      // An open group has already taken its Escape, so one reaching here leaves the bar for the map.
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          event.preventDefault()
+          focusCanvas(stage.current)
+        }
+      }}
+    >
       {dock.drag ? (
         <ToolbarDropZones
           target={dock.drag.target}

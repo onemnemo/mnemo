@@ -3,7 +3,7 @@
  * described once here and placed by the rule in `placement.ts`, so a new one is a new entry.
  */
 
-import type { MindmapTool } from "../../interaction/tool"
+import { SELECT_MODE_ACTIONS, type MindmapTool } from "../../interaction/tool"
 import type { Placeable } from "./placement"
 
 export type GroupId = "select" | "node" | "shape" | "connect"
@@ -12,14 +12,21 @@ export interface GroupOption {
   readonly id: string
   /** Translation key in the Mindmap namespace. */
   readonly label: string
-  /** The key that picks it while its group is open, if one does. */
+  /** The key that picks it while its group is open. */
   readonly key?: string
+  /** Or the catalog action that picks it from anywhere, whose chord the option shows instead. */
+  readonly action?: string
 }
 
 export interface ToolbarGroup extends Placeable {
   readonly id: GroupId
   readonly label: string
   readonly options: readonly GroupOption[]
+  /**
+   * Put away once a key has picked. Shape letters include H and L, so a shelf left open would take
+   * the next H as a hexagon rather than the hand.
+   */
+  readonly closesOnKey?: boolean
 }
 
 const numbered = (options: readonly Omit<GroupOption, "key">[]): GroupOption[] =>
@@ -30,9 +37,8 @@ export const GROUPS: Readonly<Record<GroupId, ToolbarGroup>> = {
     id: "select",
     label: "ToolSelect",
     options: [
-      // No key of its own: V already arms select, and a second meaning for it would surprise.
-      { id: "box", label: "ToolSelectBox" },
-      { id: "lasso", label: "ToolLasso", key: "L" },
+      { id: "box", label: "ToolSelectBox", action: SELECT_MODE_ACTIONS.box },
+      { id: "lasso", label: "ToolLasso", action: SELECT_MODE_ACTIONS.lasso },
     ],
   },
   node: {
@@ -50,6 +56,7 @@ export const GROUPS: Readonly<Record<GroupId, ToolbarGroup>> = {
   shape: {
     id: "shape",
     label: "ToolShape",
+    closesOnKey: true,
     options: [
       { id: "rectangle", label: "ShapeRectangle", key: "R" },
       { id: "ellipse", label: "ShapeEllipse", key: "O" },

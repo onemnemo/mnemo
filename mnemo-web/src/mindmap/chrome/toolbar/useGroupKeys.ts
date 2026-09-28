@@ -5,7 +5,8 @@ import type { GroupBinding } from "./binding"
 import { optionForKey, type ToolbarGroup } from "./groups"
 
 /**
- * The keyboard while a group is open: its option keys pick, Escape closes it.
+ * The keyboard while a group is open: its option keys pick, Escape closes it, and a group that
+ * says so closes behind a pick.
  *
  * Heard on the window's capture phase and stopped there, so a key the group answers never also
  * reaches the map. Without that, H on the shape shelf would pick a hexagon and arm the hand. Only
@@ -50,6 +51,9 @@ export function useGroupKeys(
       event.preventDefault()
       event.stopPropagation()
       live.current.binding?.pick(option.id)
+      if (group.closesOnKey) {
+        live.current.onClose()
+      }
     }
 
     window.addEventListener("keydown", onKeyDown, true)

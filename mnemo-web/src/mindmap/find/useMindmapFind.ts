@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 
 import type { CanvasRuntime } from "../canvas/runtime"
 import type { Scene } from "../model/scene"
+import { focusCanvas } from "../page/route-guards"
 import { findInMindmap } from "./api"
 import { cameraOn, inSceneOrder, stepIndex } from "./matches"
 
@@ -160,7 +161,7 @@ export function useMindmapFind({ mapId, revision, scene, runtime, pane, onReveal
   const close = useCallback(() => {
     setOpen(false)
     setQueryState("")
-    pane.current?.querySelector<HTMLElement>("[data-mm-canvas]")?.focus({ preventScroll: true })
+    focusCanvas(pane.current)
   }, [pane])
 
   return {

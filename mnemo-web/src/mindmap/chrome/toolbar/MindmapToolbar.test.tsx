@@ -9,8 +9,11 @@ import { act, createRef } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { useKeybindStore } from "@/keybinds/store"
+import type { Keybind } from "@/keybinds/types"
+
 import { DEFAULT_CONNECTOR } from "./connector"
-import { MindmapToolbar, type MindmapToolbarProps } from "./MindmapToolbar"
+import { MindmapToolbar, type MindmapToolbarProps, type ToolbarCommands } from "./MindmapToolbar"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -135,7 +138,7 @@ describe("the toolbar", () => {
     expect(isOpen("ToolShape")).toBe(false)
   })
 
-  it("picks a shape by its letter, keeps the shelf up, and keeps the letter from the map", () => {
+  it("picks a shape by its letter, puts the shelf away, and keeps the letter from the map", () => {
     const all = mount()
     press("ToolShape")
     rerender(all, { tool: "shape" })
@@ -145,7 +148,8 @@ describe("the toolbar", () => {
     key({ key: "h" })
 
     expect(all.onShape).toHaveBeenCalledWith("hexagon")
-    expect(isOpen("ToolShape")).toBe(true)
+    // Left open, the shelf would take the next H as another hexagon rather than the hand.
+    expect(isOpen("ToolShape")).toBe(false)
     expect(reachedMap).not.toHaveBeenCalled()
   })
 
@@ -284,15 +288,80 @@ describe("the toolbar", () => {
     expect(all.onTool).not.toHaveBeenCalled()
   })
 
-  it("switches the select tool to the lasso by its letter", () => {
+  it("names the select mode and its key on the tool, and the key of each mode in its group", () => {
+    const bound = (actionId: string, chord: string) =>
+      ({ actionId, bindings: [{ kind: "Chord", chord }] }) as Partial<Keybind> as Keybind
+    useKeybindStore.getState().setKeybinds([bound("mindmap.tool-select", "V"), bound("mindmap.tool-lasso", "L")])
+    try {
+      const all = mount({ selectMode: "lasso" })
+      const tool = button("ToolSelect")
+      expect(tool.dataset.tooltip).toBe("ToolLasso")
+      expect(tool.dataset.tooltipChord).toBe("L")
+
+      rerender(all, { selectMode: "box" })
+      expect(tool.dataset.tooltip).toBe("ToolSelectBox")
+      expect(tool.dataset.tooltipChord).toBe("V")
+      const tray = stage.querySelector('[role="group"][aria-label="ToolSelect"]')!
+      expect(button("ToolSelectBox", tray).getAttribute("aria-keyshortcuts")).toBe("V")
+      expect(button("ToolLasso", tray).getAttribute("aria-keyshortcuts")).toBe("L")
+    } finally {
+      useKeybindStore.getState().setKeybinds([])
+    }
+  })
+
+  it("presses a tool for the map's keys just as a click does", () => {
+    const commands = createRef<ToolbarCommands>() as { current: ToolbarCommands | null }
+    const all = mount({ commands })
+
+    act(() => commands.current!.press("shape"))
+    expect(all.onTool).toHaveBeenCalledWith("shape")
+    expect(isOpen("ToolShape")).toBe(true)
+
+    rerender(all, { tool: "shape" })
+    act(() => commands.current!.press("shape"))
+    expect(isOpen("ToolShape")).toBe(false)
+  })
+
+  it("moves the focus onto the bar, and Escape there hands it back to the map", () => {
+    const commands = createRef<ToolbarCommands>() as { current: ToolbarCommands | null }
+    mount({ commands })
+    const canvas = document.createElement("div")
+    canvas.tabIndex = 0
+    canvas.dataset.mmCanvas = ""
+    stage.append(canvas)
+
+    act(() => commands.current!.focus())
+    const focused = document.activeElement as HTMLElement
+    expect(focused.dataset.tbTool).toBe("select")
+
+    key({ key: "Escape" }, focused)
+    expect(document.activeElement).toBe(canvas)
+  })
+
+  it("hands the focus to the armed tool when another tool closes a group under it", () => {
     const all = mount()
-    press("ToolSelect")
+    press("ToolShape")
+    rerender(all, { tool: "shape" })
+    const option = button("ShapeEllipse", shelf("ToolShape"))
+    act(() => option.focus())
 
-    key({ key: "v" })
-    expect(all.onSelectMode).not.toHaveBeenCalled()
-    key({ key: "l" })
+    rerender(all, { tool: "pan" })
 
-    expect(all.onSelectMode).toHaveBeenCalledWith("lasso")
+    expect(isOpen("ToolShape")).toBe(false)
+    expect(document.activeElement).toBe(button("ToolPan"))
+  })
+
+  it("brings the focus back from the page when the browser has already let go of it", () => {
+    const all = mount()
+    press("ToolShape")
+    rerender(all, { tool: "shape" })
+    const option = button("ShapeEllipse", shelf("ToolShape"))
+    act(() => option.focus())
+    act(() => option.blur())
+
+    rerender(all, { tool: "pan" })
+
+    expect(document.activeElement).toBe(button("ToolPan"))
   })
 
   it("wears the lasso while the select tool is set to it", () => {
