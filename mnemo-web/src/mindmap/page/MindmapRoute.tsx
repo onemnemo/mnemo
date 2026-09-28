@@ -19,13 +19,19 @@ import {
   type MindmapTemplates,
 } from "../api"
 import { IMAGE_ACCEPT, imageFilesOf, measureImageFile, uploadMindmapImage } from "../assets"
+import { ZOOM_STEP } from "../canvas/camera"
 import { cameraSignal } from "../canvas/camera-signal"
 import { bandForZoom } from "../canvas/lod"
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
 import { ExportMenu } from "../chrome/ExportMenu"
 import { MindmapMinimap, type MinimapSink } from "../chrome/Minimap"
-import { MindmapToolDock } from "../chrome/MindmapToolDock"
+import { MindmapZoomBar } from "../chrome/MindmapZoomBar"
+import { connectorStyle } from "../chrome/toolbar/connector"
+import { DockedEdgeContext } from "../chrome/toolbar/docked-edge"
+import { MindmapToolbar } from "../chrome/toolbar/MindmapToolbar"
+import type { DockEdge } from "../chrome/toolbar/placement"
+import { useToolPresets } from "../chrome/toolbar/useToolPresets"
 import type { ColorControl } from "../chrome/color-control"
 import type { NodeActions } from "../chrome/NodeBar"
 import { RadialMenu } from "../chrome/RadialMenu"
@@ -78,6 +84,7 @@ import {
 } from "../model/document"
 import { op, type FrameOp, type MindmapOp, type NodeSpec } from "../model/ops"
 import { absoluteUrl, followRef, isFollowable } from "./follow"
+import { PLANT_LABEL, plantOp } from "./plant"
 import { isChromeControl, isTyping } from "./route-guards"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import type { AbsoluteLine } from "../scene/line-geometry"
@@ -107,9 +114,6 @@ const DUPLICATE_STEP = 48
 /** The gap between pictures dropped together, so a handful of them arrives as a row and not as a pile. */
 const IMAGE_STEP = 16
 
-/** One press's worth of zoom, matching the dock's own step so the keyboard and the buttons agree. */
-const ZOOM_STEP = 1.25
-
 /** A ref on a top-level spec, which is the only way the ids the server made come back. */
 const withRef = (spec: NodeSpec, index: number): NodeSpec => ({ ...spec, ref: `n${index}` })
 
@@ -121,29 +125,6 @@ const withRef = (spec: NodeSpec, index: number): NodeSpec => ({ ...spec, ref: `n
  * the very next frame.
  */
 const NEW_NODE_SIZE = { width: 68, height: 30 }
-
-/**
- * A planted shape's box.
- *
- * Bigger than a node's, because a shape is a region drawn around a label rather than a box measured
- * to fit one, and one dragged out to nothing would be a shape nobody could see to resize.
- */
-const NEW_SHAPE_SIZE: [number, number] = [148, 86]
-
-/**
- * The look a freshly drawn connector takes.
- *
- * One fixed style rather than a picker on the dock. A flyout that presets these before drawing
- * offers the same four values the edge bar offers after a line is drawn and selected, and saves
- * nobody a step, since the line still has to be drawn either way. A new connector comes out solid
- * and arrowed and is restyled from the edge bar like every other.
- */
-const NEW_EDGE_STYLE: EdgeStyle = {
-  line: "solid",
-  routing: "curve",
-  startCap: "none",
-  endCap: "arrow",
-}
 
 /**
  * One open map.
@@ -177,10 +158,13 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   // position of its own and the ring has to open where the hand already is.
   const pointer = useRef<Point>({ x: 0, y: 0 })
   const stage = useRef<HTMLDivElement>(null)
+  const corner = useRef<HTMLDivElement>(null)
+  const presets = useToolPresets()
+  const [docked, setDocked] = useState<DockEdge>("bottom")
   // The canvas writes the camera here on every frame and the minimap reads it, so a pan repaints the
   // minimap without re-rendering the route. A ref rather than state for exactly that reason.
   const minimapCamera = useRef<MinimapSink["current"]>(null)
-  /** The picker behind the dock's image button. Hidden, since the button is what anyone presses. */
+  /** The picker behind the toolbar's image button. Hidden, since the button is what anyone presses. */
   const imageInput = useRef<HTMLInputElement>(null)
   /** The node this edit created. Abandoning the edit takes it away again. */
   const blank = useRef<string | null>(null)
@@ -624,7 +608,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     async (armed: MindmapTool, at: Point) => {
       setTool("select")
       const xy: [number, number] = [Math.round(at.x), Math.round(at.y)]
-      const result = await editor.apply([plantOp(armed, xy, shape)], {
+      const result = await editor.apply([plantOp(armed, xy, { shape, nodeStyle: presets.nodeStyle })], {
         label: t("Mindmap", PLANT_LABEL[armed] ?? "AddNode"),
       })
 
@@ -637,7 +621,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         setEditing(created)
       }
     },
-    [editor, shape, t],
+    [editor, shape, presets.nodeStyle, t],
   )
 
   /**
@@ -765,11 +749,11 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         void editor.apply([op.unlinkEdge(existing.id)], { label: t("Mindmap", "Disconnect") })
         return
       }
-      void editor.apply([op.link(fromId, toId, { style: NEW_EDGE_STYLE })], {
+      void editor.apply([op.link(fromId, toId, { style: connectorStyle(presets.connector) })], {
         label: t("Mindmap", "Connect"),
       })
     },
-    [editor, map.data, t],
+    [editor, map.data, presets.connector, t],
   )
 
   /**
@@ -1562,7 +1546,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         }
       }}
     >
-      {/* The picker the image button opens. Kept out of the dock so the dock stays a row of controls
+      {/* The picker the image button opens. Kept out of the toolbar so it stays a row of controls
           rather than a place a file input happens to live. */}
       <input
         ref={imageInput}
@@ -1631,7 +1615,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         </div>
       </header>
 
-      {/* The dock and the ring float inside this, not under it, so the map keeps the whole pane. The
+      {/* The toolbar and the ring float inside this, not under it, so the map keeps the whole pane. The
           mark is what a flyout measures itself against before deciding which way to open. */}
       <div
         ref={stage}
@@ -1696,39 +1680,55 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         {/* Not while a label is being typed: the bar would sit over the field, and none of what it
             offers is a thing anyone reaches for mid-word. */}
         {editing === null && editingEdge === null ? (
-          <MindmapSelectionBar
-            scene={scene}
-            selection={selection}
-            runtime={runtime}
-            pane={stage}
-            onEdgeStyle={styleEdges}
-            onNodeStyle={styleNodes}
-            onLineStyle={styleLines}
-            onEdgeLabel={setEditingEdge}
-            color={color}
-            align={align}
-            onKind={soleNode ? (kind) => void changeKind(kind) : null}
-            actions={nodeActions}
-          />
+          <DockedEdgeContext.Provider value={docked}>
+            <MindmapSelectionBar
+              scene={scene}
+              selection={selection}
+              runtime={runtime}
+              pane={stage}
+              onEdgeStyle={styleEdges}
+              onNodeStyle={styleNodes}
+              onLineStyle={styleLines}
+              onEdgeLabel={setEditingEdge}
+              color={color}
+              align={align}
+              onKind={soleNode ? (kind) => void changeKind(kind) : null}
+              actions={nodeActions}
+            />
+          </DockedEdgeContext.Provider>
         ) : null}
 
-        <MindmapToolDock
+        <MindmapToolbar
           tool={tool}
           onTool={setTool}
-          zoom={zoom}
-          onZoomBy={(factor) => runtime.current?.zoomBy(factor)}
-          // Through the same anchored arithmetic every other zoom uses, so a reset lands on exactly
-          // 1 and leaves the middle of the view where it was.
-          onZoomReset={() => runtime.current?.zoomBy(1 / (runtime.current?.viewport().zoom ?? 1))}
-          onFit={() => runtime.current?.fit()}
           shape={shape}
           onShape={setShape}
+          nodeStyle={presets.nodeStyle}
+          onNodeStyle={presets.setNodeStyle}
+          connector={presets.connector}
+          onConnector={presets.setConnector}
           onInsertImage={insertImage}
+          stage={stage}
+          corner={corner}
+          edge={presets.edge}
+          onEdge={presets.setEdge}
+          onDocked={setDocked}
+          keysSuspended={radial !== null}
         />
 
-        {minimap ? (
-          <MindmapMinimap scene={scene} runtime={runtime} pane={stage} sink={minimapCamera} />
-        ) : null}
+        <div ref={corner} className="pointer-events-none absolute right-4 bottom-4 z-40 flex flex-col items-end gap-2">
+          <MindmapZoomBar
+            zoom={zoom}
+            onZoomBy={(factor) => runtime.current?.zoomBy(factor)}
+            // Through the same anchored arithmetic every other zoom uses, so a reset lands on exactly
+            // 1 and leaves the middle of the view where it was.
+            onZoomReset={() => runtime.current?.zoomBy(1 / (runtime.current?.viewport().zoom ?? 1))}
+            onFit={() => runtime.current?.fit()}
+          />
+          {minimap ? (
+            <MindmapMinimap scene={scene} runtime={runtime} pane={stage} sink={minimapCamera} />
+          ) : null}
+        </div>
 
         <MindmapFindBar find={find} />
 
@@ -1773,28 +1773,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       ) : null}
     </div>
   )
-}
-
-/** What an armed tool creates, and what the undo entry for it is called. */
-const PLANT_LABEL: Partial<Record<MindmapTool, string>> = {
-  node: "AddNode",
-  text: "AddText",
-  shape: "ToolShape",
-}
-
-function plantOp(tool: MindmapTool, xy: [number, number], shape: ShapeType): MindmapOp {
-  if (tool === "shape") {
-    return op.addElement("shape", xy[0], xy[1], { $type: "shape", shape }, {
-      ref: "n",
-      // Sized up front, since a shape is a region rather than a box measured around its text, and
-      // the projector has no label to measure one from.
-      wh: NEW_SHAPE_SIZE,
-    })
-  }
-  if (tool === "text") {
-    return op.addElement("text", xy[0], xy[1], { $type: "freeText", text: "" }, { ref: "n" })
-  }
-  return op.addNodes([{ ref: "n", t: "", xy }])
 }
 
 function Pill({ children }: { children: React.ReactNode }) {

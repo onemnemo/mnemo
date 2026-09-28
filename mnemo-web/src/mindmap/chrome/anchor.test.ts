@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import { anchorsFor, edgeShape } from "../canvas/edge-paths"
+import { dockClearance } from "./toolbar/placement"
 import {
-  BAR_DOCK_CLEARANCE,
   BAR_GAP,
   BAR_LIFT,
   FLYOUT_EDGE,
@@ -46,15 +46,24 @@ describe("clampBar", () => {
     expect(placed.y).toBe(BAR.height + BAR_GAP)
   })
 
-  it("keeps a bar over something at the bottom clear of the dock", () => {
+  it("keeps a bar over something at the bottom clear of the toolbar docked there", () => {
     const placed = clampBar({ x: 500, y: 699 }, BAR, PANE)
 
-    expect(placed.y).toBe(PANE.height - BAR_DOCK_CLEARANCE)
+    expect(placed.y).toBe(PANE.height - dockClearance("bottom").bottom)
+  })
+
+  it("keeps clear of whichever edge the toolbar is docked to instead", () => {
+    const left = dockClearance("left")
+    expect(clampBar({ x: 10, y: 400 }, BAR, PANE, left).x - BAR.width / 2).toBeGreaterThanOrEqual(left.left)
+    expect(clampBar({ x: 500, y: 699 }, BAR, PANE, left).y).toBe(699 - BAR_LIFT)
+
+    const top = dockClearance("top")
+    expect(clampBar({ x: 500, y: 4 }, BAR, PANE, top).y).toBe(top.top + BAR.height + BAR_GAP)
   })
 
   it("puts the bar on the pane rather than off it when the pane is smaller than the bar", () => {
     // A window dragged short has no position that satisfies both limits. Being visible at the top
-    // beats being correct about the dock and gone.
+    // beats being correct about the toolbar and gone.
     const placed = clampBar({ x: 40, y: 30 }, BAR, { width: 120, height: 80 })
 
     expect(placed).toEqual({ x: BAR.width / 2 + BAR_GAP, y: BAR.height + BAR_GAP })

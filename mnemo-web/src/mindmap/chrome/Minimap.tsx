@@ -160,7 +160,7 @@ export function MindmapMinimap({ scene, runtime, pane, sink }: MindmapMinimapPro
   return (
     // Sunken rather than the canvas colour: most nodes are surface-filled, and a white swatch on
     // white paper would leave the panel showing only the coloured half of the map.
-    <div className="pointer-events-auto absolute bottom-4 right-4 z-40 overflow-hidden rounded-[10px] bg-canvas-sunken shadow-pop animate-pop-in">
+    <div className="pointer-events-auto overflow-hidden rounded-[10px] bg-canvas-sunken shadow-pop animate-pop-in">
       <canvas
         ref={surface}
         aria-label={t("Mindmap", "Minimap")}

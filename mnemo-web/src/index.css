@@ -111,6 +111,7 @@
     --color-frame-active: var(--frame-active);
     --color-canvas: var(--canvas);
     --color-canvas-sunken: var(--canvas-sunken);
+    --color-surface-float: var(--surface-float);
     --color-line-soft: var(--line-soft);
     --color-ink: var(--ink);
     --color-ink-2: var(--ink-2);
@@ -149,6 +150,10 @@
 
     --shadow-canvas: var(--e-canvas);
     --shadow-pop: var(--e-pop);
+    --shadow-float: var(--e-float);
+    --shadow-lift: var(--e-lift);
+    --shadow-chip: var(--e-chip);
+    --shadow-raised: var(--e-raised);
 
     /* Transition/animation utilities resolve through the motion tokens, so the
        reduce-motion switch reaches anything written with them.

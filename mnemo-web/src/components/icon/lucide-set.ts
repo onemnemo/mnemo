@@ -53,6 +53,7 @@ import {
   Folder,
   FolderOpen,
   Frame,
+  Hand,
   Hash,
   HardDrive,
   Code,
@@ -98,6 +99,7 @@ import {
   Sparkles,
   Spline,
   Square,
+  SquarePlus,
   SquareStack,
   Star,
   Store,
@@ -172,8 +174,10 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   // The browse table's quick-look action, beside the pencil that opens the full editor.
   eye: Eye,
 
-  // The mindmap's tool dock. Drawing-tool glyphs, and the project has no art of its own for them.
+  // The mindmap's toolbar. Drawing-tool glyphs, and the project has no art of its own for them.
   "mouse-pointer-2": MousePointer2,
+  hand: Hand,
+  "square-plus": SquarePlus,
   spline: Spline,
   maximize: Maximize,
   square: Square,

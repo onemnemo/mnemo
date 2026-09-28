@@ -147,6 +147,17 @@
      which at these durations just reads as sluggish. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
+  /* The mind map toolbar's motion. The chip that marks the armed tool slides between slots on a
+     spring with a small overshoot; the bar settling onto an edge and a strip opening inside it
+     decelerate without one. */
+  --duration-chip: calc(360ms * var(--motion-scale));
+  --duration-tray: calc(340ms * var(--motion-scale));
+  --duration-dock: calc(420ms * var(--motion-scale));
+  --duration-shelf: calc(300ms * var(--motion-scale));
+  --duration-lift: calc(260ms * var(--motion-scale));
+  --ease-spring: cubic-bezier(0.3, 1.35, 0.5, 1);
+  --ease-settle: cubic-bezier(0.2, 0.9, 0.25, 1);
+
   /* How far a thing travels when it enters. A toast moves further than a menu because
      it arrives unasked and the movement is what makes you look at it. */
   --travel-pop: 6px;
@@ -186,6 +197,8 @@
   /* The canvas. Topbar and module area both sit on this. */
   --canvas: oklch(1 0 0);
   --canvas-sunken: oklch(0.975 var(--neutral-chroma) var(--neutral-hue));
+  /* Chrome that floats over the canvas. The canvas itself in light; a step lighter in dark. */
+  --surface-float: var(--canvas);
 
   /* Neutral-primary. Buttons that matter are near-black, not accent: the accent
      belongs to the brand and nothing else. */
@@ -360,6 +373,18 @@
     0 0 0 1px oklch(0.7 0.01 var(--neutral-hue) / 0.07),
     0 8px 24px -6px oklch(0.4 0.02 var(--neutral-hue) / 0.14),
     0 16px 48px -12px oklch(0.4 0.02 var(--neutral-hue) / 0.12);
+  /* A bar docked over the canvas, the same bar picked up, and a chip raised inside it. */
+  --e-float: var(--e-pop);
+  --e-lift:
+    0 0 0 1px oklch(0.2 0.01 var(--neutral-hue) / 0.08),
+    0 2px 4px oklch(0.2 0.01 var(--neutral-hue) / 0.06),
+    0 28px 56px -14px oklch(0.2 0.01 var(--neutral-hue) / 0.34);
+  --e-chip:
+    0 1px 2px oklch(0.2 0.01 var(--neutral-hue) / 0.12),
+    0 4px 10px -4px oklch(0.2 0.01 var(--neutral-hue) / 0.22);
+  --e-raised:
+    0 0 0 1px oklch(0.2 0.01 var(--neutral-hue) / 0.07),
+    0 1px 2px oklch(0.2 0.01 var(--neutral-hue) / 0.08);
 }
 
 /* ---- Dark ---- */
@@ -372,6 +397,7 @@
 
   --canvas: oklch(0.218 0.006 var(--neutral-hue));
   --canvas-sunken: oklch(0.192 0.005 var(--neutral-hue));
+  --surface-float: oklch(0.262 0.007 var(--neutral-hue));
 
   --solid: oklch(0.96 0.003 var(--neutral-hue));
   --solid-hover: oklch(0.88 0.004 var(--neutral-hue));
@@ -489,4 +515,16 @@
     0 0 0 1px oklch(1 0 0 / 0.07),
     0 8px 24px -6px oklch(0 0 0 / 0.45),
     0 16px 48px -12px oklch(0 0 0 / 0.4);
+  /* Lit along the top edge, so a lighter bar reads as raised rather than as a patch. */
+  --e-float: inset 0 1px 0 oklch(1 0 0 / 0.06), var(--e-pop);
+  --e-lift:
+    inset 0 1px 0 oklch(1 0 0 / 0.07),
+    0 0 0 1px oklch(0 0 0 / 0.55),
+    0 30px 60px -12px oklch(0 0 0 / 0.75);
+  --e-chip:
+    0 1px 2px oklch(0 0 0 / 0.4),
+    0 4px 10px -4px oklch(0 0 0 / 0.5);
+  --e-raised:
+    inset 0 1px 0 oklch(1 0 0 / 0.06),
+    0 0 0 1px oklch(0 0 0 / 0.4);
 }

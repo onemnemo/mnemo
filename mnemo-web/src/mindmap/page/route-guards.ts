@@ -22,7 +22,7 @@ export function isTyping(target: EventTarget | null): boolean {
 /**
  * Keys belong to a focused piece of chrome, not to the map behind it.
  *
- * The bars, flyouts, and dock are native buttons and menu items floating over the canvas, inside the
+ * The bars, flyouts, and toolbar are native buttons and menu items floating over the canvas, inside the
  * same div the route reads keydowns from. Without this, Tab never left a focused button (the route
  * treated every Tab as "add a child") and Enter never activated one (the route treated it as "add a
  * sibling"), so a keyboard user who tabbed onto the map's own chrome lost the browser's own Tab/Enter

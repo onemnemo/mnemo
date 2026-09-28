@@ -1,6 +1,6 @@
 /**
  * The find bar over the map: a field, a count, and the walk. Pinned to the top right of the pane, on
- * the same panel material as the dock, and it owns no search logic; everything here delegates to
+ * the same panel material as the toolbar, and it owns no search logic; everything here delegates to
  * `useMindmapFind`. This file is chrome and keyboard wiring.
  */
 

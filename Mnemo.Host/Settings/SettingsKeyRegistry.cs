@@ -119,6 +119,11 @@ public static class SettingsKeyRegistry
         // settings page for them is gone. This comment is the only remaining record that the
         // four keys exist, so keep it even if this file does not otherwise change.
         new("Mindmap.MinimapVisibility", SettingValueKind.Text),
+        // The editor's toolbar remembers itself per person rather than per map: the edge it is
+        // docked to, the node style the node tool plants, and the connector the connect tool draws.
+        new("Mindmap.ToolbarEdge", SettingValueKind.Text),
+        new("Mindmap.ToolNodeStyle", SettingValueKind.Text),
+        new("Mindmap.ToolConnector", SettingValueKind.Text),
 
         new("Updates.AutoCheck", SettingValueKind.Boolean),
         // The update track, as one of UpdateChannels' names. Written through the generic

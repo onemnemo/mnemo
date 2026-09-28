@@ -1,7 +1,7 @@
 /**
  * The pieces every floating bar over the canvas is built from.
  *
- * One primitive per shape, shared rather than restyled per bar, because the dock and the selection
+ * One primitive per shape, shared rather than restyled per bar, because the zoom bar and the selection
  * bars are the same object seen twice: a row of uniform square controls on a panel that hovers over
  * the map. Two implementations of that would drift within a week.
  */
@@ -46,9 +46,9 @@ export interface SlotProps {
   /**
    * That this control has a panel of its own behind it, and whether that panel is open now.
    *
-   * A control that opens one has to say so before it is pressed. Without the mark the dock's two
-   * picker tools look exactly like the four that plant one thing, and the only way to learn that a
-   * shape tool has eight shapes behind it is to be told.
+   * A control that opens one has to say so before it is pressed. Without the mark a picker tool looks
+   * exactly like the ones that plant one thing, and the only way to learn that a shape tool has eight
+   * shapes behind it is to be told.
    */
   menu?: { open: boolean }
   disabled?: boolean
@@ -100,7 +100,7 @@ export function Slot({
  * icon: a chevron would either shrink the icon or widen the control out of the row it has to line up
  * in. It takes its colour from the text, so it reads on the armed tool's accent as well as off it.
  */
-function MenuMark() {
+export function MenuMark() {
   return (
     <span
       aria-hidden

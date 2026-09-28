@@ -18,6 +18,9 @@ import type { Viewport } from '../model/scene'
  */
 export const WHEEL_ZOOM_SENSITIVITY = 0.002
 
+/** One press's worth of zoom, a key or a button, close enough to a wheel notch that the two agree. */
+export const ZOOM_STEP = 1.25
+
 export function clampZoom(zoom: number): number {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, zoom))
 }

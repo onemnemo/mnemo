@@ -3,7 +3,7 @@
  *
  * Separate from the bars themselves because placement is the part with edges: a bar hanging over a
  * node near the top of the pane, a bar over an edge running off the left, a bar that would land on
- * the dock. Those are cheap to test as numbers and expensive to test by dragging a map around.
+ * the toolbar. Those are cheap to test as numbers and expensive to test by dragging a map around.
  *
  * Everything here works in pane pixels except the two anchor pickers, which answer in canvas
  * coordinates and leave the conversion to the camera, since the camera is the only thing that knows
@@ -12,6 +12,7 @@
 
 import { anchorsFor, edgeShape, type ElementBox } from "../canvas/edge-paths"
 import type { EdgeRouting, Point } from "../model/scene"
+import { dockClearance, type DockEdge } from "./toolbar/placement"
 
 /** Gap between the thing the bar is about and the bar's own bottom edge. */
 export const BAR_LIFT = 14
@@ -19,13 +20,8 @@ export const BAR_LIFT = 14
 /** Breathing room at the pane's top edge, added to the bar's own height. */
 export const BAR_GAP = 8
 
-/**
- * How much of the pane's bottom the dock owns.
- *
- * The dock sits at 16px with a 40px height, so it occupies the last 56; the extra 8 keeps a bar
- * pushed down there from touching it.
- */
-export const BAR_DOCK_CLEARANCE = 64
+/** How much of each pane edge a bar has to keep off, which is the docked toolbar's edge and no other. */
+export type Clearance = Readonly<Record<DockEdge, number>>
 
 /** Air between a control and the panel it opens. Matches the offset the panel renders with. */
 export const FLYOUT_GAP = 7
@@ -73,12 +69,13 @@ export function flyoutSide(control: Span, bounds: Span, panelHeight: number): "a
  * satisfies both, and a bar pinned to the top edge is readable where one pinned below the bottom is
  * gone entirely.
  */
-export function clampBar(at: Point, bar: Size, pane: Size): Point {
-  const half = bar.width / 2 + BAR_GAP
-  const top = bar.height + BAR_GAP
+export function clampBar(at: Point, bar: Size, pane: Size, clearance: Clearance = dockClearance("bottom")): Point {
+  const left = clearance.left + bar.width / 2 + BAR_GAP
+  const right = pane.width - clearance.right - bar.width / 2 - BAR_GAP
+  const top = clearance.top + bar.height + BAR_GAP
   return {
-    x: clamp(at.x, half, Math.max(half, pane.width - half)),
-    y: clamp(at.y - BAR_LIFT, top, Math.max(top, pane.height - BAR_DOCK_CLEARANCE)),
+    x: clamp(at.x, left, Math.max(left, right)),
+    y: clamp(at.y - BAR_LIFT, top, Math.max(top, pane.height - clearance.bottom)),
   }
 }
 
@@ -109,6 +106,7 @@ export interface FrameInput {
   readonly measure: () => { readonly bar: Size; readonly pane: Size }
   /** Where the anchor landed last time, in pane pixels. Null before the first placement. */
   readonly last: Point | null
+  readonly clearance?: Clearance
 }
 
 /**
@@ -127,7 +125,7 @@ export function nextPlacement(input: FrameInput): { anchor: Point; at: Point } |
     return null
   }
   const { bar, pane } = input.measure()
-  return { anchor, at: clampBar(anchor, bar, pane) }
+  return { anchor, at: clampBar(anchor, bar, pane, input.clearance) }
 }
 
 /** The point a node bar hangs over: the top edge of everything selected, centred. */

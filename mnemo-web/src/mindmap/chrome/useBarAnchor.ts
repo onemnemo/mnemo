@@ -17,6 +17,8 @@ import type { CanvasRuntime } from "../canvas/runtime"
 import type { SceneIndex } from "../canvas/scene-index"
 import type { Point } from "../model/scene"
 import { nextPlacement } from "./anchor"
+import { useDockedEdge } from "./toolbar/docked-edge"
+import { dockClearance } from "./toolbar/placement"
 
 /**
  * A ref this only ever reads.
@@ -36,10 +38,12 @@ export function useBarAnchor(
   // down and start a fresh one sixty times a second while anything is selected.
   const live = useRef(locate)
   live.current = locate
+  const docked = useDockedEdge()
 
   useLayoutEffect(() => {
     let frame = 0
     let last: Point | null = null
+    const clearance = dockClearance(docked)
 
     const place = () => {
       frame = requestAnimationFrame(place)
@@ -63,6 +67,7 @@ export function useBarAnchor(
           pane: { width: host.clientWidth, height: host.clientHeight },
         }),
         last,
+        clearance,
       })
       if (!next) {
         return
@@ -81,7 +86,7 @@ export function useBarAnchor(
     // new, and waiting a frame for it would show it at the corner of the pane first.
     place()
     return () => cancelAnimationFrame(frame)
-  }, [pane, runtime])
+  }, [pane, runtime, docked])
 
   return bar
 }

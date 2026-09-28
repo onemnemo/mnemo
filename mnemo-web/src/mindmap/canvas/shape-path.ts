@@ -6,7 +6,7 @@
  * ends up using rectangles anyway. That argument still holds for text nodes, and nothing in this file
  * is reachable from a node's style. What is here is for `kind: "shape"` elements, whose whole point is
  * to be a drawn figure rather than a labelled idea, and whose vocabulary Core fixes at eight
- * members. The dock's Shape tool has to be able to draw all eight, so all eight live here.
+ * members. The toolbar's Shapes tool has to be able to draw all eight, so all eight live here.
  *
  * Everything is pure geometry in a box whose origin is 0,0. The caller positions the element with a
  * transform, which means a shape that moves does not re-derive its path, and two elements of the same

@@ -23,8 +23,8 @@ export interface FlyoutPanelProps {
  * one that has to be `relative`, and the room to work with is the mindmap pane's, marked with
  * `data-mm-pane`.
  *
- * The dock's wrapper row is pointer-events-none so it does not swallow clicks along the bottom of
- * the map, which means a panel anchored inside it has to claim presses back for itself.
+ * A floating bar's wrapper is pointer-events-none so it does not swallow clicks on the map around
+ * it, which means a panel anchored inside it has to claim presses back for itself.
  */
 export function FlyoutPanel({ children, onClose, className }: FlyoutPanelProps) {
   const panel = useRef<HTMLDivElement>(null)
