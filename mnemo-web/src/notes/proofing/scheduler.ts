@@ -119,6 +119,8 @@ export interface ProofingScheduler {
    * segment text is folded before the comparison.
    */
   forgetWords(words: readonly string[]): void;
+  /** A mark in this segment was removed outside a pass, so the next pass redraws it. */
+  forgetDrawn(segmentId: string): void;
   /** Cancels everything outstanding. The scheduler is dead afterwards. */
   destroy(): void;
 }
@@ -142,7 +144,7 @@ export function createProofingScheduler(options: ProofingSchedulerOptions): Proo
    * The key of the answer whose marks are currently drawn for each segment, so a
    * pass can tell a segment already showing the right marks from one whose text
    * has moved back to something answered while its marks were taken away. Absent
-   * means nothing of this segment's is drawn.
+   * means the next pass redraws the segment from its answer.
    */
   const drawnKey = new Map<string, string>();
   /** Segments whose batch has failed once. A second failure retires them. */
@@ -435,6 +437,11 @@ export function createProofingScheduler(options: ProofingSchedulerOptions): Proo
       }
 
       if (touched) scheduleTick();
+    },
+
+    forgetDrawn(segmentId: string): void {
+      if (destroyed) return;
+      drawnKey.delete(segmentId);
     },
 
     noteEdit(): void {

@@ -17,6 +17,7 @@ import {
   getProofingState,
   proofingIssues,
   proofingPlugin,
+  withProofingMeta,
 } from './proofing-plugin';
 import { createProofingScheduler, type ProofingSchedule } from './scheduler';
 import type { ProofingCheckRequest, ProofingCheckResponse } from './types';
@@ -583,6 +584,43 @@ describe('the proofing scheduler', () => {
     await vi.advanceTimersByTimeAsync(400);
     await flush();
     expect(proofingIssues(host.current()).map((located) => located.issue.text)).toEqual(['teh']);
+    scheduler.destroy();
+  });
+
+  it('re-marks a word an undo brings back before the check of its accepted fix lands', async () => {
+    const host = fakeView(stateOf(['teh cat']));
+    const clock = manualSchedule();
+    const { client, requests } = stubClient(flagWords(new Set(['teh'])));
+
+    const scheduler = createProofingScheduler({
+      view: host.view,
+      registry,
+      noteId: 'note',
+      languages: ['en-US'],
+      client,
+      schedule: clock.schedule,
+    });
+
+    scheduler.start();
+    clock.run();
+    await flush();
+    const [located] = proofingIssues(host.current());
+
+    // Accepted from the card: the mark goes in the same write as the fix.
+    host.edit((tr) =>
+      withProofingMeta(tr.replaceWith(2, 5, schema.text('the')), { type: 'resolve', issue: located.issue }),
+    );
+    expect(proofingIssues(host.current())).toHaveLength(0);
+    scheduler.forgetDrawn(located.issue.segmentId);
+    scheduler.noteEdit();
+    await vi.advanceTimersByTimeAsync(100);
+
+    host.edit((tr) => tr.replaceWith(2, 5, schema.text('teh')));
+    scheduler.noteEdit();
+    await vi.advanceTimersByTimeAsync(400);
+    await flush();
+    expect(proofingIssues(host.current()).map((entry) => entry.issue.text)).toEqual(['teh']);
+    expect(requests).toHaveLength(1);
     scheduler.destroy();
   });
 

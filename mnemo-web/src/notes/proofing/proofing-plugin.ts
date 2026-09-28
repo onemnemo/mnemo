@@ -89,6 +89,8 @@ export type ProofingMeta =
   | { readonly type: 'prune'; readonly liveSegmentIds: readonly string[] }
   /** Drops every mark on a word, for an added or ignored word. */
   | { readonly type: 'dropWord'; readonly word: string }
+  /** Drops one issue's mark, matched by identity, as its fix is written. */
+  | { readonly type: 'resolve'; readonly issue: ProofingIssue }
   | { readonly type: 'clear' }
   | { readonly type: 'open'; readonly openId: string | null };
 
@@ -107,7 +109,11 @@ export function getProofingState(state: EditorState): ProofingPluginState {
 }
 
 export function dispatchProofing(view: EditorView, meta: ProofingMeta): void {
-  view.dispatch(view.state.tr.setMeta(proofingKey, meta));
+  view.dispatch(withProofingMeta(view.state.tr, meta));
+}
+
+export function withProofingMeta(tr: Transaction, meta: ProofingMeta): Transaction {
+  return tr.setMeta(proofingKey, meta);
 }
 
 /** A stable identity for one issue, so the open card survives a remap. */
@@ -314,9 +320,13 @@ export function proofingPlugin(): Plugin<ProofingPluginState> {
               (spec: Partial<MarkSpec>) => spec.issue?.text.toLocaleLowerCase() === word,
             ),
           );
+        } else if (meta.type === 'resolve') {
+          next = next.remove(
+            next.find(undefined, undefined, (spec: Partial<MarkSpec>) => spec.issue === meta.issue),
+          );
         } else if (meta.type === 'prune') {
           next = withoutOrphans(next, new Set(meta.liveSegmentIds));
-        } else {
+        } else if (meta.type === 'answers') {
           const replaced = new Set(meta.segmentIds);
           next = next.remove(
             next.find(undefined, undefined, (spec: Partial<MarkSpec>) =>

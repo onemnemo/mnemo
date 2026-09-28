@@ -130,6 +130,7 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
       noteId,
       languages: () => languagesRef.current,
       onWordResolved: () => invalidateRef.current(),
+      onIssueResolved: (segmentId) => scheduler.forgetDrawn(segmentId),
     });
     setCard(handle);
     setPaused(false);

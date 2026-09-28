@@ -45,6 +45,7 @@ import {
   currentIssue,
   dispatchProofing,
   issueIdOf,
+  withProofingMeta,
   type LocatedIssue,
   type ProofingIssue,
 } from './proofing-plugin';
@@ -114,6 +115,8 @@ export interface ProofingCardOptions {
   readonly noteId: string;
   /** Called after the word stops being checkable, so its other marks can go. */
   onWordResolved(word: string): void;
+  /** Called after a suggestion is written over an issue in this segment. */
+  onIssueResolved(segmentId: string): void;
 }
 
 /** How the card was asked for, which decides whether it may take the keyboard. */
@@ -260,7 +263,8 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
     const tr = view.state.tr;
     if (replacement.length === 0) tr.delete(live.from, live.to);
     else tr.replaceWith(live.from, live.to, view.state.schema.text(replacement, marks));
-    view.dispatch(asOwnUndoStep(tr));
+    view.dispatch(asOwnUndoStep(withProofingMeta(tr, { type: 'resolve', issue })));
+    options.onIssueResolved(issue.segmentId);
     view.focus();
   }
 

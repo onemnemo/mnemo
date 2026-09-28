@@ -15,6 +15,7 @@ import {
   proofingIssues,
   proofingKey,
   proofingPlugin,
+  withProofingMeta,
   type LocatedIssue,
   type ProofingMeta,
 } from './proofing-plugin';
@@ -135,6 +136,22 @@ describe('the proofing plugin', () => {
     state = send(state, { type: 'dropWord', word: 'MNEMO' });
     expect(proofingIssues(state)).toHaveLength(0);
     expect(getProofingState(state).count).toBe(0);
+  });
+
+  it('drops only the resolved mark in the write that repairs it', () => {
+    let state = stateOf({ sid: 'a', value: 'teh cat adn dog' }, { sid: 'b', value: 'teh bird' });
+    const repaired = issueFor(state, 'a', 'teh');
+    const sameSegment = issueFor(state, 'a', 'adn');
+    const sameWord = issueFor(state, 'b', 'teh');
+    state = send(state, answers(state, ['a:0', 'b:0'], [repaired, sameSegment, sameWord]));
+    const repair = () => state.tr.replaceWith(repaired.from, repaired.to, schema.text('the'));
+
+    // A replacement over the whole range maps the mark onto the new word.
+    expect(proofingIssues(state.apply(repair()))).toHaveLength(3);
+
+    state = state.apply(withProofingMeta(repair(), { type: 'resolve', issue: repaired.issue }));
+    expect(proofingIssues(state).map((entry) => entry.issue)).toEqual([sameSegment.issue, sameWord.issue]);
+    expect(getProofingState(state).count).toBe(2);
   });
 
   it('finds the issue under a position, which is how the card is opened', () => {

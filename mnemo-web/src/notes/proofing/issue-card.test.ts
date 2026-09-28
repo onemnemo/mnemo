@@ -48,6 +48,8 @@ interface Calls {
   personal: { word: string; language: string | null | undefined }[];
   ignores: string[];
   resolved: string[];
+  /** Segments a written fix took a mark out of. */
+  resolvedSegments: string[];
   suggests: ProofingSuggestRequest[];
 }
 
@@ -97,7 +99,7 @@ let noteLanguages: string[] = ['en-US'];
 
 function harness(...spans: InlineSpan[]): Harness {
   const view = mountNote(...spans);
-  const calls: Calls = { personal: [], ignores: [], resolved: [], suggests: [] };
+  const calls: Calls = { personal: [], ignores: [], resolved: [], resolvedSegments: [], suggests: [] };
   // Spied rather than observed through document.activeElement: a contenteditable
   // is not reliably focusable under jsdom, and the claim being made is that the
   // card hands the caret back at all.
@@ -108,6 +110,7 @@ function harness(...spans: InlineSpan[]): Harness {
     noteId: 'note',
     languages: () => noteLanguages,
     onWordResolved: (word) => calls.resolved.push(word),
+    onIssueResolved: (segmentId) => calls.resolvedSegments.push(segmentId),
   });
 
   return {
@@ -235,6 +238,20 @@ describe('the suggestion card', () => {
     h.destroy();
   });
 
+  it('takes the mark off the repaired word', async () => {
+    const h = harness(text('wrold cat sat'));
+    const located = h.open('wrold');
+    await settle();
+    expect(proofingIssues(h.view.state)).toHaveLength(1);
+
+    chips()[0].click();
+
+    expect(h.view.state.doc.textContent).toBe('wrong cat sat');
+    expect(proofingIssues(h.view.state)).toHaveLength(0);
+    expect(h.calls.resolvedSegments).toEqual([located.issue.segmentId]);
+    h.destroy();
+  });
+
   it('keeps a plain word plain when the run before it is bold', async () => {
     const h = harness(boldText('Hello'), text('wrold done'));
     h.open('wrold');
@@ -270,6 +287,7 @@ describe('the suggestion card', () => {
 
     chips()[0].click();
     expect(h.view.state.doc.textContent).toBe(repaired);
+    expect(h.calls.resolvedSegments).toEqual([]);
     h.destroy();
   });
 
