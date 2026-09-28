@@ -494,3 +494,95 @@ describe("a root's box", () => {
     expect(body.className).not.toContain("rounded")
   })
 })
+
+describe("what marks a selected element", () => {
+  const ring = (): Element | null => container.querySelector(".outline-accent")
+  const box = (): Element | null => container.querySelector("[data-mm-selection-box]")
+  const shape = node({ kind: "shape", content: { $type: "shape", shape: "ellipse", text: "hello" } })
+  const freeText = node({ kind: "text", content: { $type: "freeText", text: "hello" } })
+  const image = node({ kind: "image", content: { $type: "canvasImage", assetId: "" } })
+
+  it.each([
+    ["a shape", shape],
+    ["a free text", freeText],
+    ["an image", image],
+  ])("is a box on the bounds for %s, not the node ring", (_, element) => {
+    act(() => root.render(<MindmapNode element={element} />))
+
+    expect(box()).not.toBeNull()
+    expect(ring()).toBeNull()
+  })
+
+  it("stays the ring for a node", () => {
+    act(() => root.render(<MindmapNode element={node()} />))
+
+    expect(ring()).not.toBeNull()
+    expect(box()).toBeNull()
+  })
+
+  it("is neither for a line, which marks itself along its stroke", () => {
+    act(() => root.render(<MindmapNode element={line()} />))
+
+    expect(ring()).toBeNull()
+    expect(box()).toBeNull()
+  })
+
+  it("keeps the box and drops the grips while the element is edited", () => {
+    act(() => root.render(<MindmapNode element={shape} editing onEditEnd={vi.fn()} />))
+
+    const cls = box()!.getAttribute("class")!.split(" ")
+    expect(cls).toContain("stroke-accent")
+    expect(cls).not.toContain("hidden")
+    expect(container.querySelector("[data-mm-handle]")).toBeNull()
+  })
+
+  it("draws the box as a stroke over the zoom, shown for any selection and accent once selected", () => {
+    act(() => root.render(<MindmapNode element={shape} />))
+
+    const cls = box()!.getAttribute("class")!.split(" ")
+    expect(cls).toEqual(expect.arrayContaining(["hidden", "group-data-[selected]:inline", "group-data-[selected]:stroke-accent"]))
+    expect((box() as SVGElement).style.strokeWidth).toBe("calc(1.25px / var(--mm-zoom, 1))")
+  })
+
+  it("keeps the grips and the knob to a selection of one", () => {
+    act(() => root.render(<MindmapNode element={shape} />))
+
+    for (const handle of container.querySelectorAll("[data-mm-handle]")) {
+      const cls = handle.getAttribute("class")!.split(" ")
+      expect(cls).toContain("hidden")
+      expect(cls.some((c) => c.startsWith("group-data-[selected=one]:"))).toBe(true)
+      expect(cls.some((c) => c.startsWith("group-data-[selected]:"))).toBe(false)
+    }
+  })
+
+  it("keeps the eight grip directions and the knob that the gestures read", () => {
+    act(() => root.render(<MindmapNode element={shape} />))
+
+    const handles = [...container.querySelectorAll("[data-mm-handle]")].map((h) => h.getAttribute("data-mm-handle"))
+    expect(handles.sort()).toEqual(["e", "n", "ne", "nw", "rotate", "s", "se", "sw", "w"])
+  })
+
+  it("lights a shape's own outline on hover rather than a box", () => {
+    act(() => root.render(<MindmapNode element={shape} />))
+
+    const paths = container.querySelectorAll("path[data-mm-shape]")
+    expect(paths).toHaveLength(2)
+    expect(paths[1].getAttribute("d")).toBe(paths[0].getAttribute("d"))
+    expect(paths[1].getAttribute("stroke")).toBe("var(--accent)")
+    expect(paths[1].getAttribute("class")!.split(" ")).toEqual(
+      expect.arrayContaining(["opacity-0", "group-hover:opacity-100", "group-data-[selected]:hidden"]),
+    )
+    expect(box()!.getAttribute("class")).not.toContain("group-hover:inline")
+  })
+
+  it.each([
+    ["a free text", freeText],
+    ["an image", image],
+  ])("shows the box in the lasso line on hover for %s", (_, element) => {
+    act(() => root.render(<MindmapNode element={element} />))
+
+    const cls = box()!.getAttribute("class")!.split(" ")
+    expect(cls).toEqual(expect.arrayContaining(["group-hover:inline", "stroke-(--sel-lasso-line)"]))
+    expect(container.querySelector(".group-hover\:bg-frame-hover")).toBeNull()
+  })
+})

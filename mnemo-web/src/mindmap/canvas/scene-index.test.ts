@@ -296,6 +296,22 @@ describe("writeBox", () => {
     expect(svg.getAttribute("width")).toBe("200")
     expect(path.getAttribute("d")).toBe(shapePath("diamond", 200, 100))
   })
+
+  it("redraws the hover copy of the outline along with the outline", () => {
+    const host = index.hostFor("a")!
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+    const paths = [0, 1].map(() => {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
+      path.dataset.mmShape = "diamond"
+      svg.append(path)
+      return path
+    })
+    host.append(svg)
+
+    index.writeBox("a", { x: 0, y: 0, width: 200, height: 100 })
+
+    for (const path of paths) expect(path.getAttribute("d")).toBe(shapePath("diamond", 200, 100))
+  })
 })
 
 describe("lines", () => {

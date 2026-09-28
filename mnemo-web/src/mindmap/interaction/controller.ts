@@ -36,7 +36,15 @@ import { beginLasso, dropLasso, endLasso, moveLasso, SVG_NS, type LassoDrag } fr
 import { elementsInRect, rectBetween } from "./marquee"
 import { boxChanged, type ResizeBox, type ResizeDir } from "./resize"
 import { normalizeDeg, resizeRotated } from "./rotate"
-import { beginRotate, cancelRotate, endRotate, moveRotate, type RotateDrag } from "./rotate-drag"
+import { holdGrip, openChip, placeSizeChip, releaseGrip } from "./gesture-readout"
+import {
+  beginRotate,
+  cancelRotate,
+  dropReadout as dropRotateReadout,
+  endRotate,
+  moveRotate,
+  type RotateDrag,
+} from "./rotate-drag"
 import type { MindmapTool, SelectMode } from "./tool"
 import {
   addElements,
@@ -193,6 +201,8 @@ type Gesture =
       readonly rotation: number
       /** Where the box currently is, which is what a release commits. */
       box: ResizeBox
+      readonly grip: Element | null
+      readonly chip: HTMLElement
     }
   | RotateDrag
   | LineDrag
@@ -344,7 +354,7 @@ export function installInteraction(
     const grabbed = handle && elementId ? index.boxOf(elementId) : undefined
     if (handle && elementId && grabbed) {
       if (handle === "rotate") {
-        gesture = beginRotate(surface, elementId, grabbed, event.pointerId, startCanvas)
+        gesture = beginRotate(surface, elementId, grabbed, event, startCanvas)
         return
       }
       if (!isResizeDir(handle)) {
@@ -355,6 +365,8 @@ export function installInteraction(
       const lines = index.linesToRepaint([elementId])
       pane.setPointerCapture(event.pointerId)
       surface.pin([elementId, ...lines], incident)
+      const chip = openChip(pane)
+      placeSizeChip(chip, pane, index.hostFor(elementId), grabbed.width, grabbed.height)
       gesture = {
         kind: "resize",
         pointerId: event.pointerId,
@@ -366,6 +378,8 @@ export function installInteraction(
         lines,
         rotation: index.rotationOf(elementId),
         box: grabbed,
+        grip: holdGrip(event.target),
+        chip,
       }
       return
     }
@@ -546,6 +560,7 @@ export function installInteraction(
       index.repaintEdges(gesture.incident)
       index.repaintLines(gesture.lines)
       surface.redraw(gesture.incident)
+      placeSizeChip(gesture.chip, pane, index.hostFor(gesture.id), gesture.box.width, gesture.box.height)
       return
     }
 
@@ -658,6 +673,7 @@ export function installInteraction(
     }
 
     if (finished.kind === "resize") {
+      dropResizeReadout(finished)
       surface.unpin()
       // A grip pressed and let go without moving is a click on a grip, which is not an edit. Left
       // unchecked it would put a no-op on the undo stack for every miss.
@@ -749,6 +765,7 @@ export function installInteraction(
       surface.unpin()
     }
     if (gesture.kind === "resize") {
+      dropResizeReadout(gesture)
       index.writeBox(gesture.id, gesture.origin)
       index.repaintEdges(gesture.incident)
       index.repaintLines(gesture.lines)
@@ -906,9 +923,20 @@ export function installInteraction(
       if (gesture.kind === "lineEnd" || gesture.kind === "bend" || gesture.kind === "draw") {
         dropOverlay(gesture)
       }
+      if (gesture.kind === "resize") {
+        dropResizeReadout(gesture)
+      }
+      if (gesture.kind === "rotate") {
+        dropRotateReadout(gesture)
+      }
     },
     cancel: resetGesture,
   }
+}
+
+function dropResizeReadout(drag: Extract<Gesture, { kind: "resize" }>): void {
+  drag.chip.remove()
+  releaseGrip(drag.grip)
 }
 
 function selectionCount(selection: Selection): number {

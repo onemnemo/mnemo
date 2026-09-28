@@ -18,7 +18,7 @@ import type { SceneElement } from "../model/scene"
 import type { ElementBox } from "./edge-paths"
 import { NodeEditor } from "./NodeEditor"
 import { RichLabel } from "./RichLabel"
-import { ResizeHandles, RotateHandle } from "./ShapeHandles"
+import { ResizeHandles, RotateHandle, SelectionBox } from "./ShapeHandles"
 import { ShapeLine, ShapeLineHandles } from "./ShapeLine"
 import { shapePath, shapeTextInset } from "./shape-path"
 import { useFieldFlush } from "./useFieldFlush"
@@ -69,11 +69,12 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
   const rotor = element.kind === "shape" && !element.line
   const line = element.line
   const lineLabel = line ? lineLabelPoint(line) : null
+  const resizable = isResizable(element)
 
   const body = (
     <>
       {/* Separate spans keep hover and DOM-driven selection from competing for one property. */}
-      {line ? null : (
+      {line || resizable ? null : (
         <>
           <span
             className={cn(
@@ -96,11 +97,8 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
       {line ? (
         <ShapeLine element={element} line={line} stroke={accentLine} />
       ) : element.kind === "shape" ? (
-        <ShapeOutline element={element} stroke={accentLine} />
+        <ShapeOutline element={element} stroke={accentLine} editing={editing} />
       ) : null}
-
-      {isResizable(element) && !editing ? <ResizeHandles /> : null}
-      {rotor && !editing ? <RotateHandle label={t("Mindmap", "RotateHandle")} value={element.rotation ?? 0} /> : null}
 
       <div
         data-mm-line-label={line ? "" : undefined}
@@ -179,6 +177,12 @@ export const MindmapNode = memo(function MindmapNode({ element, editing, onEditE
           </span>
         ) : null}
       </div>
+
+      {/* After the body, so an image or a filled label cannot paint over the inner half of the line
+          or the grips. */}
+      {resizable ? <SelectionBox editing={editing} hover={element.kind !== "shape"} /> : null}
+      {resizable && !editing ? <ResizeHandles /> : null}
+      {rotor && !editing ? <RotateHandle label={t("Mindmap", "RotateHandle")} value={element.rotation ?? 0} /> : null}
 
       {line ? <ShapeLineHandles element={element} line={line} hidden={editing} /> : null}
 
@@ -613,8 +617,17 @@ function FrameTitle({
  * and takes no pointer events, so the host div stays the only thing a gesture can land on and the
  * hit target is the box rather than the outline's own irregular area.
  */
-function ShapeOutline({ element, stroke }: { element: SceneElement; stroke: string | undefined }) {
+function ShapeOutline({
+  element,
+  stroke,
+  editing,
+}: {
+  element: SceneElement
+  stroke: string | undefined
+  editing?: boolean
+}) {
   const shape = (element.content as ShapeContent).shape ?? DEFAULT_SHAPE
+  const d = shapePath(shape, element.width, element.height)
 
   return (
     <svg
@@ -627,11 +640,26 @@ function ShapeOutline({ element, stroke }: { element: SceneElement; stroke: stri
         // Named so a live resize can redraw the path from the DOM. The outline is drawn to the box
         // rather than scaled into it, so it cannot simply follow a size the gesture wrote.
         data-mm-shape={shape}
-        d={shapePath(shape, element.width, element.height)}
+        d={d}
         fill={element.fill ?? "var(--canvas)"}
         stroke={stroke ?? "var(--line)"}
         strokeWidth={1.5}
         strokeLinejoin="round"
+      />
+      {/* Hover lights the outline itself, since any box around a shape that is not a box would be a
+          second, wrong silhouette. */}
+      <path
+        data-mm-shape={shape}
+        data-mm-shape-hover=""
+        d={d}
+        fill="none"
+        stroke="var(--accent)"
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        className={cn(
+          "opacity-0 transition-opacity duration-100 group-hover:opacity-100 group-data-[selected]:hidden",
+          editing && "hidden",
+        )}
       />
     </svg>
   )

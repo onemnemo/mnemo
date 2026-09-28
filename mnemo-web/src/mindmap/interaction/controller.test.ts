@@ -777,6 +777,59 @@ describe("a resize grip", () => {
     h.uninstall()
   })
 
+  it("shows the live size in canvas units, and nothing once let go", () => {
+    const h = harness()
+    const chip = (): Element | null => h.pane.querySelector("[data-mm-chip]")
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+    expect(chip()?.textContent).toBe("100 × 40")
+
+    h.move({ x: 340.4, y: 0 })
+    expect(chip()?.textContent).toBe("140 × 60")
+
+    h.release({ x: 340, y: 0 })
+    expect(chip()).toBeNull()
+    h.uninstall()
+  })
+
+  it("keeps the held grip lit until the gesture ends, and drops the size on a cancel", () => {
+    const h = harness()
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+    const grip = h.pane.querySelector("[data-mm-active]")
+    expect(grip?.getAttribute("data-mm-handle")).toBe("se")
+
+    h.move({ x: 340, y: 0 })
+    h.cancel({ x: 340, y: 0 })
+
+    expect(h.pane.querySelector("[data-mm-chip]")).toBeNull()
+    expect(grip?.hasAttribute("data-mm-active")).toBe(false)
+    h.uninstall()
+  })
+
+  it("places the size chip off the element's host", () => {
+    const h = harness()
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+
+    expect((h.pane.querySelector("[data-mm-chip]") as HTMLElement).style.transform).toContain("translate(")
+    h.uninstall()
+  })
+
+  it.each([
+    ["an external cancel", (h: ReturnType<typeof harness>) => h.cancelGesture()],
+    ["an uninstall", (h: ReturnType<typeof harness>) => h.uninstall()],
+  ])("drops the size chip and the held grip on %s", (_, end) => {
+    const h = harness()
+    const pane = h.pane
+    h.pressGrip("a", "se", { x: 300, y: -20 })
+    h.move({ x: 340, y: 0 })
+    const grip = pane.querySelector("[data-mm-active]")
+
+    end(h)
+
+    expect(pane.querySelector("[data-mm-chip]")).toBeNull()
+    expect(grip?.hasAttribute("data-mm-active")).toBe(false)
+    if (pane.isConnected) h.uninstall()
+  })
+
   it("takes the position with it when the grip is on the far side", () => {
     const h = harness()
     h.pressGrip("a", "nw", { x: 200, y: -60 })
@@ -1020,6 +1073,63 @@ describe("the rotate grip", () => {
     expect(h.rotations.get("a")).toBe(0)
     expect(h.rotated).toEqual([])
     h.uninstall()
+  })
+
+  it("shows the angle beside the pointer while it turns, and nothing once let go", () => {
+    const h = harness()
+    const chip = (): Element | null => h.pane.querySelector("[data-mm-chip]")
+    h.pressGrip("a", "rotate", { x: 250, y: 0 })
+    expect(chip()?.textContent).toBe("0°")
+
+    h.move({ x: 300, y: -40 })
+    expect(chip()?.textContent).toBe("270°")
+
+    h.release({ x: 300, y: -40 })
+    expect(chip()).toBeNull()
+    h.uninstall()
+  })
+
+  it("reads the snapped angle under Shift, and moves the slider value with it", () => {
+    const h = harness()
+    h.pressGrip("a", "rotate", { x: 250, y: 0 })
+    h.move({ x: 300, y: -30 }, { shiftKey: true })
+
+    const shown = Number.parseInt(h.pane.querySelector("[data-mm-chip]")!.textContent!, 10)
+    expect(shown % 15).toBe(0)
+    expect(shown).toBe(Math.round(h.rotations.get("a")!))
+    expect(h.pane.querySelector('[data-mm-handle="rotate"]')!.getAttribute("aria-valuenow")).toBe(String(shown))
+    h.uninstall()
+  })
+
+  it("drops the angle and lets go of the knob when the gesture is cancelled", () => {
+    const h = harness()
+    h.pressGrip("a", "rotate", { x: 250, y: 0 })
+    const knob = h.pane.querySelector('[data-mm-handle="rotate"]')!
+    expect(knob.hasAttribute("data-mm-active")).toBe(true)
+
+    h.move({ x: 300, y: -40 })
+    h.cancel({ x: 300, y: -40 })
+
+    expect(h.pane.querySelector("[data-mm-chip]")).toBeNull()
+    expect(knob.hasAttribute("data-mm-active")).toBe(false)
+    h.uninstall()
+  })
+
+  it.each([
+    ["an external cancel", (h: ReturnType<typeof harness>) => h.cancelGesture()],
+    ["an uninstall", (h: ReturnType<typeof harness>) => h.uninstall()],
+  ])("drops the angle chip and the held knob on %s", (_, end) => {
+    const h = harness()
+    const pane = h.pane
+    h.pressGrip("a", "rotate", { x: 250, y: 0 })
+    h.move({ x: 300, y: -40 })
+    const knob = pane.querySelector("[data-mm-active]")
+
+    end(h)
+
+    expect(pane.querySelector("[data-mm-chip]")).toBeNull()
+    expect(knob?.hasAttribute("data-mm-active")).toBe(false)
+    if (pane.isConnected) h.uninstall()
   })
 
   it("turns by keyboard, with Shift using the same fifteen degree step", () => {

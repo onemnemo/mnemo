@@ -620,13 +620,14 @@ export function createSceneIndex(
  * told it keeps the resize gesture from having to know what a shape is.
  */
 function redrawShape(host: HTMLElement, width: number, height: number): void {
-  const path = host.querySelector<SVGPathElement>('path[data-mm-shape]')
-  const shape = path?.dataset.mmShape
-  if (!path || !shape) return
-  const svg = path.ownerSVGElement
-  if (svg) {
-    svg.setAttribute('width', String(width))
-    svg.setAttribute('height', String(height))
+  for (const path of host.querySelectorAll<SVGPathElement>('path[data-mm-shape]')) {
+    const shape = path.dataset.mmShape
+    if (!shape) continue
+    const svg = path.ownerSVGElement
+    if (svg) {
+      svg.setAttribute('width', String(width))
+      svg.setAttribute('height', String(height))
+    }
+    path.setAttribute('d', shapePath(shape as ShapeType, width, height))
   }
-  path.setAttribute('d', shapePath(shape as ShapeType, width, height))
 }

@@ -154,6 +154,7 @@
     --shadow-lift: var(--e-lift);
     --shadow-chip: var(--e-chip);
     --shadow-raised: var(--e-raised);
+    --shadow-handle: var(--e-handle);
 
     /* Transition/animation utilities resolve through the motion tokens, so the
        reduce-motion switch reaches anything written with them.

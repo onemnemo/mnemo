@@ -394,6 +394,10 @@
   --e-raised:
     0 0 0 1px oklch(0.2 0.01 var(--neutral-hue) / 0.07),
     0 1px 2px oklch(0.2 0.01 var(--neutral-hue) / 0.08);
+  /* A grip small enough that a full 1px ring would read as a heavier border. */
+  --e-handle:
+    0 0 0 0.5px oklch(0.2 0.01 var(--neutral-hue) / 0.08),
+    0 1px 2px oklch(0.2 0.01 var(--neutral-hue) / 0.18);
 }
 
 /* ---- Dark ---- */
@@ -536,4 +540,7 @@
   --e-raised:
     inset 0 1px 0 oklch(1 0 0 / 0.06),
     0 0 0 1px oklch(0 0 0 / 0.4);
+  --e-handle:
+    0 0 0 0.5px oklch(0 0 0 / 0.5),
+    0 1px 2px oklch(0 0 0 / 0.5);
 }
