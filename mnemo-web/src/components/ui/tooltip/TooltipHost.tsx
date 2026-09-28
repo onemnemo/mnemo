@@ -36,6 +36,7 @@ interface Shown {
   readonly anchor: HTMLElement
   readonly label: string
   readonly chord: string | null
+  readonly detail: string | null
   readonly side: TooltipSide
 }
 
@@ -55,6 +56,7 @@ function hintFor(target: EventTarget | null): Shown | null {
       anchor,
       label: own,
       chord: anchor.getAttribute("data-tooltip-chord"),
+      detail: anchor.getAttribute("data-tooltip-detail"),
       side: sideOf(anchor.getAttribute("data-tooltip-side")),
     }
   }
@@ -65,7 +67,7 @@ function hintFor(target: EventTarget | null): Shown | null {
   // is a document mutation as far as it is concerned. Editor controls opt in with
   // data-tooltip instead, which is read rather than moved.
   if (anchor.isContentEditable) return null
-  return { anchor, label: title, chord: null, side: "top" }
+  return { anchor, label: title, chord: null, detail: null, side: "top" }
 }
 
 export function TooltipHost() {
@@ -268,12 +270,13 @@ export function TooltipHost() {
     <div
       // Keyed on the text so the entrance replays for each control, rather than once for
       // the first of a run and never again as the one element slides between them.
-      key={shown.label}
+      key={`${shown.label}|${shown.detail ?? ""}`}
       ref={tipRef}
       role="presentation"
       aria-hidden
       className={cn(
-        "animate-pop-in pointer-events-none fixed z-[300] flex h-[30px] items-center gap-2 rounded-[10px]",
+        "animate-pop-in pointer-events-none fixed z-[300] flex items-center gap-2 rounded-[10px]",
+        shown.detail ? "py-[5px] leading-[1.3]" : "h-[30px]",
         "bg-tooltip-surface text-[12.5px] font-medium tracking-[-0.004em] text-tooltip-ink shadow-pop",
         // The caps carry their own inset, so the right side closes up when there are any.
         keys.length > 0 ? "pl-2.5 pr-2" : "px-2.5",
@@ -287,7 +290,14 @@ export function TooltipHost() {
         visibility: placement ? "visible" : "hidden",
       }}
     >
-      <span className="whitespace-nowrap">{shown.label}</span>
+      {shown.detail ? (
+        <span className="flex flex-col whitespace-nowrap">
+          <span>{shown.label}</span>
+          <span className="font-normal opacity-62">{shown.detail}</span>
+        </span>
+      ) : (
+        <span className="whitespace-nowrap">{shown.label}</span>
+      )}
       {keys.map((key, index) => (
         <kbd
           key={`${key}:${index}`}

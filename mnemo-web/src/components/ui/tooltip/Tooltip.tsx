@@ -18,13 +18,15 @@ export interface TooltipProps {
   label: string
   /** A canonical chord ("F", "Primary+Shift+H"), drawn as one cap per key. */
   chord?: string | null
+  /** A quieter second line under the label. */
+  detail?: string
   /** Preferred side. It still flips when there is no room. */
   side?: TooltipSide
   /** A single element that passes props through to a DOM node. */
   children: ReactElement
 }
 
-export function Tooltip({ label, chord, side, children }: TooltipProps) {
+export function Tooltip({ label, chord, detail, side, children }: TooltipProps) {
   if (!label || !isValidElement<Record<string, unknown>>(children)) return children
 
   const props = children.props
@@ -39,6 +41,7 @@ export function Tooltip({ label, chord, side, children }: TooltipProps) {
     patch["aria-label"] = props.title
   }
   if (chord) patch["data-tooltip-chord"] = chord
+  if (detail) patch["data-tooltip-detail"] = detail
   if (side) patch["data-tooltip-side"] = side
 
   return cloneElement(children, patch)
