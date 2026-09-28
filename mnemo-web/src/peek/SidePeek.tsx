@@ -98,6 +98,8 @@ export function SidePeek() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return
       if (!escapeShouldClosePeek(escapeContextOf(event, escapeClosesPeek()))) return
+      // Answered, so a page behind the peek does not also act on the same Escape.
+      event.preventDefault()
       usePeekStore.getState().closePeek()
     }
     document.addEventListener("keydown", onKey)

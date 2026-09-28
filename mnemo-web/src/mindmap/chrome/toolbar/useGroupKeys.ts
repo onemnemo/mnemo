@@ -1,6 +1,7 @@
 import { useEffect, useRef, type RefObject } from "react"
 
 import { isTyping } from "../../page/route-guards"
+import { isPageKey } from "../../page/usePageKeys"
 import type { GroupBinding } from "./binding"
 import { optionForKey, type ToolbarGroup } from "./groups"
 
@@ -9,9 +10,9 @@ import { optionForKey, type ToolbarGroup } from "./groups"
  * says so closes behind a pick.
  *
  * Heard on the window's capture phase and stopped there, so a key the group answers never also
- * reaches the map. Without that, H on the shape shelf would pick a hexagon and arm the hand. Only
- * keys aimed inside the map pane count, so a menu or dialog over the page keeps its own Escape, and
- * typing into a field or a chord with a modifier is left alone.
+ * reaches the map: H on the shape shelf would pick a hexagon and arm the hand. Only keys aimed
+ * inside the map pane count, or at the page when nothing has the focus. A menu or dialog keeps its
+ * own Escape, and a field or a modifier chord is left alone.
  */
 export function useGroupKeys(
   group: ToolbarGroup | null,
@@ -34,7 +35,7 @@ export function useGroupKeys(
         event.metaKey ||
         event.altKey ||
         isTyping(event.target) ||
-        !scope.current?.contains(event.target as Node)
+        !(scope.current?.contains(event.target as Node) || isPageKey(event))
       ) {
         return
       }

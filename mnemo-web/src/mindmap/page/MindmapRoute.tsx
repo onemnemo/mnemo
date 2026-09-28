@@ -86,6 +86,7 @@ import { op, type FrameOp, type MindmapOp, type NodeSpec } from "../model/ops"
 import { absoluteUrl, followRef, isFollowable } from "./follow"
 import { PLANT_LABEL, plantOp } from "./plant"
 import { focusCanvas, isOnToolbar, isTyping, keyBelongsToMap } from "./route-guards"
+import { usePageKeys } from "./usePageKeys"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import type { AbsoluteLine } from "../scene/line-geometry"
 import { accentOf, branchSwatchOf } from "../scene/branch"
@@ -1357,24 +1358,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     onReveal: (id) => setSelection(selectElements([id])),
   })
 
-  // Focus that has fallen to the page reaches no handler on the route, and F6 is the way back from
-  // there, so it is also heard on the window.
-  const liveKeys = useRef({ actionFor, radial })
-  liveKeys.current = { actionFor, radial }
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.target !== document.body || liveKeys.current.radial) {
-        return
-      }
-      if (liveKeys.current.actionFor(event)?.actionId === "mindmap.focus-toolbar") {
-        event.preventDefault()
-        toolbar.current?.focus()
-      }
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [])
-
   /**
    * The keyboard, as the catalog defines it.
    *
@@ -1383,7 +1366,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
    * rebindable from Settings and what keeps the map's shortcuts in the one list the app shows.
    */
   const onKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
+    (event: KeyboardEvent) => {
       if (isTyping(event.target)) {
         return
       }
@@ -1394,7 +1377,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         return
       }
 
-      const hit = actionFor(event.nativeEvent)
+      const hit = actionFor(event)
       if (!hit || !keyBelongsToMap(event.target, hit.actionId)) {
         return
       }
@@ -1566,6 +1549,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     ],
   )
 
+  usePageKeys(onKeyDown)
+
   if (map.isError) {
     return <Notice icon="triangle-alert" title={t("Mindmap", "MapNotFound")} />
   }
@@ -1576,7 +1561,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   return (
     <div
       className="relative flex h-full min-h-0 flex-col bg-canvas"
-      onKeyDown={onKeyDown}
+      onKeyDown={(event) => onKeyDown(event.nativeEvent)}
       onPaste={(event) => {
         // Only a picture is taken here. Text on the clipboard belongs to whatever is being typed
         // into, and the map's own copy of a branch never went to the system clipboard at all.

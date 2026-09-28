@@ -153,6 +153,22 @@ describe("the toolbar", () => {
     expect(reachedMap).not.toHaveBeenCalled()
   })
 
+  it("hears a group's keys while nothing has the focus, but not keys aimed at other chrome", () => {
+    const all = mount()
+    press("ToolShape")
+    rerender(all, { tool: "shape" })
+    const elsewhere = document.createElement("button")
+    document.body.append(elsewhere)
+    try {
+      key({ key: "o" }, elsewhere)
+      expect(all.onShape).not.toHaveBeenCalled()
+      key({ key: "o" }, document.body)
+      expect(all.onShape).toHaveBeenCalledWith("ellipse")
+    } finally {
+      elsewhere.remove()
+    }
+  })
+
   it("picks a connector by its number without the number reaching the map", () => {
     const all = mount()
     press("ToolConnect")
