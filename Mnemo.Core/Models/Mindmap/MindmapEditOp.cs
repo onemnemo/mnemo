@@ -37,6 +37,9 @@ public sealed record MindmapNodeSpec
     /// author chose, so the next arrange is free to flow it into the tree.
     /// </summary>
     public bool? Pin { get; init; }
+
+    /// <summary>Optional style override the node is created with. Null leaves it to the template and theme.</summary>
+    public ElementStyle? Style { get; init; }
 }
 
 /// <summary>Insert a nested subtree. No <see cref="Under"/> = a new floating cluster. Returns an id map.</summary>

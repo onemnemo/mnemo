@@ -469,6 +469,9 @@ public static class MindmapToolOpParser
             return false;
         }
 
+        if (!TryOptStyle<ElementStyle>(n, "style", out var style, out error))
+            return false;
+
         spec = new MindmapNodeSpec
         {
             Ref = OptString(n, "ref"),
@@ -478,6 +481,7 @@ public static class MindmapToolOpParser
             X = x,
             Y = y,
             Pin = OptBool(n, "pin"),
+            Style = style,
         };
         return true;
     }

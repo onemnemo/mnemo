@@ -61,6 +61,18 @@ public sealed class MindmapToolOpParserTests
     }
 
     [Fact]
+    public void Add_NodeCarriesTheStyleItIsCreatedWith()
+    {
+        var ops = ParseOk("""
+            [{ "op": "add", "nodes": [ { "t": "styled", "style": { "nodeShape": "outline" } }, { "t": "plain" } ] }]
+            """);
+
+        var nodes = Assert.IsType<AddNodesOp>(ops.Single()).Nodes;
+        Assert.Equal(NodeShape.Outline, nodes[0].Style?.NodeShape);
+        Assert.Null(nodes[1].Style);
+    }
+
+    [Fact]
     public void Add_NodeWithContentObject_ParsesTypedContent()
     {
         var ops = ParseOk("""

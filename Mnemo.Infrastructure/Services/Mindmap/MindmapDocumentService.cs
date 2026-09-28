@@ -1012,6 +1012,7 @@ public sealed class MindmapDocumentService : IMindmapService
             X = spec.X ?? 0,
             Y = spec.Y ?? 0,
             Pinned = pinned,
+            Style = spec.Style == new ElementStyle() ? null : spec.Style,
         });
 
         if (spec.Ref is not null)

@@ -37,6 +37,8 @@ export interface NodeSpec {
    * the root, and that guess should not survive the next arrange the way a dragged position does.
    */
   pin?: boolean
+  /** A style override the node is created with. Absent leaves it to the template and theme. */
+  style?: ElementStyle
 }
 
 export type MindmapOp =

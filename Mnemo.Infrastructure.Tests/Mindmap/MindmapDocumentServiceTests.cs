@@ -288,6 +288,31 @@ public sealed class MindmapDocumentServiceTests
     }
 
     [Fact]
+    public async Task AddNodes_WritesTheStyleTheSpecCarries()
+    {
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("m")).Value!;
+
+        var result = (await h.Service.ApplyAsync(map.Id, map.Revision, new MindmapEditOp[]
+        {
+            new AddNodesOp
+            {
+                Nodes = new List<MindmapNodeSpec>
+                {
+                    new() { Ref = "styled", Text = "s", X = 0, Y = 0, Style = new ElementStyle { NodeShape = NodeShape.Pill } },
+                    new() { Ref = "bare", Text = "b", X = 0, Y = 80 },
+                    new() { Ref = "empty", Text = "e", X = 0, Y = 160, Style = new ElementStyle() },
+                },
+            },
+        })).Value!;
+
+        var doc = (await h.Service.GetAsync(map.Id)).Value!;
+        Assert.Equal(NodeShape.Pill, doc.Elements.Single(e => e.Id == result.CreatedIds["styled"]).Style?.NodeShape);
+        Assert.Null(doc.Elements.Single(e => e.Id == result.CreatedIds["bare"]).Style);
+        Assert.Null(doc.Elements.Single(e => e.Id == result.CreatedIds["empty"]).Style);
+    }
+
+    [Fact]
     public async Task Delete_CascadesSubtree_AndEchoesCount()
     {
         await using var h = new MindmapTestHarness();
