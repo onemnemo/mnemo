@@ -1,6 +1,6 @@
-import type { ReactNode } from "react"
+import type { ReactNode, Ref } from "react"
 
-import { Tooltip } from "@/components/ui/tooltip"
+import { Tooltip, type TooltipSide } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 export interface BarButtonProps {
@@ -13,15 +13,34 @@ export interface BarButtonProps {
   onClick: () => void
   /** For a button that shows its own words, which then need no tooltip. */
   labelled?: boolean
+  /** The key that does the same thing, and a second line under the label, both for the tooltip. */
+  chord?: string | null
+  detail?: string
+  side?: TooltipSide
   className?: string
+  ref?: Ref<HTMLButtonElement>
   children: ReactNode
 }
 
 /** One control on a selection bar: 32 px tall, pressed while its panel is open. */
-export function BarButton({ label, opens, disabled, undimmed, onClick, labelled, className, children }: BarButtonProps) {
+export function BarButton({
+  label,
+  opens,
+  disabled,
+  undimmed,
+  onClick,
+  labelled,
+  chord,
+  detail,
+  side,
+  className,
+  ref,
+  children,
+}: BarButtonProps) {
   return (
-    <Tooltip label={labelled ? "" : label}>
+    <Tooltip label={labelled ? "" : label} chord={chord} detail={detail} side={side}>
       <button
+        ref={ref}
         type="button"
         aria-label={label}
         aria-haspopup={opens ? "dialog" : undefined}
@@ -46,8 +65,8 @@ export function BarButton({ label, opens, disabled, undimmed, onClick, labelled,
 }
 
 /** A hairline between groups on a bar. */
-export function BarDivider() {
-  return <span aria-hidden className="mx-1 h-[18px] w-px shrink-0 bg-line" />
+export function BarDivider({ className }: { className?: string }) {
+  return <span aria-hidden className={cn("mx-1 h-[18px] w-px shrink-0 bg-line", className)} />
 }
 
 /** A 16 px dot in the colour actually drawn, in a gap ring that is the button's own background. */

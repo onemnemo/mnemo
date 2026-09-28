@@ -350,7 +350,7 @@
     "GridOpacity": "Rutenettets gjennomsiktighet",
     "GridOpacityDescription": "Synlighet (gjennomsiktighet) for rutenettet.",
     "ShowMinimap": "Minikart",
-    "ShowMinimapDescription": "Når minikartet skal vises: Auto (ved zooming), På, eller Av.",
+    "ShowMinimapDescription": "Når minikartet skal vises: Auto (når deler av kartet er utenfor skjermen), På eller Av.",
     "GlobalQuickActions": "Globale hurtighandlinger",
     "GlobalQuickActionsDescription": "Alt+Shift+Q åpner menyen for hurtighandlinger.",
     "NewNote": "Nytt notat",

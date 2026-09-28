@@ -1,7 +1,7 @@
 /**
  * The pieces every floating bar over the canvas is built from.
  *
- * One primitive per shape, shared rather than restyled per bar, because the zoom bar and the selection
+ * One primitive per shape, shared rather than restyled per bar, because the find bar and the selection
  * bars are the same object seen twice: a row of uniform square controls on a panel that hovers over
  * the map. Two implementations of that would drift within a week.
  */

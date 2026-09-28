@@ -350,7 +350,7 @@
     "GridOpacity": "Grid Opacity",
     "GridOpacityDescription": "Grid visibility (transparency).",
     "ShowMinimap": "Minimap",
-    "ShowMinimapDescription": "When to show the overview: Auto (when zoomed out), On, or Off.",
+    "ShowMinimapDescription": "When to show the overview: Auto (while part of the map is off screen), On, or Off.",
     "GlobalQuickActions": "Global quick actions",
     "GlobalQuickActionsDescription": "Alt+Shift+Q opens the quick action menu.",
     "NewNote": "New Note",

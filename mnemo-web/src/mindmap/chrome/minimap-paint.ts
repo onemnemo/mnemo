@@ -22,14 +22,18 @@ const CONTENT_PADDING = 80
 const MIN_SWATCH = 2
 
 const SWATCH_RADIUS = 1.5
-const VIEWPORT_RADIUS = 2
+const VIEWPORT_RADIUS = 3
 const VIEWPORT_WEIGHT = 1.5
+const RING_WEIGHT = 1.25
+const RING_GAP = 2
+const RING_RADIUS = 3
 
-// The viewport box is the same idea as a marquee, a region called out over the map, so it borrows the
-// lasso's own colours: a translucent accent wash inside, a stronger accent line around it. The old
-// muted-ink hairline was there but almost impossible to see against the swatches.
-const VIEWPORT_FILL = "var(--sel-lasso)"
-const VIEWPORT_STROKE = "var(--sel-lasso-line)"
+// The view is called out by fading everything outside it rather than tinting what is inside, so the
+// part of the map on screen keeps its own colours. The wash inside only appears while it is handled.
+const SURROUND = "var(--canvas)"
+const SURROUND_ALPHA = 0.6
+const VIEWPORT_WASH = "var(--sel-lasso)"
+const ACCENT = "var(--accent)"
 
 /** Only the parts of a 2D context the minimap touches. */
 export interface MinimapContext {
@@ -37,6 +41,8 @@ export interface MinimapContext {
   fillStyle: string | CanvasGradient | CanvasPattern
   strokeStyle: string | CanvasGradient | CanvasPattern
   lineWidth: number
+  lineCap: CanvasLineCap
+  globalAlpha: number
   save(): void
   restore(): void
   beginPath(): void
@@ -46,7 +52,7 @@ export interface MinimapContext {
   rect(x: number, y: number, width: number, height: number): void
   roundRect(x: number, y: number, width: number, height: number, radii: number): void
   clip(): void
-  fill(): void
+  fill(rule?: CanvasFillRule): void
   stroke(): void
 }
 
@@ -103,32 +109,14 @@ export function paintSwatches(
 ): void {
   for (const element of elements) {
     if (element.line) {
-      const point = (value: Point): Point => ({
-        x: (element.x + value.x) * projection.scale + projection.offsetX,
-        y: (element.y + value.y) * projection.scale + projection.offsetY,
-      })
-      const start = point(element.line.start)
-      const end = point(element.line.end)
-      context.beginPath()
-      context.moveTo(start.x, start.y)
-      if (element.line.bend) {
-        const bend = point(element.line.bend)
-        context.quadraticCurveTo(bend.x, bend.y, end.x, end.y)
-      } else {
-        context.lineTo(end.x, end.y)
-      }
+      traceLine(context, element, element.line, projection)
       context.strokeStyle = resolve(markColor(element))
-      context.lineWidth = Math.max(1, element.line.thickness * projection.scale)
+      context.lineWidth = lineWeight(element.line, projection)
       context.stroke()
       continue
     }
 
-    const drawn = boxFromBounds(drawnBoundsOf(element))
-    const x = drawn.x * projection.scale + projection.offsetX
-    const y = drawn.y * projection.scale + projection.offsetY
-    const width = Math.max(MIN_SWATCH, drawn.width * projection.scale)
-    const height = Math.max(MIN_SWATCH, drawn.height * projection.scale)
-
+    const { x, y, width, height } = swatchRect(element, projection)
     context.beginPath()
     context.roundRect(x, y, width, height, SWATCH_RADIUS)
 
@@ -147,7 +135,48 @@ export function paintSwatches(
   }
 }
 
-/** The camera's own box, over the swatches. */
+/** A line element's path on the minimap, ready to stroke. */
+function traceLine(
+  context: MinimapContext,
+  element: SceneElement,
+  line: NonNullable<SceneElement["line"]>,
+  projection: MinimapProjection,
+): void {
+  const point = (value: Point): Point => ({
+    x: (element.x + value.x) * projection.scale + projection.offsetX,
+    y: (element.y + value.y) * projection.scale + projection.offsetY,
+  })
+  const start = point(line.start)
+  const end = point(line.end)
+  context.beginPath()
+  context.moveTo(start.x, start.y)
+  if (line.bend) {
+    const bend = point(line.bend)
+    context.quadraticCurveTo(bend.x, bend.y, end.x, end.y)
+  } else {
+    context.lineTo(end.x, end.y)
+  }
+}
+
+function lineWeight(line: NonNullable<SceneElement["line"]>, projection: MinimapProjection): number {
+  return Math.max(1, line.thickness * projection.scale)
+}
+
+/** Where an element's swatch lands on the minimap. */
+function swatchRect(element: SceneElement, projection: MinimapProjection) {
+  const drawn = boxFromBounds(drawnBoundsOf(element))
+  return {
+    x: drawn.x * projection.scale + projection.offsetX,
+    y: drawn.y * projection.scale + projection.offsetY,
+    width: Math.max(MIN_SWATCH, drawn.width * projection.scale),
+    height: Math.max(MIN_SWATCH, drawn.height * projection.scale),
+  }
+}
+
+/**
+ * The camera's view: everything outside it faded, then its outline in the accent. `lit` adds a wash
+ * inside it, for while the pointer is over the minimap or dragging the view.
+ */
 export function paintViewport(
   context: MinimapContext,
   viewport: Viewport,
@@ -155,12 +184,26 @@ export function paintViewport(
   projection: MinimapProjection,
   box: { readonly width: number; readonly height: number },
   resolve: (color: string) => string,
+  lit = false,
 ): void {
   if (pane.width <= 0 || pane.height <= 0 || viewport.zoom <= 0) {
     return
   }
 
+  const x = viewport.x * projection.scale + projection.offsetX
+  const y = viewport.y * projection.scale + projection.offsetY
+  const width = (pane.width / viewport.zoom) * projection.scale
+  const height = (pane.height / viewport.zoom) * projection.scale
+
   context.save()
+  context.beginPath()
+  context.rect(0, 0, box.width, box.height)
+  context.roundRect(x, y, width, height, VIEWPORT_RADIUS)
+  context.fillStyle = resolve(SURROUND)
+  context.globalAlpha = SURROUND_ALPHA
+  context.fill("evenodd")
+  context.globalAlpha = 1
+
   // Clipped, because the camera can hold more than the map: zoomed far enough out, the rectangle is
   // larger than the panel, and an unclipped stroke would run over the panel's rounded corners.
   const inset = VIEWPORT_WEIGHT / 2
@@ -169,19 +212,49 @@ export function paintViewport(
   context.clip()
 
   context.beginPath()
-  context.roundRect(
-    viewport.x * projection.scale + projection.offsetX,
-    viewport.y * projection.scale + projection.offsetY,
-    (pane.width / viewport.zoom) * projection.scale,
-    (pane.height / viewport.zoom) * projection.scale,
-    VIEWPORT_RADIUS,
-  )
-  // Fill then stroke the one path: the wash says which part of the map the camera holds, the line
-  // draws its edge.
-  context.fillStyle = resolve(VIEWPORT_FILL)
-  context.fill()
-  context.strokeStyle = resolve(VIEWPORT_STROKE)
+  context.roundRect(x, y, width, height, VIEWPORT_RADIUS)
+  if (lit) {
+    context.fillStyle = resolve(VIEWPORT_WASH)
+    context.fill()
+  }
+  context.strokeStyle = resolve(ACCENT)
   context.lineWidth = VIEWPORT_WEIGHT
   context.stroke()
   context.restore()
+}
+
+/** A ring just outside each selected element's swatch. Painted under the view, so the fade dims it too. */
+export function paintSelection(
+  context: MinimapContext,
+  selected: readonly SceneElement[],
+  projection: MinimapProjection,
+  resolve: (color: string) => string,
+): void {
+  if (selected.length === 0) {
+    return
+  }
+  for (const element of selected) {
+    // A line's box is mostly empty space, so it is haloed along its own path instead, then redrawn in
+    // its colour on top so the halo reads as an outline.
+    if (element.line) {
+      const weight = lineWeight(element.line, projection)
+      context.save()
+      context.lineCap = "round"
+      traceLine(context, element, element.line, projection)
+      context.strokeStyle = resolve(ACCENT)
+      context.lineWidth = weight + RING_WEIGHT * 2
+      context.stroke()
+      context.strokeStyle = resolve(markColor(element))
+      context.lineWidth = weight
+      context.stroke()
+      context.restore()
+      continue
+    }
+    const { x, y, width, height } = swatchRect(element, projection)
+    context.beginPath()
+    context.roundRect(x - RING_GAP, y - RING_GAP, width + RING_GAP * 2, height + RING_GAP * 2, RING_RADIUS)
+    context.strokeStyle = resolve(ACCENT)
+    context.lineWidth = RING_WEIGHT
+    context.stroke()
+  }
 }

@@ -25,8 +25,8 @@ import { bandForZoom } from "../canvas/lod"
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
 import { ExportMenu } from "../chrome/ExportMenu"
-import { MindmapMinimap, type MinimapSink } from "../chrome/Minimap"
-import { MindmapZoomBar } from "../chrome/MindmapZoomBar"
+import type { MinimapSink } from "../chrome/Minimap"
+import { MindmapViewDock } from "../chrome/MindmapViewDock"
 import { connectorStyle } from "../chrome/toolbar/connector"
 import { DockedEdgeContext } from "../chrome/toolbar/docked-edge"
 import { MindmapToolbar, type ToolbarCommands } from "../chrome/toolbar/MindmapToolbar"
@@ -41,7 +41,6 @@ import { SaveTemplateDialog } from "../chrome/SaveTemplateDialog"
 import type { AlignControl } from "../chrome/AlignBar"
 import type { LinePatch } from "../chrome/LineBar"
 import { MindmapSelectionBar } from "../chrome/SelectionBar"
-import { useMinimapShown } from "../chrome/useMinimapShown"
 import { useDrainOnExit } from "../edit/useDrainOnExit"
 import { MindmapFindBar } from "../find/MindmapFindBar"
 import { useMindmapFind } from "../find/useMindmapFind"
@@ -164,7 +163,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   const corner = useRef<HTMLDivElement>(null)
   const presets = useToolPresets()
   const [docked, setDocked] = useState<DockEdge>("bottom")
-  // The canvas writes the camera here on every frame and the minimap reads it, so a pan repaints the
+  // The canvas writes the camera here on every frame and the view dock reads it, so a pan repaints the
   // minimap without re-rendering the route. A ref rather than state for exactly that reason.
   const minimapCamera = useRef<MinimapSink["current"]>(null)
   /** The picker behind the toolbar's image button. Hidden, since the button is what anyone presses. */
@@ -1235,8 +1234,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     }
   }, [deleteSelection, duplicateSelection, editor, hierarchy, outdent, pinNodes, scene, selection, soleNode, t])
 
-  const minimap = useMinimapShown((scene?.elements.length ?? 0) > 0)
-
   const removeTemplate = useDeleteMindmapTemplate()
 
   const deleteTemplate = useCallback(
@@ -1764,19 +1761,20 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           commands={toolbar}
         />
 
-        <div ref={corner} className="pointer-events-none absolute right-4 bottom-4 z-40 flex flex-col items-end gap-2">
-          <MindmapZoomBar
-            zoom={zoom}
-            onZoomBy={(factor) => runtime.current?.zoomBy(factor)}
-            // Through the same anchored arithmetic every other zoom uses, so a reset lands on exactly
-            // 1 and leaves the middle of the view where it was.
-            onZoomReset={() => runtime.current?.zoomBy(1 / (runtime.current?.viewport().zoom ?? 1))}
-            onFit={() => runtime.current?.fit()}
-          />
-          {minimap ? (
-            <MindmapMinimap scene={scene} runtime={runtime} pane={stage} sink={minimapCamera} />
-          ) : null}
-        </div>
+        <MindmapViewDock
+          ref={corner}
+          zoom={zoom}
+          onZoomBy={(factor) => runtime.current?.zoomBy(factor)}
+          // Through the same anchored arithmetic every other zoom uses, so a reset lands on exactly 1
+          // and leaves the middle of the view where it was.
+          onZoomReset={() => runtime.current?.zoomBy(1 / (runtime.current?.viewport().zoom ?? 1))}
+          onFit={() => runtime.current?.fit()}
+          scene={scene}
+          runtime={runtime}
+          pane={stage}
+          sink={minimapCamera}
+          selected={selection.elements}
+        />
 
         <MindmapFindBar find={find} />
 

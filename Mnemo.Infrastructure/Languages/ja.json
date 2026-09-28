@@ -350,7 +350,7 @@
     "GridOpacity": "グリッド透明度",
     "GridOpacityDescription": "グリッドの透明度を調整します。",
     "ShowMinimap": "ミニマップ",
-    "ShowMinimapDescription": "ミニマップの表示: 自動（ズームアウト時）、常に表示、非表示。",
+    "ShowMinimapDescription": "ミニマップの表示: 自動（マップの一部が画面外にあるとき）、オン、オフ。",
     "GlobalQuickActions": "グローバルクイックアクション",
     "GlobalQuickActionsDescription": "Alt+Shift+Qでクイックアクションメニューを開きます。",
     "NewNote": "新しいノート",

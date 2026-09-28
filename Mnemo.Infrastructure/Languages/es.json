@@ -350,7 +350,7 @@
     "GridOpacity": "Opacidad de la cuadrícula",
     "GridOpacityDescription": "Visibilidad de la cuadrícula (transparencia).",
     "ShowMinimap": "Minimapa",
-    "ShowMinimapDescription": "Cuándo mostrar la vista general: Automático (al alejar), Activado o Desactivado.",
+    "ShowMinimapDescription": "Cuándo mostrar la vista general: Automático (mientras parte del mapa quede fuera de la pantalla), Activado o Desactivado.",
     "GlobalQuickActions": "Acciones rápidas globales",
     "GlobalQuickActionsDescription": "Alt+Shift+Q abre el menú de acciones rápidas.",
     "NewNote": "Nueva nota",

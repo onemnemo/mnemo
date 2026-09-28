@@ -21,6 +21,7 @@ export function Segmented<T extends string | number>({
   value,
   onPick,
   className,
+  compact,
 }: {
   label: string
   segments: readonly Segment<T>[]
@@ -28,6 +29,8 @@ export function Segmented<T extends string | number>({
   onPick: (value: T) => void
   /** Extra classes for each segment's button. */
   className?: string
+  /** A 26 px track with equal segments as wide as the longest face, for a switch in a menu row. */
+  compact?: boolean
 }) {
   const track = useRef<HTMLDivElement>(null)
   const at = segments.findIndex((segment) => segment.value === value)
@@ -50,13 +53,19 @@ export function Segmented<T extends string | number>({
       role="radiogroup"
       aria-label={label}
       onKeyDown={onKeyDown}
-      className="relative grid h-8 rounded-[10px] bg-canvas-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--line-soft)]"
-      style={{ gridTemplateColumns: `repeat(${segments.length}, minmax(0, 1fr))` }}
+      className={cn(
+        "relative grid bg-canvas-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--line-soft)]",
+        compact ? "h-[26px] rounded-lg" : "h-8 rounded-[10px]",
+      )}
+      style={{ gridTemplateColumns: `repeat(${segments.length}, ${compact ? "minmax(40px, 1fr)" : "minmax(0, 1fr)"})` }}
     >
       {at < 0 ? null : (
         <span
           aria-hidden
-          className="absolute top-0.5 h-7 rounded-lg bg-surface-float shadow-raised"
+          className={cn(
+            "absolute top-0.5 bg-surface-float shadow-raised",
+            compact ? "h-[22px] rounded-md" : "h-7 rounded-lg",
+          )}
           style={{
             width: `calc((100% - 4px) / ${segments.length})`,
             left: `calc(2px + (100% - 4px) / ${segments.length} * ${at})`,
@@ -76,7 +85,8 @@ export function Segmented<T extends string | number>({
             tabIndex={on || (at < 0 && index === 0) ? 0 : -1}
             onClick={() => onPick(segment.value)}
             className={cn(
-              "relative z-[1] flex items-center justify-center rounded-lg outline-none",
+              "relative z-[1] flex items-center justify-center outline-none",
+              compact ? "rounded-md px-2 whitespace-nowrap" : "rounded-lg",
               "transition-colors duration-(--duration-press) ease-[ease] focus-visible:ring-2 focus-visible:ring-accent",
               on ? "text-ink" : "text-ink-3 hover:text-ink-2",
               className,

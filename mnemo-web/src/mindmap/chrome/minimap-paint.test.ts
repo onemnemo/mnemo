@@ -4,6 +4,7 @@ import { cssColor } from "../scene/tokens"
 import type { Point, SceneElement } from "../model/scene"
 import {
   minimapToWorld,
+  paintSelection,
   paintSwatches,
   paintViewport,
   projectMinimap,
@@ -41,13 +42,40 @@ interface Drawn {
   readonly color: string
   readonly weight: number
   readonly clipped: boolean
+  /** How many rectangles the path held, and the fill rule it was filled with. */
+  readonly parts: number
+  readonly rule?: CanvasFillRule
+  readonly alpha: number
 }
+
+const line = () =>
+  element({
+    id: "line",
+    kind: "shape",
+    content: { $type: "shape", shape: "line" },
+    x: 10,
+    y: 20,
+    width: 1_016,
+    height: 516,
+    line: {
+      start: { x: 8, y: 8 },
+      end: { x: 1_008, y: 508 },
+      bend: null,
+      startAt: null,
+      endAt: null,
+      startCap: "none",
+      endCap: "none",
+      thickness: 1.5,
+      extent: { minX: 14, minY: 24, maxX: 1_022, maxY: 532 },
+    },
+  })
 
 /** Records what a real context would have painted, since jsdom has no 2D context to ask. */
 function recorder(): MinimapContext & { drawn: Drawn[] } {
   const drawn: Drawn[] = []
   let pending = { x: 0, y: 0, width: 0, height: 0 }
   let path: Point[] = []
+  let parts = 0
   let clipped = false
 
   const context: MinimapContext & { drawn: Drawn[] } = {
@@ -55,12 +83,15 @@ function recorder(): MinimapContext & { drawn: Drawn[] } {
     fillStyle: "",
     strokeStyle: "",
     lineWidth: 0,
+    lineCap: "butt",
+    globalAlpha: 1,
     save() {},
     restore() {
       clipped = false
     },
     beginPath() {
       path = []
+      parts = 0
     },
     moveTo(x, y) {
       path.push({ x, y })
@@ -71,15 +102,18 @@ function recorder(): MinimapContext & { drawn: Drawn[] } {
     quadraticCurveTo(cpx, cpy, x, y) {
       path.push({ x: cpx, y: cpy }, { x, y })
     },
-    rect() {},
+    rect() {
+      parts += 1
+    },
     roundRect(x, y, width, height) {
       pending = { x, y, width, height }
+      parts += 1
     },
     clip() {
       clipped = true
     },
-    fill() {
-      drawn.push({ op: "fill", shape: "rect", ...pending, color: String(context.fillStyle), weight: 0, clipped })
+    fill(rule) {
+      drawn.push({ op: "fill", shape: "rect", ...pending, color: String(context.fillStyle), weight: 0, clipped, parts, rule, alpha: context.globalAlpha })
     },
     stroke() {
       if (path.length > 0) {
@@ -99,6 +133,8 @@ function recorder(): MinimapContext & { drawn: Drawn[] } {
         color: String(context.strokeStyle),
         weight: context.lineWidth,
         clipped,
+        parts,
+        alpha: context.globalAlpha,
       })
     },
   }
@@ -142,26 +178,7 @@ describe("the swatches", () => {
   it("draws a line as a stroke instead of filling its bounding rectangle", () => {
     const context = recorder()
     const elements = [
-      element({
-        id: "line",
-        kind: "shape",
-        content: { $type: "shape", shape: "line" },
-        x: 10,
-        y: 20,
-        width: 1_016,
-        height: 516,
-        line: {
-          start: { x: 8, y: 8 },
-          end: { x: 1_008, y: 508 },
-          bend: null,
-          startAt: null,
-          endAt: null,
-          startCap: "none",
-          endCap: "none",
-          thickness: 1.5,
-          extent: { minX: 14, minY: 24, maxX: 1_022, maxY: 532 },
-        },
-      }),
+      line(),
     ]
     const map = projectMinimap(elements, BOX.width, BOX.height)!
 
@@ -269,18 +286,48 @@ describe("the swatches", () => {
   })
 })
 
-describe("the viewport rectangle", () => {
-  it("is the camera's own box, in the map's scale", () => {
+describe("the view", () => {
+  const camera = { x: 100, y: 100, zoom: 2 }
+  const pane = { width: 800, height: 600 }
+
+  it("fades everything outside the camera's box and outlines the box in the accent", () => {
     const context = recorder()
     const map = projectMinimap([element({ width: 1000, height: 1000 })], BOX.width, BOX.height)!
 
-    paintViewport(context, { x: 100, y: 100, zoom: 2 }, { width: 800, height: 600 }, map, BOX, resolve)
+    paintViewport(context, camera, pane, map, BOX, resolve)
 
-    const [rect] = context.drawn
-    expect(rect.x).toBeCloseTo(100 * map.scale + map.offsetX, 6)
-    expect(rect.width).toBeCloseTo(400 * map.scale, 6)
-    expect(rect.height).toBeCloseTo(300 * map.scale, 6)
-    expect(rect.clipped).toBe(true)
+    const [surround, outline] = context.drawn
+    // The fade covers the whole panel, out to its edge, so it is laid down before the clip.
+    expect(surround).toMatchObject({ op: "fill", rule: "evenodd", parts: 2, color: "[var(--canvas)]", alpha: 0.6, clipped: false })
+    expect(outline).toMatchObject({ op: "stroke", color: "[var(--accent)]", weight: 1.5, clipped: true, alpha: 1 })
+    expect(outline.x).toBeCloseTo(100 * map.scale + map.offsetX, 6)
+    expect(outline.width).toBeCloseTo(400 * map.scale, 6)
+    expect(outline.height).toBeCloseTo(300 * map.scale, 6)
+    expect(context.drawn).toHaveLength(2)
+  })
+
+  it("washes the inside of the box only while it is handled", () => {
+    const context = recorder()
+    const map = projectMinimap([element({ width: 1000, height: 1000 })], BOX.width, BOX.height)!
+
+    paintViewport(context, camera, pane, map, BOX, resolve, true)
+
+    expect(context.drawn.map((drawn) => [drawn.op, drawn.color])).toEqual([
+      ["fill", "[var(--canvas)]"],
+      ["fill", "[var(--sel-lasso)]"],
+      ["stroke", "[var(--accent)]"],
+    ])
+  })
+
+  it("stays clipped to the panel when the camera holds more than the map", () => {
+    const context = recorder()
+    const map = projectMinimap([element()], BOX.width, BOX.height)!
+
+    paintViewport(context, { x: -5000, y: -5000, zoom: 0.1 }, pane, map, BOX, resolve)
+
+    const outline = context.drawn.at(-1)!
+    expect(outline.width).toBeGreaterThan(BOX.width)
+    expect(outline.clipped).toBe(true)
   })
 
   it("draws nothing for a pane that has not been laid out yet", () => {
@@ -290,5 +337,50 @@ describe("the viewport rectangle", () => {
     paintViewport(context, { x: 0, y: 0, zoom: 1 }, { width: 0, height: 0 }, map, BOX, resolve)
 
     expect(context.drawn).toHaveLength(0)
+  })
+})
+
+describe("the selection rings", () => {
+  it("rings each selected element two pixels outside its swatch", () => {
+    const elements = [element({ id: "a" }), element({ id: "b", x: 600, y: 400 })]
+    const map = projectMinimap(elements, BOX.width, BOX.height)!
+    const swatches = recorder()
+    paintSwatches(swatches, elements, map, resolve)
+    const rings = recorder()
+
+    paintSelection(rings, elements, map, resolve)
+
+    expect(rings.drawn).toHaveLength(2)
+    rings.drawn.forEach((ring, index) => {
+      const swatch = swatches.drawn[index]
+      expect(ring).toMatchObject({ op: "stroke", color: "[var(--accent)]", weight: 1.25 })
+      expect(ring.x).toBeCloseTo(swatch.x - 2, 6)
+      expect(ring.y).toBeCloseTo(swatch.y - 2, 6)
+      expect(ring.width).toBeCloseTo(swatch.width + 4, 6)
+      expect(ring.height).toBeCloseTo(swatch.height + 4, 6)
+    })
+  })
+
+  it("haloes a selected line along its own path rather than boxing it", () => {
+    const elements = [line()]
+    const map = projectMinimap(elements, BOX.width, BOX.height)!
+    const rings = recorder()
+
+    paintSelection(rings, elements, map, resolve)
+
+    expect(rings.drawn.map((drawn) => [drawn.shape, drawn.color])).toEqual([
+      ["line", "[var(--accent)]"],
+      ["line", "[var(--ink-3)]"],
+    ])
+    expect(rings.drawn[0].weight).toBeGreaterThan(rings.drawn[1].weight)
+  })
+
+  it("draws nothing when nothing is selected", () => {
+    const rings = recorder()
+    const map = projectMinimap([element()], BOX.width, BOX.height)!
+
+    paintSelection(rings, [], map, resolve)
+
+    expect(rings.drawn).toHaveLength(0)
   })
 })

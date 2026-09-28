@@ -350,7 +350,7 @@
     "GridOpacity": "Raster-Transparenz",
     "GridOpacityDescription": "Passen Sie die Transparenz des Rasters an.",
     "ShowMinimap": "Minimap",
-    "ShowMinimapDescription": "Wann die Minimap angezeigt wird: Auto (bei Zoom heraus), Ein (immer) oder Aus.",
+    "ShowMinimapDescription": "Wann die Minimap angezeigt wird: Auto (solange ein Teil der Map außerhalb des Bildschirms liegt), Ein oder Aus.",
     "GlobalQuickActions": "Globale Schnellaktionen",
     "GlobalQuickActionsDescription": "Drücken Sie Alt+Shift+Q, um das Schnell-Aktionsmenü zu öffnen.",
     "NewNote": "Neue Notiz",

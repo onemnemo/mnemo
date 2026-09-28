@@ -75,6 +75,7 @@ import {
   Omega,
   Underline,
   LoaderCircle,
+  Map as MapGlyph,
   Maximize,
   Minus,
   Monitor,
@@ -184,6 +185,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   "square-plus": SquarePlus,
   spline: Spline,
   maximize: Maximize,
+  map: MapGlyph,
   square: Square,
   frame: Frame,
 
