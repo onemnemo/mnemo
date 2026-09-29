@@ -84,7 +84,7 @@ import {
 import { op, type FrameOp, type MindmapOp, type NodeSpec } from "../model/ops"
 import { absoluteUrl, followRef, isFollowable } from "./follow"
 import { PLANT_LABEL, plantOp } from "./plant"
-import { focusCanvas, isOnToolbar, isTyping, keyBelongsToMap } from "./route-guards"
+import { focusCanvas, isChromeControl, isOnToolbar, isTyping, keyBelongsToMap } from "./route-guards"
 import { usePageKeys } from "./usePageKeys"
 import type { Point, Scene, SceneElement } from "../model/scene"
 import type { AbsoluteLine } from "../scene/line-geometry"
@@ -103,6 +103,7 @@ import { sceneMeasurers } from "../scene/measurers"
 import { useFontEpoch } from "../scene/useFontEpoch"
 import { isImageSlot } from "./image-fill"
 import { useImageFill } from "./useImageFill"
+import { useImageMenu } from "./useImageMenu"
 import { useRadialRing } from "./useRadialRing"
 import { useMindmapRefs } from "../scene/useRefs"
 
@@ -390,6 +391,10 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
 
   const images = useImageFill({ mapId: mapId ?? "", editor, scene, selection, setSelection, runtime, viewportCentre })
   const pickImage = images.pick
+  const imageMenu = useImageMenu({ stage, scene, selection, setSelection, editor, pick: pickImage })
+  const openImageMenu = imageMenu.openOnSelection
+  const imageMenuOpen = imageMenu.isOpen
+  const openImageMenuFromPill = imageMenu.openFromPill
 
   /** Adds a child and puts the caret in it. */
   const addChild = useCallback(
@@ -508,7 +513,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
    *
    * Every part acts at once and leaves the selection alone. Ticking a box is not selecting the node
    * the box is on, a reference's mark is a way to leave the map rather than a way to pick something
-   * on it, and letting a pin go is a thing you do to a node you can already see.
+   * on it, and letting a pin go is a thing you do to a node you can already see. A picture's options
+   * pill is the exception: its menu acts on the picture, so the picture is selected as it opens.
    */
   const pressChrome = useCallback(
     (id: string, part: NodeChrome) => {
@@ -528,13 +534,17 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         pickImage(id)
         return
       }
+      if (part === "imageMenu") {
+        openImageMenuFromPill(id)
+        return
+      }
       if (content.$type === "task") {
         void editor.apply([op.set(id, { content: { ...content, done: content.done !== true } })], {
           label: t("Mindmap", "ToggleTask"),
         })
       }
     },
-    [editor, pickImage, scene, t],
+    [editor, openImageMenuFromPill, pickImage, scene, t],
   )
 
   /**
@@ -1351,6 +1361,17 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       if (radial.open) {
         return
       }
+      // So does an open image menu, including the moment before it has taken the focus.
+      if (imageMenuOpen) {
+        return
+      }
+
+      if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+        if (!isChromeControl(event.target) && openImageMenu()) {
+          event.preventDefault()
+        }
+        return
+      }
 
       const hit = actionFor(event)
       if (!hit || !keyBelongsToMap(event.target, hit.actionId)) {
@@ -1510,6 +1531,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       duplicateSelection,
       editor,
       find,
+      imageMenuOpen,
+      openImageMenu,
       openRing,
       outdent,
       pasteCopy,
@@ -1619,6 +1642,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         }}
         onDragOver={images.onDragOver}
         onDrop={images.onDrop}
+        onContextMenu={imageMenu.onContextMenu}
       >
         <ImageSlotMap.Provider value={mapId ?? ""}>
           <MindmapCanvas
@@ -1656,7 +1680,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
 
         {/* Not while a label is being typed: the bar would sit over the field, and none of what it
             offers is a thing anyone reaches for mid-word. */}
-        {editing === null && editingEdge === null ? (
+        {editing === null && editingEdge === null && !imageMenu.isOpen ? (
           <DockedEdgeContext.Provider value={docked}>
             <MindmapSelectionBar
               scene={scene}
@@ -1714,6 +1738,8 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         <MindmapFindBar find={find} />
 
         {radial.menu}
+
+        {imageMenu.menu}
       </div>
 
       {scene.elements.length === 0 ? (

@@ -11,6 +11,8 @@
  * about which kind draws what. Two switches drift the first time a kind is added to one of them.
  */
 
+import type { ImageCrop } from "@/components/ui/image-editor/geometry"
+import { readCrop } from "@/notes/model/image-crop"
 import type { InlineSpan } from "@/notes/model/types"
 import { parseSpans } from "@/notes/model/wire"
 
@@ -108,6 +110,8 @@ export function isRef(content: ElementContent): boolean {
 export interface ImageRef {
   readonly assetId: string
   readonly caption: string | null
+  /** The window shown, read as the notes reader reads one, so a damaged crop draws the whole picture. */
+  readonly crop: ImageCrop | null
 }
 
 /**
@@ -121,10 +125,14 @@ export interface ImageRef {
 export function imageRefOf(content: ElementContent): ImageRef | null {
   switch (content.$type) {
     case "canvasImage":
-      return { assetId: (content as CanvasImageContent).assetId, caption: null }
+      return {
+        assetId: (content as CanvasImageContent).assetId,
+        caption: null,
+        crop: readCrop((content as CanvasImageContent).crop),
+      }
     case "image": {
       const image = content as ImageContent
-      return { assetId: image.assetId, caption: image.caption ?? null }
+      return { assetId: image.assetId, caption: image.caption ?? null, crop: null }
     }
     default:
       return null

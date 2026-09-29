@@ -34,7 +34,7 @@ export function isChromeControl(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) {
     return false
   }
-  return target.closest('button, a[href], [role="menuitem"], [role="option"], [role="tab"]') !== null
+  return target.closest('button, a[href], [role="menuitem"], [role="option"], [role="tab"], [role="menu"]') !== null
 }
 
 /**

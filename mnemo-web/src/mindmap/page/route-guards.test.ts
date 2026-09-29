@@ -39,7 +39,7 @@ describe("isChromeControl", () => {
     link.href = "#"
     expect(isChromeControl(link)).toBe(true)
 
-    for (const role of ["menuitem", "option", "tab"]) {
+    for (const role of ["menuitem", "option", "tab", "menu"]) {
       const el = document.createElement("div")
       el.setAttribute("role", role)
       expect(isChromeControl(el)).toBe(true)
@@ -72,6 +72,17 @@ describe("keyBelongsToMap", () => {
 
   it("gives the map every key pressed on the canvas", () => {
     expect(keyBelongsToMap(document.createElement("div"), "mindmap.add-child")).toBe(true)
+  })
+
+  it("keeps the map's keys out of an open menu, its empty stretches included", () => {
+    const menu = document.createElement("div")
+    menu.setAttribute("role", "menu")
+    const gap = document.createElement("div")
+    menu.append(gap)
+
+    for (const action of ["mindmap.delete-selection", "mindmap.clear-selection", "mindmap.enter", "mindmap.copy"]) {
+      expect(keyBelongsToMap(gap, action), action).toBe(false)
+    }
   })
 
   it("lets tool keys and F6 through a focused toolbar button, and nothing a button answers itself", () => {

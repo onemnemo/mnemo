@@ -8,3 +8,32 @@
     opacity: 0.55;
   }
 }
+
+/* The picture's options pill, pinned to the top right corner at screen size. An open menu keeps it
+ * up, since a menu whose trigger vanished from under the pointer is one you cannot get back to. */
+.mm-image-pill {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 8px;
+  transform: scale(calc(1 / var(--mm-zoom, 1)));
+  transform-origin: top right;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-conceal) var(--ease-out);
+}
+
+.mm-node:hover .mm-image-pill,
+.mm-node[data-mm-menu] .mm-image-pill {
+  opacity: 1;
+}
+
+.mm-node:hover .mm-image-pill button,
+.mm-node[data-mm-menu] .mm-image-pill button {
+  pointer-events: auto;
+}
+
+.mm-node[data-mm-menu] .mm-image-pill button {
+  background: var(--frame-hover);
+  color: var(--ink);
+}

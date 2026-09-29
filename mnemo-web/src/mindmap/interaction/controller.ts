@@ -144,12 +144,13 @@ function isResizeDir(handle: Handle): handle is ResizeDir {
  *
  * A task's box, which is how done gets set without opening anything; a reference's mark, which is how
  * you get to what it points at; a pin badge, which is how a node is handed back to the layout it was
- * taken out of; and an empty image's button, which asks for a picture. Each is a thing you can only
+ * taken out of; an empty image's card, which asks for a picture; and a picture's options button, which
+ * opens its menu. Each is a thing you can only
  * do to that one element, which is why none of them are on the selection bar. They are read off the
  * DOM the way the resize grips are, so a node stays a thing React renders once and never a thing the
  * controller has to be told the inside of.
  */
-export type NodeChrome = "task" | "ref" | "pin" | "image"
+export type NodeChrome = "task" | "ref" | "pin" | "image" | "imageMenu"
 
 type Gesture =
   | { readonly kind: "none" }
@@ -395,9 +396,10 @@ export function installInteraction(
     // task node like it does on any other. The selection is deliberately left alone, because ticking
     // a box is not selecting the thing the box is on.
     const part = elementId && tool === "select" ? chromeAt(event.target) : null
-    // The image button fills most of a small placeholder, so it waits for the release: grabbing the
-    // placeholder there to move it is a drag, and only a press that stays put asks for a file.
-    if (part && elementId && part !== "image") {
+    // The image card and a picture's options button wait for the release. Grabbing the card to move it
+    // is a drag, and only a press that stays put asks for a file; a menu opened on the press would be
+    // closed again by the focus the rest of the press hands to the canvas.
+    if (part && elementId && part !== "image" && part !== "imageMenu") {
       handlers.chrome(elementId, part)
       return
     }

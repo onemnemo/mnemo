@@ -224,6 +224,19 @@ describe("what a node is drawn as", () => {
     expect(picture!.markup).toContain('preserveAspectRatio="none"')
   })
 
+  it("draws a cropped picture through its window, scaled to fill the box", () => {
+    const cropped: MindmapElement = {
+      ...photo("i", "a.png"),
+      content: { $type: "canvasImage", assetId: "a.png", crop: { x: 0.5, y: 0.25, w: 0.5, h: 0.25, aspect: 1.5 } },
+    }
+    const { picture } = draw(document({ elements: [node("r"), cropped], edges: [] }), {
+      image: () => "data:image/png;base64,AAA",
+    })
+
+    expect(picture!.markup).toMatch(/<image [^>]*width="240" height="320"/)
+    expect(picture!.markup).toMatch(/<rect x="[^"]+" y="[^"]+" width="120" height="80" rx="6"\/><\/clipPath>/)
+  })
+
   it("leaves a picture that could not be read as a gap rather than as nothing", () => {
     const { picture } = draw(
       document({ elements: [node("r"), photo("i", "gone.png")], edges: [] }),

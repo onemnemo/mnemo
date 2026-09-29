@@ -1,3 +1,5 @@
+import { AppIcon } from "@/components/icon/AppIcon"
+import { CroppedImage } from "@/components/ui/image-editor/CroppedImage"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
@@ -10,10 +12,10 @@ import { useImageSlot } from "./image-slots"
  *
  * `slot` is only ever true for an image element with no file yet. A node that carries a picture and
  * names no file is a broken reference rather than something waiting to be filled, so it keeps the
- * missing box.
+ * missing box. `menu` puts the options button on a picture, which only an image element has.
  */
-export function ImageBody({ id, image, slot }: { id: string; image: ImageRef; slot: boolean }) {
-  return slot ? <ImageSlot id={id} /> : <Picture image={image} />
+export function ImageBody({ id, image, slot, menu }: { id: string; image: ImageRef; slot: boolean; menu: boolean }) {
+  return slot ? <ImageSlot id={id} /> : <Picture image={image} menu={menu} />
 }
 
 /**
@@ -24,19 +26,38 @@ export function ImageBody({ id, image, slot }: { id: string; image: ImageRef; sl
  * in flight and a placeholder once the answer comes back empty, because an image element drawing
  * nothing at all is indistinguishable from a blank one.
  */
-function Picture({ image }: { image: ImageRef }) {
+function Picture({ image, menu }: { image: ImageRef; menu: boolean }) {
   const t = useT()
   const { url, missing } = useMindmapImage(image.assetId)
 
+  if (url && image.crop) {
+    // Filling both axes switches off the crop's own aspect, so the window stretches with the box the
+    // way an uncropped picture does.
+    return (
+      <>
+        <CroppedImage
+          src={url}
+          crop={image.crop}
+          alt={image.caption ?? ""}
+          className="pointer-events-none h-full w-full rounded-[6px] border border-line-soft"
+        />
+        {menu ? <OptionsPill /> : null}
+      </>
+    )
+  }
+
   if (url) {
     return (
-      <img
-        src={url}
-        alt={image.caption ?? ""}
-        // Or the browser's own image drag would start instead of the gesture the canvas is running.
-        draggable={false}
-        className="pointer-events-none block h-full w-full rounded-[6px] border border-line-soft object-fill"
-      />
+      <>
+        <img
+          src={url}
+          alt={image.caption ?? ""}
+          // Or the browser's own image drag would start instead of the gesture the canvas is running.
+          draggable={false}
+          className="pointer-events-none block h-full w-full rounded-[6px] border border-line-soft object-fill"
+        />
+        {menu ? <OptionsPill /> : null}
+      </>
     )
   }
 
@@ -49,6 +70,31 @@ function Picture({ image }: { image: ImageRef }) {
       )}
     >
       {missing ? t("Mindmap", "ImageMissing") : null}
+    </span>
+  )
+}
+
+/**
+ * The notes picture pill, less the alignment a canvas has no use for: nothing until the pointer is on
+ * the picture, then a kebab that opens the same menu a right click does. Held at screen size, so it
+ * reads the same at any zoom.
+ */
+function OptionsPill() {
+  const t = useT()
+  return (
+    <span className="mm-chrome mm-image-pill">
+      <span className="flex rounded-lg bg-canvas/85 p-0.5 shadow-pop backdrop-blur-sm">
+        <button
+          type="button"
+          tabIndex={-1}
+          data-mm-chrome="imageMenu"
+          aria-label={t("Mindmap", "ImageOptions")}
+          title={t("Mindmap", "ImageOptions")}
+          className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors duration-[var(--duration-fast)] hover:bg-frame-hover hover:text-ink"
+        >
+          <AppIcon name="ellipsis" size={15} />
+        </button>
+      </span>
     </span>
   )
 }

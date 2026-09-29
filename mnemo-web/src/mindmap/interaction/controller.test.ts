@@ -1017,7 +1017,7 @@ describe("a node's own chrome", () => {
     h.uninstall()
   })
 
-  it("answers an empty image's choose button on a release that did not move", () => {
+  it("answers an empty image's card on a release that did not move", () => {
     const h = harness()
     h.pressChrome("a", "image", { x: 215, y: -50 })
     expect(h.chromed).toEqual([])
@@ -1027,7 +1027,7 @@ describe("a node's own chrome", () => {
     h.uninstall()
   })
 
-  it("moves an empty image grabbed by its choose button instead of asking for a file", () => {
+  it("moves an empty image grabbed by its card instead of asking for a file", () => {
     const h = harness()
     h.pressChrome("a", "image", { x: 215, y: -50 })
     h.move({ x: 265, y: -50 })
@@ -1035,6 +1035,16 @@ describe("a node's own chrome", () => {
 
     expect(h.chromed).toEqual([])
     expect(h.commits).toHaveLength(1)
+    h.uninstall()
+  })
+
+  it("opens a picture's menu from its options button on the release, not the press", () => {
+    const h = harness()
+    h.pressChrome("a", "imageMenu", { x: 215, y: -50 })
+    expect(h.chromed).toEqual([])
+
+    h.release({ x: 215, y: -50 })
+    expect(h.chromed).toEqual([["a", "imageMenu"]])
     h.uninstall()
   })
 

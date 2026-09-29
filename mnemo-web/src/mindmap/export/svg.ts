@@ -487,9 +487,20 @@ function emitImage(element: SceneElement, image: ImageRef, paint: Paint): string
   // Clipped rather than rounded, since an image has no radius of its own, and stretched rather than
   // fitted so a box someone dragged out of proportion stays the shape they dragged it to.
   const clip = `mm-img-${safeId(element.id)}`
+  // A crop draws the whole source scaled up and shifted so only its window lands in the box, which
+  // the clip then trims: the same arithmetic the canvas uses.
+  const crop = image.crop
+  const source = crop
+    ? {
+        x: x - (crop.x * width) / crop.w,
+        y: y - (crop.y * height) / crop.h,
+        width: width / crop.w,
+        height: height / crop.h,
+      }
+    : { x, y, width, height }
   return (
     `<clipPath id="${clip}"><rect x="${n(x)}" y="${n(y)}" width="${n(width)}" height="${n(height)}" rx="6"/></clipPath>` +
-    `<image clip-path="url(#${clip})" x="${n(x)}" y="${n(y)}" width="${n(width)}" height="${n(height)}"` +
+    `<image clip-path="url(#${clip})" x="${n(source.x)}" y="${n(source.y)}" width="${n(source.width)}" height="${n(source.height)}"` +
     ` preserveAspectRatio="none" href="${escape(href)}"/>` +
     rect(x, y, width, height, 6, { ring: paint.color("var(--line-soft)") })
   )

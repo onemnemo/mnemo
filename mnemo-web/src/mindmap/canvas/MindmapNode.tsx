@@ -290,7 +290,12 @@ function NodeGlyph({
 function NodeBody({ element }: { element: SceneElement }) {
   const image = imageRefOf(element.content)
   if (image) {
-    return <ImageBody id={element.id} image={image} slot={element.kind === "image" && !image.assetId} />
+    return <ImageBody
+        id={element.id}
+        image={image}
+        slot={element.kind === "image" && !image.assetId}
+        menu={element.kind === "image"}
+      />
   }
   switch (bodyOf(element.content)) {
     case "code":
