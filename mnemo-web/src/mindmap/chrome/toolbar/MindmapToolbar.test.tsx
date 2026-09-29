@@ -46,7 +46,6 @@ function mount(over: Partial<MindmapToolbarProps> = {}): MindmapToolbarProps {
     onNodeStyle: vi.fn(),
     connector: DEFAULT_CONNECTOR,
     onConnector: vi.fn(),
-    onInsertImage: vi.fn(),
     stage: stageRef,
     corner: createRef<HTMLElement>(),
     edge: "bottom",
@@ -218,17 +217,14 @@ describe("the toolbar", () => {
     expect(all.onNodeStyle).toHaveBeenLastCalledWith("outline")
   })
 
-  it("opens the picker for Image without arming anything or moving the chip", () => {
+  it("arms Image like any other planting tool", () => {
     const all = mount()
-    const chip = stage.querySelector<HTMLElement>('[role="toolbar"] span.bg-solid')!
-    const before = chip.style.left
 
     press("ToolImage")
 
-    expect(all.onInsertImage).toHaveBeenCalledOnce()
-    expect(all.onTool).not.toHaveBeenCalled()
-    expect(button("ToolImage").getAttribute("aria-pressed")).toBe("false")
-    expect(chip.style.left).toBe(before)
+    expect(all.onTool).toHaveBeenCalledWith("image")
+    rerender(all, { tool: "image" })
+    expect(button("ToolImage").getAttribute("aria-pressed")).toBe("true")
   })
 
   it("leaves keys aimed outside the map alone, so a menu over the page keeps its Escape", () => {

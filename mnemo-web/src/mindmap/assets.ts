@@ -30,6 +30,10 @@ const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp
  */
 export const IMAGE_ACCEPT = ".png,.jpg,.jpeg,.gif,.webp,.bmp"
 
+export function isStorableImage(type: string): boolean {
+  return IMAGE_TYPES.has(type)
+}
+
 /** The image files in a drop or a paste, in the order they were carried. */
 export function imageFilesOf(data: DataTransfer | null): File[] {
   if (!data) {

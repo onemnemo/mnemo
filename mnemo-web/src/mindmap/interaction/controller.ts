@@ -143,12 +143,13 @@ function isResizeDir(handle: Handle): handle is ResizeDir {
  * The parts of a node that answer a press themselves.
  *
  * A task's box, which is how done gets set without opening anything; a reference's mark, which is how
- * you get to what it points at; and a pin badge, which is how a node is handed back to the layout it
- * was taken out of. Each is a thing you can only do to that one node, which is why none of them are on
- * the selection bar. They are read off the DOM the way the resize grips are, so a node stays a thing
- * React renders once and never a thing the controller has to be told the inside of.
+ * you get to what it points at; a pin badge, which is how a node is handed back to the layout it was
+ * taken out of; and an empty image's button, which asks for a picture. Each is a thing you can only
+ * do to that one element, which is why none of them are on the selection bar. They are read off the
+ * DOM the way the resize grips are, so a node stays a thing React renders once and never a thing the
+ * controller has to be told the inside of.
  */
-export type NodeChrome = "task" | "ref" | "pin"
+export type NodeChrome = "task" | "ref" | "pin" | "image"
 
 type Gesture =
   | { readonly kind: "none" }
@@ -164,6 +165,8 @@ type Gesture =
       readonly additive: boolean
       readonly marqueeIntent: MarqueeIntent
       readonly draws: ShapeType | null
+      /** Chrome that answers on release, if the press never became a drag. */
+      readonly chromeOnUp?: NodeChrome
     }
   | {
       readonly kind: "drag"
@@ -392,7 +395,9 @@ export function installInteraction(
     // task node like it does on any other. The selection is deliberately left alone, because ticking
     // a box is not selecting the thing the box is on.
     const part = elementId && tool === "select" ? chromeAt(event.target) : null
-    if (part && elementId) {
+    // The image button fills most of a small placeholder, so it waits for the release: grabbing the
+    // placeholder there to move it is a drag, and only a press that stays put asks for a file.
+    if (part && elementId && part !== "image") {
       handlers.chrome(elementId, part)
       return
     }
@@ -428,7 +433,7 @@ export function installInteraction(
 
     // Planting reads the press rather than the release: the point under the pointer is where the
     // element goes, and waiting for the release would let a twitch move it.
-    if ((tool === "node" || tool === "text" || tool === "shape") && !elementId) {
+    if ((tool === "node" || tool === "text" || tool === "shape" || tool === "image") && !elementId) {
       handlers.plant(tool, startCanvas)
       return
     }
@@ -457,6 +462,7 @@ export function installInteraction(
         additive,
         marqueeIntent,
         draws: null,
+        chromeOnUp: part ?? undefined,
       }
       return
     }
@@ -653,6 +659,9 @@ export function installInteraction(
       }
       if (finished.draws) {
         plantDefaultLine(finished.draws, finished.startCanvas, handlers)
+      }
+      if (finished.chromeOnUp && finished.elementId) {
+        handlers.chrome(finished.elementId, finished.chromeOnUp)
       }
       return
     }

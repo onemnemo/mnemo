@@ -5,8 +5,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
-import { useMindmapImage } from "../assets"
-import { bodyOf, imageRefOf, refGlyphOf, runsOf, type ImageRef } from "../scene/content"
+import { bodyOf, imageRefOf, refGlyphOf, runsOf } from "../scene/content"
 import { accentOf } from "../scene/branch"
 import { FRAME_HEAD } from "../scene/project"
 import { hasLineCaption, lineLabelPoint } from "../scene/element-geometry"
@@ -16,6 +15,7 @@ import type { CodeContent, FrameContent } from "../model/document"
 import type { ShapeContent, ShapeType } from "../model/document"
 import type { SceneElement } from "../model/scene"
 import type { ElementBox } from "./edge-paths"
+import { ImageBody } from "./ImageBody"
 import { NodeEditor } from "./NodeEditor"
 import { RichLabel } from "./RichLabel"
 import { ResizeHandles, RotateHandle, SelectionBox } from "./ShapeHandles"
@@ -290,7 +290,7 @@ function NodeGlyph({
 function NodeBody({ element }: { element: SceneElement }) {
   const image = imageRefOf(element.content)
   if (image) {
-    return <ImageBody image={image} />
+    return <ImageBody id={element.id} image={image} slot={element.kind === "image" && !image.assetId} />
   }
   switch (bodyOf(element.content)) {
     case "code":
@@ -374,47 +374,6 @@ function CodeBody({ element }: { element: SceneElement }) {
           {line}
         </span>
       ))}
-    </span>
-  )
-}
-
-/**
- * A picture, drawn to the box it was given.
- *
- * Stretched rather than fitted, which is what the desktop does: the box arrives at the picture's own
- * proportions, so the only way to distort one is to drag a corner and ask for it.
- *
- * The bytes sit behind the API's token, so they come through a fetch and arrive as a blob URL rather
- * than as an address the element could carry. Nothing is drawn while they are in flight and a
- * placeholder is drawn once the answer comes back empty, because an asset that is genuinely gone has
- * to say so: an image element drawing nothing at all is indistinguishable from a blank one.
- */
-function ImageBody({ image }: { image: ImageRef }) {
-  const t = useT()
-  const { url, missing } = useMindmapImage(image.assetId)
-
-  if (url) {
-    return (
-      <img
-        src={url}
-        // The caption when it has one, and nothing to announce when it does not.
-        alt={image.caption ?? ""}
-        // Or the browser's own image drag would start instead of the gesture the canvas is running.
-        draggable={false}
-        className="pointer-events-none block h-full w-full rounded-[6px] border border-line-soft object-fill"
-      />
-    )
-  }
-
-  return (
-    <span
-      className={cn(
-        "grid h-full w-full place-items-center overflow-hidden rounded-[6px] px-2",
-        "text-center text-[11px] text-ink-3",
-        missing ? "border border-dashed border-line bg-frame-hover" : "bg-frame-hover",
-      )}
-    >
-      {missing ? t("Mindmap", "ImageMissing") : null}
     </span>
   )
 }

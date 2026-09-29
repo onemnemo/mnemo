@@ -5,7 +5,7 @@
  * hand tool is the same pan on the primary button, for a trackpad or pen with no middle button.
  */
 
-export type MindmapTool = "select" | "pan" | "node" | "shape" | "text" | "connect" | "frame"
+export type MindmapTool = "select" | "pan" | "node" | "shape" | "text" | "connect" | "frame" | "image"
 
 /** How the select tool sweeps empty canvas: a rectangle, or a free-hand loop. */
 export type SelectMode = "box" | "lasso"
@@ -24,6 +24,7 @@ export const TOOL_ACTIONS: Readonly<Record<MindmapTool, string>> = {
   text: "mindmap.new-text",
   connect: "mindmap.connect",
   frame: "mindmap.new-frame",
+  image: "mindmap.new-image",
 }
 
 /** The reverse, for a press that has already been resolved to an action id. */
@@ -62,6 +63,7 @@ export function cursorFor(tool: MindmapTool): string | undefined {
     case "node":
     case "shape":
     case "text":
+    case "image":
       return "cursor-copy"
     case "connect":
     case "frame":

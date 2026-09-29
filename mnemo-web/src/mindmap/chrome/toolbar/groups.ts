@@ -80,8 +80,7 @@ export const GROUPS: Readonly<Record<GroupId, ToolbarGroup>> = {
 }
 
 export interface ToolEntry {
-  /** Image is not a tool the canvas can be armed with: it opens a picker and is done. */
-  readonly id: MindmapTool | "image"
+  readonly id: MindmapTool
   readonly label: string
   /** A second tooltip line, for a tool whose name does not say what it writes. */
   readonly detail?: string

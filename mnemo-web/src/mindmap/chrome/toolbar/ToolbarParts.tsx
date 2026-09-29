@@ -36,9 +36,7 @@ export function ToolButtonWithTray({
   // Select's tooltip names the mode it sweeps in, and the key that arms that mode.
   const mode = entry.group === "select" ? (binding?.faceId as SelectMode | undefined) : undefined
   const modeOption = mode ? group?.options.find((option) => option.id === mode) : undefined
-  const chord = useShortcutChord(
-    entry.id === "image" ? "mindmap.new-image" : mode ? SELECT_MODE_ACTIONS[mode] : TOOL_ACTIONS[entry.id],
-  )
+  const chord = useShortcutChord(mode ? SELECT_MODE_ACTIONS[mode] : TOOL_ACTIONS[entry.id])
 
   return (
     <>

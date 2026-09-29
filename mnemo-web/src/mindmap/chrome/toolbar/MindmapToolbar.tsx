@@ -44,8 +44,6 @@ export interface ToolbarCommands {
 export interface MindmapToolbarProps extends ToolChoices, ToolChoiceSetters {
   readonly tool: MindmapTool
   readonly onTool: (tool: MindmapTool) => void
-  /** Opens the file picker. A picture is chosen before it is placed, so this arms nothing. */
-  readonly onInsertImage: () => void
   /** The pane the bar floats over and docks to the edges of. */
   readonly stage: RefObject<HTMLElement | null>
   /** The chrome in the pane's bottom-right corner, which the bar keeps clear of. */
@@ -98,7 +96,7 @@ const SHELF_MARGIN = 8
  * it inside the bar when the group is small, on a shelf beside it when it is not.
  */
 export function MindmapToolbar(props: MindmapToolbarProps) {
-  const { tool, onTool, onInsertImage, stage, corner, edge: stored, onEdge, onDocked, keysSuspended, commands } = props
+  const { tool, onTool, stage, corner, edge: stored, onEdge, onDocked, keysSuspended, commands } = props
   const t = useT()
   const root = useRef<HTMLDivElement>(null)
   const tools = useRef<HTMLDivElement>(null)
@@ -196,11 +194,6 @@ export function MindmapToolbar(props: MindmapToolbarProps) {
   })
 
   const press = (entry: ToolEntry) => {
-    if (entry.id === "image") {
-      setOpen(null)
-      onInsertImage()
-      return
-    }
     const group = entry.group ?? null
     if (group && tool === entry.id) {
       setOpen(open === group ? null : group)

@@ -8,11 +8,15 @@ import type { MindmapTool } from "../interaction/tool"
  */
 const NEW_SHAPE_SIZE: [number, number] = [148, 86]
 
+/** An empty image's box: room for the card's glyph and label, near the size most pictures land at. */
+export const IMAGE_SLOT_SIZE: [number, number] = [240, 160]
+
 /** What an armed tool creates, and what the undo entry for it is called. */
 export const PLANT_LABEL: Partial<Record<MindmapTool, string>> = {
   node: "AddNode",
   text: "AddText",
   shape: "ToolShape",
+  image: "ToolImage",
 }
 
 export interface PlantChoices {
@@ -29,6 +33,17 @@ export function plantOp(tool: MindmapTool, xy: [number, number], choices: PlantC
       // the projector has no label to measure one from.
       wh: NEW_SHAPE_SIZE,
     })
+  }
+  if (tool === "image") {
+    // Centred, since a box this big with its corner at the pointer lands mostly beside the spot.
+    const [width, height] = IMAGE_SLOT_SIZE
+    return op.addElement(
+      "image",
+      Math.round(xy[0] - width / 2),
+      Math.round(xy[1] - height / 2),
+      { $type: "canvasImage", assetId: "" },
+      { ref: "n", wh: IMAGE_SLOT_SIZE },
+    )
   }
   if (tool === "text") {
     return op.addElement("text", xy[0], xy[1], { $type: "freeText", text: "" }, { ref: "n" })

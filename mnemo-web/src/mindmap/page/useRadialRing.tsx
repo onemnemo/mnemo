@@ -48,7 +48,6 @@ export interface RingActions {
   plant(tool: MindmapTool, at: Point, extra?: { opens?: "equation"; shape?: ShapeType }): void
   pickRef(target: RefTarget, at: Point): void
   changeKind(kind: NodeKind, id: string): void
-  insertImage(at: Point): void
   arrange(algorithm?: LayoutAlgorithm): void
   group(ids: readonly string[]): void
 }
@@ -209,6 +208,7 @@ function pickOnCanvas(host: RingHost, open: OpenRing, picked: string): void {
   switch (id) {
     case "node":
     case "text":
+    case "image":
       if (at) act.plant(id, at)
       return
     case "shape": {
@@ -225,9 +225,6 @@ function pickOnCanvas(host: RingHost, open: OpenRing, picked: string): void {
       return
     case "equation":
       if (at) act.plant("node", at, { opens: "equation" })
-      return
-    case "image":
-      if (at) act.insertImage(at)
       return
     case "frame":
       // A frame is drawn around what it holds, so the sweep is still the way to say what that is.

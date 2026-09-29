@@ -1,0 +1,10 @@
+/* The notes image card's import pulse. */
+.mm-image-busy {
+  animation: mm-image-busy 1.2s ease-in-out infinite;
+}
+
+@keyframes mm-image-busy {
+  50% {
+    opacity: 0.55;
+  }
+}

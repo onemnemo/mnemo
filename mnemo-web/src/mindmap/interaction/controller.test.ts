@@ -637,6 +637,16 @@ describe("installInteraction", () => {
     h.uninstall()
   })
 
+  it("plants an empty image with the image tool, the same way", () => {
+    const h = harness()
+    h.arm("image")
+    h.press(null, { x: 640, y: 300 })
+    h.release({ x: 640, y: 300 })
+
+    expect(h.planted).toEqual([{ tool: "image", at: { x: 640, y: 300 } }])
+    h.uninstall()
+  })
+
   it("does not plant on top of an existing element", () => {
     const h = harness()
     h.arm("text")
@@ -1004,6 +1014,27 @@ describe("a node's own chrome", () => {
     h.pressChrome("a", "pin", { x: 215, y: -50 })
 
     expect(h.chromed).toEqual([["a", "pin"]])
+    h.uninstall()
+  })
+
+  it("answers an empty image's choose button on a release that did not move", () => {
+    const h = harness()
+    h.pressChrome("a", "image", { x: 215, y: -50 })
+    expect(h.chromed).toEqual([])
+
+    h.release({ x: 215, y: -50 })
+    expect(h.chromed).toEqual([["a", "image"]])
+    h.uninstall()
+  })
+
+  it("moves an empty image grabbed by its choose button instead of asking for a file", () => {
+    const h = harness()
+    h.pressChrome("a", "image", { x: 215, y: -50 })
+    h.move({ x: 265, y: -50 })
+    h.release({ x: 265, y: -50 })
+
+    expect(h.chromed).toEqual([])
+    expect(h.commits).toHaveLength(1)
     h.uninstall()
   })
 

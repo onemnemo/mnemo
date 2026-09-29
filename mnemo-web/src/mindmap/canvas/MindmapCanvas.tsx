@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObje
 
 import { cn } from "@/lib/utils"
 
+import "./mindmap-image.css"
 import "./mindmap-lod.css"
 import "./mindmap-motion.css"
 import "./mindmap-shape.css"

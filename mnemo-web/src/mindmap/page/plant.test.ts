@@ -21,4 +21,17 @@ describe("plantOp", () => {
     expect(planted).toMatchObject({ op: "add_el", kind: "shape", content: { shape: "hexagon" } })
     expect(JSON.stringify(planted)).not.toContain("nodeShape")
   })
+
+  it("plants an empty image centred on the point", () => {
+    const planted = plantOp("image", [300, 200], { shape: "rectangle", nodeStyle: "pill" })
+
+    expect(planted).toEqual({
+      op: "add_el",
+      kind: "image",
+      xy: [180, 120],
+      content: { $type: "canvasImage", assetId: "" },
+      ref: "n",
+      wh: [240, 160],
+    })
+  })
 })

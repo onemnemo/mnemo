@@ -44,7 +44,6 @@ export function isChromeControl(target: EventTarget | null): boolean {
 const TOOLBAR_PASSTHROUGH: ReadonlySet<string> = new Set([
   ...Object.values(TOOL_ACTIONS),
   ...Object.values(SELECT_MODE_ACTIONS),
-  "mindmap.new-image",
 ])
 
 /** Whether a press resolved to an action is the map's to answer, given where the focus is. */

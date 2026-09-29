@@ -18,9 +18,9 @@ import {
   type MindmapOpsResult,
   type MindmapTemplates,
 } from "../api"
-import { IMAGE_ACCEPT, imageFilesOf, measureImageFile, uploadMindmapImage } from "../assets"
 import { ZOOM_STEP } from "../canvas/camera"
 import { cameraSignal } from "../canvas/camera-signal"
+import { ImageSlotMap } from "../canvas/image-slots"
 import { bandForZoom } from "../canvas/lod"
 import { MindmapCanvas } from "../canvas/MindmapCanvas"
 import type { CanvasRuntime } from "../canvas/runtime"
@@ -101,6 +101,8 @@ import {
 import { frameBox, projectScene, type FrameMemberBox } from "../scene/project"
 import { sceneMeasurers } from "../scene/measurers"
 import { useFontEpoch } from "../scene/useFontEpoch"
+import { isImageSlot } from "./image-fill"
+import { useImageFill } from "./useImageFill"
 import { useRadialRing } from "./useRadialRing"
 import { useMindmapRefs } from "../scene/useRefs"
 
@@ -111,9 +113,6 @@ const NO_SUBTREE: readonly string[] = []
 
 /** How far a duplicate sits from what it was copied from. Far enough to be two nodes, near enough to be a pair. */
 const DUPLICATE_STEP = 48
-
-/** The gap between pictures dropped together, so a handful of them arrives as a row and not as a pile. */
-const IMAGE_STEP = 16
 
 /** A ref on a top-level spec, which is the only way the ids the server made come back. */
 const withRef = (spec: NodeSpec, index: number): NodeSpec => ({ ...spec, ref: `n${index}` })
@@ -166,10 +165,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   // The canvas writes the camera here on every frame and the view dock reads it, so a pan repaints the
   // minimap without re-rendering the route. A ref rather than state for exactly that reason.
   const minimapCamera = useRef<MinimapSink["current"]>(null)
-  /** The picker behind the toolbar's image button. Hidden, since the button is what anyone presses. */
-  const imageInput = useRef<HTMLInputElement>(null)
-  /** Where the picked pictures go when the ring asked for them at a point; the middle of the view otherwise. */
-  const imageAt = useRef<Point | null>(null)
   /** The node this edit created. Abandoning the edit takes it away again. */
   const blank = useRef<string | null>(null)
   /** Bumped when a label opens, so a commit that comes back late does not close the field that replaced it. */
@@ -393,6 +388,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     return canvas.toCanvas(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)
   }, [])
 
+  const images = useImageFill({ mapId: mapId ?? "", editor, scene, selection, setSelection, runtime, viewportCentre })
+  const pickImage = images.pick
+
   /** Adds a child and puts the caret in it. */
   const addChild = useCallback(
     async (parentId: string) => {
@@ -496,9 +494,13 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         followRef(content)
         return
       }
+      if (isImageSlot(scene?.elements.find((candidate) => candidate.id === id))) {
+        pickImage(id)
+        return
+      }
       beginEdit(id)
     },
-    [beginEdit, scene],
+    [beginEdit, pickImage, scene],
   )
 
   /**
@@ -522,13 +524,17 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         void editor.apply([op.set(id, { pinned: false })], { label: t("Mindmap", "TogglePin") })
         return
       }
+      if (part === "image") {
+        pickImage(id)
+        return
+      }
       if (content.$type === "task") {
         void editor.apply([op.set(id, { content: { ...content, done: content.done !== true } })], {
           label: t("Mindmap", "ToggleTask"),
         })
       }
     },
-    [editor, scene, t],
+    [editor, pickImage, scene, t],
   )
 
   /**
@@ -636,6 +642,11 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       })
 
       const created = result?.createdIds?.n
+      if (created && armed === "image") {
+        // Nothing to type into: the empty image is selected and waits for a file.
+        setSelection(selectOnly("element", created))
+        return
+      }
       if (created) {
         // A shape with no label is still a shape someone meant to draw, so it is not taken back the
         // way an unlabelled node is.
@@ -649,63 +660,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     },
     [editor, shape, presets.nodeStyle, t],
   )
-
-  /**
-   * Puts pictures on the canvas, centred on a point.
-   *
-   * Centred rather than corner-placed because the point is where the picture was asked for: a drop
-   * lands under the cursor, and a pick with no pointer involved lands in the middle of the view.
-   * Several at once step sideways instead of stacking, since a pile of images is one image as far as
-   * anyone can tell.
-   *
-   * One edit each rather than one batch, so a drop of ten is ten undo steps. That is the honest
-   * shape: each upload can fail on its own, and a batch would have to either hold the finished ones
-   * hostage to the last or claim an edit that never happened.
-   */
-  const placeImages = useCallback(
-    async (files: readonly File[], at: Point) => {
-      let x = at.x
-      for (const file of files) {
-        try {
-          const [asset, [width, height]] = await Promise.all([
-            uploadMindmapImage(file),
-            measureImageFile(file),
-          ])
-          const result = await editor.apply(
-            [
-              op.addElement(
-                "image",
-                Math.round(x - width / 2),
-                Math.round(at.y - height / 2),
-                { $type: "canvasImage", assetId: asset.assetId },
-                { ref: "n", wh: [width, height] },
-              ),
-            ],
-            { label: t("Mindmap", "ToolImage") },
-          )
-          const created = result?.createdIds?.n
-          if (created) {
-            setSelection(selectOnly("element", created))
-          }
-          x += width + IMAGE_STEP
-        } catch (error) {
-          // The rest are abandoned: whatever stopped this one, a file too big or a format the store
-          // will not take, is likely to stop the next, and a toast per file is not a report.
-          toast.warning(t("Mindmap", "ErrorTitle"), {
-            description: describeError(t, error),
-          })
-          return
-        }
-      }
-    },
-    [editor, t],
-  )
-
-  /** Opens the picker. Where the files land is settled when they arrive, not now. */
-  const insertImage = useCallback((at?: Point) => {
-    imageAt.current = at ?? null
-    imageInput.current?.click()
-  }, [])
 
   /**
    * Puts a frame around whatever the sweep caught.
@@ -1362,7 +1316,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       plant: (armed, at, extra) => void plant(armed, at, extra),
       pickRef: (target, at) => setPicking({ id: null, target, at }),
       changeKind: (kind, id) => void changeKind(kind, id),
-      insertImage,
       arrange,
       group: (ids) => void group(ids),
     },
@@ -1445,7 +1398,11 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           return
         case "mindmap.enter":
           event.preventDefault()
-          if (primary) void addSibling(primary)
+          if (primary && isImageSlot(scene?.elements.find((element) => element.id === primary))) {
+            pickImage(primary)
+          } else if (primary) {
+            void addSibling(primary)
+          }
           return
         case "mindmap.outdent":
           event.preventDefault()
@@ -1461,14 +1418,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           } else if (primary) {
             beginEdit(primary)
           }
-          return
-
-        case "mindmap.new-image":
-          event.preventDefault()
-          if (event.repeat) {
-            return
-          }
-          toolbar.current?.press("image")
           return
 
         case "mindmap.focus-toolbar":
@@ -1564,6 +1513,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       openRing,
       outdent,
       pasteCopy,
+      pickImage,
       radial.open,
       scene,
       selection,
@@ -1585,38 +1535,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     <div
       className="relative flex h-full min-h-0 flex-col bg-canvas"
       onKeyDown={(event) => onKeyDown(event.nativeEvent)}
-      onPaste={(event) => {
-        // Only a picture is taken here. Text on the clipboard belongs to whatever is being typed
-        // into, and the map's own copy of a branch never went to the system clipboard at all.
-        if (isTyping(event.target)) {
-          return
-        }
-        const files = imageFilesOf(event.clipboardData)
-        if (files.length > 0) {
-          event.preventDefault()
-          void placeImages(files, viewportCentre())
-        }
-      }}
+      onPaste={images.onPaste}
     >
-      {/* The picker the image button opens. Kept out of the toolbar so it stays a row of controls
-          rather than a place a file input happens to live. */}
-      <input
-        ref={imageInput}
-        type="file"
-        accept={IMAGE_ACCEPT}
-        multiple
-        className="hidden"
-        onChange={(event) => {
-          const files = Array.from(event.target.files ?? [])
-          // Cleared before anything else, or choosing the same file twice in a row would be no
-          // change to the input and no second event.
-          event.target.value = ""
-          if (files.length > 0) {
-            void placeImages(files, imageAt.current ?? viewportCentre())
-          }
-          imageAt.current = null
-        }}
-      />
+      {images.picker}
 
       <header className="flex shrink-0 items-center gap-2 px-4 py-2.5">
         <h1 className="truncate text-[13.5px] font-medium text-ink">
@@ -1696,56 +1617,42 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             pointer.current = null
           }
         }}
-        onDragOver={(event) => {
-          // Claimed only when files are being carried. A dragged link or a text selection is not this
-          // map's business, and swallowing the drop would leave the browser's own handling unreachable.
-          if (event.dataTransfer.types.includes("Files")) {
-            event.preventDefault()
-            event.dataTransfer.dropEffect = "copy"
-          }
-        }}
-        onDrop={(event) => {
-          const files = imageFilesOf(event.dataTransfer)
-          if (files.length === 0) {
-            return
-          }
-          event.preventDefault()
-          // Where it was dropped, which is the whole point of dropping rather than picking.
-          const at = runtime.current?.toCanvas(event.clientX, event.clientY)
-          void placeImages(files, at ?? viewportCentre())
-        }}
+        onDragOver={images.onDragOver}
+        onDrop={images.onDrop}
       >
-        <MindmapCanvas
-          scene={scene}
-          runtimeRef={runtime}
-          selection={selection}
-          onSelection={setSelection}
-          onCommitMove={commitMove}
-          onCommitResize={commitResize}
-          armedShape={shape}
-          selectMode={selectMode}
-          onCommitRotate={commitRotate}
-          onCommitLine={commitLine}
-          onDraw={(drawn, line) => void draw(drawn, line)}
-          onActivate={activate}
-          onActivateEdge={setEditingEdge}
-          onChrome={pressChrome}
-          editingId={editing}
-          onEditEnd={endEdit}
-          editingEdgeId={editingEdge}
-          onEdgeLabelEnd={endEdgeLabel}
-          subtreeOf={subtreeOf}
-          tool={tool}
-          onPlant={(armed, at) => void plant(armed, at)}
-          onGroup={(ids) => void group(ids)}
-          onConnect={connect}
-          onCamera={(viewport) => {
-            minimapCamera.current?.(viewport)
-            cameraSignal.emit()
-          }}
-          onCameraSettled={(viewport) => setZoom(viewport.zoom)}
-          onFitClamped={() => toast.info(t("Mindmap", "FitClamped"))}
-        />
+        <ImageSlotMap.Provider value={mapId ?? ""}>
+          <MindmapCanvas
+            scene={scene}
+            runtimeRef={runtime}
+            selection={selection}
+            onSelection={setSelection}
+            onCommitMove={commitMove}
+            onCommitResize={commitResize}
+            armedShape={shape}
+            selectMode={selectMode}
+            onCommitRotate={commitRotate}
+            onCommitLine={commitLine}
+            onDraw={(drawn, line) => void draw(drawn, line)}
+            onActivate={activate}
+            onActivateEdge={setEditingEdge}
+            onChrome={pressChrome}
+            editingId={editing}
+            onEditEnd={endEdit}
+            editingEdgeId={editingEdge}
+            onEdgeLabelEnd={endEdgeLabel}
+            subtreeOf={subtreeOf}
+            tool={tool}
+            onPlant={(armed, at) => void plant(armed, at)}
+            onGroup={(ids) => void group(ids)}
+            onConnect={connect}
+            onCamera={(viewport) => {
+              minimapCamera.current?.(viewport)
+              cameraSignal.emit()
+            }}
+            onCameraSettled={(viewport) => setZoom(viewport.zoom)}
+            onFitClamped={() => toast.info(t("Mindmap", "FitClamped"))}
+          />
+        </ImageSlotMap.Provider>
 
         {/* Not while a label is being typed: the bar would sit over the field, and none of what it
             offers is a thing anyone reaches for mid-word. */}
@@ -1780,7 +1687,6 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
           onNodeStyle={presets.setNodeStyle}
           connector={presets.connector}
           onConnector={presets.setConnector}
-          onInsertImage={insertImage}
           stage={stage}
           corner={corner}
           edge={presets.edge}
