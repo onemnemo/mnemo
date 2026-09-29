@@ -1,4 +1,8 @@
+import { useState } from "react"
+
 import { AppIcon } from "@/components/icon/AppIcon"
+import { Button } from "@/components/ui/button"
+import { Tooltip } from "@/components/ui/tooltip"
 import {
   Popover,
   PopoverClose,
@@ -9,6 +13,7 @@ import {
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
+import type { ArrangeCount } from "../api"
 import {
   LAYOUT_ALGORITHMS,
   type CanvasBackground,
@@ -19,6 +24,7 @@ import { branchColor } from "../scene/tokens"
 import { LAYOUT_KEY } from "./choices"
 import { BackgroundGlyph, BranchGlyph, LayoutGlyph } from "./glyphs"
 import { BRANCH_MATERIALS, type BranchMaterial } from "./material"
+import { useArrangeCount } from "./useArrangeCount"
 
 const BACKGROUNDS: readonly { value: CanvasBackground; key: string }[] = [
   { value: "dots", key: "BackgroundDots" },
@@ -37,6 +43,12 @@ export interface MapStyleMenuProps {
   onArrange: () => void
   /** False for a map with nothing in it to arrange. */
   canArrange: boolean
+  /** The revision the map is at, so a count asked for an older one is not shown. */
+  revision: number
+  /** Changes whenever the sizes an arrange would send may have, so the count is asked again. */
+  sizesKey: unknown
+  /** How many nodes Arrange now would move, asked each time the menu opens. */
+  countArrange: (signal: AbortSignal) => Promise<ArrangeCount | null>
   material: BranchMaterial
   onMaterial: (material: BranchMaterial) => void
   templates: readonly StyleTemplate[]
@@ -66,6 +78,9 @@ export function MapStyleMenu({
   onAlgorithm,
   onArrange,
   canArrange,
+  revision,
+  sizesKey,
+  countArrange,
   material,
   onMaterial,
   templates,
@@ -77,13 +92,12 @@ export function MapStyleMenu({
   onBackground,
 }: MapStyleMenuProps) {
   const t = useT()
-
-  // Free is the arrangement that keeps every node where it is, so arranging under it is a button
-  // that provably does nothing rather than one that might.
-  const idle = !canArrange || algorithm === "free"
+  const [open, setOpen] = useState(false)
+  const moves = useArrangeCount(open && canArrange, revision, sizesKey, countArrange)
+  const arranged = canArrange && moves === 0
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -112,29 +126,27 @@ export function MapStyleMenu({
           ))}
         </div>
 
-        {/* Laying out again lives with the arrangement rather than in the header, where a button
-            named Layout sat beside a control already reading Tree (vertical) and the two looked
-            like two names for one thing. Picking an arrangement already arranges; this is for the
-            map that has been added to since. */}
-        <div className="px-1 pt-1">
-          <PopoverClose asChild>
-            <button
-              type="button"
-              // Called with no arguments on purpose: the handler is passed the click, and an arrange
-              // reads its first argument as the arrangement to use.
-              onClick={() => onArrange()}
-              disabled={idle}
-              title={t("Mindmap", "LayoutTooltip")}
-              className={cn(
-                "flex h-8 w-full items-center gap-2 rounded-lg px-2 text-[13px] text-ink-2 transition-colors hover:bg-frame-hover hover:text-ink",
-                idle && "pointer-events-none opacity-35",
-              )}
-            >
-              <AppIcon name="common/sitemap" size={15} />
-              {t("Mindmap", "ArrangeNow")}
-            </button>
-          </PopoverClose>
-        </div>
+        {/* Here rather than in the header, where it read as a second name for the arrangement. The
+            tooltip marks the wrapper because a disabled button takes no pointer events, and why it
+            is disabled is the tooltip that matters. */}
+        <Tooltip label={t("Mindmap", arranged ? "AlreadyArranged" : "LayoutTooltip")}>
+          <div className="px-1 pt-1">
+            <PopoverClose asChild>
+              <Button
+                variant="outline"
+                size="md"
+                // Called with no arguments on purpose: the handler is passed the click, and an arrange
+                // reads its first argument as the arrangement to use.
+                onClick={() => onArrange()}
+                disabled={arranged || !canArrange}
+                icon={<AppIcon name="common/sitemap" size={14} />}
+                className="w-full"
+              >
+                {t("Mindmap", "ArrangeNow")}
+              </Button>
+            </PopoverClose>
+          </div>
+        </Tooltip>
 
         {/* Its own control rather than a side effect of the palette. Burying "how are the lines
             drawn" inside a colour preset is what made the prototype's edge system feel missing. */}

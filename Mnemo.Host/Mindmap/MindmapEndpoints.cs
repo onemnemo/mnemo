@@ -179,15 +179,6 @@ public static class MindmapEndpoints
     }
 
     /// <summary>
-    /// Lays the map out and commits the result as one batch of moves.
-    /// <para>
-    /// It answers in exactly the shape <c>/ops</c> does, because it IS an edit: the client folds the same
-    /// delta into the same cache and pushes the same single entry onto its undo stack. An arrange nobody
-    /// liked is one Ctrl+Z, which is the whole reason layout is a thing you ask for here rather than a
-    /// thing that happens to you after every keystroke.
-    /// </para>
-    /// </summary>
-    /// <summary>
     /// The outline, written to a destination the user chose, or handed back for the browser to take
     /// when no grant says otherwise.
     /// </summary>
@@ -228,6 +219,18 @@ public static class MindmapEndpoints
         }
     }
 
+    /// <summary>
+    /// Lays the map out and commits the result as one batch of moves.
+    /// <para>
+    /// It answers in exactly the shape <c>/ops</c> does, because it IS an edit: the client folds the same
+    /// delta into the same cache and pushes the same single entry onto its undo stack. An arrange nobody
+    /// liked is one Ctrl+Z, which is the whole reason layout is a thing you ask for here rather than a
+    /// thing that happens to you after every keystroke.
+    /// </para>
+    /// <para>
+    /// A dry run computes the same moves and answers with how many there are, applying nothing.
+    /// </para>
+    /// </summary>
     public static async Task<IResult> ArrangeAsync(
         string id,
         Stream requestBody,
@@ -255,6 +258,9 @@ public static class MindmapEndpoints
         var moves = await MindmapArrange
             .ComputeAsync(before, sizes, Blank(body.Algorithm), layout, cancellationToken)
             .ConfigureAwait(false);
+
+        if (body.DryRun)
+            return MindmapJson.Ok(new ArrangeCountDto(before.Revision, moves.Count(move => move is MoveOp)));
 
         // A map already in the shape the layout would give it is not an edit. Answering with the current
         // revision and no deltas leaves the client's document and its undo stack alone.

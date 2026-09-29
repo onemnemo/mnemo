@@ -209,6 +209,37 @@ export async function arrangeMindmap(
   }
 }
 
+/** How many nodes an arrange would move, and the revision that count belongs to. */
+export interface ArrangeCount {
+  revision: number
+  moves: number
+}
+
+/**
+ * Asks how many nodes an arrange would move, without moving any. Null when the map has moved past
+ * `expectedRevision` or is gone, since a count for a document nobody holds answers nothing.
+ */
+export async function countArrange(
+  id: string,
+  expectedRevision: number,
+  sizes: Record<string, [number, number]>,
+  signal?: AbortSignal,
+): Promise<ArrangeCount | null> {
+  const { status, data } = await apiFetchExpecting<ArrangeCount | MindmapEditError>(
+    `/mindmaps/${encodeURIComponent(id)}/arrange`,
+    [400, 404, 409],
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedRevision, sizes, dryRun: true }),
+      signal,
+    },
+  )
+  if (status !== 200) return null
+  const count = data as Partial<ArrangeCount>
+  return { revision: count.revision ?? expectedRevision, moves: count.moves ?? 0 }
+}
+
 /**
  * Replays one delta from the undo stack.
  *

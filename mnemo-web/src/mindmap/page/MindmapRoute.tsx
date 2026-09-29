@@ -797,13 +797,15 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
    */
   const arrange = useCallback(
     (algorithm?: LayoutAlgorithm) => {
-      const sizes: Record<string, [number, number]> = {}
-      for (const element of scene?.elements ?? []) {
-        sizes[element.id] = [element.width, element.height]
-      }
-      void editor.arrange(sizes, { label: t("Mindmap", "Layout") }, algorithm)
+      void editor.arrange(arrangeSizes(scene), { label: t("Mindmap", "Layout") }, algorithm)
     },
     [editor, scene, t],
+  )
+
+  /** Whether Arrange now would move anything, measured exactly as the arrange it stands for. */
+  const countArrange = useCallback(
+    (signal: AbortSignal) => editor.countArrange(arrangeSizes(scene), signal),
+    [editor, scene],
   )
 
   /** What the whole map looks like, as opposed to what one selected thing looks like. */
@@ -1627,6 +1629,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
             onAlgorithm={arrange}
             onArrange={arrange}
             canArrange={scene.elements.length > 0}
+            revision={map.data?.revision ?? 0}
+            sizesKey={scene}
+            countArrange={countArrange}
             material={materialOf(map.data?.canvas?.edgeDefaults)}
             onMaterial={(next) => mapStyle({ edge_defaults: edgeDefaultsFor(next) })}
             templates={styling?.templates ?? []}
@@ -1835,6 +1840,15 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       ) : null}
     </div>
   )
+}
+
+/** Every element's rendered size, as an arrange hands them to the server. */
+function arrangeSizes(scene: Scene | null): Record<string, [number, number]> {
+  const sizes: Record<string, [number, number]> = {}
+  for (const element of scene?.elements ?? []) {
+    sizes[element.id] = [element.width, element.height]
+  }
+  return sizes
 }
 
 function Pill({ children }: { children: React.ReactNode }) {

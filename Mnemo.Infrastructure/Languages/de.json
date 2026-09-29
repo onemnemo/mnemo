@@ -1088,6 +1088,7 @@
     "CapEnd": "Ende",
     "LayoutTooltip": "Die ganze Karte anordnen",
     "ArrangeNow": "Jetzt anordnen",
+    "AlreadyArranged": "Die Karte ist bereits angeordnet",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Text hinzufügen",
     "Connect": "Verbinden",

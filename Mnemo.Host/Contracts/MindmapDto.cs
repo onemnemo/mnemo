@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Mnemo.Core.Models.Mindmap;
 
 namespace Mnemo.Host.Contracts;
@@ -44,12 +45,21 @@ public sealed record RestoreMindmapDto(long ExpectedRevision, MindmapRestoreDelt
 /// is the width of its rendered text, which only the client that measured it knows; without them every
 /// layout would space the map by a guess. <paramref name="Algorithm"/> overrides each cluster's own
 /// choice for this one pass, for an arrange that asks for a particular arrangement.
+/// <paramref name="DryRun"/> computes the moves without applying them and answers with an
+/// <see cref="ArrangeCountDto"/>.
 /// </para>
 /// </summary>
 public sealed record ArrangeMindmapDto(
     long ExpectedRevision,
     string? Algorithm,
-    IReadOnlyDictionary<string, double[]>? Sizes);
+    IReadOnlyDictionary<string, double[]>? Sizes,
+    bool DryRun = false);
+
+/// <summary>How many nodes an arrange would move, at the revision it was computed against.</summary>
+/// <remarks>Zero is the answer that matters most, so it is written even though the options drop defaults.</remarks>
+public sealed record ArrangeCountDto(
+    long Revision,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] int Moves);
 
 /// <summary>
 /// What an accepted batch hands back.

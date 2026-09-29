@@ -29,11 +29,13 @@ import { useT } from "@/i18n/useT"
 import {
   applyMindmapOps,
   arrangeMindmap,
+  countArrange,
   foldEditIntoCache,
   foldNoticeIntoCache,
   foldRestoreIntoCache,
   mapKey,
   restoreMindmap,
+  type ArrangeCount,
   type EditOutcome,
   type MindmapEditError,
   type MindmapOpsResult,
@@ -96,6 +98,11 @@ export interface MindmapEditor {
     step: EditStep,
     algorithm?: string,
   ): Promise<MindmapOpsResult | null>
+  /**
+   * How many nodes an arrange with these sizes would move, against the revision this editor holds.
+   * Not queued, since it writes nothing. Null when there is no map or the server has moved on.
+   */
+  countArrange(sizes: Record<string, [number, number]>, signal?: AbortSignal): Promise<ArrangeCount | null>
   /**
    * Resolves once the queue is quiet, so closing the window does not cut a write off half way. Never
    * rejects: a write that failed is reported to whoever sent it, and an exit has nothing to do about
@@ -358,6 +365,12 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
     [commit],
   )
 
+  const count = useCallback(
+    (sizes: Record<string, [number, number]>, signal?: AbortSignal): Promise<ArrangeCount | null> =>
+      mapId ? countArrange(mapId, revisionOf(mapId), sizes, signal) : Promise.resolve(null),
+    [mapId, revisionOf],
+  )
+
   /**
    * Replays a delta.
    *
@@ -498,6 +511,7 @@ export function useMindmapEditor(mapId: string | null, revision?: number): Mindm
   return {
     apply,
     arrange,
+    countArrange: count,
     drain,
     undo: useCallback(() => travel("undo"), [travel]),
     redo: useCallback(() => travel("redo"), [travel]),

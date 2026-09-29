@@ -12,6 +12,7 @@ import { QueryClient } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  countArrange,
   foldEditIntoCache,
   foldNoticeIntoCache,
   foldRestoreIntoCache,
@@ -173,6 +174,40 @@ describe("asking the server to replay a delta", () => {
     answering(500, { error: "mindmap_error", message: "boom" })
 
     await expect(restoreMindmap("m", 4, {})).rejects.toThrow()
+  })
+})
+
+describe("counting an arrange", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("asks for a dry run with the sizes and reads back the count", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ revision: 4, moves: 3 }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    )
+
+    const aborter = new AbortController()
+    expect(await countArrange("m", 4, { a: [120, 32] }, aborter.signal)).toEqual({ revision: 4, moves: 3 })
+    const body = JSON.parse(String(fetch.mock.calls[0][1]!.body))
+    expect(body).toEqual({ expectedRevision: 4, sizes: { a: [120, 32] }, dryRun: true })
+    expect(fetch.mock.calls[0][1]!.signal).toBe(aborter.signal)
+  })
+
+  it("reads a count the server left out as zero", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ revision: 4 }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    )
+    expect(await countArrange("m", 4, {})).toEqual({ revision: 4, moves: 0 })
+  })
+
+  it("answers nothing for a revision the map has moved past", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ code: "rev_conflict", message: "moved on", revision: 9 }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+
+    expect(await countArrange("m", 4, {})).toBeNull()
   })
 })
 

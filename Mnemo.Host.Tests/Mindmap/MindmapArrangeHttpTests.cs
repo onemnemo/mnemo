@@ -277,6 +277,69 @@ public sealed class MindmapArrangeHttpTests
         Assert.Equal(StatusCodes.Status409Conflict, response.Status);
     }
 
+    [Fact]
+    public async Task ADryRunCountsTheMovesWithoutMakingThem()
+    {
+        await using var h = new MindmapHostHarness();
+        var map = await SeededMap(h);
+
+        var response = await Execute(await MindmapEndpoints.ArrangeAsync(
+            map.Id, Body($$"""{ "expectedRevision": {{map.Revision}}, "dryRun": true }"""), h.Service, h.Layout));
+
+        Assert.Equal(StatusCodes.Status200OK, response.Status);
+        var count = Parse<ArrangeCountDto>(response.Body);
+        Assert.Equal(map.Revision, count.Revision);
+        Assert.True(count.Moves > 0);
+
+        var stored = (await h.Service.GetAsync(map.Id)).Value!;
+        Assert.Equal(map.Revision, stored.Revision);
+        Assert.All(stored.Elements, element => Assert.Equal((0d, 0d), (element.X, element.Y)));
+
+        // The count is the number of moves a real arrange then makes.
+        var applied = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ArrangeAsync(
+            map.Id, Body($$"""{ "expectedRevision": {{map.Revision}} }"""), h.Service, h.Layout))).Body);
+        Assert.True(applied.Revision > map.Revision);
+        var moved = (await h.Service.GetAsync(map.Id)).Value!.Elements
+            .Count(element => element.X != 0 || element.Y != 0);
+        Assert.Equal(count.Moves, moved);
+    }
+
+    [Fact]
+    public async Task ADryRunOnAnArrangedMapCountsNothingEvenWhenItWouldRecordAnArrangement()
+    {
+        await using var h = new MindmapHostHarness();
+        var map = await SeededMap(h);
+        var arranged = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ArrangeAsync(
+            map.Id, Body($$"""{ "expectedRevision": {{map.Revision}} }"""), h.Service, h.Layout))).Body);
+
+        var againBody = (await Execute(await MindmapEndpoints.ArrangeAsync(
+            map.Id, Body($$"""{ "expectedRevision": {{arranged.Revision}}, "dryRun": true }"""), h.Service, h.Layout))).Body;
+        Assert.Contains("\"moves\":0", againBody);
+        var again = Parse<ArrangeCountDto>(againBody);
+        Assert.Equal(0, again.Moves);
+
+        // Naming the arrangement the map is already in would record the choice, which is not a move.
+        var named = Parse<ArrangeCountDto>((await Execute(await MindmapEndpoints.ArrangeAsync(
+            map.Id,
+            Body($$"""{ "expectedRevision": {{arranged.Revision}}, "algorithm": "balanced", "dryRun": true }"""),
+            h.Service,
+            h.Layout))).Body);
+        Assert.Equal(0, named.Moves);
+        Assert.Equal(arranged.Revision, (await h.Service.GetAsync(map.Id)).Value!.Revision);
+    }
+
+    [Fact]
+    public async Task ADryRunAgainstAStaleRevisionIsA409()
+    {
+        await using var h = new MindmapHostHarness();
+        var map = await SeededMap(h);
+
+        var response = await Execute(await MindmapEndpoints.ArrangeAsync(
+            map.Id, Body($$"""{ "expectedRevision": {{map.Revision - 1}}, "dryRun": true }"""), h.Service, h.Layout));
+
+        Assert.Equal(StatusCodes.Status409Conflict, response.Status);
+    }
+
     // ---- Plumbing ----------------------------------------------------------------------------
 
     /// <summary>A root with three children, which every algorithm has something to say about.</summary>

@@ -1088,6 +1088,7 @@
     "CapEnd": "End",
     "LayoutTooltip": "Arrange the whole map",
     "ArrangeNow": "Arrange now",
+    "AlreadyArranged": "The map is already arranged",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Add text",
     "Connect": "Connect",

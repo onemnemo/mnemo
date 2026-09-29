@@ -1088,6 +1088,7 @@
     "CapEnd": "Slutt",
     "LayoutTooltip": "Ordne hele kartet",
     "ArrangeNow": "Ordne nå",
+    "AlreadyArranged": "Kartet er allerede ordnet",
     "ShortcutHintFormat": "{0} ({1})",
     "AddText": "Legg til tekst",
     "Connect": "Koble",
