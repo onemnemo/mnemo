@@ -17,7 +17,7 @@ import { projectScene, type ProjectOptions } from "./project"
 const DAWN: StyleTemplate = {
   id: "dawn-classic",
   name: "Dawn Classic",
-  rootStyle: { fill: "accent", textColor: "onAccent", nodeShape: "card", fontScale: "l" },
+  rootStyle: { fill: "solid", textColor: "onSolid", nodeShape: "card", fontScale: "l" },
   depthRules: [
     { minDepth: 1, maxDepth: 1, style: { nodeShape: "card", fontScale: "m" } },
     { minDepth: 2, style: { nodeShape: "plain", fontScale: "s" } },
@@ -61,8 +61,8 @@ describe("a projected element", () => {
     const scene = projectScene(SAMPLE, options())
     const root = scene.elements.find((e) => e.id === "r")!
 
-    expect(root.fill).toBe("var(--accent)")
-    expect(root.textColor).toBe("var(--accent-fg)")
+    expect(root.fill).toBe("var(--solid)")
+    expect(root.textColor).toBe("var(--solid-fg)")
     expect(root.nodeShape).toBe("card")
     expect(root.isRoot).toBe(true)
     expect(root.text.lines).toEqual(["r"])
@@ -119,14 +119,14 @@ describe("a projected element", () => {
 })
 
 describe("the ink on a root", () => {
-  /** The root, styled by a template that pairs the accent fill with the ink that reads on it. */
+  /** The root, styled by a template that pairs the solid fill with the ink that reads on it. */
   const inkOn = (own: MindmapElement["style"]): string | undefined =>
     projectScene({ ...SAMPLE, elements: [node("r", { style: own }), node("a")] }, options()).elements.find(
       (element) => element.id === "r",
     )!.textColor
 
   it("is the pale ink the template pairs with the fill, on the rung that paints it", () => {
-    expect(inkOn(undefined)).toBe("var(--accent-fg)")
+    expect(inkOn(undefined)).toBe("var(--solid-fg)")
   })
 
   it("is the ordinary ink on a rung that paints nothing, which would leave the label invisible", () => {
@@ -135,12 +135,26 @@ describe("the ink on a root", () => {
   })
 
   it("follows a pill onto the wash it paints when the node carries a hue of its own", () => {
-    expect(inkOn({ nodeShape: "pill" })).toBe("var(--accent-fg)")
+    expect(inkOn({ nodeShape: "pill" })).toBe("var(--solid-fg)")
     expect(inkOn({ nodeShape: "pill", stroke: "palette.3" })).toBe("var(--ink)")
   })
 
   it("reads a hue written as the literal a hand-made template carries, not just as a token", () => {
     expect(inkOn({ nodeShape: "pill", stroke: "var(--branch-3)" })).toBe("var(--ink)")
+  })
+
+  describe("under a template that fills the root with the accent", () => {
+    const ACCENT: StyleTemplate = { ...DAWN, rootStyle: { ...DAWN.rootStyle, fill: "accent", textColor: "onAccent" } }
+    const inkUnderAccent = (own: MindmapElement["style"]): string | undefined =>
+      projectScene(
+        { ...SAMPLE, elements: [node("r", { style: own }), node("a")] },
+        options({ templates: [ACCENT], defaultTemplateId: ACCENT.id }),
+      ).elements.find((element) => element.id === "r")!.textColor
+
+    it("pairs the accent with its own pale ink and drops it on a rung that paints nothing", () => {
+      expect(inkUnderAccent(undefined)).toBe("var(--accent-fg)")
+      expect(inkUnderAccent({ nodeShape: "plain" })).toBe("var(--ink)")
+    })
   })
 })
 
@@ -269,7 +283,7 @@ describe("the document as a whole", () => {
     const scene = projectScene({ ...SAMPLE, canvas: { defaultTemplateId: "gone" } }, options())
 
     expect(scene.elements).toHaveLength(4)
-    expect(scene.elements[0].fill).toBe("var(--accent)")
+    expect(scene.elements[0].fill).toBe("var(--solid)")
   })
 
   it("falls back to no template at all when even the default is missing", () => {
@@ -443,7 +457,7 @@ describe("projecting the same element twice", () => {
       }),
     )
 
-    expect(find(before, "r").fill).toBe("var(--accent)")
+    expect(find(before, "r").fill).toBe("var(--solid)")
     expect(find(after, "r")).not.toBe(find(before, "r"))
     expect(find(after, "r").fill).toBe("var(--canvas-sunken)")
   })

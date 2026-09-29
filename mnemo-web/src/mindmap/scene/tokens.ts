@@ -16,6 +16,8 @@ export const BRANCH_COUNT = 8
 const TOKEN_VARS: Record<string, string> = {
   accent: "--accent",
   onAccent: "--accent-fg",
+  solid: "--solid",
+  onSolid: "--solid-fg",
   surface: "--canvas",
   surfaceAlt: "--canvas-sunken",
   textPrimary: "--ink",

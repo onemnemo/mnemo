@@ -11,6 +11,12 @@ public static class MindmapStyleTokens
     /// <summary>Legible text/icon color on an accent fill.</summary>
     public const string OnAccent = "onAccent";
 
+    /// <summary>The app's solid neutral, the fill of a primary button: near-black in light, near-white in dark.</summary>
+    public const string Solid = "solid";
+
+    /// <summary>Legible text/icon color on a solid fill.</summary>
+    public const string OnSolid = "onSolid";
+
     public const string Surface = "surface";
 
     public const string SurfaceAlt = "surfaceAlt";

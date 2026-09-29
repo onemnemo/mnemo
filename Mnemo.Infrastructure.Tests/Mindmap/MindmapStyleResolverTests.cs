@@ -41,7 +41,7 @@ public sealed class MindmapStyleResolverTests
         Assert.Equal(MindmapStyleTokens.Palette(3), style.Fill);
         Assert.Equal(NodeShape.Pill, style.NodeShape);
         // Members the override left null still come from the template's root rule.
-        Assert.Equal(MindmapStyleTokens.OnAccent, style.TextColor);
+        Assert.Equal(MindmapStyleTokens.OnSolid, style.TextColor);
     }
 
     [Fact]
@@ -49,8 +49,8 @@ public sealed class MindmapStyleResolverTests
     {
         var style = _resolver.Resolve(null, StyleContext.Root, Chain(MindmapBuiltInTemplates.DawnClassic));
 
-        Assert.Equal(MindmapStyleTokens.Accent, style.Fill);
-        Assert.Equal(MindmapStyleTokens.OnAccent, style.TextColor);
+        Assert.Equal(MindmapStyleTokens.Solid, style.Fill);
+        Assert.Equal(MindmapStyleTokens.OnSolid, style.TextColor);
         Assert.Equal(FontScale.L, style.FontScale);
     }
 
@@ -63,11 +63,12 @@ public sealed class MindmapStyleResolverTests
 
         Assert.Equal(MindmapStyleTokens.Palette(3), style.Fill);
         Assert.Equal(MindmapStyleTokens.Palette(3), style.Stroke);
-        Assert.Equal(MindmapStyleTokens.OnAccent, style.TextColor);
+        Assert.Equal(MindmapStyleTokens.OnSolid, style.TextColor);
     }
 
     [Theory]
     [InlineData(MindmapStyleTokens.Accent)]
+    [InlineData(MindmapStyleTokens.Solid)]
     [InlineData("palette.5")]
     [InlineData("#112233")]
     public void Resolve_StrokeChosenForTheRoot_ReplacesAColourTheRootNamesItself(string fill)
@@ -90,7 +91,7 @@ public sealed class MindmapStyleResolverTests
 
         var style = _resolver.Resolve(own, StyleContext.Root, Chain(MindmapBuiltInTemplates.DawnClassic));
 
-        Assert.Equal(MindmapStyleTokens.Accent, style.Fill);
+        Assert.Equal(MindmapStyleTokens.Solid, style.Fill);
         Assert.Equal(MindmapStyleTokens.Palette(3), style.Stroke);
     }
 
@@ -205,8 +206,21 @@ public sealed class MindmapStyleResolverTests
 
         var style = _resolver.Resolve(null, StyleContext.Root, Chain(cluster, document));
 
-        Assert.Equal(MindmapStyleTokens.Accent, style.Fill);
-        Assert.Equal(MindmapStyleTokens.OnAccent, style.TextColor);
+        Assert.Equal(MindmapStyleTokens.Solid, style.Fill);
+        Assert.Equal(MindmapStyleTokens.OnSolid, style.TextColor);
+    }
+
+    [Theory]
+    [InlineData("dawn-classic")]
+    [InlineData("rainbow-branches")]
+    [InlineData("study")]
+    [InlineData("org-chart")]
+    public void BuiltIns_WithACardRoot_PaintItInTheSolidNeutral(string id)
+    {
+        var style = _resolver.Resolve(null, StyleContext.Root, Chain(MindmapBuiltInTemplates.ById(id)!));
+
+        Assert.Equal(MindmapStyleTokens.Solid, style.Fill);
+        Assert.Equal(MindmapStyleTokens.OnSolid, style.TextColor);
     }
 
     [Fact]

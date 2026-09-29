@@ -73,7 +73,7 @@ public sealed class MindmapStyleResolver : IMindmapStyleResolver
         // A root card paints its fill, so a stroke chosen for the root is meant as that fill and
         // replaces any colour fill, whether the template or the element itself named it. A paper
         // fill is not a colour and keeps the ring. Only on the card: a pill washes over its fill and
-        // the other rungs paint none, so there the fill stays the accent the ink was paired with.
+        // the other rungs paint none, so there the fill stays the colour the ink was paired with.
         if (context.IsRoot
             && own?.Stroke is not null
             && (shape ?? NodeShape.Card) == NodeShape.Card

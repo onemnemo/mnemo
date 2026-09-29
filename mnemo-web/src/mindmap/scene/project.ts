@@ -497,18 +497,22 @@ function rotationOf(kind: ElementKind, content: MindmapElement["content"]): numb
   return shape.rotation
 }
 
+/** Each pale ink and the one fill it is legible on. */
+const INK_FILLS: Readonly<Record<string, string>> = { onAccent: "accent", onSolid: "solid" }
+
 /**
  * The ink, which cannot be settled without knowing what will be painted under it.
  *
- * A template's root style names `accent` and `onAccent` together with the card rung that paints the
- * first, so the second has something to read against. The cascade resolves those three one property
- * at a time, so a root moved onto another rung keeps the pale ink and loses the fill it was for.
+ * A template's root style names a fill (`accent` or `solid`) and its ink (`onAccent` or `onSolid`)
+ * together with the card rung that paints the fill, so the ink has something to read against. The
+ * cascade resolves those three one property at a time, so a root moved onto another rung keeps the
+ * pale ink and loses the fill it was for.
  *
  * Only the card paints the fill as given. A pill washes over it once the node carries a palette hue,
  * and the outline and the rule paint nothing, so the ordinary ink is the readable answer on those.
  */
 function inkOf(kind: ElementKind, style: ResolvedStyle): string {
-  if (style.textColor !== "onAccent" || style.fill !== "accent") {
+  if (INK_FILLS[style.textColor] !== style.fill) {
     return style.textColor
   }
   // A caption, a shape and a picture carry no card of their own whatever rung they resolved to.

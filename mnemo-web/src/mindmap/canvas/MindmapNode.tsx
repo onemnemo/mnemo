@@ -471,13 +471,13 @@ function markerFill(
     case "pill":
       return wash ?? element.fill ?? accentLine ?? "var(--line)"
     // Both draw their whole chrome as a line, so the line is what they are. A root on either rung
-    // included: it stopped painting a fill at readable zoom, so a solid accent block down here
-    // would be the map changing shape as it zooms out.
+    // included: it stopped painting a fill at readable zoom, so a filled block down here would be
+    // the map changing shape as it zooms out.
     case "plain":
     case "outline":
       return accentLine ?? "var(--line)"
     default:
-      return element.fill ?? (element.isRoot ? "var(--accent)" : accentLine ?? "var(--line)")
+      return element.fill ?? (element.isRoot ? "var(--solid)" : accentLine ?? "var(--line)")
   }
 }
 

@@ -6,6 +6,8 @@ describe("token to CSS", () => {
   it("maps the shared vocabulary onto this app's variables", () => {
     expect(cssColor("accent")).toBe("var(--accent)")
     expect(cssColor("onAccent")).toBe("var(--accent-fg)")
+    expect(cssColor("solid")).toBe("var(--solid)")
+    expect(cssColor("onSolid")).toBe("var(--solid-fg)")
     expect(cssColor("textPrimary")).toBe("var(--ink)")
     expect(cssColor("stroke")).toBe("var(--line)")
   })

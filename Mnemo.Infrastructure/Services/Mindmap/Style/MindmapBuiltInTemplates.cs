@@ -14,15 +14,15 @@ public static class MindmapBuiltInTemplates
     /// <summary>Id of the built-in used when a document sets no default template.</summary>
     public const string DefaultId = "dawn-classic";
 
-    /// <summary>Accent root over warm neutrals; the module's out-of-the-box look.</summary>
+    /// <summary>Solid root over warm neutrals; the module's out-of-the-box look.</summary>
     public static StyleTemplate DawnClassic { get; } = new()
     {
         Id = "dawn-classic",
         Name = "Dawn Classic",
         RootStyle = new ElementStyle
         {
-            Fill = MindmapStyleTokens.Accent,
-            TextColor = MindmapStyleTokens.OnAccent,
+            Fill = MindmapStyleTokens.Solid,
+            TextColor = MindmapStyleTokens.OnSolid,
             NodeShape = NodeShape.Card,
             FontScale = FontScale.L,
         },
@@ -41,8 +41,8 @@ public static class MindmapBuiltInTemplates
         Name = "Rainbow Branches",
         RootStyle = new ElementStyle
         {
-            Fill = MindmapStyleTokens.Accent,
-            TextColor = MindmapStyleTokens.OnAccent,
+            Fill = MindmapStyleTokens.Solid,
+            TextColor = MindmapStyleTokens.OnSolid,
             NodeShape = NodeShape.Card,
             FontScale = FontScale.L,
         },
@@ -80,8 +80,8 @@ public static class MindmapBuiltInTemplates
         Name = "Study",
         RootStyle = new ElementStyle
         {
-            Fill = MindmapStyleTokens.Accent,
-            TextColor = MindmapStyleTokens.OnAccent,
+            Fill = MindmapStyleTokens.Solid,
+            TextColor = MindmapStyleTokens.OnSolid,
             NodeShape = NodeShape.Card,
             FontScale = FontScale.XL,
         },
@@ -101,8 +101,8 @@ public static class MindmapBuiltInTemplates
         Name = "Org Chart",
         RootStyle = new ElementStyle
         {
-            Fill = MindmapStyleTokens.Accent,
-            TextColor = MindmapStyleTokens.OnAccent,
+            Fill = MindmapStyleTokens.Solid,
+            TextColor = MindmapStyleTokens.OnSolid,
             NodeShape = NodeShape.Card,
             FontScale = FontScale.L,
         },

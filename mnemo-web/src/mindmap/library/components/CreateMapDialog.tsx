@@ -148,7 +148,7 @@ export function CreateMapDialog({ open, busy, onCancel, onCreate }: CreateMapDia
  * would need a map to render.
  */
 function previewTokens(template: StyleTemplate): string[] {
-  const root = template.rootStyle?.fill ?? "accent"
+  const root = template.rootStyle?.fill ?? "solid"
   if (template.branchColors === "byBranch") {
     return [root, "palette.2", "palette.3", "palette.4"]
   }
