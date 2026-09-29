@@ -201,6 +201,32 @@ public sealed class MindmapMarkdownExporterTests
     }
 
     [Fact]
+    public void AnImageWaitingForAPicture_IsLeftOut()
+    {
+        var doc = new MindmapDocument
+        {
+            Id = "d",
+            Title = "T",
+            Elements = new[]
+            {
+                new MindmapElement { Id = "slot", Kind = ElementKind.Image, Content = new CanvasImageContent { AssetId = "" } },
+                new MindmapElement { Id = "ci", Kind = ElementKind.Image, Content = new CanvasImageContent { AssetId = "img.png" } },
+                new MindmapElement { Id = "fr", Kind = ElementKind.Frame, Content = new FrameContent { Title = "Group", ChildIds = new[] { "slot", "ci" } } },
+                Node("a", "A"),
+            },
+            Edges = new[] { Link("l1", "a", "slot", null), Link("l2", "slot", "a", null) },
+        };
+
+        var md = MindmapMarkdownExporter.ExportOutline(doc);
+
+        Assert.Contains("- ![](img.png)", md);
+        Assert.DoesNotContain("![]()", md);
+        Assert.DoesNotContain("slot", md);
+        Assert.DoesNotContain("[^", md);
+        Assert.Contains("### Group\n- img.png", md);
+    }
+
+    [Fact]
     public void Export_IsDeterministic()
     {
         var doc = new MindmapDocument

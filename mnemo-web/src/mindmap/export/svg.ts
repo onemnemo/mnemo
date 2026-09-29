@@ -27,7 +27,7 @@ import { FONT_FAMILY, MONO_FAMILY, type TextMeasurer } from "../scene/measure"
 import { accentOf } from "../scene/branch"
 import { mixColor, washOf } from "../scene/tokens"
 import { boundsOf, type Scene, type SceneEdge, type SceneElement, type SceneLine } from "../model/scene"
-import type { CodeContent, FrameContent, ShapeContent, ShapeType } from "../model/document"
+import type { CanvasImageContent, CodeContent, FrameContent, ShapeContent, ShapeType } from "../model/document"
 import { sliceRuns, type Fragment } from "./rich-text"
 
 /** Room around the drawing, the same as the desktop leaves. */
@@ -68,7 +68,19 @@ interface Paint {
   readonly image?: (assetId: string) => string | null
 }
 
-export function emitSvg(scene: Scene, options: SvgOptions): SvgPicture | null {
+/**
+ * The scene without its empty images. One still waiting for a picture is a prompt on the canvas
+ * rather than part of the map, so it takes no room in an export and draws nothing.
+ */
+function withoutEmptyImages(scene: Scene): Scene {
+  const kept = scene.elements.filter(
+    (element) => element.content.$type !== "canvasImage" || !!(element.content as CanvasImageContent).assetId,
+  )
+  return kept.length === scene.elements.length ? scene : { ...scene, elements: kept }
+}
+
+export function emitSvg(drawn: Scene, options: SvgOptions): SvgPicture | null {
+  const scene = withoutEmptyImages(drawn)
   if (scene.elements.length === 0) {
     return null
   }

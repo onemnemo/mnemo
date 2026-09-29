@@ -8,6 +8,7 @@
  * an error.
  */
 
+import type { ImageCrop } from "@/components/ui/image-editor/geometry"
 import type { InlineSpan } from "@/notes/model/types"
 
 /** What an element *is*. Only `node` participates in the hierarchy. */
@@ -163,9 +164,12 @@ export interface FreeTextContent {
   runs?: InlineSpan[]
 }
 
+/** An empty `assetId` is a placeholder waiting for a picture. */
 export interface CanvasImageContent {
   $type: "canvasImage"
   assetId: string
+  /** The window of the source that is shown, in the notes image's shape. Absent shows all of it. */
+  crop?: ImageCrop
 }
 
 /** Membership is an explicit id list, so a frame is wherever its members are. */

@@ -67,7 +67,10 @@ public static class MindmapMarkdownExporter
         {
             if (edge.Kind != EdgeKind.Link)
                 continue;
-            if (!byId.ContainsKey(edge.FromId) || !byId.ContainsKey(edge.ToId))
+            if (!byId.TryGetValue(edge.FromId, out var source) || !byId.TryGetValue(edge.ToId, out var target))
+                continue;
+            // An empty image is left out of the outline, so a footnote to or from one would point at nothing.
+            if (IsEmptyImage(source.Content) || IsEmptyImage(target.Content))
                 continue;
             next++;
             if (!markersByElement.TryGetValue(edge.FromId, out var markers))
@@ -111,7 +114,8 @@ public static class MindmapMarkdownExporter
         {
             if (element.Content is not FrameContent frame)
                 continue;
-            var members = frame.ChildIds.Where(byId.ContainsKey).ToList();
+            // An image still waiting for a picture has nothing to name, so it is left out rather than listed by id.
+            var members = frame.ChildIds.Where(id => byId.TryGetValue(id, out var member) && !IsEmptyImage(member.Content)).ToList();
             var title = SingleLine(frame.Title);
             if (title.Length == 0 && members.Count == 0)
                 continue;
@@ -194,7 +198,7 @@ public static class MindmapMarkdownExporter
         NoteContent note => SingleLine(note.NoteId) + " (note)",
         ShapeContent shape => Label(shape.Text ?? string.Empty, shape.Runs, inline, continuation),
         FreeTextContent free => Label(free.Text, free.Runs, inline, continuation),
-        CanvasImageContent image => "![](" + SingleLine(image.AssetId) + ")",
+        CanvasImageContent image => IsEmptyImage(image) ? string.Empty : "![](" + SingleLine(image.AssetId) + ")",
         FrameContent frame => SingleLine(frame.Title),
         _ => string.Empty,
     };
@@ -264,6 +268,9 @@ public static class MindmapMarkdownExporter
             sb.Append("[^").Append(marker.ToString(CultureInfo.InvariantCulture)).Append(']');
         return sb.ToString();
     }
+
+    private static bool IsEmptyImage(IElementContent content) =>
+        content is CanvasImageContent image && string.IsNullOrWhiteSpace(image.AssetId);
 
     private static string LinkText(LinkContent link) =>
         string.IsNullOrWhiteSpace(link.Title) ? link.Url : link.Title!;

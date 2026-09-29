@@ -116,6 +116,17 @@ describe("the picture", () => {
 
     expect(picture!.markup.indexOf("<path")).toBeLessThan(picture!.markup.indexOf("<text"))
   })
+
+  it("leaves an empty image out entirely, taking no room and drawing no gap", () => {
+    const far: MindmapElement = { ...photo("slot", ""), x: 2000, y: 2000 }
+    const without = draw(document()).picture!
+    const withSlot = draw(document({ elements: [node("r"), node("a"), far] })).picture!
+
+    expect(withSlot.width).toBe(without.width)
+    expect(withSlot.height).toBe(without.height)
+    expect(withSlot.markup).not.toContain('stroke-dasharray="4 3"')
+    expect(draw(document({ elements: [photo("slot", "")], edges: [] })).picture).toBeNull()
+  })
 })
 
 describe("what a node is drawn as", () => {

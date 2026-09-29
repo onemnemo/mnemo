@@ -11,14 +11,6 @@ namespace Mnemo.Core.Serialization;
 /// <summary>Reads legacy <c>inlineRuns</c> / <c>content</c> and writes canonical <c>spans</c> + <c>payload</c>.</summary>
 public sealed class BlockJsonConverter : JsonConverter<Block>
 {
-    /// <summary>
-    /// The floor below which a crop window's <c>w</c>, <c>h</c> or <c>aspect</c> stops being a real
-    /// crop. The Typst emitter divides by all three, and its 6-decimal ratio formatting rounds
-    /// anything under 5e-7 to a literal zero, which fails the whole exported document with a divide
-    /// by zero. Matches the web reader's floor.
-    /// </summary>
-    private const double MinFraction = 1e-6;
-
     private static bool TryGetPropertyCaseInsensitive(JsonElement element, string propertyName, out JsonElement value) =>
         InlineSpanJson.TryGetPropertyCaseInsensitive(element, propertyName, out value);
 
@@ -178,57 +170,9 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
         };
     }
 
-    /// <summary>
-    /// The optional crop on an image payload, or null when there is not a usable one.
-    ///
-    /// The only payload field that is an object, so it is also the only one where a partial read is
-    /// possible, and a partial crop is worse than none: the five numbers are a window and mean
-    /// nothing apart. Anything absent, mistyped, out of range or degenerate therefore reads as no
-    /// crop, and nothing here throws, because a note must open even when a field cannot be made
-    /// sense of.
-    /// </summary>
-    private static ImageCrop? ReadCrop(JsonElement el)
-    {
-        if (!TryGetPropertyCaseInsensitive(el, "crop", out var crop) || crop.ValueKind != JsonValueKind.Object)
-            return null;
-
-        if (!TryReadFraction(crop, "x", out var x)
-            || !TryReadFraction(crop, "y", out var y)
-            || !TryReadFraction(crop, "w", out var w)
-            || !TryReadFraction(crop, "h", out var h))
-            return null;
-
-        // A window narrower than MinFraction samples nothing, and every renderer of a crop
-        // divides by w and h.
-        if (w < MinFraction || h < MinFraction)
-            return null;
-
-        if (!TryGetPropertyCaseInsensitive(crop, "aspect", out var aspectEl)
-            || aspectEl.ValueKind != JsonValueKind.Number
-            || !aspectEl.TryGetDouble(out var aspect)
-            || double.IsNaN(aspect)
-            || double.IsInfinity(aspect)
-            || aspect < MinFraction)
-            return null;
-
-        return new ImageCrop(x, y, w, h, aspect);
-    }
-
-    /// <summary>One of the window's four fractions, which has to be a number in 0 to 1 inclusive.</summary>
-    private static bool TryReadFraction(JsonElement crop, string propertyName, out double value)
-    {
-        value = 0;
-        if (!TryGetPropertyCaseInsensitive(crop, propertyName, out var el)
-            || el.ValueKind != JsonValueKind.Number
-            || !el.TryGetDouble(out var raw)
-            || double.IsNaN(raw)
-            || raw < 0
-            || raw > 1)
-            return false;
-
-        value = raw;
-        return true;
-    }
+    /// <summary>The optional crop on an image payload, read by <see cref="ImageCropJson"/>.</summary>
+    private static ImageCrop? ReadCrop(JsonElement el) =>
+        TryGetPropertyCaseInsensitive(el, "crop", out var crop) ? ImageCropJson.Read(crop) : null;
 
     /// <summary>
     /// A numeric property, or the fallback when it is absent or not a JSON number. A string-typed
@@ -311,13 +255,7 @@ public sealed class BlockJsonConverter : JsonConverter<Block>
     private static void WriteCrop(Utf8JsonWriter writer, ImageCrop crop)
     {
         writer.WritePropertyName("crop");
-        writer.WriteStartObject();
-        writer.WriteNumber("x", crop.X);
-        writer.WriteNumber("y", crop.Y);
-        writer.WriteNumber("w", crop.W);
-        writer.WriteNumber("h", crop.H);
-        writer.WriteNumber("aspect", crop.Aspect);
-        writer.WriteEndObject();
+        ImageCropJson.Write(writer, crop);
     }
 
     private static void WritePayload(Utf8JsonWriter writer, BlockPayload payload)

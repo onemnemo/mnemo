@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Mnemo.Core.Models.Mindmap;
+using Mnemo.Core.Serialization;
 
 namespace Mnemo.Infrastructure.Services.Mindmap;
 
@@ -30,6 +31,7 @@ public static class MindmapDocumentSerializer
             WriteIndented = false,
         };
         options.Converters.Add(new ElementContentJsonConverter());
+        options.Converters.Add(new ImageCropJsonConverter());
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
         return options;
     }

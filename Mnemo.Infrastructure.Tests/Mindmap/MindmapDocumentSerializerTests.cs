@@ -129,6 +129,50 @@ public sealed class MindmapDocumentSerializerTests
     }
 
     [Fact]
+    public void CanvasImageCrop_RoundTrips_AndIsOmittedWhenAbsent()
+    {
+        var crop = new ImageCrop(0.1, 0.2, 0.5, 0.4, 1.25);
+        var document = new MindmapDocument
+        {
+            Id = "m1",
+            Title = "T",
+            Elements = new List<MindmapElement>
+            {
+                Free("i1", ElementKind.Image, new CanvasImageContent { AssetId = "a.png", Crop = crop }),
+                Free("i2", ElementKind.Image, new CanvasImageContent { AssetId = "" }),
+            },
+        };
+
+        var json = MindmapDocumentSerializer.Serialize(document);
+        var read = MindmapDocumentSerializer.Deserialize(json)!;
+
+        Assert.Contains("\"crop\":{\"x\":0.1,\"y\":0.2,\"w\":0.5,\"h\":0.4,\"aspect\":1.25}", json);
+        Assert.Equal(crop, Assert.IsType<CanvasImageContent>(read.Elements[0].Content).Crop);
+        var empty = Assert.IsType<CanvasImageContent>(read.Elements[1].Content);
+        Assert.Equal(string.Empty, empty.AssetId);
+        Assert.Null(empty.Crop);
+        Assert.Equal(json, MindmapDocumentSerializer.Serialize(read));
+    }
+
+    [Theory]
+    [InlineData("{\"x\":0,\"y\":0,\"w\":1.5,\"h\":1,\"aspect\":1}")]
+    [InlineData("{\"x\":0,\"y\":0,\"w\":0,\"h\":1,\"aspect\":1}")]
+    [InlineData("{\"x\":\"0\",\"y\":0,\"w\":1,\"h\":1,\"aspect\":1}")]
+    [InlineData("{\"x\":0,\"y\":0,\"w\":1,\"h\":1}")]
+    [InlineData("[0,0,1,1,1]")]
+    [InlineData("\"crop\"")]
+    public void ADamagedCrop_ReadsAsNone_RatherThanFailingTheDocument(string crop)
+    {
+        var json = """{"schemaVersion":2,"id":"m1","title":"T","elements":[{"id":"i1","kind":"image","content":{"$type":"canvasImage","assetId":"a.png","crop":""" + crop + "}}]}";
+
+        var document = MindmapDocumentSerializer.Deserialize(json)!;
+
+        var content = Assert.IsType<CanvasImageContent>(document.Elements[0].Content);
+        Assert.Equal("a.png", content.AssetId);
+        Assert.Null(content.Crop);
+    }
+
+    [Fact]
     public void ADamagedRun_ReadsAsAnEmptyOne_RatherThanFailingTheDocument()
     {
         const string json = """

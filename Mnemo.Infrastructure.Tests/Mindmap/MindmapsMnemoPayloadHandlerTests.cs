@@ -85,6 +85,29 @@ public sealed class MindmapsMnemoPayloadHandlerTests
     }
 
     [Fact]
+    public async Task RoundTrip_PreservesImageCropAndAnEmptyImage()
+    {
+        await using var source = new MindmapTestHarness();
+        await using var target = new MindmapTestHarness();
+        var map = (await source.Service.CreateAsync("Alpha")).Value!;
+        var crop = new ImageCrop(0.25, 0, 0.5, 1, 0.75);
+        var added = (await source.Service.ApplyAsync(map.Id, map.Revision, new MindmapEditOp[]
+        {
+            new AddElementOp { Ref = "cropped", Kind = ElementKind.Image, Content = new CanvasImageContent { AssetId = "pic.png", Crop = crop } },
+            new AddElementOp { Ref = "empty", Kind = ElementKind.Image, Content = new CanvasImageContent { AssetId = "" } },
+        })).Value!;
+
+        Assert.True(added.Success);
+        await RoundTripAsync(source, target);
+
+        var restored = (await target.Service.GetAsync(map.Id)).Value!;
+        var cropped = Assert.IsType<CanvasImageContent>(restored.Elements.Single(e => e.Id == added.CreatedIds["cropped"]).Content);
+        Assert.Equal(crop, cropped.Crop);
+        var empty = Assert.IsType<CanvasImageContent>(restored.Elements.Single(e => e.Id == added.CreatedIds["empty"]).Content);
+        Assert.Equal(string.Empty, empty.AssetId);
+    }
+
+    [Fact]
     public async Task RoundTrip_RestoresFolderMembership()
     {
         await using var source = new MindmapTestHarness();

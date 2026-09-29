@@ -92,10 +92,16 @@ public sealed record FreeTextContent : IElementContent
     public string TypeDiscriminator => ElementContentDiscriminators.FreeText;
 }
 
-/// <summary>A decorative canvas image (<see cref="ElementKind.Image"/>). Stored via the asset service.</summary>
+/// <summary>
+/// A decorative canvas image (<see cref="ElementKind.Image"/>). Stored via the asset service. An empty
+/// <see cref="AssetId"/> is a placeholder waiting for a picture.
+/// </summary>
 public sealed record CanvasImageContent : IElementContent
 {
     public required string AssetId { get; init; }
+
+    /// <summary>The window of the source that is shown, in the notes image's shape. Null shows all of it.</summary>
+    public ImageCrop? Crop { get; init; }
 
     public string TypeDiscriminator => ElementContentDiscriminators.CanvasImage;
 }
