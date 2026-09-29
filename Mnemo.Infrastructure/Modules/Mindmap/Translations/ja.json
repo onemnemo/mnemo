@@ -47,6 +47,7 @@
     "NewFrame": "フレーム",
     "ToolFrame": "フレームを追加",
     "ToolConnect": "接続",
+    "ToolConnectDetail": "ノード間をドラッグしてブランチにします。離すときに Alt を押すとリンクになります。",
     "ToolImage": "画像を追加",
     "ToolbarLabel": "ツール",
     "ZoomBarLabel": "ズーム",

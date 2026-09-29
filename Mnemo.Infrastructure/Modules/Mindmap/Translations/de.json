@@ -47,6 +47,7 @@
     "NewFrame": "Rahmen",
     "ToolFrame": "Rahmen hinzufügen",
     "ToolConnect": "Verbinden",
+    "ToolConnectDetail": "Zwischen Knoten ziehen, um einen Zweig zu bilden. Beim Loslassen Alt halten für eine Verknüpfung.",
     "ToolImage": "Bild hinzufügen",
     "ToolbarLabel": "Werkzeuge",
     "ZoomBarLabel": "Zoom",

@@ -115,8 +115,11 @@ export interface InteractionHandlers {
   group(ids: readonly string[]): void
   /** A grip was dragged, and let go somewhere that means a different box. One gesture, one call. */
   commitResize(id: string, box: ResizeBox): void
-  /** A connect drag landed on a node. Whether that links or unlinks is the caller's to decide. */
-  connect(fromId: string, toId: string): void
+  /**
+   * A connect drag landed on a node. What it writes is the caller's to decide; `link` says Alt was
+   * held on release, which asks for a plain link.
+   */
+  connect(fromId: string, toId: string, link: boolean): void
   /** A piece of a node's own chrome was pressed rather than the node itself. */
   chrome(id: string, part: NodeChrome): void
   armedShape(): ShapeType
@@ -689,7 +692,7 @@ export function installInteraction(
       // up by position rather than read off the event.
       const landed = elementAt(document.elementFromPoint(event.clientX, event.clientY))
       if (landed && landed !== finished.fromId) {
-        handlers.connect(finished.fromId, landed)
+        handlers.connect(finished.fromId, landed, event.altKey)
       }
       return
     }

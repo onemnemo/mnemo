@@ -47,6 +47,7 @@
     "NewFrame": "Marco",
     "ToolFrame": "Añadir marco",
     "ToolConnect": "Conectar",
+    "ToolConnectDetail": "Arrastra entre nodos para crear una rama. Mantén Alt al soltar para crear un enlace.",
     "ToolImage": "Añadir imagen",
     "ToolbarLabel": "Herramientas",
     "ZoomBarLabel": "Zoom",

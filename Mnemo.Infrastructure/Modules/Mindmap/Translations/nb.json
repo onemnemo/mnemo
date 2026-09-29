@@ -47,6 +47,7 @@
     "NewFrame": "Ramme",
     "ToolFrame": "Legg til ramme",
     "ToolConnect": "Koble",
+    "ToolConnectDetail": "Dra mellom noder for å lage en gren. Hold Alt når du slipper for en lenke.",
     "ToolImage": "Legg til bilde",
     "ToolbarLabel": "Verktøy",
     "ZoomBarLabel": "Zoom",

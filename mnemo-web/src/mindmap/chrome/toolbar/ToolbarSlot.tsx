@@ -12,6 +12,7 @@ export interface ToolbarSlotProps {
   readonly label: string
   /** What the tooltip says, when it names more than the tool: the mode Select is in, for one. */
   readonly hint?: string
+  readonly detail?: string
   readonly chord?: string | null
   /** Which side of the bar a tooltip opens on, or none at all while the bar is being carried. */
   readonly tip: TooltipSide | null
@@ -25,9 +26,9 @@ export interface ToolbarSlotProps {
 }
 
 /** One tool on the toolbar, a 36 square the sliding chip can sit under. */
-export function ToolbarSlot({ id, label, hint, chord, tip, armed, menu, vertical, onPress, children }: ToolbarSlotProps) {
+export function ToolbarSlot({ id, label, hint, detail, chord, tip, armed, menu, vertical, onPress, children }: ToolbarSlotProps) {
   return (
-    <Tooltip label={tip ? (hint ?? label) : ""} chord={chord} side={tip ?? undefined}>
+    <Tooltip label={tip ? (hint ?? label) : ""} chord={chord} detail={detail} side={tip ?? undefined}>
       <button
         type="button"
         data-tb-tool={id}

@@ -12,10 +12,9 @@ namespace Mnemo.Core.Models.Mindmap;
 /// change rather than to the document.
 /// </summary>
 /// <remarks>
-/// Cluster removal is intentionally absent: a deleted element drops its own cluster settings, and
-/// <c>Materialize</c> prunes clusters whose root no longer exists, so upsert-only is sufficient for the
-/// edit ops the editor emits today. A layout op that strips a cluster while keeping its root would need
-/// explicit cluster removal added here.
+/// A deleted element drops its own cluster settings and <c>Materialize</c> prunes clusters whose root no
+/// longer exists, so <see cref="RemoveClusterRootIds"/> only names clusters whose root survives, which is
+/// a root reparented under another node.
 /// </remarks>
 public sealed record MindmapRestoreDelta
 {
@@ -28,6 +27,9 @@ public sealed record MindmapRestoreDelta
     public IReadOnlyList<string> RemoveElementIds { get; init; } = Array.Empty<string>();
 
     public IReadOnlyList<string> RemoveEdgeIds { get; init; } = Array.Empty<string>();
+
+    /// <summary>Roots whose cluster settings go while the root itself stays.</summary>
+    public IReadOnlyList<string> RemoveClusterRootIds { get; init; } = Array.Empty<string>();
 
     /// <summary>
     /// Where each element in <see cref="Elements"/> that the target does not already hold goes. A row
@@ -66,7 +68,8 @@ public sealed record MindmapRestoreDelta
 
     public bool IsEmpty =>
         Elements.Count == 0 && Edges.Count == 0 && Clusters.Count == 0 &&
-        RemoveElementIds.Count == 0 && RemoveEdgeIds.Count == 0 && Canvas is null && Title is null;
+        RemoveElementIds.Count == 0 && RemoveEdgeIds.Count == 0 && RemoveClusterRootIds.Count == 0 &&
+        Canvas is null && Title is null;
 
     /// <summary>
     /// Builds the delta that, applied to <paramref name="from"/>, reproduces <paramref name="to"/>: every
@@ -88,6 +91,10 @@ public sealed record MindmapRestoreDelta
         var clusters = toClusters.Values
             .Where(c => !fromClusters.TryGetValue(c.RootId, out var prev) || !prev.Equals(c))
             .ToList();
+        var surviving = to.Elements.Select(e => e.Id).ToHashSet();
+        var removeClusterRootIds = fromClusters.Keys
+            .Where(rootId => !toClusters.ContainsKey(rootId) && surviving.Contains(rootId))
+            .ToList();
 
         return new MindmapRestoreDelta
         {
@@ -96,6 +103,7 @@ public sealed record MindmapRestoreDelta
             Clusters = clusters,
             RemoveElementIds = removeElementIds,
             RemoveEdgeIds = removeEdgeIds,
+            RemoveClusterRootIds = removeClusterRootIds,
             ElementPlacements = elementPlacements,
             EdgePlacements = edgePlacements,
             Canvas = to.Canvas.Equals(from.Canvas) ? null : to.Canvas,

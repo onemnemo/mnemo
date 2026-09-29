@@ -586,6 +586,8 @@ public sealed class MindmapDocumentService : IMindmapService
                     working.AddEdge(edge, insertAfterEdgeId: null);
             }
 
+            foreach (var rootId in delta.RemoveClusterRootIds)
+                working.RemoveCluster(rootId);
             foreach (var cluster in delta.Clusters)
                 working.SetCluster(cluster.RootId, cluster);
 
@@ -1126,6 +1128,10 @@ public sealed class MindmapDocumentService : IMindmapService
 
         var edgeId = working.NewId();
         working.AddEdge(new MindmapEdge { Id = edgeId, FromId = op.Under, ToId = op.Id, Kind = EdgeKind.Hierarchy }, afterEdge);
+
+        // Only a root carries cluster settings. Left behind, a former root's arrangement still counts
+        // when the map reports which arrangement its clusters share.
+        working.RemoveCluster(op.Id);
         return null;
     }
 

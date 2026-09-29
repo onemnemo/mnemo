@@ -81,7 +81,7 @@ public sealed class MindmapChangeBridge : IDisposable
 
     private static int Rows(MindmapRestoreDelta delta) =>
         delta.Elements.Count + delta.Edges.Count + delta.Clusters.Count +
-        delta.RemoveElementIds.Count + delta.RemoveEdgeIds.Count;
+        delta.RemoveElementIds.Count + delta.RemoveEdgeIds.Count + delta.RemoveClusterRootIds.Count;
 
     /// <summary>
     /// Pre-serializes with the mindmap's own options.

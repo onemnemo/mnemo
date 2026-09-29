@@ -169,6 +169,7 @@ function harness(scene: Scene = SCENE, options: { zoom?: number } = {}) {
   const activatedEdges: string[] = []
   const planted: { tool: MindmapTool; at: Point }[] = []
   const connected: [string, string][] = []
+  const linkForced: boolean[] = []
   const grouped: string[][] = []
   const chromed: [string, NodeChrome][] = []
   const rotated: { id: string; degrees: number }[] = []
@@ -209,7 +210,10 @@ function harness(scene: Scene = SCENE, options: { zoom?: number } = {}) {
       activate: (id) => void activated.push(id),
       activateEdge: (id) => void activatedEdges.push(id),
       plant: (armed, at) => void planted.push({ tool: armed, at }),
-      connect: (fromId, toId) => void connected.push([fromId, toId]),
+      connect: (fromId, toId, link) => {
+        connected.push([fromId, toId])
+        linkForced.push(link)
+      },
       group: (ids) => void grouped.push([...ids]),
       chrome: (id, part) => void chromed.push([id, part]),
       armedShape: () => armedShape,
@@ -260,6 +264,7 @@ function harness(scene: Scene = SCENE, options: { zoom?: number } = {}) {
     activatedEdges,
     planted,
     connected,
+    linkForced,
     grouped,
     chromed,
     uninstall: () => {
@@ -653,6 +658,25 @@ describe("installInteraction", () => {
     h.release({ x: 215, y: 410 })
 
     expect(h.connected).toEqual([["a", "loose"]])
+    h.uninstall()
+  })
+
+  it("says whether Alt was held when the connect drag was let go", () => {
+    const h = harness()
+    h.arm("connect")
+    h.press("a", { x: 210, y: -50 })
+    h.hover("loose")
+    h.release({ x: 215, y: 410 })
+    h.arm("connect")
+    h.press("a", { x: 210, y: -50 })
+    h.hover("loose")
+    h.release({ x: 215, y: 410 }, { altKey: true })
+
+    expect(h.connected).toEqual([
+      ["a", "loose"],
+      ["a", "loose"],
+    ])
+    expect(h.linkForced).toEqual([false, true])
     h.uninstall()
   })
 

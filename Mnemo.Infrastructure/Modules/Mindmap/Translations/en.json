@@ -47,6 +47,7 @@
     "NewFrame": "Frame",
     "ToolFrame": "Add frame",
     "ToolConnect": "Connect",
+    "ToolConnectDetail": "Drag between nodes to make a branch. Hold Alt as you let go for a link.",
     "ToolImage": "Add image",
     "ToolbarLabel": "Tools",
     "ZoomBarLabel": "Zoom",

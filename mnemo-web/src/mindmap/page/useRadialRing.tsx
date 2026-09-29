@@ -281,7 +281,7 @@ function pickOnElements(host: RingHost, open: OpenRing, picked: string, t: Trans
         host.setTool("connect")
         return
       }
-      apply(connectManyOps(primary, framable(host, ids), host.document?.edges ?? [], host.connector), "Connect")
+      apply(connectManyOps(primary, framable(host, ids), host.document, host.connector), "Connect")
       return
     case "link":
       if (targets.length === 1) act.changeKind(value as NodeKind, targets[0].id)
@@ -351,7 +351,7 @@ function elementRing(host: RingHost, targets: readonly RingTarget[], primary: st
     primaryKind === "frame" ||
     (targets.length > 1 &&
       primary &&
-      connectManyOps(primary, framable(host, targets.map((target) => target.id)), host.document?.edges ?? [])
+      connectManyOps(primary, framable(host, targets.map((target) => target.id)), host.document)
         .length === 0)
   ) {
     inert.add("connect")

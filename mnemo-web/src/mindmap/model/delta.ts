@@ -38,6 +38,8 @@ export interface MindmapRestoreDelta {
   clusters?: ClusterSettings[]
   removeElementIds?: string[]
   removeEdgeIds?: string[]
+  /** Roots whose cluster settings go while the root stays, as when a root is moved under a node. */
+  removeClusterRootIds?: string[]
   /**
    * Positions for the rows in `elements` and `edges` that the target document does not hold. The
    * server reads these on a restore; this side only carries them through, since a fold sorts to
@@ -77,6 +79,7 @@ export function isEmptyDelta(delta: MindmapRestoreDelta): boolean {
     !delta.clusters?.length &&
     !delta.removeElementIds?.length &&
     !delta.removeEdgeIds?.length &&
+    !delta.removeClusterRootIds?.length &&
     !delta.canvas &&
     delta.title == null
   )
@@ -98,11 +101,10 @@ export function applyDelta(
   const elements = upsert(document.elements ?? [], delta.elements ?? [], delta.removeElementIds ?? [])
   const edges = upsert(document.edges ?? [], delta.edges ?? [], delta.removeEdgeIds ?? [])
 
-  // Clusters are keyed by their root rather than an id, and nothing removes them by id: a cluster
-  // whose root is gone is dropped when its root element is.
-  const clusters = delta.clusters?.length
-    ? upsertBy(document.clusters ?? [], delta.clusters, (c) => c.rootId)
-    : document.clusters
+  // Clusters are keyed by their root rather than an id.
+  const dropped = new Set(delta.removeClusterRootIds ?? [])
+  const kept = dropped.size ? (document.clusters ?? []).filter((c) => !dropped.has(c.rootId)) : document.clusters
+  const clusters = delta.clusters?.length ? upsertBy(kept ?? [], delta.clusters, (c) => c.rootId) : kept
 
   return {
     ...document,

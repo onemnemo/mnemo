@@ -253,6 +253,13 @@ internal sealed class MindmapWorkingDocument
         _changeTouched.Add(rootId);
     }
 
+    /// <summary>Drops a cluster's settings while keeping its root, for a root that has become a child.</summary>
+    public void RemoveCluster(string rootId)
+    {
+        if (_clusters.Remove(rootId))
+            _changeTouched.Add(rootId);
+    }
+
     public void SetCanvas(MindmapCanvasOptions canvas) => Canvas = canvas;
 
     public void SetTitle(string title) => Title = title;

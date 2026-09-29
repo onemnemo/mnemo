@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import type { MindmapElement } from "../model/document"
 import {
   collapseExpands,
   collapseOps,
@@ -62,11 +63,38 @@ describe("pinOps", () => {
 })
 
 describe("connectManyOps", () => {
-  it("links the primary to each other target, skipping pairs already linked either way", () => {
-    const ops = connectManyOps("p", ["p", "a", "b", "c"], [{ fromId: "b", toId: "p" }])
+  const el = (id: string, kind = "node") => ({ id, kind, content: {} }) as unknown as MindmapElement
+
+  it("links the primary to each other target it cannot branch, skipping pairs already joined either way", () => {
+    const document = {
+      elements: [el("p"), el("a", "shape"), el("b"), el("c", "shape")],
+      edges: [{ id: "e", fromId: "b", toId: "p", kind: "link" as const }],
+    }
+    const ops = connectManyOps("p", ["p", "a", "b", "c"], document, { routing: "straight" })
     expect(ops).toEqual([
-      { op: "link", a: "p", b: "a" },
-      { op: "link", a: "p", b: "c" },
+      { op: "link", a: "p", b: "a", style: { routing: "straight" } },
+      { op: "link", a: "p", b: "c", style: { routing: "straight" } },
+    ])
+  })
+
+  it("branches each free target under the primary, planning every pair on top of the last", () => {
+    // p and a are both free and equal, so a goes under p; after that p is the larger tree for b too.
+    const document = { elements: [el("p"), el("a"), el("b"), el("t"), el("t1")], edges: [
+      { id: "h", fromId: "t", toId: "t1" },
+    ] }
+    expect(connectManyOps("p", ["a", "b", "t1"], document, { routing: "straight" })).toEqual([
+      { op: "move", id: "a", under: "p" },
+      { op: "move", id: "b", under: "p" },
+      { op: "move", id: "p", under: "t1" },
+    ])
+  })
+
+  it("opens a folded primary once, however many targets go under it", () => {
+    const document = { elements: [{ ...el("p"), collapsed: true }, el("a"), el("b")], edges: [] }
+    expect(connectManyOps("p", ["a", "b"], document)).toEqual([
+      { op: "move", id: "a", under: "p" },
+      { op: "set", id: "p", collapsed: false },
+      { op: "move", id: "b", under: "p" },
     ])
   })
 })

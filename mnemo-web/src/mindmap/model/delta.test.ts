@@ -33,6 +33,19 @@ describe("applying a delta", () => {
     expect(next.elements!.map((e) => e.id)).toEqual(["a", "b", "c", "d"])
   })
 
+  it("drops the settings of a cluster whose root stays, before upserting any", () => {
+    const clustered = {
+      ...base,
+      clusters: [
+        { rootId: "a", layoutAlgorithm: "radial" },
+        { rootId: "b", layoutAlgorithm: "treeDown" },
+      ],
+    }
+    const next = applyDelta(clustered, { removeClusterRootIds: ["b"] }, 5)
+    expect(next.clusters!.map((c) => c.rootId)).toEqual(["a"])
+    expect(isEmptyDelta({ removeClusterRootIds: ["b"] })).toBe(false)
+  })
+
   it("drops removed ids from both arrays", () => {
     const next = applyDelta(base, { removeElementIds: ["b"], removeEdgeIds: ["e1"] }, 5)
 

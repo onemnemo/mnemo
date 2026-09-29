@@ -1,7 +1,8 @@
 /** What the ring does to its targets, one batch per pick so each is one undo. */
 
-import type { EdgeStyle, ElementStyle, NodeShape } from "../model/document"
+import type { EdgeStyle, ElementStyle, MindmapDocument, NodeShape } from "../model/document"
 import { op, type MindmapOp } from "../model/ops"
+import { adoptPlan, connectOps, forestOf, planConnect } from "./connect-plan"
 
 export interface RingTarget {
   readonly id: string
@@ -58,16 +59,26 @@ export function pinOps(targets: readonly RingTarget[]): MindmapOp[] {
   return targets.filter((target) => target.isNode).map((target) => op.set(target.id, { pinned }))
 }
 
-/** Links the primary to each other target, skipping pairs already linked either way. */
+/**
+ * Connects the primary to each other target, skipping pairs already joined either way. Each pair is
+ * planned as a single connect would be, on top of the pairs before it in the same batch.
+ */
 export function connectManyOps(
   primary: string,
   others: readonly string[],
-  edges: readonly { fromId: string; toId: string }[],
-  edgeStyle?: EdgeStyle,
+  document: Pick<MindmapDocument, "elements" | "edges"> | undefined,
+  linkStyle?: EdgeStyle,
 ): MindmapOp[] {
-  const linked = (a: string, b: string) =>
+  const edges = document?.edges ?? []
+  const joined = (a: string, b: string) =>
     edges.some((edge) => (edge.fromId === a && edge.toId === b) || (edge.fromId === b && edge.toId === a))
+  const forest = forestOf(document)
   return others
-    .filter((other) => other !== primary && !linked(primary, other))
-    .map((other) => op.link(primary, other, edgeStyle ? { style: edgeStyle } : undefined))
+    .filter((other) => other !== primary && !joined(primary, other))
+    .flatMap((other) => {
+      const plan = planConnect(forest, primary, other)
+      const ops = connectOps(forest, plan, primary, other, linkStyle)
+      adoptPlan(forest, plan)
+      return ops
+    })
 }

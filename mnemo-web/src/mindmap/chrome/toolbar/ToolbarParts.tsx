@@ -46,6 +46,7 @@ export function ToolButtonWithTray({
         id={entry.id}
         label={t("Mindmap", entry.label)}
         hint={modeOption ? t("Mindmap", modeOption.label) : undefined}
+        detail={entry.detail ? t("Mindmap", entry.detail) : undefined}
         chord={chord}
         tip={tip}
         armed={armed}

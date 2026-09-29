@@ -213,6 +213,15 @@ describe("merging deltas", () => {
     expect(merged.removeElementIds).toEqual(["a"])
   })
 
+  it("drops a cluster upsert the later delta removes, and keeps one the later delta puts back", () => {
+    const dropped = mergeDeltas({ clusters: [{ rootId: "a", layoutAlgorithm: "radial" }] }, { removeClusterRootIds: ["a"] })
+    expect(dropped.clusters).toEqual([])
+    expect(dropped.removeClusterRootIds).toEqual(["a"])
+
+    const restored = mergeDeltas({ removeClusterRootIds: ["a"] }, { clusters: [{ rootId: "a", layoutAlgorithm: "radial" }] })
+    expect(restored.clusters).toEqual([{ rootId: "a", layoutAlgorithm: "radial" }])
+  })
+
   it("unions removals without duplicating them", () => {
     const first: MindmapRestoreDelta = { removeEdgeIds: ["e1", "e2"] }
     const second: MindmapRestoreDelta = { removeEdgeIds: ["e2", "e3"] }

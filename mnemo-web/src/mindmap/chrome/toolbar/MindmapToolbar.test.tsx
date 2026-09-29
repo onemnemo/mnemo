@@ -304,6 +304,13 @@ describe("the toolbar", () => {
     expect(all.onTool).not.toHaveBeenCalled()
   })
 
+  it("says under the connect tool's name what a connect writes", () => {
+    mount()
+    const tool = button("ToolConnect")
+    expect(tool.dataset.tooltip).toBe("ToolConnect")
+    expect(tool.dataset.tooltipDetail).toBe("ToolConnectDetail")
+  })
+
   it("names the select mode and its key on the tool, and the key of each mode in its group", () => {
     const bound = (actionId: string, chord: string) =>
       ({ actionId, bindings: [{ kind: "Chord", chord }] }) as Partial<Keybind> as Keybind

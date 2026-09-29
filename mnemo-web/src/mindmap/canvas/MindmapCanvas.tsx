@@ -59,8 +59,8 @@ export interface MindmapCanvasProps {
   onPlant?: (tool: MindmapTool, at: Point) => void
   /** A sweep with the frame tool armed caught these. */
   onGroup?: (ids: readonly string[]) => void
-  /** A connect drag landed on a node. */
-  onConnect?: (fromId: string, toId: string) => void
+  /** A connect drag landed on a node. `link` is true when Alt was held on release. */
+  onConnect?: (fromId: string, toId: string, link: boolean) => void
   /** A node's own chrome was pressed: a task's box, or a reference's mark. */
   onChrome?: (id: string, part: NodeChrome) => void
   armedShape?: ShapeType
@@ -261,7 +261,7 @@ export function MindmapCanvas({
         activateEdge: (id) => live.current.onActivateEdge?.(id),
         plant: (armed, at) => live.current.onPlant?.(armed, at),
         group: (ids) => live.current.onGroup?.(ids),
-        connect: (fromId, toId) => live.current.onConnect?.(fromId, toId),
+        connect: (fromId, toId, link) => live.current.onConnect?.(fromId, toId, link),
         chrome: (id, part) => live.current.onChrome?.(id, part),
         armedShape: () => live.current.armedShape,
         selectMode: () => live.current.selectMode,

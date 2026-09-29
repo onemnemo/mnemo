@@ -174,13 +174,20 @@ export function redoLabel(state: HistoryState): string | undefined {
 export function mergeDeltas(first: MindmapRestoreDelta, second: MindmapRestoreDelta): MindmapRestoreDelta {
   const removedElements = new Set(second.removeElementIds ?? [])
   const removedEdges = new Set(second.removeEdgeIds ?? [])
+  const removedClusters = new Set(second.removeClusterRootIds ?? [])
 
   return {
     elements: mergeById(first.elements ?? [], second.elements ?? [], removedElements),
     edges: mergeById(first.edges ?? [], second.edges ?? [], removedEdges),
-    clusters: mergeBy(first.clusters ?? [], second.clusters ?? [], (c) => c.rootId),
+    clusters: mergeBy(
+      (first.clusters ?? []).filter((c) => !removedClusters.has(c.rootId)),
+      second.clusters ?? [],
+      (c) => c.rootId,
+    ),
     removeElementIds: union(first.removeElementIds, second.removeElementIds),
     removeEdgeIds: union(first.removeEdgeIds, second.removeEdgeIds),
+    // The server drops these before it upserts, so a root both lists name ends up with settings.
+    removeClusterRootIds: union(first.removeClusterRootIds, second.removeClusterRootIds),
     elementPlacements: mergeById(first.elementPlacements ?? [], second.elementPlacements ?? [], removedElements),
     edgePlacements: mergeById(first.edgePlacements ?? [], second.edgePlacements ?? [], removedEdges),
     canvas: second.canvas ?? first.canvas,

@@ -45,6 +45,7 @@ import { useMindmapFind } from "../find/useMindmapFind"
 import { useMindmapEditor } from "../edit/useMindmapEditor"
 import { ALIGN_MIN } from "../edit/align"
 import { canDistribute, planAlign, type AlignCandidate } from "../edit/align-plan"
+import { connectOps, forestOf, planConnect } from "../edit/connect-plan"
 import {
   captureOrigin,
   captureSelection,
@@ -757,14 +758,15 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
   )
 
   /**
-   * Links two nodes, or unlinks them if they are already linked.
+   * Joins two elements as a branch where one can go under the other, or as a link otherwise, and
+   * takes the connector away if they are already joined.
    *
    * The prototype's connect gesture could only add, and taking a connector away meant selecting the
    * line and pressing Delete. Drawing the same connector twice is not a thing anyone means, so the
    * second draw is the natural place to put the undo.
    */
   const connect = useCallback(
-    (fromId: string, toId: string) => {
+    (fromId: string, toId: string, link: boolean) => {
       setTool("select")
       const existing = (map.data?.edges ?? []).find(
         (edge) =>
@@ -775,7 +777,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
         void editor.apply([op.unlinkEdge(existing.id)], { label: t("Mindmap", "Disconnect") })
         return
       }
-      void editor.apply([op.link(fromId, toId, { style: connectorStyle(presets.connector) })], {
+      const forest = forestOf(map.data)
+      const plan = planConnect(forest, fromId, toId, { link })
+      void editor.apply(connectOps(forest, plan, fromId, toId, connectorStyle(presets.connector)), {
         label: t("Mindmap", "Connect"),
       })
     },

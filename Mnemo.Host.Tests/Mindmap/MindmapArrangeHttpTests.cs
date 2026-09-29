@@ -205,6 +205,42 @@ public sealed class MindmapArrangeHttpTests
     }
 
     [Fact]
+    public async Task ANodeReparentedUnderATreeIsArrangedAsPartOfIt()
+    {
+        // A lone node is a cluster of its own and is stacked below the tree. Once a connect has moved it
+        // under the root, the next arrange has to lay it out beside its new siblings instead.
+        await using var h = new MindmapHostHarness();
+        var map = await SeededMap(h);
+
+        var added = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ApplyOpsAsync(map.Id, Body($$"""
+            { "expectedRevision": {{map.Revision}}, "ops": [ { "op": "add", "nodes": [ { "ref": "lone", "t": "Lone" } ] } ] }
+            """), h.Service))).Body);
+        var lone = added.CreatedIds["lone"];
+
+        var alone = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ArrangeAsync(
+            map.Id, Body($$"""{ "expectedRevision": {{added.Revision}}, "algorithm": "treeRight" }"""), h.Service, h.Layout))).Body);
+        var before = (await h.Service.GetAsync(map.Id)).Value!;
+        var root = Root(before);
+        var siblings = before.Elements.Where(e => e.Kind == ElementKind.Node && e.Id != root.Id && e.Id != lone).ToList();
+        Assert.True(before.Elements.Single(e => e.Id == lone).Y > siblings.Max(e => e.Y), "a lone node stacks below the tree");
+
+        var reparented = Parse<MindmapOpsResultDto>((await Execute(await MindmapEndpoints.ApplyOpsAsync(map.Id, Body($$"""
+            { "expectedRevision": {{alone.Revision}}, "ops": [ { "op": "move", "id": "{{lone}}", "under": "{{root.Id}}" } ] }
+            """), h.Service))).Body);
+        await MindmapEndpoints.ArrangeAsync(
+            map.Id, Body($$"""{ "expectedRevision": {{reparented.Revision}} }"""), h.Service, h.Layout);
+
+        var after = (await h.Service.GetAsync(map.Id)).Value!;
+        var placed = after.Elements.Single(e => e.Id == lone);
+        var kids = after.Elements.Where(e => siblings.Any(s => s.Id == e.Id)).ToList();
+        // In the children's column rather than the root's, and next to the last child rather than a
+        // cluster gap below the tree.
+        Assert.All(kids, kid => Assert.Equal(kid.X, placed.X));
+        Assert.NotEqual(Root(after).X, placed.X);
+        Assert.InRange(placed.Y - kids.Max(e => e.Y), 1, 64);
+    }
+
+    [Fact]
     public async Task AMapWideStyleChangeComesBackWithADeltaThatUndoesIt()
     {
         // The map's own settings hang off the document rather than off any element, so the delta the

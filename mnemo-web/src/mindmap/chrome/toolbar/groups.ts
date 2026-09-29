@@ -83,6 +83,8 @@ export interface ToolEntry {
   /** Image is not a tool the canvas can be armed with: it opens a picker and is done. */
   readonly id: MindmapTool | "image"
   readonly label: string
+  /** A second tooltip line, for a tool whose name does not say what it writes. */
+  readonly detail?: string
   readonly icon?: string
   readonly group?: GroupId
 }
@@ -96,7 +98,7 @@ export const TOOLBAR: readonly (ToolEntry | "sep")[] = [
   { id: "text", label: "ToolText", icon: "type" },
   { id: "frame", label: "ToolFrame", icon: "frame" },
   "sep",
-  { id: "connect", label: "ToolConnect", group: "connect" },
+  { id: "connect", label: "ToolConnect", detail: "ToolConnectDetail", group: "connect" },
   { id: "image", label: "ToolImage", icon: "common/image" },
 ]
 

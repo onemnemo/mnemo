@@ -43,6 +43,42 @@ public sealed class MindmapRestoreTests
     }
 
     [Fact]
+    public async Task Reparenting_ARoot_DropsItsClusterSettings_AndUndoPutsThemBack()
+    {
+        await using var h = new MindmapTestHarness();
+        var map = (await h.Service.CreateAsync("M", new List<MindmapNodeSpec> { new() { Ref = "root", Text = "Root" } })).Value!;
+        var rootId = map.Elements.Single().Id;
+
+        var added = (await h.Service.ApplyAsync(map.Id, map.Revision, new MindmapEditOp[]
+        {
+            new AddNodesOp { Nodes = new List<MindmapNodeSpec> { new() { Ref = "other", Text = "Other" } } },
+        })).Value!;
+        var otherId = added.CreatedIds["other"];
+        var chosen = (await h.Service.ApplyAsync(map.Id, added.Revision, new MindmapEditOp[]
+        {
+            new LayoutOp { Root = otherId, Algorithm = MindmapLayoutAlgorithms.Radial },
+        })).Value!;
+        Assert.True(chosen.Success);
+        Assert.Contains((await DocAsync(h, map.Id)).Clusters, c => c.RootId == otherId);
+
+        var moved = (await h.Service.ApplyAsync(map.Id, chosen.Revision, new MindmapEditOp[]
+        {
+            new MoveOp { Id = otherId, Under = rootId },
+        })).Value!;
+        Assert.True(moved.Success);
+        Assert.DoesNotContain((await DocAsync(h, map.Id)).Clusters, c => c.RootId == otherId);
+        Assert.Equal(new[] { otherId }, moved.Redo!.RemoveClusterRootIds);
+
+        Assert.True((await h.Service.RestoreAsync(map.Id, moved.Revision, moved.Undo!)).IsSuccess);
+        var undone = await DocAsync(h, map.Id);
+        var cluster = Assert.Single(undone.Clusters, c => c.RootId == otherId);
+        Assert.Equal(MindmapLayoutAlgorithms.Radial, cluster.LayoutAlgorithm);
+
+        Assert.True((await h.Service.RestoreAsync(map.Id, undone.Revision, moved.Redo)).IsSuccess);
+        Assert.DoesNotContain((await DocAsync(h, map.Id)).Clusters, c => c.RootId == otherId);
+    }
+
+    [Fact]
     public async Task Undo_OfDelete_RestoresSubtreeVerbatim()
     {
         await using var h = new MindmapTestHarness();
