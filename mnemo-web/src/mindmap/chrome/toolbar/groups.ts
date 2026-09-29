@@ -22,10 +22,7 @@ export interface ToolbarGroup extends Placeable {
   readonly id: GroupId
   readonly label: string
   readonly options: readonly GroupOption[]
-  /**
-   * Put away once a key has picked. Shape letters include H and L, so a shelf left open would take
-   * the next H as a hexagon rather than the hand.
-   */
+  /** Put away once a key has picked, so the next digit is not taken as a second pick. */
   readonly closesOnKey?: boolean
 }
 
@@ -57,16 +54,16 @@ export const GROUPS: Readonly<Record<GroupId, ToolbarGroup>> = {
     id: "shape",
     label: "ToolShape",
     closesOnKey: true,
-    options: [
-      { id: "rectangle", label: "ShapeRectangle", key: "R" },
-      { id: "ellipse", label: "ShapeEllipse", key: "O" },
-      { id: "diamond", label: "ShapeDiamond", key: "D" },
-      { id: "hexagon", label: "ShapeHexagon", key: "H" },
-      { id: "parallelogram", label: "ShapeParallelogram", key: "P" },
-      { id: "line", label: "ShapeLine", key: "L" },
-      { id: "arrow", label: "ShapeArrow", key: "A" },
-      { id: "blob", label: "ShapeBlob", key: "B" },
-    ],
+    options: numbered([
+      { id: "rectangle", label: "ShapeRectangle" },
+      { id: "ellipse", label: "ShapeEllipse" },
+      { id: "diamond", label: "ShapeDiamond" },
+      { id: "hexagon", label: "ShapeHexagon" },
+      { id: "parallelogram", label: "ShapeParallelogram" },
+      { id: "line", label: "ShapeLine" },
+      { id: "arrow", label: "ShapeArrow" },
+      { id: "blob", label: "ShapeBlob" },
+    ]),
   },
   connect: {
     id: "connect",
@@ -109,11 +106,10 @@ export function groupOfTool(tool: MindmapTool): ToolbarGroup | null {
   return entry && entry !== "sep" && entry.group ? GROUPS[entry.group] : null
 }
 
-/** The option a key press picks in an open group. Letters match either case. */
+/** The option a key press picks in an open group. */
 export function optionForKey(group: ToolbarGroup, key: string): GroupOption | undefined {
   if (key.length !== 1) {
     return undefined
   }
-  const pressed = key.toUpperCase()
-  return group.options.find((option) => option.key !== undefined && option.key === pressed)
+  return group.options.find((option) => option.key === key)
 }

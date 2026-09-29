@@ -138,17 +138,17 @@ describe("the toolbar", () => {
     expect(isOpen("ToolShape")).toBe(false)
   })
 
-  it("picks a shape by its letter, puts the shelf away, and keeps the letter from the map", () => {
+  it("picks a shape by its number, puts the shelf away, and keeps the number from the map", () => {
     const all = mount()
     press("ToolShape")
     rerender(all, { tool: "shape" })
     const reachedMap = vi.fn()
     stage.addEventListener("keydown", reachedMap)
 
-    key({ key: "h" })
+    key({ key: "4" })
 
     expect(all.onShape).toHaveBeenCalledWith("hexagon")
-    // Left open, the shelf would take the next H as another hexagon rather than the hand.
+    // Left open, the shelf would take the next digit as another shape.
     expect(isOpen("ToolShape")).toBe(false)
     expect(reachedMap).not.toHaveBeenCalled()
   })
@@ -160,9 +160,9 @@ describe("the toolbar", () => {
     const elsewhere = document.createElement("button")
     document.body.append(elsewhere)
     try {
-      key({ key: "o" }, elsewhere)
+      key({ key: "2" }, elsewhere)
       expect(all.onShape).not.toHaveBeenCalled()
-      key({ key: "o" }, document.body)
+      key({ key: "2" }, document.body)
       expect(all.onShape).toHaveBeenCalledWith("ellipse")
     } finally {
       elsewhere.remove()
@@ -189,8 +189,8 @@ describe("the toolbar", () => {
     const field = document.createElement("input")
     stage.appendChild(field)
 
-    key({ key: "h", ctrlKey: true })
-    key({ key: "h" }, field)
+    key({ key: "4", ctrlKey: true })
+    key({ key: "4" }, field)
 
     expect(all.onShape).not.toHaveBeenCalled()
   })
@@ -238,7 +238,7 @@ describe("the toolbar", () => {
     const menu = document.createElement("div")
     document.body.appendChild(menu)
 
-    key({ key: "h" }, menu)
+    key({ key: "4" }, menu)
     key({ key: "Escape" }, menu)
 
     expect(all.onShape).not.toHaveBeenCalled()

@@ -10,9 +10,8 @@ import { optionForKey, type ToolbarGroup } from "./groups"
  * says so closes behind a pick.
  *
  * Heard on the window's capture phase and stopped there, so a key the group answers never also
- * reaches the map: H on the shape shelf would pick a hexagon and arm the hand. Only keys aimed
- * inside the map pane count, or at the page when nothing has the focus. A menu or dialog keeps its
- * own Escape, and a field or a modifier chord is left alone.
+ * reaches the map. Only keys aimed inside the map pane count, or at the page when nothing has the
+ * focus. A menu or dialog keeps its own Escape, and a field or a modifier chord is left alone.
  */
 export function useGroupKeys(
   group: ToolbarGroup | null,
