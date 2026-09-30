@@ -314,6 +314,32 @@
      neutral sunken surface rather than one of the eight hues. */
   --cell-head: oklch(0.972 var(--neutral-chroma) var(--neutral-hue));
 
+  /* The notes text and highlight palette, stored in documents as swatch1..swatch10, so a
+     slot keeps its colour family for good. One lightness and chroma per role. Yellow
+     cannot share the others' lightness in either role, and orange text sits at 45
+     because further round it reads as yellow on white. Text clears 4.5:1 on the canvas.
+     The PDF export keeps a hex copy of the light values in NotePdfLightSwatches. */
+  --text-color-swatch-1: oklch(0.5 0.012 var(--neutral-hue));
+  --text-color-swatch-2: oklch(0.53 0.15 300);
+  --text-color-swatch-3: oklch(0.53 0.15 258);
+  --text-color-swatch-4: oklch(0.53 0.15 345);
+  --text-color-swatch-5: oklch(0.53 0.15 22);
+  --text-color-swatch-6: oklch(0.53 0.15 148);
+  --text-color-swatch-7: oklch(0.55 0.111 85);
+  --text-color-swatch-8: oklch(0.56 0.16 45);
+  --text-color-swatch-9: oklch(0.53 0.108 232);
+  --text-color-swatch-10: oklch(0.53 0.094 182);
+  --color-swatch-1: oklch(0.945 0.006 var(--neutral-hue));
+  --color-swatch-2: oklch(0.945 0.03 300);
+  --color-swatch-3: oklch(0.945 0.026 258);
+  --color-swatch-4: oklch(0.945 0.034 345);
+  --color-swatch-5: oklch(0.945 0.026 22);
+  --color-swatch-6: oklch(0.945 0.04 148);
+  --color-swatch-7: oklch(0.955 0.061 92);
+  --color-swatch-8: oklch(0.945 0.032 58);
+  --color-swatch-9: oklch(0.945 0.032 232);
+  --color-swatch-10: oklch(0.945 0.04 182);
+
   /* Syntax. Four hues, deliberately none of them the brand's 40: a keyword lighting
      up in the same orange as the primary button would make the accent mean two
      things. Comments and punctuation take ink rather than a colour of their own,
@@ -497,6 +523,29 @@
   --cell-l: 0.285;
   --cell-c: 0.045;
   --cell-head: oklch(0.243 0.006 var(--neutral-hue));
+
+  /* Fills stay a tint over the canvas rather than a block. Yellow is lifted and kept low in
+     chroma, since a dark yellow at the others' chroma turns to mustard. */
+  --text-color-swatch-1: oklch(0.72 0.01 var(--neutral-hue));
+  --text-color-swatch-2: oklch(0.79 0.11 300);
+  --text-color-swatch-3: oklch(0.79 0.106 258);
+  --text-color-swatch-4: oklch(0.79 0.11 345);
+  --text-color-swatch-5: oklch(0.79 0.11 22);
+  --text-color-swatch-6: oklch(0.79 0.11 148);
+  --text-color-swatch-7: oklch(0.85 0.12 92);
+  --text-color-swatch-8: oklch(0.79 0.11 58);
+  --text-color-swatch-9: oklch(0.79 0.11 232);
+  --text-color-swatch-10: oklch(0.79 0.11 182);
+  --color-swatch-1: oklch(0.31 0.008 var(--neutral-hue));
+  --color-swatch-2: oklch(0.31 0.058 300);
+  --color-swatch-3: oklch(0.31 0.058 258);
+  --color-swatch-4: oklch(0.31 0.058 345);
+  --color-swatch-5: oklch(0.31 0.058 22);
+  --color-swatch-6: oklch(0.31 0.058 148);
+  --color-swatch-7: oklch(0.39 0.042 96);
+  --color-swatch-8: oklch(0.31 0.058 58);
+  --color-swatch-9: oklch(0.31 0.058 232);
+  --color-swatch-10: oklch(0.31 0.054 182);
 
   --code-key: oklch(0.79 0.12 305);
   --code-str: oklch(0.8 0.1 148);

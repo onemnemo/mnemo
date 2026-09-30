@@ -19,7 +19,7 @@
   padding: 0.1em 0.3em;
 }
 .inline-marks mark {
-  background: var(--inline-highlight-color);
+  background: var(--color-swatch-7);
   color: inherit;
   border-radius: 2px;
   padding: 0 0.1em;
