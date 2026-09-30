@@ -318,7 +318,8 @@
      slot keeps its colour family for good. One lightness and chroma per role. Yellow
      cannot share the others' lightness in either role, and orange text sits at 45
      because further round it reads as yellow on white. Text clears 4.5:1 on the canvas.
-     The PDF export keeps a hex copy of the light values in NotePdfLightSwatches. */
+     The PDF export reads the light values straight from this file, so keep them plain
+     oklch(L C H). */
   --text-color-swatch-1: oklch(0.5 0.012 var(--neutral-hue));
   --text-color-swatch-2: oklch(0.53 0.15 300);
   --text-color-swatch-3: oklch(0.53 0.15 258);

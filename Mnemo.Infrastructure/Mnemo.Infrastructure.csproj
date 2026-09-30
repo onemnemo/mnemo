@@ -28,6 +28,9 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Languages\*.json" />
+    <!-- The web app's design tokens, so the PDF export reads the note swatches from the same file
+         the editor paints them with. -->
+    <EmbeddedResource Include="..\mnemo-web\src\styles\tokens.css" LogicalName="Mnemo.Infrastructure.Notes.Pdf.tokens.css" Link="Services\Notes\Pdf\tokens.css" />
     <!-- Module translation resources. The resource name is what the module registers a source
          for, so a file moved between folders renames its resource and has to be registered
          under the new name. -->

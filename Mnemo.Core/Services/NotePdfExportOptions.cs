@@ -92,14 +92,15 @@ public sealed class NotePdfExportOptions
 
     /// <summary>
     /// Maps inline background keys from the notes editor (e.g. <c>swatch1</c>) to <c>#RRGGBB</c> for PDF rendering.
-    /// Should use <see cref="NotePdfLightSwatches.Background"/> so colors match a light page regardless of the app theme.
-    /// When null, only literal hex strings in span styles resolve.
+    /// Should be the light theme palette so colors match a light page regardless of the app theme. Its <c>swatch7</c>
+    /// also fills a plain highlight. When null, only literal hex strings in span styles resolve.
     /// </summary>
     public IReadOnlyDictionary<string, string>? BackgroundSwatchHexByName { get; init; }
 
     /// <summary>
     /// Maps inline foreground keys from the notes editor (e.g. <c>swatch1</c>) to <c>#RRGGBB</c> for PDF rendering.
-    /// Should use <see cref="NotePdfLightSwatches.Foreground"/> so colors match a light page regardless of the app theme.
+    /// Should be the light theme palette so colors match a light page regardless of the app theme. Its <c>swatch3</c>
+    /// also inks links.
     /// </summary>
     public IReadOnlyDictionary<string, string>? ForegroundSwatchHexByName { get; init; }
 }

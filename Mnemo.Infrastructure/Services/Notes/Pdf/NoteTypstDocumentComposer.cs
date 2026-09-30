@@ -792,8 +792,11 @@ internal static class NoteTypstDocumentComposer
 
         if (options.RenderColors)
         {
+            // A plain highlight is the yellow swatch, as in the editor.
             if (style.Highlight)
-                fragment = $"#highlight[{fragment}]";
+                fragment = ResolveSwatchColor(options.BackgroundSwatchHexByName, "swatch7") is { } mark
+                    ? $"#highlight(fill: rgb(\"{mark}\"))[{fragment}]"
+                    : $"#highlight[{fragment}]";
             if (ResolveSwatchColor(options.BackgroundSwatchHexByName, style.BackgroundColor) is { } bg)
                 fragment = $"#highlight(fill: rgb(\"{bg}\"))[{fragment}]";
         }
@@ -801,7 +804,8 @@ internal static class NoteTypstDocumentComposer
         // Foreground wins over link blue. Link color applies even when colors are otherwise
         // suppressed, since a link must read as a link.
         var fg = options.RenderColors ? ResolveSwatchColor(options.ForegroundSwatchHexByName, style.ForegroundColor) : null;
-        var colorHex = fg ?? (hasLink ? "#1d4ed8" : null);
+        var linkHex = ResolveSwatchColor(options.ForegroundSwatchHexByName, "swatch3") ?? "#1d4ed8";
+        var colorHex = fg ?? (hasLink ? linkHex : null);
         if (colorHex != null)
             fragment = $"#text(fill: rgb(\"{colorHex}\"))[{fragment}]";
 

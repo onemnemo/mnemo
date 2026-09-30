@@ -182,8 +182,8 @@ public static class NotePdfEndpoints
             MissingSubpageTitle = Text(dto?.MissingSubpageTitle, defaults.MissingSubpageTitle),
             // The web host resolves inline color tokens against the light palette directly; no theme
             // is involved.
-            BackgroundSwatchHexByName = NotePdfLightSwatches.Background,
-            ForegroundSwatchHexByName = NotePdfLightSwatches.Foreground,
+            BackgroundSwatchHexByName = NotePdfSwatches.Background,
+            ForegroundSwatchHexByName = NotePdfSwatches.Foreground,
         };
     }
 
