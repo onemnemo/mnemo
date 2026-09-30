@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 
-import { AppIcon } from "@/components/icon/AppIcon"
+import { BrandLogo } from "@/components/brand/BrandLogo"
 import { useT } from "@/i18n/useT"
 
 import { fetchAppInfo } from "../../api"
@@ -26,7 +26,7 @@ export function AboutIdentityRow() {
   return (
     <div className="flex items-center gap-4 py-1">
       {/* The mark is 60x50, so a square box would letterbox it. */}
-      <AppIcon name="branding/logo-icon" width={48} height={40} className="shrink-0 text-accent" />
+      <BrandLogo variant="icon" width={48} height={40} className="shrink-0" />
       <div className="min-w-0">
         <p className="text-[15px] font-semibold text-ink">Mnemo</p>
         <p className="mt-0.5 text-[12.5px] text-ink-3">{build}</p>

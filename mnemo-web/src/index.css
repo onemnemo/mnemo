@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "./styles/tokens.css";
+@import "./styles/accents.css";
 @import "./styles/legacy-tokens.css";
 
 /* Tailwind's `dark:` defaults to prefers-color-scheme, which ignores the app's own

@@ -7,6 +7,7 @@ import { checkLegacyInstallWarning } from "@/app/legacy-install-warning"
 import { startRoutePrefetch } from "@/app/prefetch"
 import { useRouteNormalization } from "@/app/router"
 import { installUnloadBackstop } from "@/app/unload-backstop"
+import { useBrandIconSync } from "@/components/brand/useBrandIconSync"
 import { AppShell } from "@/components/shell/AppShell"
 import { useDragRegions } from "@/components/shell/chrome/useDragRegions"
 import { DialogHost } from "@/components/shell/DialogHost"
@@ -68,6 +69,8 @@ function App() {
   // fetching with time the window is not otherwise using, and never at the expense of the
   // paint. Cancelled on unmount, so it cannot outlive the shell that wanted it.
   useEffect(() => startRoutePrefetch(), [])
+
+  useBrandIconSync()
 
   // global.assistant toggles the dock rather than navigating: the point of Soma is
   // that it comes to the work, and a shortcut that throws away the page you were

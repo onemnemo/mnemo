@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/brand/BrandLogo"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
@@ -28,9 +29,9 @@ export function SidebarBrand({ collapsed, hovered, onToggle }: SidebarBrandProps
       {/* Sizes are the marks' own aspect ratios (340x50 and 60x50) against the
           heights the design sets, so neither is stretched to fit its box. */}
       {collapsed ? (
-        <AppIcon name="branding/logo-icon" width={20} height={17} className="pointer-events-none text-accent" />
+        <BrandLogo variant="icon" width={20} height={17} className="pointer-events-none" />
       ) : (
-        <AppIcon name="branding/logo-full" width={129} height={19} className="pointer-events-none text-accent" />
+        <BrandLogo variant="full" width={129} height={19} className="pointer-events-none" />
       )}
 
       {!collapsed && (

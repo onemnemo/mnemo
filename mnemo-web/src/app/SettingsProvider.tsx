@@ -6,6 +6,7 @@ import { resolveThemePreference } from "@/lib/themes"
 import { fetchNav } from "@/nav/api"
 import { useNavStore } from "@/nav/store"
 import { useSettingsStore } from "@/settings/store"
+import { syncAccent } from "@/stores/accent"
 import { resolveMotionPreference, useMotionStore } from "@/stores/motion"
 import { useThemeStore } from "@/stores/theme"
 
@@ -21,6 +22,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
+    let unsyncAccent: (() => void) | undefined
 
     async function hydrate(): Promise<void> {
       // The settings snapshot joins the startup fetch because two things need it
@@ -48,6 +50,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const motion = useSettingsStore.getState().values["App.ReduceMotion"]
       useMotionStore.getState().hydrate(resolveMotionPreference(typeof motion === "string" ? motion : null))
 
+      // Before first paint, and kept in step afterwards; the index.html hint covers the
+      // moment before this runs.
+      unsyncAccent = syncAccent()
+
       const language = settings?.language ?? DEFAULT_LANGUAGE
       await useI18nStore.getState().load(language)
       if (cancelled) return
@@ -58,6 +64,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     void hydrate()
     return () => {
       cancelled = true
+      unsyncAccent?.()
     }
   }, [])
 

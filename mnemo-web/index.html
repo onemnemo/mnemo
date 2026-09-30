@@ -6,10 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>mnemo-web</title>
     <script>
-      // First-paint hints only: apply the last-known theme and motion preference before
-      // React hydrates settings from the backend, to avoid a flash of the wrong theme or
-      // an animation the user asked not to see. The backend is the source of truth; these
-      // caches are written by src/stores/theme.ts and src/stores/motion.ts.
+      // First-paint hints only: apply the last-known theme, accent and motion preference
+      // before React hydrates settings from the backend, to avoid a flash of the wrong
+      // theme or an animation the user asked not to see. The backend is the source of
+      // truth; these caches are written by src/stores/theme.ts, accent.ts and motion.ts.
       //
       // The cached theme is the user's *preference*, so "system" has to be resolved here
       // as well. The retired four-theme ids are still in localStorage on upgrading
@@ -28,6 +28,10 @@
         try {
           var m = localStorage.getItem("mnemo.motion");
           if (m === "reduced" || m === "full") root.setAttribute("data-motion", m);
+        } catch (e) {}
+        try {
+          var a = localStorage.getItem("mnemo.accent");
+          if (a && /^[a-z]+$/.test(a)) root.setAttribute("data-accent", a);
         } catch (e) {}
       })();
     </script>

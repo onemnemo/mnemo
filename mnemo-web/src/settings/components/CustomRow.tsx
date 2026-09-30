@@ -1,13 +1,13 @@
 import { useT } from "@/i18n/useT"
 
-import { APP_ICONS, DEFAULT_APP_ICON, appIconName } from "../assets"
 import { rowDescription, rowTitle } from "../labels"
 import type { CustomRow as CustomRowSchema } from "../types"
 import { AboutIdentityRow } from "./custom/AboutIdentityRow"
+import { AccentRow } from "./custom/AccentRow"
 import { CheckForUpdatesRow } from "./custom/CheckForUpdatesRow"
 import { ClearChatHistoryRow } from "./custom/ClearChatHistoryRow"
-import { ImageGalleryRow } from "./custom/ImageGalleryRow"
 import { LanguageRow } from "./custom/LanguageRow"
+import { LogoGalleryRow } from "./custom/LogoGalleryRow"
 import { ModelPickerRow } from "./custom/ModelPickerRow"
 import { ProfileColourRow } from "./custom/ProfileColourRow"
 import { ProfilePictureRow } from "./custom/ProfilePictureRow"
@@ -36,18 +36,11 @@ export function CustomRow({ row, divider }: { row: CustomRowSchema; divider: boo
     case "reduce-motion":
       return <ReduceMotionRow {...shared} />
 
-    case "app-icon-gallery":
-      return (
-        <ImageGalleryRow
-          {...shared}
-          settingKey="App.Icon"
-          options={APP_ICONS}
-          defaultValue={DEFAULT_APP_ICON}
-          shape="rounded"
-          size={52}
-          labelFor={appIconName}
-        />
-      )
+    case "accent-picker":
+      return <AccentRow {...shared} />
+
+    case "logo-gallery":
+      return <LogoGalleryRow {...shared} />
 
     case "profile-picture":
       return <ProfilePictureRow {...shared} />

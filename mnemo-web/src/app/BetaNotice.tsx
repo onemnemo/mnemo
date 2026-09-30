@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/brand/BrandLogo"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
@@ -43,7 +44,7 @@ export function BetaNotice({ version, suspended, onContinue }: BetaNoticeProps) 
       title={t("App", "BetaNoticeTitle")}
       eyebrow={
         <div className="flex items-center gap-2.5">
-          <AppIcon name="branding/logo-icon" width={20} height={17} className="text-accent" />
+          <BrandLogo variant="icon" width={20} height={17} />
           <span className="rounded-md bg-canvas-sunken px-2 py-[3px] text-[11px] font-medium tracking-[0.02em] text-ink-2">
             {t("App", "BetaNoticeBadge", { version: formatVersion(version) })}
           </span>

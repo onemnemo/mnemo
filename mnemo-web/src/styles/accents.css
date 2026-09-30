@@ -1,0 +1,180 @@
+/*
+ * Accent presets. tokens.css carries the default (blue); a preset is picked by
+ * data-accent on <html>. Only the five --accent* tokens change here: the selection
+ * and legacy aliases are mixed from --accent, so they follow on their own.
+ *
+ * The descendant forms let an element preview a preset in the current theme (the
+ * swatches in Settings). Light comes after dark so an element that sets its own
+ * data-theme="light" inside a dark page still resolves the light values.
+ */
+
+[data-theme="dark"][data-accent="terracotta"],
+[data-theme="dark"] [data-accent="terracotta"] {
+  --accent: oklch(0.7 0.17 40);
+  --accent-hover: oklch(0.75 0.17 40);
+  --accent-ink: oklch(0.78 0.15 40);
+  --accent-wash: oklch(0.32 0.075 40);
+  --accent-fg: oklch(0.18 0.03 40);
+}
+[data-theme="light"][data-accent="terracotta"],
+[data-theme="light"] [data-accent="terracotta"] {
+  --accent: oklch(0.63 0.185 40);
+  --accent-hover: oklch(0.58 0.19 40);
+  --accent-ink: oklch(0.52 0.17 40);
+  --accent-wash: oklch(0.955 0.028 40);
+  --accent-fg: oklch(0.99 0.01 40);
+}
+
+[data-theme="dark"][data-accent="amber"],
+[data-theme="dark"] [data-accent="amber"] {
+  --accent: oklch(0.739 0.141 58.6);
+  --accent-hover: oklch(0.789 0.141 58.6);
+  --accent-ink: oklch(0.819 0.127 58.6);
+  --accent-wash: oklch(0.3 0.056 58.6);
+  --accent-fg: oklch(0.18 0.03 58.6);
+}
+[data-theme="light"][data-accent="amber"],
+[data-theme="light"] [data-accent="amber"] {
+  --accent: oklch(0.639 0.141 58.6);
+  --accent-hover: oklch(0.589 0.141 58.6);
+  --accent-ink: oklch(0.52 0.134 58.6);
+  --accent-wash: oklch(0.955 0.022 58.6);
+  --accent-fg: oklch(0.99 0.01 58.6);
+}
+
+[data-theme="dark"][data-accent="rose"],
+[data-theme="dark"] [data-accent="rose"] {
+  --accent: oklch(0.7 0.158 5.4);
+  --accent-hover: oklch(0.75 0.158 5.4);
+  --accent-ink: oklch(0.78 0.142 5.4);
+  --accent-wash: oklch(0.3 0.063 5.4);
+  --accent-fg: oklch(0.18 0.03 5.4);
+}
+[data-theme="light"][data-accent="rose"],
+[data-theme="light"] [data-accent="rose"] {
+  --accent: oklch(0.597 0.158 5.4);
+  --accent-hover: oklch(0.547 0.158 5.4);
+  --accent-ink: oklch(0.517 0.15 5.4);
+  --accent-wash: oklch(0.955 0.025 5.4);
+  --accent-fg: oklch(0.99 0.01 5.4);
+}
+
+[data-theme="dark"][data-accent="plum"],
+[data-theme="dark"] [data-accent="plum"] {
+  --accent: oklch(0.7 0.123 329.9);
+  --accent-hover: oklch(0.75 0.123 329.9);
+  --accent-ink: oklch(0.78 0.111 329.9);
+  --accent-wash: oklch(0.3 0.049 329.9);
+  --accent-fg: oklch(0.18 0.03 329.9);
+}
+[data-theme="light"][data-accent="plum"],
+[data-theme="light"] [data-accent="plum"] {
+  --accent: oklch(0.535 0.123 329.9);
+  --accent-hover: oklch(0.485 0.123 329.9);
+  --accent-ink: oklch(0.455 0.117 329.9);
+  --accent-wash: oklch(0.955 0.02 329.9);
+  --accent-fg: oklch(0.99 0.01 329.9);
+}
+
+[data-theme="dark"][data-accent="iris"],
+[data-theme="dark"] [data-accent="iris"] {
+  --accent: oklch(0.7 0.17 289.9);
+  --accent-hover: oklch(0.75 0.17 289.9);
+  --accent-ink: oklch(0.78 0.153 289.9);
+  --accent-wash: oklch(0.3 0.068 289.9);
+  --accent-fg: oklch(0.18 0.03 289.9);
+}
+[data-theme="light"][data-accent="iris"],
+[data-theme="light"] [data-accent="iris"] {
+  --accent: oklch(0.571 0.17 289.9);
+  --accent-hover: oklch(0.521 0.17 289.9);
+  --accent-ink: oklch(0.491 0.161 289.9);
+  --accent-wash: oklch(0.955 0.027 289.9);
+  --accent-fg: oklch(0.99 0.01 289.9);
+}
+
+[data-theme="dark"][data-accent="indigo"],
+[data-theme="dark"] [data-accent="indigo"] {
+  --accent: oklch(0.7 0.17 273.6);
+  --accent-hover: oklch(0.75 0.17 273.6);
+  --accent-ink: oklch(0.78 0.153 273.6);
+  --accent-wash: oklch(0.3 0.068 273.6);
+  --accent-fg: oklch(0.18 0.03 273.6);
+}
+[data-theme="light"][data-accent="indigo"],
+[data-theme="light"] [data-accent="indigo"] {
+  --accent: oklch(0.532 0.178 273.6);
+  --accent-hover: oklch(0.482 0.178 273.6);
+  --accent-ink: oklch(0.452 0.169 273.6);
+  --accent-wash: oklch(0.955 0.028 273.6);
+  --accent-fg: oklch(0.99 0.01 273.6);
+}
+
+[data-theme="dark"][data-accent="blue"],
+[data-theme="dark"] [data-accent="blue"] {
+  --accent: oklch(0.706 0.167 252.7);
+  --accent-hover: oklch(0.756 0.167 252.7);
+  --accent-ink: oklch(0.786 0.151 252.7);
+  --accent-wash: oklch(0.3 0.067 252.7);
+  --accent-fg: oklch(0.18 0.03 252.7);
+}
+[data-theme="light"][data-accent="blue"],
+[data-theme="light"] [data-accent="blue"] {
+  --accent: oklch(0.606 0.167 252.7);
+  --accent-hover: oklch(0.556 0.167 252.7);
+  --accent-ink: oklch(0.52 0.159 252.7);
+  --accent-wash: oklch(0.955 0.027 252.7);
+  --accent-fg: oklch(0.99 0.01 252.7);
+}
+
+[data-theme="dark"][data-accent="teal"],
+[data-theme="dark"] [data-accent="teal"] {
+  --accent: oklch(0.7 0.09 193.9);
+  --accent-hover: oklch(0.75 0.09 193.9);
+  --accent-ink: oklch(0.78 0.081 193.9);
+  --accent-wash: oklch(0.3 0.036 193.9);
+  --accent-fg: oklch(0.18 0.03 193.9);
+}
+[data-theme="light"][data-accent="teal"],
+[data-theme="light"] [data-accent="teal"] {
+  --accent: oklch(0.561 0.09 193.9);
+  --accent-hover: oklch(0.511 0.09 193.9);
+  --accent-ink: oklch(0.481 0.085 193.9);
+  --accent-wash: oklch(0.955 0.014 193.9);
+  --accent-fg: oklch(0.99 0.01 193.9);
+}
+
+[data-theme="dark"][data-accent="sage"],
+[data-theme="dark"] [data-accent="sage"] {
+  --accent: oklch(0.7 0.09 154.6);
+  --accent-hover: oklch(0.75 0.09 154.6);
+  --accent-ink: oklch(0.78 0.081 154.6);
+  --accent-wash: oklch(0.3 0.036 154.6);
+  --accent-fg: oklch(0.18 0.03 154.6);
+}
+[data-theme="light"][data-accent="sage"],
+[data-theme="light"] [data-accent="sage"] {
+  --accent: oklch(0.53 0.09 154.6);
+  --accent-hover: oklch(0.48 0.09 154.6);
+  --accent-ink: oklch(0.45 0.086 154.6);
+  --accent-wash: oklch(0.955 0.014 154.6);
+  --accent-fg: oklch(0.99 0.01 154.6);
+}
+
+[data-theme="dark"][data-accent="graphite"],
+[data-theme="dark"] [data-accent="graphite"] {
+  --accent: oklch(0.7 0.009 88.7);
+  --accent-hover: oklch(0.75 0.009 88.7);
+  --accent-ink: oklch(0.78 0.008 88.7);
+  --accent-wash: oklch(0.3 0.003 88.7);
+  --accent-fg: oklch(0.18 0.03 88.7);
+}
+[data-theme="light"][data-accent="graphite"],
+[data-theme="light"] [data-accent="graphite"] {
+  --accent: oklch(0.383 0.009 88.7);
+  --accent-hover: oklch(0.333 0.009 88.7);
+  --accent-ink: oklch(0.303 0.008 88.7);
+  --accent-wash: oklch(0.955 0.001 88.7);
+  --accent-fg: oklch(0.99 0.01 88.7);
+}
+

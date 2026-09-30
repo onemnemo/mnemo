@@ -114,12 +114,6 @@ describe("isRowHidden", () => {
     expect(isRowHidden(row as SettingsRow, context)).toBe(true)
   })
 
-  it("hides the app icon gallery, a custom row with no key of its own", () => {
-    const row = everyRow().find((r) => r.kind === "custom" && r.id === "app-icon-gallery")
-    expect(row).toBeDefined()
-    expect(isRowHidden(row as SettingsRow, context)).toBe(true)
-  })
-
   it("does not hide a sibling row that happens to share a namespace", () => {
     // AI.WebSearch.Enabled is wired server-side; only the provider it selects between
     // is not. Hiding by prefix would have caught this one by accident.

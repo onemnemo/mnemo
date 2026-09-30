@@ -390,6 +390,7 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
         title: "Theme",
         rows: [
           { kind: "custom", id: "theme-gallery", title: "AppTheme", description: "AppThemeDescription" },
+          { kind: "custom", id: "accent-picker", title: "AccentColor", description: "AccentColorDescription" },
         ],
       },
       {
@@ -403,10 +404,10 @@ export const SETTINGS_SCHEMA: SettingsCategory[] = [
         ],
       },
       {
-        id: "AppIconGroup",
-        title: "AppIconGroup",
+        id: "Logo",
+        title: "Logo",
         rows: [
-          { kind: "custom", id: "app-icon-gallery", title: "AppIcon", description: "AppIconDescription" },
+          { kind: "custom", id: "logo-gallery", title: "LogoChoice", description: "LogoChoiceDescription" },
         ],
       },
     ],
@@ -646,9 +647,6 @@ const UNWIRED_ROW_IDS = new Set<string>([
   "AI.WebSearch.Provider",
   "AI.WebSearch.SearxngUrl",
   "AI.WebSearch.BraveApiKey",
-  // A custom row, not a value row, but it names the same setting key it writes
-  // through {@link CustomRow}'s `settingKey`; nothing reads App.Icon back.
-  "app-icon-gallery",
 ])
 
 /**

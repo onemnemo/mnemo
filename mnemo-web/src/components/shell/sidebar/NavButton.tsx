@@ -51,7 +51,7 @@ export function NavButton({ item, active, collapsed, badge }: NavButtonProps) {
               <span
                 className={cn(
                   "shrink-0 rounded-full px-1.5 text-[11px] font-medium leading-[17px] tabular-nums",
-                  badge.tone === "due" ? "bg-accent text-accent-fg" : "text-ink-3",
+                  badge.tone === "due" ? "bg-state-due text-solid-fg" : "text-ink-3",
                 )}
               >
                 {badge.value}

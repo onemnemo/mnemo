@@ -1,4 +1,4 @@
-import { AppIcon } from "@/components/icon/AppIcon"
+import { BrandLogo } from "@/components/brand/BrandLogo"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/i18n/useT"
 
@@ -12,7 +12,7 @@ export function WelcomeStep({ onSetUp, onSkip }: { onSetUp: () => void; onSkip: 
   return (
     <div className="text-center">
       <div className="flex justify-center">
-        <AppIcon name="branding/logo-full" width={204} height={30} className="text-accent" />
+        <BrandLogo variant="full" width={204} height={30} />
       </div>
 
       <h1 className="mt-9 text-[26px] font-semibold tracking-[-0.022em] text-ink">

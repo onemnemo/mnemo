@@ -1,5 +1,6 @@
 import { useState } from "react"
 
+import { BrandLogo } from "@/components/brand/BrandLogo"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { WindowControls } from "@/components/shell/chrome/WindowControls"
 import { Button } from "@/components/ui/button"
@@ -107,12 +108,7 @@ export function OnboardingWizard() {
         {/* The icon, not the wordmark: the wordmark is on the welcome screen two inches
             below, and saying it twice makes the second one look like a header that forgot
             it had already introduced itself. */}
-        <AppIcon
-          name="branding/logo-icon"
-          width={20}
-          height={17}
-          className="pointer-events-none text-accent"
-        />
+        <BrandLogo variant="icon" width={20} height={17} className="pointer-events-none" />
 
         <div className="flex h-full items-center">
           {/* Welcome offers skipping as one of its two answers and the closing screen has

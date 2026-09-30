@@ -238,12 +238,13 @@
      rather than as a second row of text. */
   --ink-icon: oklch(0.7 0.005 var(--neutral-hue));
 
-  /* One accent, spent sparingly. Taken from the mnemo wordmark. */
-  --accent: oklch(0.63 0.185 40);
-  --accent-hover: oklch(0.58 0.19 40);
-  --accent-ink: oklch(0.52 0.17 40);
-  --accent-wash: oklch(0.955 0.028 40);
-  --accent-fg: oklch(0.99 0.01 40);
+  /* One accent, spent sparingly. Blue is the default; the other presets the user
+     can pick are in accents.css. */
+  --accent: oklch(0.606 0.167 252.7);
+  --accent-hover: oklch(0.556 0.167 252.7);
+  --accent-ink: oklch(0.52 0.159 252.7);
+  --accent-wash: oklch(0.955 0.027 252.7);
+  --accent-fg: oklch(0.99 0.01 252.7);
 
   /* Selection, at three strengths of the one accent: text inside a block, whole
      blocks across blocks, and the lasso that picks the blocks. Sharing a colour
@@ -341,10 +342,9 @@
   --color-swatch-9: oklch(0.945 0.032 232);
   --color-swatch-10: oklch(0.945 0.04 182);
 
-  /* Syntax. Four hues, deliberately none of them the brand's 40: a keyword lighting
-     up in the same orange as the primary button would make the accent mean two
-     things. Comments and punctuation take ink rather than a colour of their own,
-     because they are the parts you skim past. */
+  /* Syntax. Four fixed hues, independent of the accent the user picks. Comments and
+     punctuation take ink rather than a colour of their own, because they are the
+     parts you skim past. */
   --code-key: oklch(0.5 0.125 305);
   --code-str: oklch(0.47 0.1 148);
   --code-num: oklch(0.5 0.1 72);
@@ -354,8 +354,9 @@
 
   /* Card states. The one place three hues earn their keep: new / learning / due is
      vocabulary a student already knows, so the colour carries information rather than
-     decorating. Kept low-chroma so a deck list does not turn into a pie chart, and
-     `due` borrows the brand hue because the sidebar's due badge already speaks it. */
+     decorating. Kept low-chroma so a deck list does not turn into a pie chart. Fixed
+     rather than following the accent, so a blue accent never makes due read as new;
+     the sidebar's due badge uses `due` for the same reason. */
   --state-new: oklch(0.56 0.12 250);
   --state-learn: oklch(0.6 0.11 75);
   --state-due: oklch(0.55 0.17 40);
@@ -472,11 +473,11 @@
   --ink-3: oklch(0.6 0.009 var(--neutral-hue));
   --ink-icon: oklch(0.545 0.009 var(--neutral-hue));
 
-  --accent: oklch(0.7 0.17 40);
-  --accent-hover: oklch(0.75 0.17 40);
-  --accent-ink: oklch(0.78 0.15 40);
-  --accent-wash: oklch(0.32 0.075 40);
-  --accent-fg: oklch(0.18 0.03 40);
+  --accent: oklch(0.706 0.167 252.7);
+  --accent-hover: oklch(0.756 0.167 252.7);
+  --accent-ink: oklch(0.786 0.151 252.7);
+  --accent-wash: oklch(0.3 0.067 252.7);
+  --accent-fg: oklch(0.18 0.03 252.7);
 
   /* Stronger than in light: the same alpha over a dark canvas barely registers. */
   --sel-text: color-mix(in srgb, var(--accent) 28%, transparent);
