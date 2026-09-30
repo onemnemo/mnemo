@@ -521,28 +521,28 @@
 }
 
 .notes-doc [data-table-cell][data-fill="grey"] {
-  background: oklch(var(--cell-l) calc(var(--cell-c) * 0.12) 60);
+  background: oklch(var(--cell-l) calc(var(--cell-c) * 0.2) var(--neutral-hue));
 }
 .notes-doc [data-table-cell][data-fill="red"] {
   background: oklch(var(--cell-l) var(--cell-c) 22);
 }
 .notes-doc [data-table-cell][data-fill="amber"] {
-  background: oklch(var(--cell-l) var(--cell-c) 72);
+  background: oklch(var(--cell-l) var(--cell-c) 80);
 }
 .notes-doc [data-table-cell][data-fill="green"] {
   background: oklch(var(--cell-l) var(--cell-c) 148);
 }
 .notes-doc [data-table-cell][data-fill="teal"] {
-  background: oklch(var(--cell-l) var(--cell-c) 205);
+  background: oklch(var(--cell-l) var(--cell-c) 182);
 }
 .notes-doc [data-table-cell][data-fill="blue"] {
   background: oklch(var(--cell-l) var(--cell-c) 258);
 }
 .notes-doc [data-table-cell][data-fill="violet"] {
-  background: oklch(var(--cell-l) var(--cell-c) 305);
+  background: oklch(var(--cell-l) var(--cell-c) 300);
 }
 .notes-doc [data-table-cell][data-fill="pink"] {
-  background: oklch(var(--cell-l) var(--cell-c) 350);
+  background: oklch(var(--cell-l) var(--cell-c) 345);
 }
 
 /* The chrome layer. It covers the table, so it passes pointer events through and

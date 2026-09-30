@@ -308,8 +308,8 @@
      meant to notice, a tinted cell is a whole row you are meant to read through.
      Colour inside a structure the user built themselves is content, not chrome, the
      same reasoning as the mindmap branches. */
-  --cell-l: 0.968;
-  --cell-c: 0.03;
+  --cell-l: 0.972;
+  --cell-c: 0.026;
   /* The header row and column. Not a tint: a header is structure, so it takes the
      neutral sunken surface rather than one of the eight hues. */
   --cell-head: oklch(0.972 var(--neutral-chroma) var(--neutral-hue));
@@ -522,9 +522,10 @@
   --figure-c: 0.08;
 
   /* A cell tint has to survive being read over, so it stays close to the canvas at
-     both ends of the theme: lifted here rather than inverted. */
-  --cell-l: 0.285;
-  --cell-c: 0.045;
+     both ends of the theme: lifted here rather than inverted, and only just, since a
+     whole row lifted further glows. */
+  --cell-l: 0.262;
+  --cell-c: 0.032;
   --cell-head: oklch(0.243 0.006 var(--neutral-hue));
 
   /* Fills stay a tint over the canvas rather than a block. Yellow is lifted and kept low in

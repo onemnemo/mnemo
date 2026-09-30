@@ -14,7 +14,7 @@ export interface Tint {
   readonly id: string;
   /** Key in the NotesEditor namespace. */
   readonly labelKey: string;
-  /** oklch hue angle. Empty for the default, which paints nothing. */
+  /** oklch hue angle, or the neutral hue for grey. Empty for the default, which paints nothing. */
   readonly hue: string;
   /** Multiplier on the theme's cell chroma, so one pair of numbers per theme governs all nine. */
   readonly chroma: number;
@@ -31,14 +31,14 @@ export const NO_TINT = 'none';
 
 export const tableTints: readonly Tint[] = Object.freeze([
   { id: NO_TINT, labelKey: 'TableTintNone', hue: '', chroma: 0 },
-  { id: 'grey', labelKey: 'TableTintGrey', hue: '60', chroma: 0.12 },
+  { id: 'grey', labelKey: 'TableTintGrey', hue: 'var(--neutral-hue)', chroma: 0.2 },
   { id: 'red', labelKey: 'TableTintRed', hue: '22', chroma: 1 },
-  { id: 'amber', labelKey: 'TableTintAmber', hue: '72', chroma: 1 },
+  { id: 'amber', labelKey: 'TableTintAmber', hue: '80', chroma: 1 },
   { id: 'green', labelKey: 'TableTintGreen', hue: '148', chroma: 1 },
-  { id: 'teal', labelKey: 'TableTintTeal', hue: '205', chroma: 1 },
+  { id: 'teal', labelKey: 'TableTintTeal', hue: '182', chroma: 1 },
   { id: 'blue', labelKey: 'TableTintBlue', hue: '258', chroma: 1 },
-  { id: 'violet', labelKey: 'TableTintViolet', hue: '305', chroma: 1 },
-  { id: 'pink', labelKey: 'TableTintPink', hue: '350', chroma: 1 },
+  { id: 'violet', labelKey: 'TableTintViolet', hue: '300', chroma: 1 },
+  { id: 'pink', labelKey: 'TableTintPink', hue: '345', chroma: 1 },
 ]);
 
 /**
