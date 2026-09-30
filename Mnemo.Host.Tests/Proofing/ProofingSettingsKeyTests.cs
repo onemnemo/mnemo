@@ -92,7 +92,7 @@ public sealed class ProofingSettingsKeyTests
     public void EveryOtherKeyPassesThroughUntouched()
     {
         Assert.Null(SettingsEndpoints.RejectUnknownProofingLanguage("App.Language", Text("nb"), Proofing()));
-        Assert.Null(SettingsEndpoints.RejectUnknownProofingLanguage("App.Icon", Text("de-DE"), Proofing()));
+        Assert.Null(SettingsEndpoints.RejectUnknownProofingLanguage("App.OpenTo", Text("de-DE"), Proofing()));
     }
 
     [Fact]

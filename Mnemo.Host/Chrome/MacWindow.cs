@@ -62,6 +62,30 @@ internal static class MacWindow
     public static void ActivateApp(ILoggerService? logger) =>
         Run("app activation", () => Send(Send(Class("NSApplication"), Sel("sharedApplication")), Sel("activateIgnoringOtherApps:"), true), logger);
 
+    /// <summary>
+    /// Shows the image at <paramref name="path"/> as the running app's Dock icon, or the
+    /// bundle's own icon again when it is null. Call on the main thread. A file NSImage cannot
+    /// read is logged and leaves the current icon in place.
+    /// </summary>
+    public static void SetAppIcon(string? path, ILoggerService? logger) =>
+        Run("app icon", () =>
+        {
+            var image = IntPtr.Zero;
+            if (path is not null)
+            {
+                var file = NewString(path);
+                image = Send(Send(Class("NSImage"), Sel("alloc")), Sel("initWithContentsOfFile:"), file);
+                Send(file, Sel("release"));
+                if (image == IntPtr.Zero)
+                    throw new InvalidOperationException($"NSImage could not read {path}.");
+            }
+
+            Send(Send(Class("NSApplication"), Sel("sharedApplication")), Sel("setApplicationIconImage:"), image);
+            // The application retains the image it shows.
+            if (image != IntPtr.Zero)
+                Send(image, Sel("release"));
+        }, logger);
+
     private static void Run(string what, Action step, ILoggerService? logger)
     {
         try

@@ -321,6 +321,7 @@ public static class HostComposition
         // ever attaches, so the endpoint can answer "not here" instead of failing to resolve.
         services.AddSingleton<NativeFileDialogs>();
         services.AddSingleton<AppRestartCoordinator>();
+        services.AddSingleton<Branding.BrandIconService>();
         services.AddSingleton<ProfileRestoreGrants>();
 
         // The destinations those choosers returned, which is the only thing the write route will

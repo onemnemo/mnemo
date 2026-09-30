@@ -16,6 +16,7 @@ using Mnemo.Core.Services;
 using Mnemo.Core.Services.Proofing;
 using Mnemo.Host.Ai;
 using Mnemo.Host.Backup;
+using Mnemo.Host.Branding;
 using Mnemo.Host.Chat;
 using Mnemo.Host.Chrome;
 using Mnemo.Host.Composition;
@@ -333,6 +334,7 @@ public static class Program
 
         app.MapEventStream();
         app.MapLifecycle();
+        app.MapBrandIcon();
         app.MapExportFile();
         app.MapProfileBackup();
         app.MapSettings();
@@ -538,6 +540,7 @@ public static class Program
         ExitSignals.Attach(window, logger);
         server.App.Services.GetRequiredService<NativeFileDialogs>().Attach(window);
         server.App.Services.GetRequiredService<AppRestartCoordinator>().Attach(window);
+        server.App.Services.GetRequiredService<BrandIconService>().Attach(window);
         activation.Attach(window);
 
         logger.Info(CrashLog.Category, $"Load({url})");

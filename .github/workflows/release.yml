@@ -102,7 +102,7 @@ jobs:
           - rid: win-x64
             os: windows-latest
             mainexe: Mnemo.Host.exe
-            packIcon: mnemo-web/public/app-icons/AppIconDawn.ico
+            packIcon: Mnemo.Host/Branding/Default/mnemo.ico
           - rid: osx-arm64
             os: macos-latest
             mainexe: Mnemo.Host
@@ -112,7 +112,7 @@ jobs:
           - rid: linux-x64
             os: ubuntu-latest
             mainexe: Mnemo.Host
-            packIcon: mnemo-web/public/app-icons/AppIconDawn.png
+            packIcon: Mnemo.Host/Branding/Default/mnemo-256.png
     runs-on: ${{ matrix.os }}
     env:
       PACK_ID: Mnemo.Desktop.V2
@@ -205,23 +205,20 @@ jobs:
           cat "$notes"
 
       # vpk wants an icns on macOS, and nothing in the repo can produce one from Windows,
-      # so it is built here from the same source art the app itself uses. sips and iconutil
-      # are both part of macOS, so this needs nothing installed.
-      #
-      # The set stops at 256 rather than carrying the 512 and 1024 entries a complete one
-      # would: the source is 256px, and inventing the larger sizes by upscaling would only
-      # make Finder's largest icon view look soft in a more elaborate way.
+      # so it is built here from the 1024px macOS render of the default logo. sips and
+      # iconutil are both part of macOS, so this needs nothing installed.
       - name: Build the macOS icon
         if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
-          src=mnemo-web/public/app-icons/AppIconDawn.png
+          src=Mnemo.Host/Branding/Default/mnemo-1024.png
           iconset=build/Mnemo.iconset
           mkdir -p "$iconset"
           # Each entry is the name iconutil expects, then the pixel size to render it at.
           for entry in icon_16x16=16 icon_16x16@2x=32 icon_32x32=32 icon_32x32@2x=64 \
-                       icon_128x128=128 icon_128x128@2x=256 icon_256x256=256; do
+                       icon_128x128=128 icon_128x128@2x=256 icon_256x256=256 \
+                       icon_256x256@2x=512 icon_512x512=512 icon_512x512@2x=1024; do
             sips -z "${entry#*=}" "${entry#*=}" "$src" --out "$iconset/${entry%=*}.png" >/dev/null
           done
           iconutil -c icns "$iconset" -o build/Mnemo.icns

@@ -8,8 +8,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- Icon now lives under mnemo-web, a single cross-platform home the other release legs already read from. -->
-    <ApplicationIcon>..\mnemo-web\public\app-icons\AppIconDawn.ico</ApplicationIcon>
+    <!-- The default logo's icon, rendered by scripts/brand-icons/render.mjs. -->
+    <ApplicationIcon>Branding\Default\mnemo.ico</ApplicationIcon>
 
     <!-- Explorer reads these off the exe; the version fields come from Directory.Build.props.
          The five the SDK maps into the Win32 version resource, AssemblyTitle as its
@@ -111,6 +111,9 @@
     <Content Include="TypstRuntime/typst-packages/**/*" CopyToOutputDirectory="PreserveNewest" />
     <!-- Bundled Geist fonts so PDF output matches the app's type: committed, always copied. -->
     <Content Include="TypstRuntime/fonts/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The shipped app icon the window returns to when a chosen one is removed. -->
+    <Content Include="Branding/Default/mnemo.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Branding/Default/mnemo-256.png" CopyToOutputDirectory="PreserveNewest" />
     <!-- Typst binary: restored per-RID by scripts/restore-typst, not committed. Only the
          matching RID is copied; Exists() keeps the build green before a dev has restored it
          (the runtime then reports a clear "run restore-typst" error). -->

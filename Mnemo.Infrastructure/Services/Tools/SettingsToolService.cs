@@ -42,7 +42,6 @@ public sealed class SettingsToolService
         ["App.EnableGamification"] = new("App", true, true, CoerceBool),
         ["App.EnableToasts"] = new("App", true, true, CoerceBool),
         ["App.LaunchAtStartup"] = new("App", true, false, CoerceBool),
-        ["App.Icon"] = new("App", false, string.Empty, v => v?.ToString() ?? string.Empty),
         ["User.DisplayName"] = new("User", true, "John Doe", v => v?.ToString() ?? "John Doe"),
         ["User.ProfilePicture"] = new("User", false, string.Empty, v => v?.ToString() ?? string.Empty),
         ["User.ProfileColour"] = new(

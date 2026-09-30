@@ -54,6 +54,9 @@ public static class SettingsKeyRegistry
         new("User.ProfilePicture", SettingValueKind.Text),
         new("User.ProfileColour", SettingValueKind.Text),
 
+        new("Appearance.Accent", SettingValueKind.Text),
+        new("Appearance.Logo", SettingValueKind.Text),
+
         new("App.LaunchAtStartup", SettingValueKind.Boolean),
         // Which route a launch lands on: a route key, or "last" to resume where the
         // window was closed. The SPA owns the route names, so this stores whatever it
@@ -62,7 +65,6 @@ public static class SettingsKeyRegistry
         new("App.ConfirmExit", SettingValueKind.Boolean),
         new("App.EnableToasts", SettingValueKind.Boolean),
         new("App.EnableGamification", SettingValueKind.Boolean),
-        new("App.Icon", SettingValueKind.Text),
         // Tri-state, stored as text: "full", "reduced", or absent meaning follow the OS.
         // A boolean cannot express the third, and defaulting an absent value to false
         // would override prefers-reduced-motion for everyone who never opened Settings.
