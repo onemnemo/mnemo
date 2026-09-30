@@ -306,8 +306,8 @@
 
   /* A table cell's tint. A step quieter than a tag chip: a tag is one word you are
      meant to notice, a tinted cell is a whole row you are meant to read through.
-     Same hue set as the mindmap branches, for the same reason: colour inside a
-     structure the user built themselves is content, not chrome. */
+     Colour inside a structure the user built themselves is content, not chrome, the
+     same reasoning as the mindmap branches. */
   --cell-l: 0.968;
   --cell-c: 0.03;
   /* The header row and column. Not a tint: a header is structure, so it takes the
@@ -367,28 +367,30 @@
      the canvas it is content, not chrome, and the rule that survives is narrower:
      colour only appears inside a thing the user themselves grouped.
 
-     Eight hues walked around the wheel, pulled to a similar lightness so no branch
-     shouts louder than its siblings, and kept off the brand hue at both ends so a red
-     branch never reads as a Mnemo button. */
-  --branch-1: oklch(0.55 0.15 22);
-  --branch-2: oklch(0.61 0.115 72);
-  --branch-3: oklch(0.53 0.105 148);
-  --branch-4: oklch(0.55 0.08 205);
-  --branch-5: oklch(0.52 0.115 258);
-  --branch-6: oklch(0.5 0.125 305);
-  --branch-7: oklch(0.52 0.115 350);
-  --branch-8: oklch(0.5 0.018 60);
+     Eight of the notes swatch hues, so a colour means the same thing in a map as in a
+     note, pulled to a similar lightness so no branch shouts louder than its siblings.
+     Orange sits at 52, clear of the brand's 40 and of yellow. Yellow and sky are
+     left out: a yellow line vanishes on white, and sky is
+     too close to blue at line width. */
+  --branch-1: oklch(0.54 0.135 22);
+  --branch-2: oklch(0.6 0.15 52);
+  --branch-3: oklch(0.54 0.135 148);
+  --branch-4: oklch(0.54 0.095 182);
+  --branch-5: oklch(0.54 0.135 258);
+  --branch-6: oklch(0.54 0.135 300);
+  --branch-7: oklch(0.54 0.135 345);
+  --branch-8: oklch(0.52 0.012 var(--neutral-hue));
 
-  /* Fills sit far enough back that node text stays ink, not white: a pill per branch
-     in full chroma turns a map into a bag of sweets. */
-  --branch-1-wash: oklch(0.955 0.028 22);
-  --branch-2-wash: oklch(0.958 0.032 72);
-  --branch-3-wash: oklch(0.955 0.03 148);
-  --branch-4-wash: oklch(0.957 0.025 205);
-  --branch-5-wash: oklch(0.955 0.028 258);
-  --branch-6-wash: oklch(0.953 0.03 305);
-  --branch-7-wash: oklch(0.955 0.028 350);
-  --branch-8-wash: oklch(0.955 0.006 60);
+  /* Fills are the notes highlight of the same family: far enough back that node text
+     stays ink, not white. */
+  --branch-1-wash: var(--color-swatch-5);
+  --branch-2-wash: var(--color-swatch-8);
+  --branch-3-wash: var(--color-swatch-6);
+  --branch-4-wash: var(--color-swatch-10);
+  --branch-5-wash: var(--color-swatch-3);
+  --branch-6-wash: var(--color-swatch-2);
+  --branch-7-wash: var(--color-swatch-4);
+  --branch-8-wash: var(--color-swatch-1);
 
   /* Green and red here are not decoration and not brand: added and removed is the one
      convention nobody should have to learn. */
@@ -561,23 +563,23 @@
 
   /* Lifted, not inverted. A branch has to stay legible as a 2px ribbon against a
      near-black canvas, which the light values are far too dark to manage. */
-  --branch-1: oklch(0.7 0.145 22);
-  --branch-2: oklch(0.77 0.115 72);
-  --branch-3: oklch(0.72 0.11 148);
-  --branch-4: oklch(0.73 0.085 205);
-  --branch-5: oklch(0.7 0.115 258);
-  --branch-6: oklch(0.7 0.125 305);
-  --branch-7: oklch(0.71 0.115 350);
-  --branch-8: oklch(0.68 0.02 60);
+  --branch-1: oklch(0.73 0.12 22);
+  --branch-2: oklch(0.76 0.13 52);
+  --branch-3: oklch(0.73 0.12 148);
+  --branch-4: oklch(0.73 0.12 182);
+  --branch-5: oklch(0.73 0.12 258);
+  --branch-6: oklch(0.73 0.12 300);
+  --branch-7: oklch(0.73 0.12 345);
+  --branch-8: oklch(0.7 0.012 var(--neutral-hue));
 
-  --branch-1-wash: oklch(0.33 0.06 22);
-  --branch-2-wash: oklch(0.34 0.055 72);
-  --branch-3-wash: oklch(0.32 0.05 148);
-  --branch-4-wash: oklch(0.32 0.045 205);
-  --branch-5-wash: oklch(0.32 0.055 258);
-  --branch-6-wash: oklch(0.32 0.06 305);
-  --branch-7-wash: oklch(0.32 0.055 350);
-  --branch-8-wash: oklch(0.31 0.012 60);
+  --branch-1-wash: var(--color-swatch-5);
+  --branch-2-wash: var(--color-swatch-8);
+  --branch-3-wash: var(--color-swatch-6);
+  --branch-4-wash: var(--color-swatch-10);
+  --branch-5-wash: var(--color-swatch-3);
+  --branch-6-wash: var(--color-swatch-2);
+  --branch-7-wash: var(--color-swatch-4);
+  --branch-8-wash: var(--color-swatch-1);
 
   --diff-add-bg: oklch(0.3 0.055 152);
   --diff-add-fg: oklch(0.86 0.1 152);

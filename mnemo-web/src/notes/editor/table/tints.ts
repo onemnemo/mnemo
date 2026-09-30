@@ -1,10 +1,10 @@
 /**
  * The fills a cell can take.
  *
- * The eight branch hues, plus grey and the default. The same set the mindmap
- * spends, which is the argument for having any colour here at all: the
- * application frame stays monochrome, and hues appear only inside a structure
- * the user built. A tinted row is that.
+ * Seven hues, plus grey and the default. Colour is allowed here for the same
+ * reason the mindmap branches carry it: the application frame stays
+ * monochrome, and hues appear only inside a structure the user built. A
+ * tinted row is that.
  *
  * Ids are stored on the block, so they are stable tokens and never display
  * strings; the label is a translation key.
