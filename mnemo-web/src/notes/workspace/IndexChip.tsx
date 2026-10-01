@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
+import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 
 import { AppIcon } from '@/components/icon/AppIcon';
@@ -8,6 +9,7 @@ import { cn } from '@/lib/utils';
 
 import type { BlockRegistry } from '../editor/registry/build';
 import { documentHeadings, type HeadingEntry } from '../editor/projection/headings';
+import { currentHeadingIndex } from './current-heading';
 
 /**
  * The floating index: a pill in the corner of the editor that opens the note's
@@ -17,7 +19,8 @@ import { documentHeadings, type HeadingEntry } from '../editor/projection/headin
  * the editor agrees is that block. The reading percent is a plain scroll
  * fraction, and the current section is the last heading at or above the top of
  * the viewport, approximate on purpose: exact tracking is not worth reflowing a
- * large document on every scroll frame.
+ * large document on every scroll frame. It is found by binary search and read
+ * at most once per frame, since every probe is a layout read.
  */
 export function IndexChip({
   view,
@@ -38,25 +41,21 @@ export function IndexChip({
   const [active, setActive] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chipRef = useRef<HTMLDivElement>(null);
+  const outline = useRef<{ doc: PMNode; list: HeadingEntry[] } | null>(null);
 
-  const readOutline = useCallback(() => documentHeadings(view.state.doc, registry), [view, registry]);
+  const readOutline = useCallback(() => {
+    const doc = view.state.doc;
+    if (outline.current?.doc !== doc) outline.current = { doc, list: documentHeadings(doc, registry) };
+    return outline.current.list;
+  }, [view, registry]);
 
   const currentHeading = useCallback(
     (list: HeadingEntry[]): string | null => {
       const container = scrollRef.current;
       if (!container || list.length === 0) return null;
       const top = container.getBoundingClientRect().top + 8;
-      let current: string | null = list[0].sid;
-      for (const heading of list) {
-        try {
-          const coords = view.coordsAtPos(heading.pos + 1);
-          if (coords.top <= top) current = heading.sid;
-          else break;
-        } catch {
-          break;
-        }
-      }
-      return current;
+      const index = currentHeadingIndex(list.length, (i) => view.coordsAtPos(list[i].pos + 1).top, top);
+      return list[index].sid;
     },
     [scrollRef, view],
   );
@@ -78,8 +77,12 @@ export function IndexChip({
     const container = scrollRef.current;
     if (!container) return;
     updateProgress();
+    let frame: number | null = null;
     const onScroll = () => {
-      updateProgress();
+      frame ??= requestAnimationFrame(() => {
+        frame = null;
+        updateProgress();
+      });
       setActive(true);
       if (idleTimer.current) clearTimeout(idleTimer.current);
       idleTimer.current = setTimeout(() => setActive(false), 1300);
@@ -87,6 +90,7 @@ export function IndexChip({
     container.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       container.removeEventListener('scroll', onScroll);
+      if (frame !== null) cancelAnimationFrame(frame);
       if (idleTimer.current) clearTimeout(idleTimer.current);
     };
   }, [scrollRef, updateProgress]);
