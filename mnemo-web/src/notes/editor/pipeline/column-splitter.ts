@@ -127,9 +127,13 @@ export function columnSplitterDecorations(doc: PMNode): Decoration[] {
   doc.descendants((node, pos) => {
     if (node.type.name !== 'twoColumn') return true;
     const widgetPos = pos + 1 + node.child(0).nodeSize + node.child(1).nodeSize;
+    const sid = String(node.attrs.sid ?? '');
     decos.push(
       Decoration.widget(widgetPos, (view, getPos) => buildSplitter(view, getPos), {
-        key: `notes-column-splitter@${pos}`,
+        // Keyed by identity, not position, so an edit above the split keeps its DOM and any drag in it.
+        // ProseMirror only compares widget keys among one parent's children, so a split without a
+        // short id yet can share one key with every other.
+        key: sid ? `notes-column-splitter:${sid}` : 'notes-column-splitter',
         side: 0,
         ignoreSelection: true,
         // The widget owns its pointer events; the editor must not read them as input.
