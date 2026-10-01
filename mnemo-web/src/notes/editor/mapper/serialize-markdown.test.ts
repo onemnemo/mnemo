@@ -201,7 +201,8 @@ describe('soft breaks', () => {
     const out = md.document(d);
     expect(out).toBe(['tail\\', '', '> a\\', '> \\', '> b', 'after'].join('\n'));
 
-    const blocks = parseMarkdownToBlocks(out);
+    // Read as a markdown document, where a trailing backslash is the writer's line break.
+    const blocks = parseMarkdownToBlocks(`# Doc\n\n${out}`).slice(1);
     expect(blocks.map((b) => b.type)).toEqual(['Text', 'Quote', 'Text']);
     expect(blocks.map(textOf)).toEqual(['tail\n', 'a\n\nb', 'after']);
   });

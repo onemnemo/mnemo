@@ -60,7 +60,17 @@ export function parseInlineMarkdown(markdown: string | null | undefined): Inline
   // A hard break with nothing after it is a literal backslash to CommonMark, but the
   // writer only ever emits one for a newline, so the trailing ones are restored as such.
   const { text, breaks } = splitTrailingBreaks(markdown);
+  return spansOf(processor.parse(text) as Root, breaks);
+}
+
+/** The spans of `markdown` when it reads as exactly one paragraph, from one parse; null otherwise. */
+export function oneParagraphSpans(markdown: string): InlineSpan[] | null {
+  const { text, breaks } = splitTrailingBreaks(markdown);
   const root = processor.parse(text) as Root;
+  return root.children.length === 1 && root.children[0].type === 'paragraph' ? spansOf(root, breaks) : null;
+}
+
+function spansOf(root: Root, breaks: number): InlineSpan[] {
   const spans: InlineSpan[] = [];
 
   root.children.forEach((block, index) => {
@@ -161,6 +171,11 @@ function visitInline(node: MdastNode, style: TextStyle, spans: InlineSpan[]): vo
       if (latex.length > 0) spans.push({ kind: 'equation', latex, style: { ...defaultTextStyle } });
       break;
     }
+
+    // An image has no inline form; its alt text keeps a badge or a figure readable.
+    case 'image':
+      if (node.alt) pushTextWithFractions(node.alt, style, spans);
+      break;
 
     // Raw HTML is dropped rather than shown. A note is not a web page, and
     // echoing the tag text would be noise in every case where it appears.

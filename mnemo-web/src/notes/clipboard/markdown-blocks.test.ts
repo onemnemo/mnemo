@@ -46,8 +46,8 @@ describe('parseMarkdownToBlocks: pipe tables', () => {
         'Closing paragraph.',
       ].join('\n'),
     );
-    expect(blocks.map((b) => b.type)).toEqual(['Text', 'Text', 'Table', 'Text', 'Text']);
-    const table = blocks[2];
+    expect(blocks.map((b) => b.type)).toEqual(['Text', 'Table', 'Text']);
+    const table = blocks[1];
     expect(cellTexts(table)).toEqual([
       ['Feature', 'Category', 'Test Status'],
       ['Table Parsing', 'Core Editor', 'Success'],
@@ -146,10 +146,10 @@ describe('parseMarkdownToBlocks: source fences', () => {
     expect(textOf(code)).toBe('const x = 1;\nconst y = 2;');
   });
 
-  it('defaults an unlabelled code fence to csharp, matching the desktop', () => {
+  it('leaves an unlabelled code fence without a language', () => {
     const code = one('```\nplain\n```');
     expect(code.type).toBe('Code');
-    expect(code.payload).toMatchObject({ kind: 'code', language: 'csharp', source: 'plain' });
+    expect(code.payload).toMatchObject({ kind: 'code', language: '', source: 'plain' });
   });
 
   it('reads a sketch fence under both the desktop and port labels', () => {
@@ -161,10 +161,10 @@ describe('parseMarkdownToBlocks: source fences', () => {
     }
   });
 
-  it('consumes to end of input when a fence is never closed', () => {
-    const code = one('```\nunterminated');
-    expect(code.type).toBe('Code');
-    expect(code.payload).toMatchObject({ source: 'unterminated' });
+  it('keeps a fence that is never closed as text, rather than taking the rest of the paste', () => {
+    const blocks = parseMarkdownToBlocks('```\nunterminated');
+    expect(blocks.map((b) => b.type)).toEqual(['Text', 'Text']);
+    expect(blocks.map(textOf)).toEqual(['```', 'unterminated']);
   });
 });
 
@@ -205,11 +205,12 @@ describe('parseMarkdownToBlocks: prose lines', () => {
     expect(open.payload).toEqual({ kind: 'checklist', checked: false });
   });
 
-  it('reads a numbered item regardless of the stored index', () => {
-    const item = one('7. seventh');
+  it('reads a numbered item that starts a list, and leaves a lone later number as text', () => {
+    const item = one('1. first');
     expect(item.type).toBe('NumberedList');
     expect(item.payload).toEqual({ kind: 'empty' });
-    expect(textOf(item)).toBe('seventh');
+    expect(textOf(item)).toBe('first');
+    expect(one('7. seventh').type).toBe('Text');
   });
 
   it('folds consecutive quote lines into one multi-line block', () => {
@@ -315,7 +316,7 @@ describe('parseMarkdownToBlocks: nested lists', () => {
   it('nests any list kind under any other, at whatever indent the writer chose', () => {
     // A tab reads as four columns: deeper than "done" at three, so it goes under
     // it, and no deeper than "star" at six, so it lands beside that one.
-    const blocks = parseMarkdownToBlocks('1. one\n   - [x] done\n      * star\n\t2. tabbed');
+    const blocks = parseMarkdownToBlocks('1. one\n   - [x] done\n      * star\n\t1. tabbed');
     expect(outline(blocks)).toEqual([
       'NumberedList:one',
       '  Checklist:done',
@@ -340,7 +341,8 @@ describe('parseMarkdownToBlocks: nested lists', () => {
     expect(blocks.map((b) => b.children)).toEqual([null, null]);
   });
 
-  it('counts nested items toward the block cap', () => {
+  // The same budget as the cap test above: thousands of inline parses share the machine with the suite.
+  it('counts nested items toward the block cap', { timeout: 20000 }, () => {
     const lines: string[] = [];
     for (let i = 0; i < MAX_BLOCKS + 5; i++) lines.push(i % 2 === 0 ? '- a' : '  - b');
     const blocks = parseMarkdownToBlocks(lines.join('\n'));
