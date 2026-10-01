@@ -295,6 +295,12 @@ export function BlockGutter({
   const caretRef = useRef<ActiveBlock | null>(null);
   const overChromeRef = useRef(false);
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A row that unmounts under the pointer (a grip drag starting) never gets its
+  // pointer leave, so its going is what clears the flag.
+  const setOverlay = useCallback((el: HTMLDivElement | null) => {
+    overlayRef.current = el;
+    if (!el) overChromeRef.current = false;
+  }, []);
 
   const refresh = useCallback(() => {
     if (dragging) return;
@@ -617,7 +623,7 @@ export function BlockGutter({
    */
   const overlay = handleBlock && handle && row && rowTop !== null && !dragging ? (
     <div
-      ref={overlayRef}
+      ref={setOverlay}
       // The row floats over the page margin, and the marquee starts there. The
       // two buttons answer their own presses; this marks the space around them
       // as still belonging to the page, so hovering a block never turns the

@@ -15,7 +15,7 @@
 import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { EditorView } from 'prosemirror-view';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { buildNoteEditState } from '../../edit/build-edit-state';
 import { block, span } from '../mapper/fixtures';
@@ -356,6 +356,36 @@ describe('BlockGutter', () => {
   it('lets go of the block when the pointer leaves', () => {
     mount(calloutNote);
     hover(blockElement(0));
+    leave();
+    expect(buttons()).toEqual([]);
+  });
+
+  it('lets go of the block when the pointer leaves after a grip drag', () => {
+    // The drop resolver probes the page, which jsdom does not lay out.
+    Object.defineProperty(document, 'elementFromPoint', { value: () => null, configurable: true });
+    onTestFinished(() => {
+      delete (document as { elementFromPoint?: unknown }).elementFromPoint;
+    });
+    mount(calloutNote);
+    hover(blockElement(0));
+    const grip = mounted?.chrome.querySelectorAll('button')[1];
+    if (!grip) throw new Error('no grip');
+    const pointer = (type: string, x: number, target: EventTarget) => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: 0 });
+      Object.defineProperty(event, 'pointerType', { value: 'mouse' });
+      Object.defineProperty(event, 'pointerId', { value: 1 });
+      act(() => {
+        target.dispatchEvent(event);
+      });
+    };
+    // On the row, then pressed and dragged: the row unmounts under the pointer, so
+    // no leave ever reaches it.
+    pointer('pointerover', 0, grip);
+    pointer('pointerdown', 0, grip);
+    pointer('pointermove', 40, window);
+    expect(buttons()).toEqual([]);
+    pointer('pointerup', 40, window);
+
     leave();
     expect(buttons()).toEqual([]);
   });
