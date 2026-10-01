@@ -86,7 +86,9 @@ public sealed class NotesMarkdownFormatAdapter : IContentFormatAdapter
         Note note;
         if (victim != null)
         {
-            victim.Content = markdown;
+            // The blocks are the note. A raw copy left in Content would be read back in the
+            // stored-content dialect, and would bring the file back if the blocks were emptied.
+            victim.Content = string.Empty;
             victim.Blocks = NoteBlockMarkdownConverter.Deserialize(markdown);
             note = victim;
         }
@@ -103,7 +105,7 @@ public sealed class NotesMarkdownFormatAdapter : IContentFormatAdapter
                 NoteId = Guid.NewGuid().ToString(),
                 Title = title,
                 FolderId = targetFolderId,
-                Content = markdown,
+                Content = string.Empty,
                 Blocks = NoteBlockMarkdownConverter.Deserialize(markdown)
             };
         }

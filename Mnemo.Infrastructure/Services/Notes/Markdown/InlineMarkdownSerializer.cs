@@ -153,6 +153,8 @@ public static class InlineMarkdownSerializer
                 case '`':
                 case '[':
                 case ']':
+                // Anywhere in a line, a reader takes "<tag>" as inline HTML and drops it.
+                case '<':
                     sb.Append('\\');
                     sb.Append(c);
                     break;

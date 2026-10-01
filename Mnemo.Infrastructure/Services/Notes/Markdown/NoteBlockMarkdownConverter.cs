@@ -9,25 +9,19 @@ using Mnemo.Core.Models;
 namespace Mnemo.Infrastructure.Services.Notes.Markdown;
 
 /// <summary>
-/// Block-model markdown conversion aligned with <c>BlockMarkdownSerializer</c> in the UI (paste semantics).
+/// Block-model markdown conversion for note import and export, with CommonMark paragraph breaks.
 /// </summary>
-public static class NoteBlockMarkdownConverter
+public static partial class NoteBlockMarkdownConverter
 {
-    public static string Serialize(IReadOnlyList<Block> blocks)
-    {
-        var ordered = blocks.OrderBy(b => b.Order).ToList();
-        var sb = new System.Text.StringBuilder();
-        for (var i = 0; i < ordered.Count; i++)
-        {
-            if (i > 0)
-                sb.AppendLine();
-            sb.Append(SerializeBlock(ordered[i]));
-        }
-
-        // Not trimmed: a block that ends in a soft break ends in its hard break marker, newline
-        // included, and a reader given the backslash alone takes it as a literal one.
-        return sb.ToString();
-    }
+    /// <summary>
+    /// The blocks as CommonMark: a blank line between blocks, list items kept tight, and an empty
+    /// Text block written as <see cref="EmptyParagraph"/> so it is not lost to the blank line rule.
+    /// </summary>
+    /// <remarks>
+    /// Not trimmed: a block that ends in a soft break ends in its hard break marker, newline
+    /// included, and a reader given the backslash alone takes it as a literal one.
+    /// </remarks>
+    public static string Serialize(IReadOnlyList<Block> blocks) => JoinBlocks(blocks);
 
     public static string SerializeBlock(Block block)
     {
@@ -42,7 +36,7 @@ public static class NoteBlockMarkdownConverter
             BlockType.Page => block.Payload is PagePayload pp
                 ? "[[" + "page:" + pp.ReferenceNoteId + "]]"
                 : "[[page:]]",
-            BlockType.Text => body,
+            BlockType.Text => SerializeParagraph(body),
             BlockType.Heading1 => $"# {body}",
             BlockType.Heading2 => $"## {body}",
             BlockType.Heading3 => $"### {body}",
@@ -57,8 +51,7 @@ public static class NoteBlockMarkdownConverter
             BlockType.Divider => "---",
             BlockType.Equation => "$$\n" + GetEquationLatex(block) + "\n$$",
             BlockType.Image => $"![{EscapeImageAlt(GetImageAlt(block))}]({GetImagePath(block)})",
-            BlockType.TwoColumn => SerializeColumns(block),
-            BlockType.ColumnGroup => SerializeColumnGroup(block),
+            BlockType.TwoColumn or BlockType.ColumnGroup => JoinBlocks([block]),
             BlockType.Table => SerializeTable(block),
             _ => body
         };
@@ -151,7 +144,7 @@ public static class NoteBlockMarkdownConverter
     private static bool HasFenceClose(string[] lines, int from)
     {
         for (var j = from; j < lines.Length; j++)
-            if (lines[j].TrimStart() == "$$") return true;
+            if (lines[j].Trim() == "$$") return true;
         return false;
     }
 
@@ -171,12 +164,35 @@ public static class NoteBlockMarkdownConverter
     /// <summary>True when the line opens a new callout, which ends whatever quoted run precedes it.</summary>
     private static bool StartsCallout(string trimmed) => CalloutHeadPattern.IsMatch(trimmed);
 
+    /// <summary>
+    /// Reads markdown with CommonMark paragraphs: a blank line separates blocks and is not one,
+    /// and the lines of a paragraph join with a space. A paragraph of only
+    /// <see cref="EmptyParagraph"/> is an empty Text block. A document with no blank line between
+    /// its blocks is the shape older Mnemo builds wrote, and is read one block per line instead.
+    /// </summary>
     public static List<Block> Deserialize(string markdown)
     {
         if (string.IsNullOrWhiteSpace(markdown))
             return [];
 
-        var lines = markdown.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        var lines = SplitLines(markdown);
+        return Deserialize(lines, joinParagraphs: SeparatesBlocksWithBlankLines(lines));
+    }
+
+    /// <summary>
+    /// Reads <see cref="Note.Content"/>, which is only consulted while a note has no blocks. Builds
+    /// before notes had blocks wrote it in the line per block dialect, where a blank line is an
+    /// empty paragraph, so it is read that way. Markdown imports by older builds also left the raw
+    /// file there; that copy only matters for a note whose blocks were all deleted.
+    /// </summary>
+    public static List<Block> DeserializeStoredContent(string content) =>
+        string.IsNullOrWhiteSpace(content) ? [] : Deserialize(SplitLines(content), joinParagraphs: false);
+
+    private static string[] SplitLines(string markdown) =>
+        markdown.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+
+    private static List<Block> Deserialize(string[] lines, bool joinParagraphs)
+    {
         var result = new List<Block>();
         var i = 0;
 
@@ -214,13 +230,55 @@ public static class NoteBlockMarkdownConverter
         // none of this, since every line of one carries its own marker.
         string WithContinuation(string text)
         {
-            while (i + 1 < lines.Length && MarkdownHardBreak.EndsWithMarker(text))
+            if (i + 1 >= lines.Length || !MarkdownHardBreak.EndsWithMarker(text))
+                return text;
+
+            var sb = new System.Text.StringBuilder(text);
+            FoldContinuation(sb);
+            return sb.ToString();
+        }
+
+        void FoldContinuation(System.Text.StringBuilder sb)
+        {
+            while (i + 1 < lines.Length && EndsWithMarker(sb))
             {
                 i++;
-                text += "\n" + lines[i];
+                sb.Append('\n').Append(EscapeBlockStart(lines[i]));
+            }
+        }
+
+        // A paragraph's text with its wrapped lines folded in, lazy continuation lines included.
+        // A numbered item's sibling at its own depth opens a new item whatever its number. When
+        // the first line is not prose (raw HTML, a container fence, indented code), or the joined
+        // text would stop being one paragraph, every line stays its own block, as a line by line
+        // reading has it, so a parser never swallows the text the join folded in.
+        string Paragraph(string text, int? numberedItemIndent = null)
+        {
+            var single = WithContinuation(text);
+            var singleEnd = i;
+            bool TakesNextLine() =>
+                joinParagraphs
+                && i + 1 < lines.Length
+                && lines[i].Trim().Length > 0
+                && !OpensBlock(lines, i + 1, numberedItemIndent is int depth && IndentWidth(lines[i + 1]) <= depth);
+
+            if (!TakesNextLine() || !InlineMarkdownParser.ReadsAsOneParagraph(single))
+                return single;
+
+            var sb = new System.Text.StringBuilder(single);
+            while (TakesNextLine())
+            {
+                i++;
+                AppendSoftBreak(sb, lines[i]);
+                FoldContinuation(sb);
             }
 
-            return text;
+            var joined = sb.ToString();
+            if (InlineMarkdownParser.ReadsAsOneParagraph(joined))
+                return joined;
+
+            i = singleEnd;
+            return single;
         }
 
         while (i < lines.Length)
@@ -229,7 +287,14 @@ public static class NoteBlockMarkdownConverter
             var indent = IndentWidth(line);
             var trimmed = line.TrimStart();
 
-            if (trimmed == "---" || line.Trim() == "---")
+            if (joinParagraphs && trimmed.Length == 0)
+            {
+                i++;
+                continue;
+            }
+
+            var bare = line.Trim();
+            if (bare == "---" || ThematicBreakPattern.IsMatch(bare))
             {
                 AddTop(CreateDivider(0));
                 i++;
@@ -238,15 +303,15 @@ public static class NoteBlockMarkdownConverter
 
             // An opener with no closer below it is a line of text; read as a fence it would take every
             // line after it into one equation.
-            if ((trimmed == "$$" && HasFenceClose(lines, i + 1)) || (trimmed.StartsWith("$$") && trimmed.EndsWith("$$") && trimmed.Length > 2))
+            if ((bare == "$$" && HasFenceClose(lines, i + 1)) || (bare.StartsWith("$$") && bare.EndsWith("$$") && bare.Length > 2))
             {
-                if (trimmed == "$$")
+                if (bare == "$$")
                 {
                     var eqContent = new System.Text.StringBuilder();
                     i++;
                     while (i < lines.Length)
                     {
-                        if (lines[i].TrimStart() == "$$") { i++; break; }
+                        if (lines[i].Trim() == "$$") { i++; break; }
                         if (eqContent.Length > 0) eqContent.AppendLine();
                         eqContent.Append(lines[i]);
                         i++;
@@ -264,7 +329,7 @@ public static class NoteBlockMarkdownConverter
                 }
                 else
                 {
-                    var inner = trimmed[2..^2].Trim();
+                    var inner = bare[2..^2].Trim();
                     var eqBlock = new Block
                     {
                         Id = Guid.NewGuid().ToString(),
@@ -279,9 +344,10 @@ public static class NoteBlockMarkdownConverter
                 continue;
             }
 
-            if (trimmed.StartsWith("```", StringComparison.Ordinal))
+            var fence = CodeFenceOf(trimmed);
+            if (fence is not null)
             {
-                var fenceLang = trimmed.Length > 3 ? trimmed[3..].Trim() : string.Empty;
+                var fenceLang = trimmed[fence.Length..].Trim();
                 var isSketch = string.Equals(fenceLang, "sketch", StringComparison.OrdinalIgnoreCase);
                 var language = string.IsNullOrEmpty(fenceLang) ? "csharp" : fenceLang;
                 var codeContent = new System.Text.StringBuilder();
@@ -289,7 +355,7 @@ public static class NoteBlockMarkdownConverter
                 while (i < lines.Length)
                 {
                     var codeLine = lines[i];
-                    if (codeLine.TrimStart().StartsWith("```", StringComparison.Ordinal))
+                    if (ClosesFence(codeLine, fence))
                     {
                         i++;
                         break;
@@ -314,7 +380,7 @@ public static class NoteBlockMarkdownConverter
                 continue;
             }
 
-            var pageRef = Regex.Match(trimmed, @"^\[\[page:([^\]]*)\]\]\s*$");
+            var pageRef = PageRefPattern.Match(trimmed);
             if (pageRef.Success)
             {
                 var refId = pageRef.Groups[1].Value.Trim();
@@ -333,7 +399,7 @@ public static class NoteBlockMarkdownConverter
 
             // Accept an empty target so a missing image remains an image block rather than raw
             // Markdown.
-            var imageRef = Regex.Match(trimmed, @"^!\[([^\]]*)\]\(([^)]*)\)\s*$");
+            var imageRef = ImageRefPattern.Match(trimmed);
             if (imageRef.Success)
             {
                 var alt = UnescapeImageAlt(imageRef.Groups[1].Value);
@@ -380,8 +446,8 @@ public static class NoteBlockMarkdownConverter
 
             if (Regex.IsMatch(trimmed, @"^-\s*\[\s*[xX]\s*\]"))
             {
-                var content = Regex.Replace(trimmed, @"^-\s*\[\s*[xX]\s*\]\s*", "", RegexOptions.None).Trim();
-                var b = CreateRichBlock(BlockType.Checklist, WithContinuation(content), 0);
+                var content = Regex.Replace(trimmed, @"^-\s*\[\s*[xX]\s*\]\s*", "", RegexOptions.None);
+                var b = CreateRichBlock(BlockType.Checklist, Paragraph(content), 0);
                 b.Payload = new ChecklistPayload(true);
                 AddListItem(b, indent);
                 i++;
@@ -390,8 +456,8 @@ public static class NoteBlockMarkdownConverter
 
             if (Regex.IsMatch(trimmed, @"^-\s*\[\s*\]"))
             {
-                var content = Regex.Replace(trimmed, @"^-\s*\[\s*\]\s*", "", RegexOptions.None).Trim();
-                var b = CreateRichBlock(BlockType.Checklist, WithContinuation(content), 0);
+                var content = Regex.Replace(trimmed, @"^-\s*\[\s*\]\s*", "", RegexOptions.None);
+                var b = CreateRichBlock(BlockType.Checklist, Paragraph(content), 0);
                 b.Payload = new ChecklistPayload(false);
                 AddListItem(b, indent);
                 i++;
@@ -400,15 +466,15 @@ public static class NoteBlockMarkdownConverter
 
             if (trimmed.StartsWith("- ", StringComparison.Ordinal))
             {
-                AddListItem(CreateRichBlock(BlockType.BulletList, WithContinuation(trimmed["- ".Length..].Trim()), 0), indent);
+                AddListItem(CreateRichBlock(BlockType.BulletList, Paragraph(trimmed["- ".Length..].TrimStart()), 0), indent);
                 i++;
                 continue;
             }
 
-            var starOrPlusBullet = Regex.Match(trimmed, @"^(\*|\+)\s+(.*)$");
+            var starOrPlusBullet = StarOrPlusBulletPattern.Match(trimmed);
             if (starOrPlusBullet.Success)
             {
-                AddListItem(CreateRichBlock(BlockType.BulletList, WithContinuation(starOrPlusBullet.Groups[2].Value.Trim()), 0), indent);
+                AddListItem(CreateRichBlock(BlockType.BulletList, Paragraph(starOrPlusBullet.Groups[2].Value), 0), indent);
                 i++;
                 continue;
             }
@@ -418,7 +484,7 @@ public static class NoteBlockMarkdownConverter
             var calloutHead = CalloutHeadPattern.Match(trimmed);
             if (calloutHead.Success)
             {
-                var calloutLines = new List<string> { calloutHead.Groups[3].Value.Trim() };
+                var calloutLines = new List<string> { calloutHead.Groups[3].Value.TrimStart() };
                 i++;
                 while (i < lines.Length)
                 {
@@ -429,7 +495,7 @@ public static class NoteBlockMarkdownConverter
                         break;
                     if (nextTrimmed.StartsWith("> ", StringComparison.Ordinal))
                     {
-                        calloutLines.Add(nextTrimmed["> ".Length..].Trim());
+                        calloutLines.Add(nextTrimmed["> ".Length..].TrimStart());
                         i++;
                     }
                     else if (nextTrimmed == ">")
@@ -443,7 +509,7 @@ public static class NoteBlockMarkdownConverter
                     }
                 }
 
-                var callout = CreateRichBlock(BlockType.Callout, string.Join("\n", calloutLines), 0);
+                var callout = CreateRichBlock(BlockType.Callout, JoinQuoteLines(calloutLines, joinParagraphs, keepFirstLineApart: true), 0);
                 callout.Payload = new CalloutPayload(
                     calloutHead.Groups[2].Value.Trim(),
                     calloutHead.Groups[1].Value.Trim().ToLowerInvariant());
@@ -453,7 +519,7 @@ public static class NoteBlockMarkdownConverter
 
             if (trimmed.StartsWith("> ", StringComparison.Ordinal) || trimmed == ">")
             {
-                var firstLine = trimmed == ">" ? string.Empty : trimmed["> ".Length..].Trim();
+                var firstLine = trimmed == ">" ? string.Empty : trimmed["> ".Length..].TrimStart();
                 var quoteLines = new List<string> { firstLine };
                 i++;
                 while (i < lines.Length)
@@ -465,7 +531,7 @@ public static class NoteBlockMarkdownConverter
                         break;
                     if (nextTrimmed.StartsWith("> ", StringComparison.Ordinal))
                     {
-                        quoteLines.Add(nextTrimmed["> ".Length..].Trim());
+                        quoteLines.Add(nextTrimmed["> ".Length..].TrimStart());
                         i++;
                     }
                     else if (nextTrimmed == ">")
@@ -479,16 +545,16 @@ public static class NoteBlockMarkdownConverter
                     }
                 }
 
-                AddTop(CreateRichBlock(BlockType.Quote, string.Join("\n", quoteLines), 0));
+                AddTop(CreateRichBlock(BlockType.Quote, JoinQuoteLines(quoteLines, joinParagraphs, keepFirstLineApart: false), 0));
                 continue;
             }
 
-            if (Regex.IsMatch(trimmed, @"^[0-9]{1,9}\.\s"))
+            if (NumberedPattern.IsMatch(trimmed))
             {
-                var content = Regex.Replace(trimmed, @"^[0-9]{1,9}\.\s*", "", RegexOptions.None).Trim();
-                var m = Regex.Match(trimmed, @"^(\d+)\.\s");
+                var content = Regex.Replace(trimmed, @"^[0-9]{1,9}[.)]\s*", "", RegexOptions.None);
+                var m = Regex.Match(trimmed, @"^(\d+)[.)]\s");
                 var n = m.Success && int.TryParse(m.Groups[1].Value, out var num) ? num : 1;
-                var nb = CreateRichBlock(BlockType.NumberedList, WithContinuation(content), 0);
+                var nb = CreateRichBlock(BlockType.NumberedList, Paragraph(content, numberedItemIndent: indent), 0);
                 // Written under the canonical key the editor and PDF composer read. The legacy
                 // "listNumber" key nothing else looks at is never emitted again, so a numbered
                 // list imported from markdown keeps its start value instead of silently
@@ -499,7 +565,18 @@ public static class NoteBlockMarkdownConverter
                 continue;
             }
 
-            AddTop(CreateRichBlock(BlockType.Text, WithContinuation(line), 0));
+            // A pipe row stays its own line: joined, a table would fold into one run-on paragraph.
+            var paragraph = trimmed.StartsWith('|') ? WithContinuation(line) : Paragraph(line);
+            if (joinParagraphs && i + 1 < lines.Length && SetextH1UnderlinePattern.IsMatch(lines[i + 1].Trim()))
+            {
+                i++;
+                AddTop(CreateRichBlock(BlockType.Heading1, paragraph.Trim(), 0));
+            }
+            else
+            {
+                AddTop(CreateRichBlock(BlockType.Text, paragraph.Trim() == EmptyParagraph ? string.Empty : paragraph, 0));
+            }
+
             i++;
         }
 
@@ -608,55 +685,31 @@ public static class NoteBlockMarkdownConverter
             source = block.Content ?? string.Empty;
         }
 
-        return string.IsNullOrEmpty(lang)
-            ? "```\n" + source + "\n```"
-            : "```" + lang + "\n" + source + "\n```";
+        var fence = FenceFor(source);
+        return fence + lang + "\n" + source + "\n" + fence;
     }
 
-    /// <summary>
-    /// Flattens a two-column row to its cells' blocks in reading order (left column, then right).
-    /// Markdown has no column syntax, so this matches the editor's own markdown flattening. It
-    /// deliberately emits no "---" between the columns: that separator reads back as a
-    /// <see cref="BlockType.Divider"/>, which both corrupts the round trip and is beside the point,
-    /// since the old code serialized only the empty cell lines and lost every block inside them.
-    /// The <c>.mnemo</c> package is the format that preserves column structure.
-    /// </summary>
-    private static string SerializeColumns(Block twoColumn)
+    /// <summary>A backtick fence longer than any run of backticks in the source, so no line inside closes it.</summary>
+    private static string FenceFor(string source)
     {
-        if (twoColumn.Children is not { Count: > 0 } columns)
-            return string.Empty;
-
-        var parts = new List<string>();
-        foreach (var column in columns)
+        var longest = 0;
+        var run = 0;
+        foreach (var ch in source)
         {
-            var content = SerializeColumnGroup(column);
-            if (!string.IsNullOrEmpty(content))
-                parts.Add(content);
+            run = ch == '`' ? run + 1 : 0;
+            longest = Math.Max(longest, run);
         }
 
-        // One newline between cells, matching how the top-level serializer separates blocks: this
-        // converter is line-oriented, so a blank line would deserialize into a stray empty block.
-        return string.Join("\n", parts);
+        return new string('`', Math.Max(3, longest + 1));
     }
 
-    private static string SerializeColumnGroup(Block group)
+    /// <summary>A paragraph body; a literal "&amp;nbsp;" is escaped so it does not read back as empty.</summary>
+    private static string SerializeParagraph(string body)
     {
-        // A cell is a ColumnGroup whose children are the real blocks. Older or malformed data may
-        // hold a block directly in the cell slot, so fall back to serializing that block.
-        var children = group.Type == BlockType.ColumnGroup ? group.Children : null;
-        if (children is not { Count: > 0 })
-            return group.Type == BlockType.ColumnGroup ? string.Empty : SerializeBlock(group);
-
-        var sb = new System.Text.StringBuilder();
-        var ordered = children.OrderBy(c => c.Order).ToList();
-        for (var i = 0; i < ordered.Count; i++)
-        {
-            if (i > 0)
-                sb.Append('\n');
-            sb.Append(SerializeBlock(ordered[i]));
-        }
-
-        return sb.ToString();
+        var trimmed = body.Trim();
+        if (trimmed.Length == 0)
+            return EmptyParagraph;
+        return trimmed == EmptyParagraph ? body.Replace(EmptyParagraph, "\\" + EmptyParagraph, StringComparison.Ordinal) : body;
     }
 
     private static string SerializeCallout(Block block, string body)
@@ -668,8 +721,12 @@ public static class NoteBlockMarkdownConverter
         return body.Length == 0 ? head : head + " " + body.Replace("\n", "\n> ", StringComparison.Ordinal);
     }
 
-    private static string SerializeSketchFence(Block block) =>
-        "```sketch\n" + (block.Content ?? string.Empty) + "\n```";
+    private static string SerializeSketchFence(Block block)
+    {
+        var source = block.Content ?? string.Empty;
+        var fence = FenceFor(source);
+        return fence + "sketch\n" + source + "\n" + fence;
+    }
 
     private static string GetEquationLatex(Block block)
     {

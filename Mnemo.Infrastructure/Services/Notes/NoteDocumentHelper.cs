@@ -40,7 +40,7 @@ internal static class NoteDocumentHelper
             return;
         }
 
-        var parsed = NoteBlockMarkdownConverter.Deserialize(raw);
+        var parsed = NoteBlockMarkdownConverter.DeserializeStoredContent(raw);
         if (parsed.Count > 0)
             note.Blocks = parsed;
         else

@@ -46,7 +46,7 @@ public class NoteBlockMarkdownSoftBreakTests
 
         var md = Normalized(NoteBlockMarkdownConverter.Serialize(blocks));
         Assert.Equal(
-            string.Join("\n", "one\\", "two", "## a\\", "b", "- x\\", "y", "1. n\\", "m", "- [x] c\\", "d", "> q\\", "> r", "> [!note] s\\", "> t"),
+            string.Join("\n", "one\\", "two", "", "## a\\", "b", "", "- x\\", "y", "1. n\\", "m", "- [x] c\\", "d", "", "> q\\", "> r", "", "> [!note] s\\", "> t"),
             md);
 
         var back = NoteBlockMarkdownConverter.Deserialize(md);
@@ -63,7 +63,7 @@ public class NoteBlockMarkdownSoftBreakTests
         for (var i = 0; i < blocks.Count; i++) blocks[i].Order = i;
 
         var md = Normalized(NoteBlockMarkdownConverter.Serialize(blocks));
-        Assert.Equal(string.Join("\n", "tail\\", "", "> a\\", "> \\", "> b", "after"), md);
+        Assert.Equal(string.Join("\n", "tail\\", "", "", "> a\\", "> \\", "> b", "", "after"), md);
 
         var back = NoteBlockMarkdownConverter.Deserialize(md);
         Assert.Equal(new[] { BlockType.Text, BlockType.Quote, BlockType.Text }, back.Select(b => b.Type));
@@ -99,7 +99,7 @@ public class NoteBlockMarkdownSoftBreakTests
         var md = Normalized(NoteBlockMarkdownConverter.Serialize(blocks));
         var lines = md.Split('\n');
         Assert.Equal("\\- item", lines[1]);
-        Assert.Equal("1\\. first", lines[7]);
+        Assert.Equal("1\\. first", lines[10]);
 
         var back = NoteBlockMarkdownConverter.Deserialize(md);
         Assert.All(back, b => Assert.Equal(BlockType.Text, b.Type));
@@ -117,7 +117,7 @@ public class NoteBlockMarkdownSoftBreakTests
         var md = Normalized(NoteBlockMarkdownConverter.Serialize(blocks));
         var lines = md.Split('\n');
         Assert.Equal(" \\- item", lines[1]);
-        Assert.Equal(" \\- item", lines[8]);
+        Assert.Equal(" \\- item", lines[12]);
 
         var back = NoteBlockMarkdownConverter.Deserialize(md);
         Assert.All(back, b => Assert.Equal(BlockType.Text, b.Type));
@@ -180,7 +180,7 @@ public class NoteBlockMarkdownSoftBreakTests
         blocks[1].Order = 1;
 
         var md = Normalized(NoteBlockMarkdownConverter.Serialize(blocks));
-        Assert.Equal("\\- not a bullet\n\\# not a heading", md);
+        Assert.Equal("\\- not a bullet\n\n\\# not a heading", md);
 
         var back = NoteBlockMarkdownConverter.Deserialize(md);
         Assert.Equal(new[] { BlockType.Text, BlockType.Text }, back.Select(b => b.Type));
@@ -210,7 +210,7 @@ public class NoteBlockMarkdownSoftBreakTests
 
         var md = Normalized(NoteBlockMarkdownConverter.Serialize(blocks));
 
-        Assert.Equal("before\n```\nx\n```\nafter", md);
+        Assert.Equal("before\n\n```\nx\n```\n\nafter", md);
     }
 
     [Fact]
@@ -220,7 +220,7 @@ public class NoteBlockMarkdownSoftBreakTests
         blocks[1].Order = 1;
 
         var md = Normalized(NoteBlockMarkdownConverter.Serialize(blocks));
-        Assert.Equal("path\\\\\nnext", md);
+        Assert.Equal("path\\\\\n\nnext", md);
 
         var back = NoteBlockMarkdownConverter.Deserialize(md);
         Assert.Equal(new[] { "path\\", "next" }, back.Select(b => b.Content));

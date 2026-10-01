@@ -145,6 +145,33 @@ public sealed class NotesMarkdownFormatAdapterTests
     }
 
     [Fact]
+    public async Task Import_export_import_of_a_commonmark_file_lands_the_same_blocks()
+    {
+        await using var h = new NotesMarkdownImportHarness();
+        var adapter = h.Adapter();
+        var source = await h.FileAsync("Cells.md",
+            "# Cells\n\nThe cell is the unit\nof life.\n\n&nbsp;\n\n- nucleus\n  - nucleolus\n- membrane\n\n> wrapped\n> quote\n\n```\na\n\nb\n```\n");
+
+        Assert.True((await h.ImportAsync(adapter, source, ImportConflictPolicy.KeepBoth)).Success);
+        var first = await h.Notes.GetNoteAsync(Assert.Single(await h.Notes.GetAllNotesAsync()).NoteId);
+        // The blocks are the note; the raw file is not kept beside them.
+        Assert.Equal(string.Empty, first!.Content);
+
+        var exported = await h.FileAsync("Exported.md", string.Empty);
+        Assert.True((await adapter.ExportAsync(new ImportExportRequest { FilePath = exported, Payload = first })).Success);
+        Assert.True((await h.ImportAsync(adapter, exported, ImportConflictPolicy.KeepBoth)).Success);
+        var secondId = (await h.Notes.GetAllNotesAsync()).Single(n => n.NoteId != first.NoteId).NoteId;
+        var second = await h.Notes.GetNoteAsync(secondId);
+
+        static string Shape(Note note) => string.Join(" | ", note.Blocks!.OrderBy(b => b.Order).Select(b =>
+            $"{b.Type}:{b.Content.Replace("\r\n", "\n")}:{string.Join(",", (b.Children ?? []).Select(c => c.Content))}"));
+        Assert.Equal(
+            "Heading1:Cells: | Text:The cell is the unit of life.: | Text:: | BulletList:nucleus:nucleolus | BulletList:membrane: | Quote:wrapped quote: | Code:a\n\nb:",
+            Shape(first));
+        Assert.Equal(Shape(first), Shape(second!));
+    }
+
+    [Fact]
     public async Task Keep_both_no_longer_renames_around_a_note_in_another_folder()
     {
         await using var h = new NotesMarkdownImportHarness();

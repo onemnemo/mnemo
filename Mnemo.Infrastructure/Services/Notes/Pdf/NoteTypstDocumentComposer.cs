@@ -221,7 +221,7 @@ internal static class NoteTypstDocumentComposer
         if (string.IsNullOrEmpty(raw))
             return [];
 
-        var parsed = NoteBlockMarkdownConverter.Deserialize(raw);
+        var parsed = NoteBlockMarkdownConverter.DeserializeStoredContent(raw);
         if (parsed.Count > 0)
         {
             foreach (var b in parsed)

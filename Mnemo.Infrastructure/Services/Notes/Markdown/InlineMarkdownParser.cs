@@ -34,37 +34,14 @@ public static class InlineMarkdownParser
         var firstBlock = true;
         foreach (var block in doc)
         {
+            // Link definitions have no text of their own, and Markdig appends a group of them
+            // for heading anchors, which would otherwise leave a stray line break behind.
+            if (block is LinkReferenceDefinitionGroup)
+                continue;
             if (!firstBlock)
                 spans.Add(InlineSpan.Plain("\n"));
             firstBlock = false;
-
-            switch (block)
-            {
-                case ParagraphBlock paragraph:
-                    VisitInlines(paragraph.Inline, TextStyle.Default, spans);
-                    break;
-                case HeadingBlock heading:
-                    VisitInlines(heading.Inline, TextStyle.Default, spans);
-                    break;
-                case ThematicBreakBlock:
-                    break;
-                case FencedCodeBlock fenced:
-                    spans.Add(new TextSpan(LinesToString(fenced.Lines), TextStyle.Default));
-                    break;
-                case CodeBlock cb:
-                    spans.Add(new TextSpan(LinesToString(cb.Lines), TextStyle.Default));
-                    break;
-                case QuoteBlock quote:
-                    AppendBlockContainer(quote, spans);
-                    break;
-                case ListBlock list:
-                    AppendBlockContainer(list, spans);
-                    break;
-                default:
-                    if (block is LeafBlock { Inline: { } leafInline })
-                        VisitInlines(leafInline, TextStyle.Default, spans);
-                    break;
-            }
+            AppendBlock(block, spans);
         }
 
         if (trailingBreaks > 0)
@@ -76,25 +53,88 @@ public static class InlineMarkdownParser
         return normalized;
     }
 
+    /// <summary>
+    /// True when the markdown reads as exactly one paragraph, which is what a run of wrapped lines
+    /// must still be once joined; anything else is a block whose lines are not prose.
+    /// </summary>
+    internal static bool ReadsAsOneParagraph(string markdown)
+    {
+        var doc = global::Markdig.Markdown.Parse(MarkdownHardBreak.SplitTrailing(markdown, out _), Pipeline);
+        return doc.Count == 1 && doc[0] is ParagraphBlock;
+    }
+
+    /// <summary>
+    /// One block's text. Raw HTML keeps the text between its tags, and any other container (a
+    /// custom container, a figure, a footnote) keeps its children's text, so nothing written as
+    /// prose inside one is dropped.
+    /// </summary>
+    private static void AppendBlock(Markdig.Syntax.Block block, List<InlineSpan> spans)
+    {
+        switch (block)
+        {
+            case ParagraphBlock paragraph:
+                VisitInlines(paragraph.Inline, TextStyle.Default, spans);
+                break;
+            case HeadingBlock heading:
+                VisitInlines(heading.Inline, TextStyle.Default, spans);
+                break;
+            case ThematicBreakBlock:
+                break;
+            case HtmlBlock html:
+                var text = HtmlText(LinesToString(html.Lines));
+                if (text.Length > 0)
+                    spans.Add(new TextSpan(text, TextStyle.Default));
+                break;
+            case CodeBlock code:
+                spans.Add(new TextSpan(LinesToString(code.Lines), TextStyle.Default));
+                break;
+            case ContainerBlock container:
+                AppendBlockContainer(container, spans);
+                break;
+            case LeafBlock { Inline: { } leafInline }:
+                VisitInlines(leafInline, TextStyle.Default, spans);
+                break;
+        }
+    }
+
     private static void AppendBlockContainer(ContainerBlock container, List<InlineSpan> spans)
     {
         var first = true;
         foreach (var child in container)
         {
+            if (child is LinkReferenceDefinitionGroup)
+                continue;
             if (!first)
                 spans.Add(InlineSpan.Plain("\n"));
             first = false;
-            if (child is ParagraphBlock p)
-                VisitInlines(p.Inline, TextStyle.Default, spans);
-            else if (child is QuoteBlock q)
-                AppendBlockContainer(q, spans);
-            else if (child is ListBlock l)
-                AppendBlockContainer(l, spans);
-            else if (child is ListItemBlock item)
-                AppendBlockContainer(item, spans);
-            else if (child is LeafBlock { Inline: { } inline })
-                VisitInlines(inline, TextStyle.Default, spans);
+            AppendBlock(child, spans);
         }
+    }
+
+    /// <summary>A comment, or a script or style element with its body, closed or running to the end.</summary>
+    private static readonly Regex HtmlHiddenRegex = new(
+        @"<!--.*?(-->|$)|<(script|style)\b.*?(</\2\s*>|$)",
+        RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>A tag, skipping any "&gt;" inside a quoted attribute value.</summary>
+    private static readonly Regex HtmlTagRegex = new(@"<(?:""[^""]*""|'[^']*'|[^'"">])*>", RegexOptions.Compiled);
+
+    /// <summary>
+    /// The text of raw HTML: comments, scripts and styles removed with their bodies, tags removed,
+    /// entities decoded, one line per line.
+    /// </summary>
+    private static string HtmlText(string html)
+    {
+        var stripped = System.Net.WebUtility.HtmlDecode(HtmlTagRegex.Replace(HtmlHiddenRegex.Replace(html, string.Empty), string.Empty));
+        var lines = new List<string>();
+        foreach (var line in stripped.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length > 0)
+                lines.Add(trimmed);
+        }
+
+        return string.Join("\n", lines);
     }
 
     private static void VisitInlines(Inline? inline, TextStyle style, List<InlineSpan> spans)
