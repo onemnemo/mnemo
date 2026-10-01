@@ -120,6 +120,8 @@ export interface MountEditorOptions {
   readonly chunkSize?: number;
   /** Schedules the next background chunk; defaults to `requestAnimationFrame`. */
   readonly schedule?: (run: () => void) => void;
+  /** Reserve each top-level block's height for off-screen skipping; a note's own surfaces set it. */
+  readonly reserveHeights?: boolean;
 }
 
 /** The state this view would hold with `nodes` appended at the document's live end. */
@@ -157,7 +159,7 @@ export interface MountedEditor {
 
 export function mountEditor(options: MountEditorOptions): MountedEditor {
   const services = resolveServices(options.services);
-  const nodeViews = toNodeViews(options.registry, services);
+  const nodeViews = toNodeViews(options.registry, services, { reserveHeights: options.reserveHeights });
 
   const children: PMNode[] = [];
   options.state.doc.forEach((child) => children.push(child));

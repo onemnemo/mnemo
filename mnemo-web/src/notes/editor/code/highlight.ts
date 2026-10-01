@@ -24,8 +24,7 @@
  * large note's load pay for every block already mounted.
  *
  * So an edit maps the existing set through the transaction and rebuilds only the
- * top-level blocks the change touched, exactly as the intrinsic-size plugin
- * next door does with its reserved heights. That is sound here because a code
+ * top-level blocks the change touched. That is sound here because a code
  * block's colours are a function of that block alone: the tokenizer runs per
  * code line and never looks outside it, so a block no change reached cannot have
  * different colours than it had a moment ago. The initial build is still whole,

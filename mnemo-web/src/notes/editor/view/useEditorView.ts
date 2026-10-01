@@ -32,6 +32,7 @@ export interface UseEditorViewOptions {
   readonly services?: Partial<EditorServices>;
   /** Read at mount, like the rest. Defaults to editable; the read view sets `false`. */
   readonly editable?: boolean;
+  readonly reserveHeights?: boolean;
 }
 
 export interface UseEditorViewResult {
@@ -54,8 +55,8 @@ export function useEditorView(options: UseEditorViewOptions): UseEditorViewResul
     const element = ref.current;
     if (!element) return;
 
-    const { state, registry, services, editable } = latest.current;
-    const mounted = mountEditor({ mount: element, state, registry, services, editable });
+    const { state, registry, services, editable, reserveHeights } = latest.current;
+    const mounted = mountEditor({ mount: element, state, registry, services, editable, reserveHeights });
     setHandle(mounted.handle);
 
     return () => {

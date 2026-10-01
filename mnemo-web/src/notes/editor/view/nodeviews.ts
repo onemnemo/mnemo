@@ -19,6 +19,7 @@
 import type { EditorView, NodeViewConstructor } from 'prosemirror-view';
 import type { BlockRegistry } from '../registry/build';
 import type { BlockShellHost, EditorServices } from '../registry/types';
+import { createHeightReserver } from './reserved-height';
 
 /**
  * A host that never shells. The shell lifecycle replaces this with one that drives the shelling
@@ -44,9 +45,15 @@ export function resolveServices(partial?: Partial<EditorServices>): EditorServic
   return { ...noServices, ...partial };
 }
 
+export interface NodeViewOptions {
+  /** Reserve each top-level block's estimated height on its element, for the note's off-screen skipping. */
+  readonly reserveHeights?: boolean;
+}
+
 /**
  * Builds the `nodeViews` map ProseMirror is constructed with, one constructor
- * per registered realized view.
+ * per registered realized view, plus the thin sized views when heights are
+ * reserved.
  *
  * Each constructor builds its host per instance (a shell lifecycle is per node,
  * not shared) and tears it down alongside the view. `contentDOM` is passed
@@ -56,16 +63,20 @@ export function resolveServices(partial?: Partial<EditorServices>): EditorServic
 export function toNodeViews(
   registry: BlockRegistry,
   services: EditorServices,
+  options: NodeViewOptions = {},
 ): Record<string, NodeViewConstructor> {
   const nodeViews: Record<string, NodeViewConstructor> = {};
   // The registry travels with the services rather than beside them, so a view that needs it takes
   // no second argument and every view that does not is untouched.
   const withRegistry: EditorServices = { ...services, registry };
+  const reserver = options.reserveHeights ? createHeightReserver(registry) : null;
 
   for (const [nodeName, factory] of registry.realizedViews) {
+    const sizer = reserver?.sizes(nodeName) ? reserver : null;
     nodeViews[nodeName] = (node, view: EditorView, getPos) => {
       const host = realizedHost();
       const realized = factory({ node, view, getPos, attrs: node.attrs, host, services: withRegistry });
+      const height = sizer?.track(view, node, realized.dom) ?? null;
 
       return {
         dom: realized.dom,
@@ -74,7 +85,13 @@ export function toNodeViews(
         // `this`, and only forwarded when it defines them, a NodeView that
         // declares `update`/`destroy` and then no-ops is not the same to PM as
         // one that omits them (omitting `update` forces a rebuild every time).
-        update: realized.update ? (updated) => realized.update!(updated) : undefined,
+        update: realized.update
+          ? (updated) => {
+              const kept = realized.update!(updated);
+              if (kept) height?.update(updated);
+              return kept;
+            }
+          : undefined,
         ignoreMutation: realized.ignoreMutation
           ? (mutation) => realized.ignoreMutation!(mutation)
           : undefined,
@@ -85,6 +102,8 @@ export function toNodeViews(
       };
     };
   }
+
+  if (reserver) Object.assign(nodeViews, reserver.proseViews(new Set(registry.realizedViews.keys())));
 
   return nodeViews;
 }

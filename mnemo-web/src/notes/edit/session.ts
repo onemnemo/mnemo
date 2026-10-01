@@ -70,6 +70,7 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
     registry: options.registry,
     services: options.services,
     editable: true,
+    reserveHeights: true,
   });
 
   const authority = createNoteAuthority({

@@ -37,7 +37,7 @@ import { defaultTextStyle, type Block, type BlockPayload, type BlockType, type I
 import { blockSidLength, mintSid } from '../model/sid';
 import { makeRng, type Rng } from './editor-fuzz-random';
 import { applyOp, describeOp, generateOp, type FuzzContext, type FuzzOp } from './editor-fuzz-ops';
-import { describeDifference, runChecks, type Failure } from './editor-fuzz-checks';
+import { checkReservedHeights, describeDifference, runChecks, type Failure } from './editor-fuzz-checks';
 
 /** A difference message reduced to the shape of the difference, for grouping. */
 function normalizeDifference(difference: string): string {
@@ -248,7 +248,7 @@ function mountHarness(blocks: readonly Block[]): Harness {
 
   const mount = document.createElement('div');
   document.body.appendChild(mount);
-  const mounted = mountEditor({ mount, state: built.state, registry: built.registry, services });
+  const mounted = mountEditor({ mount, state: built.state, registry: built.registry, services, reserveHeights: true });
 
   const harness: Harness = {
     view: mounted.view,
@@ -385,7 +385,10 @@ function runSequence(options: RunOptions): RunOutcome {
         continue;
       }
 
-      const observed = runChecks(harness.view.state, harness.registry, harness.mapper);
+      const observed = [
+        ...runChecks(harness.view.state, harness.registry, harness.mapper),
+        ...checkReservedHeights(harness.view, harness.registry),
+      ];
       for (const failure of observed) {
         if (NON_BLOCKING.has(failure.check) && !notes.has(failure.klass)) {
           notes.set(failure.klass, `${describeOp(op)} -> ${failure.detail}`);

@@ -44,6 +44,7 @@ export function ReadOnlyEditor({
     registry,
     services: { ...services, portals },
     editable: false,
+    reserveHeights: true,
   })
   // Read-only still means readable: opt the document out of the app-wide
   // user-select:none, which an editable mount gets for free via contenteditable.

@@ -2,7 +2,7 @@
  * Force an accurate layout of the top-level block containing a document position
  * before its on-screen rectangle is read.
  *
- * Every top-level block carries `content-visibility: auto` (see `intrinsic-size`
+ * Every top-level block carries `content-visibility: auto` (see `reserved-height`
  * and `notes-editor.css`), so a block the reader has never scrolled to is laid
  * out only against its reserved `contain-intrinsic-size`, and its DOM rect is an
  * estimate rather than the truth. Any code that maps a document position to

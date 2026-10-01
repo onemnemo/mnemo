@@ -46,7 +46,7 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry, inline } = editorSchema();
     const plugins = editorPlugins(registry, inline);
-    expect(plugins).toHaveLength(39);
+    expect(plugins).toHaveLength(38);
     // Input guards run before handlers that could claim the same event.
     expect(plugins[0].props.handleDOMEvents?.keydown).toBeTypeOf('function');
     expect(plugins[1].props.handleDOMEvents?.mousedown).toBeTypeOf('function');
@@ -111,9 +111,8 @@ describe('editorPlugins wiring', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     // Several plugins expose decorations (block selection, find highlights, list
-    // numbers, reserved heights). Of those, block selection and find paint
-    // nothing on a plain document, and the list-number plugin runs before the
-    // size plugin, so the first non-empty set is the list numbers.
+    // numbers). Block selection and find paint nothing on a plain document, so
+    // the first non-empty set is the list numbers.
     const state = result.state;
     const decorated = state.plugins
       .filter((p) => p.props && (p.props as { decorations?: unknown }).decorations)

@@ -13,6 +13,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import type { BlockRegistry, RealizedViewFactory } from '../registry/build';
 import type { RealizedBlockView, RealizedBlockViewArgs } from '../registry/types';
 import { resolveServices, toNodeViews } from './nodeviews';
+import { buildNoteEditState } from '../../edit/build-edit-state';
 
 /** A registry that carries only what the adapter reads: the realized views map. */
 function registryWith(views: Record<string, RealizedViewFactory>): BlockRegistry {
@@ -117,5 +118,59 @@ describe('toNodeViews', () => {
     const nodeView = nodeViews.w(fakeNode, fakeView, () => 0, [], null as never);
     nodeView.destroy!();
     expect(destroy).toHaveBeenCalledOnce();
+  });
+});
+
+describe('toNodeViews with reserved heights', () => {
+  /** A sized realized view `w`, estimated from its node's `h` attr, sitting at the top of `doc`. */
+  const nodeOfHeight = (h: number) => ({ attrs: { h }, type: { name: 'w' } }) as unknown as PMNode;
+
+  function sized(update?: (node: PMNode) => boolean) {
+    const node = nodeOfHeight(40);
+    const registry = {
+      realizedViews: new Map([['w', () => ({ dom: document.createElement('div'), update })]]),
+      estimators: new Map([['w', (n: PMNode) => Number(n.attrs.h)]]),
+      nodeSpecs: {},
+    } as unknown as BlockRegistry;
+    const view = { state: { doc: { forEach: (f: (child: PMNode) => void) => f(node) } }, composing: false };
+    const nodeViews = toNodeViews(registry, resolveServices(), { reserveHeights: true });
+    const nodeView = nodeViews.w(node, view as unknown as EditorView, () => 0, [], null as never);
+    return { nodeView, view, height: () => (nodeView.dom as HTMLElement).style.getPropertyValue('contain-intrinsic-size') };
+  }
+
+  it('keeps the view shape: no update appears for a view without one', () => {
+    expect(sized().nodeView.update).toBeUndefined();
+  });
+
+  it('re-reserves only when the realized view kept the update', () => {
+    let keep = false;
+    const { nodeView, height } = sized(() => keep);
+    expect(height()).toBe('auto 40px');
+
+    const taller = nodeOfHeight(90);
+    expect(nodeView.update!(taller, [], null as never)).toBe(false);
+    expect(height()).toBe('auto 40px');
+
+    keep = true;
+    expect(nodeView.update!(taller, [], null as never)).toBe(true);
+    expect(height()).toBe('auto 90px');
+  });
+
+  it('restyles the composing block on the edit the composition itself makes', () => {
+    // An IME's last edit arrives while the view is still composing, and the end of
+    // the composition brings no new node, so that edit is the only chance to update.
+    const { nodeView, view, height } = sized(() => true);
+    view.composing = true;
+    nodeView.update!(nodeOfHeight(90), [], null as never);
+    expect(height()).toBe('auto 90px');
+  });
+
+  it('keeps ProseMirror rendering for types that only ever appear nested', () => {
+    const built = buildNoteEditState([]);
+    if (!built.ok) throw new Error('fixture did not build');
+    const names = Object.keys(toNodeViews(built.registry, resolveServices(), { reserveHeights: true }));
+
+    expect(names).toEqual(expect.arrayContaining(['paragraph', 'heading', 'quote', 'bulletItem', 'numberedItem', 'divider', 'sketch']));
+    expect(names.filter((name) => ['columnGroup', 'tableRow', 'tableCell'].includes(name))).toEqual([]);
   });
 });

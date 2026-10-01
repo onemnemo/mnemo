@@ -68,9 +68,9 @@
  * virtualizer, no shell/realize lifecycle, just a document the engine is allowed
  * not to lay out.
  *
- * The reserved height below is only the fallback for a block the size plugin has
- * not decorated; that plugin writes a per-block estimate inline, and `auto` lets
- * the engine replace either one with the real size once the block has been laid
+ * The reserved height below is only the fallback for a block with no estimate;
+ * each block's node view writes its own estimate inline, and `auto` lets the
+ * engine replace either one with the real size once the block has been laid
  * out. An engine that supports neither declaration renders everything, which is
  * correct and merely slower.
  *

@@ -1,9 +1,8 @@
 /**
  * The range-local rebuild helper shared by every decoration plugin that maps
  * its set through a transaction and rebuilds only the top-level blocks the
- * transaction touched, rather than the whole document: intrinsic-size's
- * reserved heights and the code highlighter's token colours both work this
- * way.
+ * transaction touched, rather than the whole document, as the code
+ * highlighter's token colours do.
  *
  * The widening predicate is an inclusive "touching, not merely overlapping"
  * test, checked per block against every changed range rather than per range

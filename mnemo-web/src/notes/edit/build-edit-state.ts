@@ -31,7 +31,6 @@ import {
 import { blockIdentityPlugin } from '../editor/pipeline/block-identity';
 import { invariantPipeline } from '../editor/pipeline/invariants';
 import { inputTriggerPlugin } from '../editor/pipeline/input-triggers';
-import { intrinsicSizePlugin } from '../editor/pipeline/intrinsic-size';
 import { columnSplitterPlugin } from '../editor/pipeline/column-splitter';
 import { containerCaretGuard } from '../editor/pipeline/container-caret';
 import { imageClipboardPlugin } from '../editor/pipeline/image-clipboard';
@@ -148,7 +147,7 @@ export type NoteEditState =
  *    structural; its place before `baseKeymap` is for tidiness, not correctness.
  *  - `baseKeymap` is the ProseMirror default of last resort.
  *  - `invariantPipeline` reacts after the fact through `appendTransaction`, and
- *    `numberedListPlugin`, `findPlugin` and `intrinsicSizePlugin` only decorate;
+ *    `numberedListPlugin` and `findPlugin` only decorate;
  *    none of them touch key dispatch except `findPlugin`, which claims Ctrl+F
  *    (unclaimed by anything above) and Escape only while find is open.
  *  - `controlCharGuard` follows it, another `appendTransaction` repair on the
@@ -268,7 +267,6 @@ export function editorPlugins(
     // meta brings in, so a chunked mount appending a thousand blocks at once
     // costs it a remap and nothing else.
     proofingPlugin(),
-    intrinsicSizePlugin(registry),
     columnSplitterPlugin(),
     blockIdentityPlugin(registry),
     // Holds one number for one state, the position an equation was just

@@ -13,11 +13,13 @@
 
 import type { Node as PMNode } from 'prosemirror-model';
 import { Selection, type EditorState } from 'prosemirror-state';
+import type { EditorView } from 'prosemirror-view';
 import type { BlockRegistry } from './registry/build';
 import type { DocumentMapper } from './mapper/document';
 import { walkBlocks } from './projection/document';
 import { isWellFormedBlockSid } from '../model/sid';
 import { parseBlocks, serializeBlocks } from '../model/wire';
+import { heightEstimator, NOTE_CONTENT_WIDTH } from './view/reserved-height';
 
 export interface Failure {
   /** Which invariant broke. */
@@ -297,6 +299,31 @@ export function checkRoundTrip(doc: PMNode, mapper: DocumentMapper): Failure[] {
       detail: differences.join(' | '),
     },
   ];
+}
+
+// ---------------------------------------------------------------------------
+// Reserved heights
+// ---------------------------------------------------------------------------
+
+/** Every top-level block carries the height its module estimates for it now, read off the element. */
+export function checkReservedHeights(view: EditorView, registry: BlockRegistry): Failure[] {
+  const estimate = heightEstimator(registry, NOTE_CONTENT_WIDTH);
+  const failures: Failure[] = [];
+  view.state.doc.forEach((child, pos) => {
+    const dom = view.nodeDOM(pos);
+    if (!(dom instanceof HTMLElement)) return;
+    const value = dom.style.getPropertyValue('contain-intrinsic-size');
+    const carried = Number(/(\d+)px$/.exec(value)?.[1] ?? 0);
+    const expected = estimate(child);
+    if (carried !== expected) {
+      failures.push({
+        check: 'reserved-height',
+        klass: `reserved-height:${child.type.name}`,
+        detail: `${child.type.name} at ${String(pos)} carries "${value}", estimate is ${String(expected)}`,
+      });
+    }
+  });
+  return failures;
 }
 
 // ---------------------------------------------------------------------------
