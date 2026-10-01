@@ -302,11 +302,13 @@ function createController<Row extends MenuRow>(view: EditorView, spec: CaretMenu
       }
 
       const wasOpen = open;
+      const sameQuery = wasOpen && token.query === query;
       rows = matched;
       query = token.query;
-      // Back to the top on every query change, matching the desktop: the row
-      // the user was on is rarely the one they still mean after typing more.
-      index = 0;
+      // Back to the top on a query change, matching the desktop: the row the user
+      // was on is rarely the one they still mean after typing more. Any other
+      // update (a late plugin dispatch) keeps the row the arrows chose.
+      index = sameQuery ? Math.min(index, rows.length - 1) : 0;
       open = true;
       menu.root.removeAttribute('data-hidden');
       menu.render(rows, index, pick, choose);

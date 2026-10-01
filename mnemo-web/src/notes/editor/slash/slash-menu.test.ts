@@ -359,6 +359,17 @@ describe('keyboard', () => {
     expect(selectedLabel()).toBe(rowLabels()[0]);
   });
 
+  it('keeps the chosen row through a transaction that leaves the query alone', () => {
+    // A late plugin dispatch, the spell checker's marks among them, must not snap the
+    // highlight back, or Enter right after an arrow inserts the top row.
+    const view = openMenu();
+    press(view, 'ArrowDown');
+    press(view, 'ArrowDown');
+    view.dispatch(view.state.tr.setMeta('late', true));
+    expect(selectedLabel()).toBe('Heading2');
+    expect(isOpen()).toBe(true);
+  });
+
   it('Escape closes and leaves the typed text to be edited', () => {
     const view = openMenu('quo');
     expect(press(view, 'Escape')).toBe(true);
