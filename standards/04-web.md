@@ -55,6 +55,15 @@ Every user-facing string is a translation key, present in all five shipped langu
   instead of showing a raw key. That is a safety net, not permission to skip languages.
 - Add keys with a targeted edit against a unique anchor. Never rewrite a whole translation
   file; more than one author appends to it.
+- A string that carries a count is a pair of literal keys, `XxxOne` and `XxxMany`, picked with
+  `tPlural` or `pluralKey` from `src/i18n/plural.ts` by the language's plural rules.
+- Both texts of a pair read the count from the same placeholder (`{count}`, or `{0}` in older
+  keys). The One text uses it too rather than writing 1 or "one": some languages read the one
+  form for 21 or for 0.
+- Every language fills both keys. A language with a single form (Japanese) repeats the text.
+- Never write "card(s)" or test `count === 1` in a component.
+- A host warning that carries a count is minted with
+  `TransferWarning.Counted(oneKey, manyKey, count)`, and the client picks the form.
 - The Host caches translations at startup. Editing a translation JSON has no effect until the
   Host restarts, so do not conclude your key is wrong.
 

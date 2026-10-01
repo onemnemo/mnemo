@@ -580,6 +580,9 @@ export type ConflictPolicy = "KeepBoth" | "Skip" | "Replace"
 export interface TransferWarningDto {
   key: string
   params: Record<string, string>
+  /** Set on a counted warning: the singular key, with `key` as the plural one. */
+  oneKey?: string | null
+  count?: number | null
 }
 
 /** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferFormatDto. */

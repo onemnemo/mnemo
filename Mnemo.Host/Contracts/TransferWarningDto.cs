@@ -11,7 +11,14 @@ public sealed record TransferWarningDto(string Key, IReadOnlyDictionary<string, 
     private static readonly IReadOnlyDictionary<string, string> EmptyParams =
         new Dictionary<string, string>(StringComparer.Ordinal);
 
-    public static TransferWarningDto FromModel(TransferWarning model) => new(model.Key, model.Params);
+    /// <summary>See <see cref="TransferWarning.OneKey"/>.</summary>
+    public string? OneKey { get; init; }
+
+    /// <summary>See <see cref="TransferWarning.Count"/>.</summary>
+    public int? Count { get; init; }
+
+    public static TransferWarningDto FromModel(TransferWarning model) =>
+        new(model.Key, model.Params) { OneKey = model.OneKey, Count = model.Count };
 
     /// <summary>
     /// What an upload endpoint reports when the coordinator could not even preview the file. Shared

@@ -8,7 +8,7 @@ import type {
   TransferWarningDto,
 } from "@/api/types"
 import type { TranslateFn } from "@/i18n/types"
-import { groupedWarningLines } from "@/lib/transfer-warnings"
+import { groupedWarningLines, transferWarningText } from "@/lib/transfer-warnings"
 
 // Pure rules behind the transfer dialog: what a file is allowed to be, which formats an export
 // can offer, and how the queue reads. Kept clear of React so the parts that are easy to get
@@ -55,7 +55,7 @@ export type FileNote = TransferWarningDto | { text: string }
 
 /** Resolves one {@link FileNote} to display text, translating a server warning through `t`. */
 export function fileNoteText(t: TranslateFn, note: FileNote): string {
-  return "text" in note ? note.text : t("TransferWarnings", note.key, note.params)
+  return "text" in note ? note.text : transferWarningText(t, note)
 }
 
 export function queuedFromUpload(key: string, upload: TransferUploadDto): QueuedFile {

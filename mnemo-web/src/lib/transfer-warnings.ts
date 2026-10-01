@@ -1,4 +1,5 @@
 import type { TransferWarningDto } from "@/api/types"
+import { pluralKey } from "@/i18n/plural"
 import type { TranslateFn } from "@/i18n/types"
 
 // Groups repeated import warnings into one line with a count and a few example names, so a
@@ -59,8 +60,13 @@ const GROUPABLE: Readonly<Record<string, GroupSpec>> = {
 /** Names collected into a grouped warning's "for example" list. */
 const MAX_EXAMPLES = 3
 
-function translateWarning(t: TranslateFn, warning: TransferWarningDto): string {
-  return t("TransferWarnings", warning.key, warning.params)
+/** One warning as display text, in the form its count takes when the host sent one. */
+export function transferWarningText(t: TranslateFn, warning: TransferWarningDto, locale?: string): string {
+  const key =
+    warning.oneKey && warning.count != null
+      ? pluralKey({ one: warning.oneKey, many: warning.key }, warning.count, locale)
+      : warning.key
+  return t("TransferWarnings", key, warning.params)
 }
 
 /**
@@ -150,8 +156,8 @@ export function groupedWarningLines(t: TranslateFn, warnings: readonly TransferW
   }
 
   return slots.map((slot) => {
-    if (typeof slot !== "string") return translateWarning(t, slot)
+    if (typeof slot !== "string") return transferWarningText(t, slot)
     const group = members.get(slot)!
-    return group.length === 1 ? translateWarning(t, group[0]) : renderGroup(t, group)
+    return group.length === 1 ? transferWarningText(t, group[0]) : renderGroup(t, group)
   })
 }

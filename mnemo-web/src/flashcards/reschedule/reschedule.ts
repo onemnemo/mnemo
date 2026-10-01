@@ -1,4 +1,5 @@
 import type { CardViewDto, DeckSummaryDto, PresetDto, QueuePlace } from "@/api/types"
+import { pluralKey } from "@/i18n/plural"
 import type { TranslateFn } from "@/i18n/types"
 
 import { cardStateKind } from "../bits"
@@ -140,7 +141,7 @@ export const DEFAULT_OPTIONS: Omit<RescheduleOptions, "mode"> = {
  */
 export function whenPhrase(days: number, fc: Fc, locale: string, now: Date, dayStartHour: number | null): string {
   if (days === 0) return fc("RescheduleWhenToday")
-  if (dayStartHour === null) return days === 1 ? fc("RescheduleWhenInOneDay") : fc("RescheduleWhenInDaysFormat", { 0: days })
+  if (dayStartHour === null) return counted(fc, locale, days, "RescheduleWhenInOneDay", "RescheduleWhenInDaysFormat")
 
   const date = new Date(now)
   date.setHours(date.getHours() - dayStartHour)
@@ -187,19 +188,15 @@ export function consequence(
 ): string {
   const fc = flashcardsT(t)
   const { fresh, scheduled, suspended, lapses } = split
-  const suspendedClause = plural(fc, suspended.length, "RescheduleSuspendedOne", "RescheduleSuspendedManyFormat")
+  const suspendedClause = plural(fc, locale, suspended.length, "RescheduleSuspendedOne", "RescheduleSuspendedManyFormat")
 
   if (options.mode === "due") {
     const when = whenPhrase(options.days, fc, locale, now, dayStartHour)
     const parts = [
-      scheduled.length === 0
-        ? null
-        : scheduled.length === 1
-          ? fc("RescheduleDueScheduledOneFormat", { 0: when })
-          : fc("RescheduleDueScheduledManyFormat", { 0: scheduled.length, 1: when }),
+      plural(fc, locale, scheduled.length, "RescheduleDueScheduledOneFormat", "RescheduleDueScheduledManyFormat", when),
       // The surprising one. A new card given a due date is no longer new, and people reach for
       // this dialog without meaning to graduate it.
-      plural(fc, fresh.length, "RescheduleDueFreshOne", "RescheduleDueFreshManyFormat"),
+      plural(fc, locale, fresh.length, "RescheduleDueFreshOne", "RescheduleDueFreshManyFormat"),
       suspendedClause,
       options.matchInterval
         ? fc("RescheduleDueMatched")
@@ -216,27 +213,25 @@ export function consequence(
     }
     const counts = options.keepCounts
       ? lapses > 0
-        ? plural(fc, lapses, "RescheduleResetLapsesOne", "RescheduleResetLapsesManyFormat")
+        ? plural(fc, locale, lapses, "RescheduleResetLapsesOne", "RescheduleResetLapsesManyFormat")
         : fc("RescheduleResetCountsKept")
       : fc("RescheduleResetCountsCleared")
     return sentence([
-      plural(fc, scheduled.length, "RescheduleResetOne", "RescheduleResetManyFormat"),
+      plural(fc, locale, scheduled.length, "RescheduleResetOne", "RescheduleResetManyFormat"),
       counts,
-      plural(fc, fresh.length, "RescheduleResetIgnoredOne", "RescheduleResetIgnoredManyFormat"),
+      plural(fc, locale, fresh.length, "RescheduleResetIgnoredOne", "RescheduleResetIgnoredManyFormat"),
       suspendedClause,
     ])
   }
 
-  const others = queueAhead === null || queueAhead <= 0 ? null : plural(fc, queueAhead, "RescheduleOthersOne", "RescheduleOthersManyFormat")
+  const others = queueAhead === null || queueAhead <= 0 ? null : plural(fc, locale, queueAhead, "RescheduleOthersOne", "RescheduleOthersManyFormat")
   const moved =
     options.place === "at"
-      ? fresh.length === 1
-        ? fc("ReschedulePositionAtOneFormat", { 0: options.at })
-        : fc("ReschedulePositionAtManyFormat", { 0: fresh.length, 1: options.at })
-      : placement(fc, fresh.length, options.place, others)
+      ? counted(fc, locale, fresh.length, "ReschedulePositionAtOneFormat", "ReschedulePositionAtManyFormat", options.at)
+      : placement(fc, locale, fresh.length, options.place, others)
   return sentence([
     moved,
-    plural(fc, scheduled.length, "ReschedulePositionIgnoredOne", "ReschedulePositionIgnoredManyFormat"),
+    plural(fc, locale, scheduled.length, "ReschedulePositionIgnoredOne", "ReschedulePositionIgnoredManyFormat"),
     suspendedClause,
   ])
 }
@@ -257,15 +252,20 @@ const PLACEMENT_KEYS = {
   },
 } as const
 
-function placement(fc: Fc, count: number, place: "start" | "end", others: string | null): string | null {
+function placement(fc: Fc, locale: string, count: number, place: "start" | "end", others: string | null): string | null {
   const keys = PLACEMENT_KEYS[place]
-  if (others === null) return plural(fc, count, keys.one, keys.many)
-  return count === 1 ? fc(keys.othersOne, { 0: others }) : fc(keys.othersMany, { 0: count, 1: others })
+  if (others === null) return plural(fc, locale, count, keys.one, keys.many)
+  return counted(fc, locale, count, keys.othersOne, keys.othersMany, others)
 }
 
-function plural(fc: Fc, count: number, one: string, many: string): string | null {
-  if (count === 0) return null
-  return count === 1 ? fc(one) : fc(many, { 0: count })
+/** Both forms of a pair read the count as `{0}` and any detail as `{1}`. */
+function counted(fc: Fc, locale: string, count: number, one: string, many: string, detail?: string | number): string {
+  return fc(pluralKey({ one, many }, count, locale), detail === undefined ? { 0: count } : { 0: count, 1: detail })
+}
+
+/** {@link counted}, with nothing to say about zero cards. */
+function plural(fc: Fc, locale: string, count: number, one: string, many: string, detail?: string | number): string | null {
+  return count === 0 ? null : counted(fc, locale, count, one, many, detail)
 }
 
 function sentence(parts: (string | null)[]): string {

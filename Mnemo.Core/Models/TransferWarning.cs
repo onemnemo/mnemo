@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace Mnemo.Core.Models;
@@ -24,6 +25,16 @@ public sealed class TransferWarning
 
     public IReadOnlyDictionary<string, string> Params { get; init; } = EmptyParams;
 
+    /// <summary>
+    /// The singular key of a counted warning, read when <see cref="Count"/> takes the "one" form
+    /// in the reader's language; <see cref="Key"/> is then the plural key. Null for a warning that
+    /// carries no count to agree with.
+    /// </summary>
+    public string? OneKey { get; init; }
+
+    /// <summary>The count <see cref="OneKey"/> and <see cref="Key"/> agree with, also sent as the <c>count</c> param.</summary>
+    public int? Count { get; init; }
+
     public static TransferWarning Of(string key) => new() { Key = key };
 
     public static TransferWarning Of(string key, params (string Name, string Value)[] parameters) =>
@@ -32,4 +43,20 @@ public sealed class TransferWarning
             Key = key,
             Params = parameters.ToDictionary(p => p.Name, p => p.Value, StringComparer.Ordinal)
         };
+
+    /// <summary>
+    /// A warning whose wording agrees with <paramref name="count"/>: the client picks
+    /// <paramref name="oneKey"/> or <paramref name="manyKey"/> by the reader's plural rules, since
+    /// only it knows the language. Both keys are literals so a search finds this call.
+    /// </summary>
+    public static TransferWarning Counted(
+        string oneKey,
+        string manyKey,
+        int count,
+        params (string Name, string Value)[] parameters)
+    {
+        var merged = parameters.ToDictionary(p => p.Name, p => p.Value, StringComparer.Ordinal);
+        merged["count"] = count.ToString(CultureInfo.InvariantCulture);
+        return new TransferWarning { Key = manyKey, OneKey = oneKey, Count = count, Params = merged };
+    }
 }

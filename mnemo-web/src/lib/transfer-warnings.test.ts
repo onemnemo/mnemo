@@ -5,7 +5,7 @@ import { createTranslate } from "@/i18n/translate"
 import { mergedEnglishBundle } from "@/i18n/test-bundle"
 import type { TranslateFn } from "@/i18n/types"
 
-import { groupedWarningLines, withoutTrailingPeriod } from "./transfer-warnings"
+import { groupedWarningLines, transferWarningText, withoutTrailingPeriod } from "./transfer-warnings"
 
 // The fake t renders keys and params, not sentences.
 const t: TranslateFn = (ns, key, params) => {
@@ -161,5 +161,30 @@ describe("groupedWarningLines", () => {
     expect(lines[1]).toContain("reason=file too large")
     expect(lines[1]).toContain("b1.svg")
     expect(lines[1]).toContain("b2.svg")
+  })
+})
+
+describe("transferWarningText", () => {
+  const counted = (count: number): TransferWarningDto => ({
+    key: "CardsAddedMany",
+    oneKey: "CardsAddedOne",
+    count,
+    params: { count: String(count) },
+  })
+
+  it("reads the key a counted warning's count agrees with", () => {
+    expect(transferWarningText(t, counted(1))).toBe("TransferWarnings.CardsAddedOne(count=1)")
+    expect(transferWarningText(t, counted(12))).toBe("TransferWarnings.CardsAddedMany(count=12)")
+  })
+
+  it("reads the many key for zero, and for every count in Japanese", () => {
+    expect(transferWarningText(t, counted(0), "en")).toBe("TransferWarnings.CardsAddedMany(count=0)")
+    expect(transferWarningText(t, counted(1), "ja")).toBe("TransferWarnings.CardsAddedMany(count=1)")
+  })
+
+  it("reads the key as sent when the warning carries no count", () => {
+    expect(transferWarningText(t, { key: "UploadPreviewUnavailable", params: {} })).toBe(
+      "TransferWarnings.UploadPreviewUnavailable",
+    )
   })
 })

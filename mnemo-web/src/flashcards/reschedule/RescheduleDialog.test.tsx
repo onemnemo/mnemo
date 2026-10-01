@@ -145,7 +145,7 @@ describe("RescheduleDialog", () => {
     expect(radio("RescheduleModeDue").getAttribute("aria-checked")).toBe("true")
     expect(document.querySelector('[role="dialog"]')?.getAttribute("aria-label")).toBe("RescheduleTitle")
     expect(sentence()).toBe(
-      "RescheduleDueScheduledOneFormat(RescheduleWhenTomorrow) RescheduleDueFreshOne RescheduleSuspendedOne RescheduleDueUnmatched",
+      "RescheduleDueScheduledOneFormat(1,RescheduleWhenTomorrow) RescheduleDueFreshOne(1) RescheduleSuspendedOne(1) RescheduleDueUnmatched",
     )
   })
 
@@ -162,16 +162,16 @@ describe("RescheduleDialog", () => {
     mount(MIXED)
 
     act(() => button("RescheduleToday").click())
-    expect(sentence()).toContain("RescheduleDueScheduledOneFormat(RescheduleWhenToday)")
+    expect(sentence()).toContain("RescheduleDueScheduledOneFormat(1,RescheduleWhenToday)")
 
     act(() => radio("RescheduleModeReset").click())
-    expect(sentence()).toBe("RescheduleResetOne RescheduleResetCountsKept RescheduleResetIgnoredOne RescheduleSuspendedOne")
+    expect(sentence()).toBe("RescheduleResetOne(1) RescheduleResetCountsKept RescheduleResetIgnoredOne(1) RescheduleSuspendedOne(1)")
     expect(button("RescheduleApplyReset")).toBeDefined()
 
     act(() => radio("RescheduleModePosition").click())
     // Twelve in the queue, one of them the selected card: eleven others.
     expect(sentence()).toBe(
-      "ReschedulePositionFrontAheadOneFormat(RescheduleOthersManyFormat(11)) ReschedulePositionIgnoredOne RescheduleSuspendedOne",
+      "ReschedulePositionFrontAheadOneFormat(1,RescheduleOthersManyFormat(11)) ReschedulePositionIgnoredOne(1) RescheduleSuspendedOne(1)",
     )
     expect(button("RescheduleApplyPosition")).toBeDefined()
   })
@@ -200,7 +200,7 @@ describe("RescheduleDialog", () => {
       days: 0,
       matchInterval: false,
     })
-    expect(onApplied).toHaveBeenCalledWith(expect.stringContaining("RescheduleDueScheduledOneFormat(RescheduleWhenToday)"))
+    expect(onApplied).toHaveBeenCalledWith(expect.stringContaining("RescheduleDueScheduledOneFormat(1,RescheduleWhenToday)"))
     expect(onClose).toHaveBeenCalled()
   })
 

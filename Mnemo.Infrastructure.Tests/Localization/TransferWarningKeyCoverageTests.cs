@@ -25,6 +25,13 @@ public class TransferWarningKeyCoverageTests
         "(?:TransferWarning\\.Of|new TransferWarningDto)\\(\\s*\"(?<key>[A-Za-z0-9]+)\"",
         RegexOptions.Compiled);
 
+    /// <summary>Both literal keys of a <c>TransferWarning.Counted(...)</c> pair.</summary>
+    private static readonly Regex CountedKeyLiterals = new(
+        "TransferWarning\\.Counted\\(\\s*\"(?<one>[A-Za-z0-9]+)\"\\s*,\\s*\"(?<many>[A-Za-z0-9]+)\"",
+        RegexOptions.Compiled);
+
+    private static readonly Regex CountedCall = new("TransferWarning\\.Counted\\(", RegexOptions.Compiled);
+
     [Fact]
     public void EveryEmittedWarningKey_ExistsInEveryLocale()
     {
@@ -60,15 +67,73 @@ public class TransferWarningKeyCoverageTests
         Assert.True(gaps.Count == 0, "Translate these keys in every locale:" + Environment.NewLine + string.Join(Environment.NewLine, gaps));
     }
 
-    private static IEnumerable<string> CollectKeys(string sourceDirectory)
+    [Fact]
+    public void EveryCountedWarning_NamesItsPairAsLiterals_AndEveryLocaleHasBothKeys()
     {
-        foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories))
+        var root = RepositoryRoot();
+        var files = SourceFiles(Path.Combine(root, "Mnemo.Infrastructure"))
+            .Concat(SourceFiles(Path.Combine(root, "Mnemo.Host")))
+            .Select(file => (Path: file, Text: File.ReadAllText(file)))
+            .ToList();
+
+        var unread = files.Where(file => UnreadCountedCalls(file.Text) > 0).Select(file => file.Path).ToList();
+        Assert.True(unread.Count == 0, "Pass both keys of TransferWarning.Counted as string literals in:" + Environment.NewLine + string.Join(Environment.NewLine, unread));
+
+        var pairs = files.SelectMany(file => PairsIn(file.Text)).Distinct().ToList();
+        var gaps = new List<string>();
+        foreach (var language in Languages)
         {
-            var text = File.ReadAllText(file);
-            foreach (Match match in KeyLiteral.Matches(text))
-                yield return match.Groups["key"].Value;
+            using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "Mnemo.Infrastructure", "Languages", $"{language}.json")));
+            var ns = document.RootElement.GetProperty("TransferWarnings");
+            foreach (var (one, many) in pairs)
+            {
+                if (!ns.TryGetProperty(one, out _) || !ns.TryGetProperty(many, out _))
+                    gaps.Add($"{language}.json lacks part of the pair TransferWarnings/{one} and {many}");
+            }
+        }
+
+        Assert.True(gaps.Count == 0, "Translate both keys of these pairs:" + Environment.NewLine + string.Join(Environment.NewLine, gaps));
+    }
+
+    [Fact]
+    public void CountedWarning_ContributesBothKeysOfItsPair()
+    {
+        var keys = KeysIn("TransferWarning.Counted(\"CardsAddedOne\", \"CardsAddedMany\", count)").ToList();
+
+        Assert.Equal(["CardsAddedOne", "CardsAddedMany"], keys);
+    }
+
+    [Fact]
+    public void CountedWarning_WithAKeyFromAVariable_IsReportedNotSkipped()
+    {
+        Assert.Equal(1, UnreadCountedCalls("TransferWarning.Counted(oneKey, \"CardsAddedMany\", count)"));
+        Assert.Equal(0, UnreadCountedCalls("TransferWarning.Counted(\"CardsAddedOne\", \"CardsAddedMany\", count)"));
+    }
+
+    private static IEnumerable<string> SourceFiles(string sourceDirectory) =>
+        Directory.EnumerateFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories);
+
+    private static IEnumerable<string> CollectKeys(string sourceDirectory) =>
+        SourceFiles(sourceDirectory).SelectMany(file => KeysIn(File.ReadAllText(file)));
+
+    private static IEnumerable<string> KeysIn(string text)
+    {
+        foreach (Match match in KeyLiteral.Matches(text))
+            yield return match.Groups["key"].Value;
+
+        foreach (var (one, many) in PairsIn(text))
+        {
+            yield return one;
+            yield return many;
         }
     }
+
+    private static IEnumerable<(string One, string Many)> PairsIn(string text) =>
+        CountedKeyLiterals.Matches(text).Select(match => (match.Groups["one"].Value, match.Groups["many"].Value));
+
+    /// <summary>Counted calls whose keys the literal scan cannot read, so their pair would go unchecked.</summary>
+    private static int UnreadCountedCalls(string text) =>
+        CountedCall.Matches(text).Count - CountedKeyLiterals.Matches(text).Count;
 
     /// <summary>
     /// The repository root, found relative to this file's own path rather than the working

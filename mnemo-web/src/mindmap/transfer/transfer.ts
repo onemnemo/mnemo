@@ -1,5 +1,6 @@
 import type { ConflictPolicy, MindmapTransferUploadDto, TransferFormatDto, TransferWarningDto } from "@/api/types"
 import type { TranslateFn } from "@/i18n/types"
+import { transferWarningText } from "@/lib/transfer-warnings"
 
 // Pure rules behind the mindmap transfer dialog: what a file is allowed to be, and how the import
 // queue reads. Kept clear of React so the parts that are easy to get subtly wrong, the queue's
@@ -39,7 +40,7 @@ export type FileNote = TransferWarningDto | { text: string }
 
 /** Resolves one {@link FileNote} to display text, translating a server warning through `t`. */
 export function fileNoteText(t: TranslateFn, note: FileNote): string {
-  return "text" in note ? note.text : t("TransferWarnings", note.key, note.params)
+  return "text" in note ? note.text : transferWarningText(t, note)
 }
 
 export function queuedFromUpload(key: string, upload: MindmapTransferUploadDto): QueuedFile {
