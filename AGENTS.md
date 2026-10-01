@@ -11,8 +11,8 @@ Read this before the first edit.
 
 A free, open source learning platform (flashcards, notes, mind maps, AI study tools) built to
 put tools that are normally behind steep paywalls into everyone's hands. Access and quality
-come before profit. It is built by one person, and it is meant to genuinely help people, so
-craftsmanship matters more than shipping something quickly.
+come before profit. Mnemo is meant to genuinely help people, so craftsmanship matters more
+than shipping something quickly.
 
 Stack: .NET 10, a loopback HTTP host, a React and TypeScript single page app in `mnemo-web`
 served through a PhotinoX window, SQLite for runtime data.
