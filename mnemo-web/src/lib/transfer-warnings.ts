@@ -69,6 +69,11 @@ export function transferWarningText(t: TranslateFn, warning: TransferWarningDto,
   return t("TransferWarnings", key, warning.params)
 }
 
+/** True when any line is a problem rather than news, so the notice reads as a warning. */
+export function hasWarningLines(warnings: readonly TransferWarningDto[]): boolean {
+  return warnings.some((warning) => warning.severity !== "info")
+}
+
 /**
  * Trims one trailing period so a reason spliced into "{reason}. For example" does not double
  * it. An ellipsis is left alone.

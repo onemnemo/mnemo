@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/modal"
 import { Segmented } from "@/flashcards/transfer/components/Segmented"
 import { useT } from "@/i18n/useT"
 import { isMac } from "@/keybinds/chord"
-import { groupedWarningLines } from "@/lib/transfer-warnings"
+import { groupedWarningLines, hasWarningLines } from "@/lib/transfer-warnings"
 import { toast } from "@/stores/toast"
 
 import { mindmapKey } from "../api"
@@ -255,7 +255,7 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
           common("TransferImportFinishedFormat", { 0: itemPhrase(result.importedMaps) }),
           ...warningLines,
         )
-        if (warningLines.length > 0) {
+        if (hasWarningLines(result.warnings)) {
           toast.warning(common("ImportCompleteTitle"), { description })
         } else {
           toast.success(common("ImportCompleteTitle"), { description })

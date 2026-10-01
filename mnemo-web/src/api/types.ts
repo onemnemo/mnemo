@@ -583,6 +583,8 @@ export interface TransferWarningDto {
   /** Set on a counted warning: the singular key, with `key` as the plural one. */
   oneKey?: string | null
   count?: number | null
+  /** Absent reads as "warning". An "info" line is news, not a problem, and gets no warning treatment. */
+  severity?: "warning" | "info"
 }
 
 /** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferFormatDto. */

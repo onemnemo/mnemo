@@ -45,4 +45,18 @@ public sealed class TransferWarningDtoTests
         Assert.Equal(JsonValueKind.Null, json.GetProperty("oneKey").ValueKind);
         Assert.Equal(JsonValueKind.Null, json.GetProperty("count").ValueKind);
     }
+
+    [Fact]
+    public void Warning_IsAWarningUnlessTheCallerSaysInfo()
+    {
+        var plain = TransferWarning.Counted("CardsAddedOne", "CardsAddedMany", 3);
+
+        var asWarning = JsonSerializer.SerializeToElement(TransferWarningDto.FromModel(plain), Json);
+        var asInfo = JsonSerializer.SerializeToElement(TransferWarningDto.FromModel(plain.AsInfo()).WithFileName("deck.apkg"), Json);
+
+        Assert.Equal("warning", asWarning.GetProperty("severity").GetString());
+        Assert.Equal("info", asInfo.GetProperty("severity").GetString());
+        Assert.Equal("CardsAddedOne", asInfo.GetProperty("oneKey").GetString());
+        Assert.Equal(3, asInfo.GetProperty("count").GetInt32());
+    }
 }

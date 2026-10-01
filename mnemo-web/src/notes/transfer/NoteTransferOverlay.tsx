@@ -12,7 +12,7 @@ import { IconButton } from "@/components/ui/icon-button"
 import { Segmented } from "@/flashcards/transfer/components/Segmented"
 import { useT } from "@/i18n/useT"
 import { isMac } from "@/keybinds/chord"
-import { groupedWarningLines } from "@/lib/transfer-warnings"
+import { groupedWarningLines, hasWarningLines } from "@/lib/transfer-warnings"
 import { notesKey } from "@/notes/api"
 import { toast } from "@/stores/toast"
 
@@ -240,7 +240,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
           common("TransferImportFinishedFormat", { 0: itemPhrase(result.importedNotes) }),
           ...warningLines,
         )
-        if (warningLines.length > 0) {
+        if (hasWarningLines(result.warnings)) {
           toast.warning(common("ImportCompleteTitle"), { description })
         } else {
           toast.success(common("ImportCompleteTitle"), { description })

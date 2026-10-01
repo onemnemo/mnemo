@@ -201,6 +201,26 @@ describe("importResultNotice", () => {
     )
   })
 
+  it("keeps the success tone for lines that are information, not problems", () => {
+    const news = result({ warnings: [{ key: "AnkiReviewHistoryImported", params: { count: "40" }, severity: "info" }] })
+
+    const notice = importResultNotice(t, news, "12 cards")
+
+    expect(notice.tone).toBe("success")
+    expect(notice.description).toContain("TransferWarnings.AnkiReviewHistoryImported(count=40)")
+  })
+
+  it("reads as a warning when any line is one, beside information", () => {
+    const mixed = result({
+      warnings: [
+        { key: "AnkiReviewHistoryImported", params: { count: "40" }, severity: "info" },
+        { key: "FlashcardsPayloadUnreadable", params: {}, severity: "warning" },
+      ],
+    })
+
+    expect(importResultNotice(t, mixed, "12 cards").tone).toBe("warning")
+  })
+
   it("keeps the errors and the warnings when only some files landed", () => {
     const partial = result({
       failedFiles: 1,

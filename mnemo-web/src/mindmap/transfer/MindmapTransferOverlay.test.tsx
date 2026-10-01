@@ -232,6 +232,27 @@ describe("the mindmap transfer overlay's post-import warnings", () => {
     )
   })
 
+  it("keeps the success tone when every line is information", async () => {
+    openImportDialog()
+    await chooseFile("Study.mnemo")
+    api.runMindmapImport.mockResolvedValueOnce({
+      succeededFiles: 1,
+      failedFiles: 0,
+      importedMaps: 2,
+      warnings: [{ key: "PackageFolderRestoredAtRoot", params: {}, severity: "info" }],
+      errors: [],
+    } satisfies MindmapTransferImportResultDto)
+
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith(
+      "ImportCompleteTitle",
+      expect.objectContaining({ description: expect.stringContaining("PackageFolderRestoredAtRoot") }),
+    )
+  })
+
   it("still reports plain success when the result carries no warnings", async () => {
     openImportDialog()
     await chooseFile("Study.mnemo")

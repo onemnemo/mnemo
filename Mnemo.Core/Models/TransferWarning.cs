@@ -16,7 +16,7 @@ namespace Mnemo.Core.Models;
 /// warning a later feature adds, such as a backup restore evidence dialog or an Anki
 /// review-history import, is just another key in the same place.
 /// </remarks>
-public sealed class TransferWarning
+public sealed record TransferWarning
 {
     private static readonly IReadOnlyDictionary<string, string> EmptyParams =
         new Dictionary<string, string>(StringComparer.Ordinal);
@@ -34,6 +34,12 @@ public sealed class TransferWarning
 
     /// <summary>The count <see cref="OneKey"/> and <see cref="Key"/> agree with, also sent as the <c>count</c> param.</summary>
     public int? Count { get; init; }
+
+    /// <summary>
+    /// How the line is presented: a problem, or news such as how many cards came across. Defaults
+    /// to a warning, so only a caller that opts in renders without the warning treatment.
+    /// </summary>
+    public TransferWarningSeverity Severity { get; init; } = TransferWarningSeverity.Warning;
 
     public static TransferWarning Of(string key) => new() { Key = key };
 
@@ -59,4 +65,14 @@ public sealed class TransferWarning
         merged["count"] = count.ToString(CultureInfo.InvariantCulture);
         return new TransferWarning { Key = manyKey, OneKey = oneKey, Count = count, Params = merged };
     }
+
+    /// <summary>The same line reported as information, such as how many cards came across.</summary>
+    public TransferWarning AsInfo() => this with { Severity = TransferWarningSeverity.Info };
+}
+
+/// <summary>How a transfer line is presented: a problem to look at, or plain information.</summary>
+public enum TransferWarningSeverity
+{
+    Warning,
+    Info
 }

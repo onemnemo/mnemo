@@ -17,8 +17,19 @@ public sealed record TransferWarningDto(string Key, IReadOnlyDictionary<string, 
     /// <summary>See <see cref="TransferWarning.Count"/>.</summary>
     public int? Count { get; init; }
 
+    /// <summary>"warning" or "info"; see <see cref="TransferWarning.Severity"/>.</summary>
+    public string Severity { get; init; } = SeverityWarning;
+
+    public const string SeverityWarning = "warning";
+    public const string SeverityInfo = "info";
+
     public static TransferWarningDto FromModel(TransferWarning model) =>
-        new(model.Key, model.Params) { OneKey = model.OneKey, Count = model.Count };
+        new(model.Key, model.Params)
+        {
+            OneKey = model.OneKey,
+            Count = model.Count,
+            Severity = model.Severity == TransferWarningSeverity.Info ? SeverityInfo : SeverityWarning
+        };
 
     /// <summary>
     /// What an upload endpoint reports when the coordinator could not even preview the file. Shared

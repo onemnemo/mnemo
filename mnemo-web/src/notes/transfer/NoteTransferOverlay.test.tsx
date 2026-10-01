@@ -267,6 +267,27 @@ describe("the note transfer overlay's post-import warnings", () => {
     )
   })
 
+  it("keeps the success tone when every line is information", async () => {
+    openImportDialog()
+    await chooseFile("Notebook.md")
+    api.runNoteImport.mockResolvedValueOnce({
+      succeededFiles: 1,
+      failedFiles: 0,
+      importedNotes: 3,
+      warnings: [{ key: "PackageFolderRestoredAtRoot", params: {}, severity: "info" }],
+      errors: [],
+    } satisfies NoteTransferImportResultDto)
+
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith(
+      "ImportCompleteTitle",
+      expect.objectContaining({ description: expect.stringContaining("PackageFolderRestoredAtRoot") }),
+    )
+  })
+
   it("still reports plain success when the result carries no warnings", async () => {
     openImportDialog()
     await chooseFile("Notebook.md")
