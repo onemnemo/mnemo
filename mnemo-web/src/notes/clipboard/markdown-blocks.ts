@@ -69,6 +69,12 @@ export const MAX_BLOCKS = 10_000;
  */
 const MAX_PARAGRAPH_LINES = 1_000;
 
+/**
+ * The most columns a pasted table gets. Every row is padded to the widest, so one wide row
+ * would otherwise multiply the cells of every other; cells past it join the last column.
+ */
+export const MAX_TABLE_COLUMNS = 64;
+
 /** `lines` reads one block per line, `markdown` reads a document, `plain` keeps the text as typed. */
 type Reading = 'lines' | 'markdown' | 'plain';
 
@@ -189,29 +195,40 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
   const numberOpens = (n: number, indent: number): boolean =>
     reading === 'markdown' || n <= 1 || runs.get(indent) === n - 1;
 
-  // Markdown carries no widths, so the table gets the editor's default ones.
-  const emitTable = (rows: readonly string[][]): void => {
+  /**
+   * Emits as many of the rows as the block cap leaves room for, and returns how many that was.
+   * Markdown carries no widths, so the table gets the editor's default ones.
+   */
+  const emitTable = (rows: readonly string[][]): number => {
+    const width = Math.min(
+      MAX_TABLE_COLUMNS,
+      rows.reduce((widest, cells) => Math.max(widest, cells.length), 0),
+    );
+    const taken = Math.max(0, Math.min(rows.length, Math.floor((MAX_BLOCKS - count - 1) / (width + 1))));
+    if (taken === 0) return 0;
     open.length = 0;
     runs.clear();
-    const width = rows.reduce((widest, cells) => Math.max(widest, cells.length), 0);
     const table = makeBlock('Table', [plainSpan('')], {
       kind: 'table',
       columnWidths: Array.from({ length: width }, () => TABLE_COL_W),
-      headerRows: rows.map((_cells, index) => index === 0),
+      headerRows: Array.from({ length: taken }, (_, index) => index === 0),
       headerColumns: Array.from({ length: width }, () => false),
       fullWidth: false,
     });
     table.children = [];
-    for (const cells of rows) {
+    for (const cells of rows.slice(0, taken)) {
       const row = makeBlock('TableRow', [plainSpan('')], { kind: 'empty' });
       row.children = [];
       for (let column = 0; column < width; column++) {
-        const cell = makeBlock('TableCell', parseInlineMarkdown(cells[column] ?? ''), { kind: 'tableCell', fill: '' });
+        // The escaped pipe reads back as the separator the joined cells had.
+        const text = column === width - 1 && cells.length > width ? cells.slice(column).join(' \\| ') : cells[column];
+        const cell = makeBlock('TableCell', parseInlineMarkdown(text ?? ''), { kind: 'tableCell', fill: '' });
         place(cell, row.children);
       }
       place(row, table.children);
     }
     place(table, out);
+    return taken;
   };
 
   /**
@@ -483,7 +500,13 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
 
     const table = readPipeTable(lines, i);
     if (table) {
-      emitTable(table.rows);
+      const taken = emitTable(table.rows);
+      if (taken < table.rows.length) {
+        // Past the cap the rows left, from the first one not taken, land as one verbatim block.
+        const resume = taken === 0 ? i : i + 1 + taken;
+        emit('Text', [plainSpan(lines.slice(resume).join('\n'))], { kind: 'empty' });
+        break;
+      }
       i = table.next;
       continue;
     }

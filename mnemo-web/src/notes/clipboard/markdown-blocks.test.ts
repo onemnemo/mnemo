@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
-import { MAX_BLOCKS, parseMarkdownToBlocks } from './markdown-blocks';
+import { MAX_BLOCKS, MAX_TABLE_COLUMNS, parseMarkdownToBlocks } from './markdown-blocks';
 import { flattenDisplay } from '../model/spans';
 import { isTextSpan, type Block } from '../model/types';
 
@@ -67,6 +67,34 @@ describe('parseMarkdownToBlocks: pipe tables', () => {
       ['a | b', 'c'],
       ['only', ''],
     ]);
+  });
+
+  it('keeps an escaped backslash before a pipe, the way the table writer escapes one', () => {
+    const table = one('| back\\\\\\|slash | end\\\\ |\n| --- | --- |');
+    expect(cellTexts(table)).toEqual([['back\\|slash', 'end\\']]);
+  });
+
+  it('reads a pipe inside inline code back as a pipe, the way the writer escapes it', () => {
+    const table = one('| `c\\|d` | x |\n| --- | --- |');
+    const code = table.children?.[0]?.children?.[0]?.spans[0];
+    expect(code).toMatchObject({ kind: 'text', text: 'c|d', style: { code: true } });
+  });
+
+  it('accepts every GFM delimiter cell and tables without outer pipes', () => {
+    expect(cellTexts(one('| a | b | c |\n|:-:|--:|-|\n| 1 | 2 | 3 |'))).toEqual([
+      ['a', 'b', 'c'],
+      ['1', '2', '3'],
+    ]);
+    expect(cellTexts(one('a | b\n--- | ---\n1 | 2'))).toEqual([
+      ['a', 'b'],
+      ['1', '2'],
+    ]);
+  });
+
+  it('refuses a delimiter row with a different number of cells, keeping every line', () => {
+    const blocks = parseMarkdownToBlocks('| a | b |\n| --- |\n| 1 | 2 |');
+    expect(blocks.map((b) => b.type)).toEqual(['Text', 'Text', 'Text']);
+    expect(blocks.map(textOf)).toEqual(['| a | b |', '| --- |', '| 1 | 2 |']);
   });
 
   it('reads inline markdown inside a cell', () => {
@@ -355,6 +383,44 @@ describe('parseMarkdownToBlocks: nested lists', () => {
     };
     count(blocks);
     expect(total).toBe(MAX_BLOCKS + 1);
+  });
+
+  /** Every block in the tree, nested ones included. */
+  const total = (list: readonly Block[]): number =>
+    list.reduce((sum, b) => sum + 1 + (b.children ? total(b.children) : 0), 0);
+
+  it('counts table rows and cells toward the cap and keeps the rows past it as text', { timeout: 20000 }, () => {
+    const body = Array.from({ length: 4_000 }, (_, n) => `| r${n} | x | y |`);
+    const blocks = parseMarkdownToBlocks(['| a | b | c |', '| --- | --- | --- |', ...body].join('\n'));
+
+    expect(total(blocks)).toBeLessThanOrEqual(MAX_BLOCKS + 1);
+    expect(blocks.map((b) => b.type)).toEqual(['Table', 'Text']);
+    const rows = blocks[0].children ?? [];
+    expect((blocks[0].payload as { headerRows: boolean[] }).headerRows).toHaveLength(rows.length);
+    // The rows not taken, from the first one, are the text block, every character kept.
+    expect(textOf(blocks[1])).toBe(body.slice(rows.length - 1).join('\n'));
+  });
+
+  it('keeps a table the cap leaves no room for as text, starting at its header', { timeout: 20000 }, () => {
+    const filler = Array.from({ length: MAX_BLOCKS - 1 }, () => 'x');
+    const blocks = parseMarkdownToBlocks([...filler, '| a | b |', '| --- | --- |', '| 1 | 2 |'].join('\n'));
+
+    expect(blocks).toHaveLength(MAX_BLOCKS);
+    expect(textOf(blocks[blocks.length - 1])).toBe('| a | b |\n| --- | --- |\n| 1 | 2 |');
+  });
+
+  it('caps the column count, so one wide row cannot pad every other', () => {
+    const wide = Array.from({ length: 500 }, (_, n) => `c${n}`);
+    const rows = Array.from({ length: 50 }, () => '| a | b |');
+    const blocks = parseMarkdownToBlocks(['| h | i |', '| --- | --- |', `| ${wide.join(' | ')} |`, ...rows].join('\n'));
+
+    expect(blocks).toHaveLength(1);
+    const table = blocks[0];
+    expect((table.payload as { columnWidths: number[] }).columnWidths).toHaveLength(MAX_TABLE_COLUMNS);
+    for (const row of table.children ?? []) expect(row.children).toHaveLength(MAX_TABLE_COLUMNS);
+    // The cells past the cap join the last column rather than being dropped.
+    const last = table.children?.[1]?.children?.[MAX_TABLE_COLUMNS - 1];
+    expect(textOf(last as Block)).toBe(wide.slice(MAX_TABLE_COLUMNS - 1).join(' | '));
   });
 });
 

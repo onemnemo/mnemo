@@ -21,9 +21,6 @@ export const SETEXT_H1 = /^=+$/;
 const PAGE_REF = /^\[\[page:([^\]]*)\]\]\s*$/;
 const IMAGE_REF = /^!\[([^\]]*)\]\(([^)]*)\)\s*$/;
 
-/** The delimiter row under a pipe table's header, alignment colons accepted and dropped. */
-export const TABLE_DELIMITER = /^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/;
-
 /** The HTML block starts CommonMark lets interrupt a paragraph; an inline tag does not. */
 const HTML_BLOCK_START =
   '<(?:(?:script|pre|style|textarea)\\b|!--|\\?|![A-Za-z]|!\\[CDATA\\[|/?(?:address|article|aside|blockquote|body|center|details|dialog|dir|div|dl|dd|dt|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|html|iframe|legend|li|main|menu|nav|ol|p|section|summary|table|tbody|td|tfoot|th|thead|tr|ul)(?:\\s|/?>|$))';

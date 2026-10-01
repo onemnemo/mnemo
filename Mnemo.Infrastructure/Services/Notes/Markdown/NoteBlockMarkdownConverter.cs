@@ -260,7 +260,8 @@ public static partial class NoteBlockMarkdownConverter
                 joinParagraphs
                 && i + 1 < lines.Length
                 && lines[i].Trim().Length > 0
-                && !OpensBlock(lines, i + 1, numberedItemIndent is int depth && IndentWidth(lines[i + 1]) <= depth);
+                && !OpensBlock(lines, i + 1, numberedItemIndent is int depth && IndentWidth(lines[i + 1]) <= depth)
+                && ReadPipeTable(lines, i + 1, out _) is null;
 
             if (!TakesNextLine() || !InlineMarkdownParser.ReadsAsOneParagraph(single))
                 return single;
@@ -565,8 +566,17 @@ public static partial class NoteBlockMarkdownConverter
                 continue;
             }
 
-            // A pipe row stays its own line: joined, a table would fold into one run-on paragraph.
-            var paragraph = trimmed.StartsWith('|') ? WithContinuation(line) : Paragraph(line);
+            if (ReadPipeTable(lines, i, out var afterTable) is { } table)
+            {
+                AddTop(table);
+                i = afterTable;
+                continue;
+            }
+
+            // A pipe row stays its own line: joined, a broken table would fold into one run-on
+            // paragraph. Its pipes are escaped, or the inline parser reads the line as a table of
+            // its own and drops them.
+            var paragraph = trimmed.StartsWith('|') ? EscapeCellPipes(WithContinuation(line)) : Paragraph(line);
             if (joinParagraphs && i + 1 < lines.Length && SetextH1UnderlinePattern.IsMatch(lines[i + 1].Trim()))
             {
                 i++;
