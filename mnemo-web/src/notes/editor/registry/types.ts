@@ -151,6 +151,8 @@ export interface MdContext {
   serializeInline(node: PMNode): string;
   /** Escapes markdown control characters in literal text. */
   escapeText(text: string): string;
+  /** How an empty paragraph is written: `&nbsp;` for a file, a blank line for plain text. */
+  readonly emptyParagraph: 'nbsp' | 'blank';
 }
 
 /**

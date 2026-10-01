@@ -12,6 +12,9 @@ const { schema, registry, inline } = createEditorSchema();
 const blockSchema = asBlockSchema(schema);
 const md = createMarkdownSerializer(registry, inline);
 
+/** Read back as a markdown document, the way the host reads an exported file. */
+const readBack = (markdown: string) => parseMarkdownToBlocks(`# Doc\n\n${markdown}`).slice(1);
+
 const style = (over: Partial<typeof defaultTextStyle> = {}) => ({ ...defaultTextStyle, ...over });
 const text = (t: string, over: Partial<typeof defaultTextStyle> = {}): InlineSpan => ({
   kind: 'text',
@@ -120,11 +123,11 @@ describe('createMarkdownSerializer', () => {
     );
   });
 
-  it('joins top-level blocks one per line and trims the trailing newline', () => {
+  it('joins top-level blocks with a blank line and trims the trailing newline', () => {
     const out = md.document(
       doc(block('heading', { level: 1 }, text('T')), block('paragraph', {}, text('body'))),
     );
-    expect(out).toBe('# T\nbody');
+    expect(out).toBe('# T\n\nbody');
   });
 
   it('flattens a two-column row to its cells blocks in document order', () => {
@@ -135,12 +138,80 @@ describe('createMarkdownSerializer', () => {
       cell('left'),
       cell('right'),
     ]);
-    expect(md.document(doc(twoColumn))).toBe('left\nright');
+    expect(md.document(doc(twoColumn))).toBe('left\n\nright');
   });
 
   it('serializes a block caption and inline atoms through the real inline mapper', () => {
     const para = block('paragraph', {}, text('e='), { kind: 'equation', latex: 'mc^2', style: style() }, text(' done'));
     expect(md.document(doc(para))).toBe('e=$mc^2$ done');
+  });
+});
+
+describe('CommonMark block separation', () => {
+  it('puts a blank line between blocks and keeps a list run tight, as the host exporter does', () => {
+    const out = md.document(
+      doc(
+        block('heading', { level: 1 }, text('Title')),
+        block('paragraph', {}, text('intro')),
+        block('bulletItem', {}, text('a')),
+        block('checklistItem', { checked: false }, text('b')),
+        block('numberedItem', {}, text('c')),
+        block('quote', {}, text('q')),
+        block('divider', {}),
+      ),
+    );
+    expect(out).toBe('# Title\n\nintro\n\n- a\n- [ ] b\n1. c\n\n> q\n\n---');
+  });
+
+  it('leaves an empty paragraph blank in plain text, and keeps a literal &nbsp; its text', () => {
+    const plain = createMarkdownSerializer(registry, inline, { emptyParagraph: 'blank' });
+    const d = doc(block('paragraph', {}, text('a')), block('paragraph', {}), block('paragraph', {}, text('&nbsp;')));
+    const out = plain.document(d);
+    expect(out).toBe('a\n\n\n\n\\&nbsp;');
+    expect(parseMarkdownToBlocks(out).map((b) => b.spans.map((s) => (s.kind === 'text' ? s.text : '')).join(''))).toEqual([
+      'a',
+      '&nbsp;',
+    ]);
+  });
+
+  it('writes an empty paragraph as &nbsp; and escapes one that literally says it', () => {
+    expect(md.document(doc(block('paragraph', {}, text('a')), block('paragraph', {}), block('paragraph', {}, text('b'))))).toBe(
+      'a\n\n&nbsp;\n\nb',
+    );
+    expect(md.document(doc(block('paragraph', {}, text('&nbsp;'))))).toBe('\\&nbsp;');
+  });
+
+  it('reads back as the same blocks, empty paragraphs included', () => {
+    const textOf = (b: { spans: InlineSpan[] }) => b.spans.map((s) => (s.kind === 'text' ? s.text : '')).join('');
+    const out = md.document(
+      doc(
+        block('paragraph', {}, text('one')),
+        block('paragraph', {}),
+        block('paragraph', {}, text('&nbsp;')),
+        block('bulletItem', {}, text('x')),
+        block('bulletItem', {}, text('y')),
+        block('paragraph', {}, text('two')),
+      ),
+    );
+    const blocks = readBack(out);
+    expect(blocks.map((b) => `${b.type}:${textOf(b)}`)).toEqual([
+      'Text:one',
+      'Text:',
+      'Text:&nbsp;',
+      'BulletList:x',
+      'BulletList:y',
+      'Text:two',
+    ]);
+  });
+
+  it('keeps a column row in the run, separated like any other block', () => {
+    const cell = (...blocks: PMNode[]) => schema.nodes.columnGroup.create({ sid: 'c', id: 'c' }, [line(), ...blocks]);
+    const twoColumn = schema.nodes.twoColumn.create({ sid: 't', id: 't', splitRatio: 0.5 }, [
+      line(),
+      cell(block('bulletItem', {}, text('l1')), block('bulletItem', {}, text('l2'))),
+      cell(block('paragraph', {}, text('right'))),
+    ]);
+    expect(md.document(doc(block('bulletItem', {}, text('before')), twoColumn))).toBe('- before\n- l1\n- l2\n\nright');
   });
 });
 
@@ -164,7 +235,7 @@ describe('nested lists', () => {
 
   it('reads back through the block parser as the same tree', () => {
     const d = doc(item('bulletItem', 'a', item('numberedItem', 'b', item('bulletItem', 'c'))), item('bulletItem', 'd'));
-    const blocks = parseMarkdownToBlocks(md.document(d));
+    const blocks = readBack(md.document(d));
     expect(blocks.map((b) => b.type)).toEqual(['BulletList', 'BulletList']);
     expect(blocks[0].children?.map((b) => b.type)).toEqual(['NumberedList']);
     expect(blocks[0].children?.[0].children?.map((b) => b.type)).toEqual(['BulletList']);
@@ -187,10 +258,10 @@ describe('soft breaks', () => {
 
     const out = md.document(d);
     expect(out).toBe(
-      ['one\\', 'two', '## a\\', 'b', '- x\\', 'y', '1. n\\', 'm', '- [x] c\\', 'd', '> q\\', '> r'].join('\n'),
+      ['one\\', 'two', '', '## a\\', 'b', '', '- x\\', 'y', '1. n\\', 'm', '- [x] c\\', 'd', '', '> q\\', '> r'].join('\n'),
     );
 
-    const blocks = parseMarkdownToBlocks(out);
+    const blocks = readBack(out);
     expect(blocks.map((b) => b.type)).toEqual(['Text', 'Heading2', 'BulletList', 'NumberedList', 'Checklist', 'Quote']);
     expect(blocks.map(textOf)).toEqual(['one\ntwo', 'a\nb', 'x\ny', 'n\nm', 'c\nd', 'q\nr']);
   });
@@ -199,19 +270,18 @@ describe('soft breaks', () => {
     const d = doc(block('paragraph', {}, text('tail\n')), block('quote', {}, text('a\n\nb')), block('paragraph', {}, text('after')));
 
     const out = md.document(d);
-    expect(out).toBe(['tail\\', '', '> a\\', '> \\', '> b', 'after'].join('\n'));
+    expect(out).toBe(['tail\\', '', '', '> a\\', '> \\', '> b', '', 'after'].join('\n'));
 
-    // Read as a markdown document, where a trailing backslash is the writer's line break.
-    const blocks = parseMarkdownToBlocks(`# Doc\n\n${out}`).slice(1);
+    const blocks = readBack(out);
     expect(blocks.map((b) => b.type)).toEqual(['Text', 'Quote', 'Text']);
     expect(blocks.map(textOf)).toEqual(['tail\n', 'a\n\nb', 'after']);
   });
 
   it('keep a block ending in a literal backslash apart from the block after it', () => {
     const out = md.document(doc(block('paragraph', {}, text('path\\')), block('paragraph', {}, text('next'))));
-    expect(out).toBe('path\\\\\nnext');
+    expect(out).toBe('path\\\\\n\nnext');
 
-    const blocks = parseMarkdownToBlocks(out);
+    const blocks = readBack(out);
     expect(blocks.map(textOf)).toEqual(['path\\', 'next']);
   });
 
@@ -222,7 +292,7 @@ describe('soft breaks', () => {
     const out = md.document(doc(parent));
     expect(out).toBe('- outer\n  - in\\\n  ner');
 
-    const blocks = parseMarkdownToBlocks(out);
+    const blocks = readBack(out);
     expect(blocks).toHaveLength(1);
     expect(textOf(blocks[0].children![0])).toBe('in\nner');
   });
@@ -230,7 +300,7 @@ describe('soft breaks', () => {
   it('are dropped from an image caption, which markdown keeps on one line', () => {
     const out = md.document(doc(block('image', { path: 'p.png' }, text('top\nbottom'))));
     expect(out).toBe('![top bottom](p.png)');
-    expect(parseMarkdownToBlocks(out).map((b) => b.type)).toEqual(['Image']);
+    expect(readBack(out).map((b) => b.type)).toEqual(['Image']);
   });
 
   it('leave a caption its markers, since the reference is not a line of text', () => {
@@ -240,7 +310,7 @@ describe('soft breaks', () => {
     // neither reader's reference grammar admits one yet.)
     const out = md.document(doc(block('image', { path: 'p.png' }, text('- 1. a\\c *x*'))));
     expect(out).toBe('![- 1. a\\\\c *x*](p.png)');
-    const [only] = parseMarkdownToBlocks(out);
+    const [only] = readBack(out);
     expect(only.type).toBe('Image');
     expect(textOf(only)).toBe('- 1. a\\c *x*');
   });
@@ -253,9 +323,9 @@ describe('soft breaks', () => {
 
     const out = md.document(d);
     expect(out.split('\n')[1]).toBe('\\- item');
-    expect(out.split('\n')[7]).toBe('1\\. first');
+    expect(out.split('\n')[10]).toBe('1\\. first');
 
-    const blocks = parseMarkdownToBlocks(out);
+    const blocks = readBack(out);
     expect(blocks.map((b) => b.type)).toEqual(texts.map(() => 'Text'));
     expect(blocks.map(textOf)).toEqual(texts);
   });
@@ -268,9 +338,9 @@ describe('soft breaks', () => {
 
     const out = md.document(d);
     expect(out.split('\n')[1]).toBe(' \\- item');
-    expect(out.split('\n')[8]).toBe(' \\- item');
+    expect(out.split('\n')[12]).toBe(' \\- item');
 
-    const blocks = parseMarkdownToBlocks(out);
+    const blocks = readBack(out);
     expect(blocks.map((b) => b.type)).toEqual(texts.map(() => 'Text'));
     expect(blocks.map(textOf)).toEqual(['Hello\n- item', 'Hello\n# Title', 'Hello\n---', 'Hello\n> quoted', '- item', '1) first']);
   });
@@ -279,7 +349,7 @@ describe('soft breaks', () => {
     // CommonMark bounds an ordered marker at nine digits; the readers agree with the writer.
     const out = md.document(doc(block('paragraph', {}, text('1234567890. first'))));
     expect(out).toBe('1234567890. first');
-    const [only] = parseMarkdownToBlocks(out);
+    const [only] = readBack(out);
     expect(only.type).toBe('Text');
     expect(textOf(only)).toBe('1234567890. first');
   });
@@ -288,15 +358,15 @@ describe('soft breaks', () => {
     const out = md.document(doc(block('paragraph', {}, text('a\n- b', { bold: true }))));
     expect(out).toBe('**a\\\n\\- b**');
 
-    const [only] = parseMarkdownToBlocks(out);
+    const [only] = readBack(out);
     expect(only.spans).toEqual([text('a\n- b', { bold: true })]);
   });
 
   it('keep a text block that starts like a block a text block', () => {
     const out = md.document(doc(block('paragraph', {}, text('- not a bullet')), block('paragraph', {}, text('# not a heading'))));
-    expect(out).toBe('\\- not a bullet\n\\# not a heading');
+    expect(out).toBe('\\- not a bullet\n\n\\# not a heading');
 
-    const blocks = parseMarkdownToBlocks(out);
+    const blocks = readBack(out);
     expect(blocks.map((b) => b.type)).toEqual(['Text', 'Text']);
     expect(blocks.map(textOf)).toEqual(['- not a bullet', '# not a heading']);
   });
@@ -306,15 +376,15 @@ describe('soft breaks', () => {
     // marker keeps its newline and reads back as a break rather than a literal backslash.
     const d = doc(block('paragraph', {}, text('tail\n')));
     expect(md.document(d)).toBe('tail\\\n');
-    expect(parseMarkdownToBlocks(md.document(d)).map(textOf)).toEqual(['tail\n']);
+    expect(readBack(md.document(d)).map(textOf)).toEqual(['tail\n']);
 
     const two = doc(block('paragraph', {}, text('tail\n\n')));
     expect(md.document(two)).toBe('tail\\\n\\\n');
-    expect(parseMarkdownToBlocks(md.document(two)).map(textOf)).toEqual(['tail\n\n']);
+    expect(readBack(md.document(two)).map(textOf)).toEqual(['tail\n\n']);
 
     const heading = doc(block('heading', { level: 1 }, text('tail\n')));
     expect(md.document(heading)).toBe('# tail\\\n');
-    expect(parseMarkdownToBlocks(md.document(heading)).map(textOf)).toEqual(['tail\n']);
+    expect(readBack(md.document(heading)).map(textOf)).toEqual(['tail\n']);
   });
 
   it('survive inside inline code as a break between two spans', () => {
@@ -323,7 +393,7 @@ describe('soft breaks', () => {
     const out = md.document(doc(block('paragraph', {}, text('a\nb', { code: true }))));
     expect(out).toBe('`a`\\\n`b`');
 
-    const [only] = parseMarkdownToBlocks(out);
+    const [only] = readBack(out);
     expect(only.spans).toEqual([text('a', { code: true }), text('\n'), text('b', { code: true })]);
   });
 });

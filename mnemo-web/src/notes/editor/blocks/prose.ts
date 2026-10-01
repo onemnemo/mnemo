@@ -8,7 +8,7 @@
  */
 
 import type { Node as PMNode } from 'prosemirror-model';
-import type { AnyBlockModule } from '../registry/types';
+import type { AnyBlockModule, MdContext } from '../registry/types';
 import type { BlockType } from '../../model/types';
 import { defineBlock, lineOf, metrics, wrappedHeight, type BlockDeps } from './shared';
 import type { InvariantContribution } from '../registry/types';
@@ -16,6 +16,20 @@ import { markdownShortcutTriggers } from '../commands/markdown-shortcuts';
 import { convertHere } from './slash-insert';
 
 const emptyPayload = () => ({ type: 'Text' as BlockType, payload: { kind: 'empty' as const } });
+
+const EMPTY_PARAGRAPH = '&nbsp;';
+
+/**
+ * A blank line only separates blocks, so an empty paragraph is written as `&nbsp;`,
+ * which CommonMark readers also render as an empty paragraph, and a paragraph that
+ * literally reads `&nbsp;` is escaped so it does not come back empty. Plain text for
+ * people leaves the empty line blank instead.
+ */
+function paragraphMarkdown(inline: string, ctx: MdContext): string {
+  const trimmed = inline.trim();
+  if (trimmed === '') return ctx.emptyParagraph === 'blank' ? inline : EMPTY_PARAGRAPH;
+  return trimmed === EMPTY_PARAGRAPH ? inline.replace(EMPTY_PARAGRAPH, `\\${EMPTY_PARAGRAPH}`) : inline;
+}
 
 export function paragraphBlock(deps: BlockDeps): AnyBlockModule {
   return defineBlock(
@@ -25,7 +39,7 @@ export function paragraphBlock(deps: BlockDeps): AnyBlockModule {
       nodeOptions: { parseDOM: [{ tag: 'p' }], toDOM: () => ['p', 0] },
       attrsFrom: () => ({}),
       wireFrom: emptyPayload,
-      toMarkdown: (_node, _ctx, inline) => `${inline}\n`,
+      toMarkdown: (_node, ctx, inline) => `${paragraphMarkdown(inline, ctx)}\n`,
       // The markdown block shortcuts all launch from a paragraph, so the whole
       // set rides the paragraph module's triggers, which is what the input
       // plugin's per-block filter keys on.

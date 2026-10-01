@@ -135,6 +135,15 @@ describe('clipboardPlugin copy/cut', () => {
     expect(stashed?.slice.content.child(0).attrs.sid).toBe('s1');
   });
 
+  it('writes an empty paragraph as a blank line in the plain text, and keeps it in the exact slice', () => {
+    const view = mount(docOf(para('one', 's1'), para('', 's2'), para('two', 's3')), ['s1', 's2', 's3']);
+    const { data } = fire(view, 'copy');
+
+    expect(data.getData('text/plain')).toBe('one\n\n\n\ntwo');
+    const nonce = nonceOf(data.getData('text/html'));
+    expect(readStashedSlice(nonce!)?.slice.content.childCount).toBe(3);
+  });
+
   it('copies dispatches no document change', () => {
     const view = mount(docOf(para('one', 's1')), ['s1']);
     const before = view.state.doc;
