@@ -9,28 +9,31 @@
  * both axes are handled the one way that works for the harder one: a decoration
  * that adds a class to each cell a header row or a header column covers.
  *
- * Nothing here is stored. The class is recomputed from the table's own flags on
- * every document change, so it can never be a stale header left on a row that was
- * deleted or moved. This is the same shape as the numbered-list numbering, and it
- * belongs in both the read and the edit stacks: a header is part of how a note
- * reads, not a thing you can only see while editing.
+ * Nothing here is stored. The class is recomputed from the table's own flags in
+ * every top-level block a change touches, so it can never be a stale header left
+ * on a row that was deleted or moved. It belongs in both the read and the edit
+ * stacks: a header is part of how a note reads, not a thing you can only see
+ * while editing.
  */
 
 import { Plugin, PluginKey, type EditorState } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import { headerColumnsOf, headerRowsOf } from './model';
+import { hasAttributeStep, spansToRebuild, staleIn } from '../pipeline/rebuild-spans';
 
 const headerKey = new PluginKey<DecorationSet>('notes-table-headers');
 
 /**
- * A node decoration on every header cell in `doc`. Pure and view-free, so the
- * membership is testable without mounting anything.
+ * A node decoration on every header cell of the tables between `from` and `to`,
+ * the whole document by default. Pure and view-free, so the membership is
+ * testable without mounting anything.
  */
-export function tableHeaderDecorations(doc: PMNode): Decoration[] {
+export function tableHeaderDecorations(doc: PMNode, from = 0, to = doc.content.size): Decoration[] {
   const decos: Decoration[] = [];
 
-  doc.descendants((node, pos) => {
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (node.isTextblock || node.isLeaf) return false;
     if (node.type.name !== 'table') return true;
     const headerRows = headerRowsOf(node);
     const headerColumns = headerColumnsOf(node);
@@ -70,7 +73,13 @@ export function tableHeaderPlugin(): Plugin<DecorationSet> {
       init: (_config, state) => DecorationSet.create(state.doc, tableHeaderDecorations(state.doc)),
       apply(tr, old, _oldState, newState) {
         if (!tr.docChanged) return old;
-        return DecorationSet.create(newState.doc, tableHeaderDecorations(newState.doc));
+        if (hasAttributeStep(tr)) return DecorationSet.create(newState.doc, tableHeaderDecorations(newState.doc));
+        let next = old.map(tr.mapping, newState.doc);
+        for (const span of spansToRebuild(newState.doc, tr)) {
+          next = next.remove(staleIn(next, span));
+          next = next.add(newState.doc, tableHeaderDecorations(newState.doc, span.from, span.to));
+        }
+        return next;
       },
     },
     props: {

@@ -13,13 +13,15 @@
 
 import type { Node as PMNode } from 'prosemirror-model';
 import { Selection, type EditorState } from 'prosemirror-state';
-import type { EditorView } from 'prosemirror-view';
+import type { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import type { BlockRegistry } from './registry/build';
 import type { DocumentMapper } from './mapper/document';
 import { walkBlocks } from './projection/document';
 import { isWellFormedBlockSid } from '../model/sid';
 import { parseBlocks, serializeBlocks } from '../model/wire';
 import { heightEstimator, NOTE_CONTENT_WIDTH } from './view/reserved-height';
+import { tableHeaderDecorations } from './table/header-decorations';
+import { columnSplitterDecorations } from './pipeline/column-splitter';
 
 export interface Failure {
   /** Which invariant broke. */
@@ -323,6 +325,41 @@ export function checkReservedHeights(view: EditorView, registry: BlockRegistry):
       });
     }
   });
+  return failures;
+}
+
+// ---------------------------------------------------------------------------
+// Range-local decoration sets
+// ---------------------------------------------------------------------------
+
+function describeDecorations(decos: readonly Decoration[]): string[] {
+  return decos
+    .map((deco) => {
+      const key = (deco.spec as { key?: string }).key;
+      const attrs = (deco as unknown as { type: { attrs?: { class?: string } } }).type.attrs;
+      return `${String(deco.from)}-${String(deco.to)}:${key ?? attrs?.class ?? ''}`;
+    })
+    .sort();
+}
+
+const rangeLocalSets: readonly (readonly [string, (doc: PMNode) => Decoration[]])[] = [
+  ['notes-table-headers', tableHeaderDecorations],
+  ['notes-column-splitter', columnSplitterDecorations],
+];
+
+/** The sets mapped and rebuilt per change equal a rebuild of the whole document. */
+export function checkRangeLocalDecorations(state: EditorState): Failure[] {
+  const failures: Failure[] = [];
+  for (const [key, rebuild] of rangeLocalSets) {
+    const plugin = state.plugins.find((p) => (p as unknown as { key: string }).key.startsWith(key));
+    const set = plugin?.getState(state) as DecorationSet | undefined;
+    if (!set) continue;
+    const held = describeDecorations(set.find());
+    const whole = describeDecorations(rebuild(state.doc));
+    if (held.join() !== whole.join()) {
+      failures.push({ check: 'range-local', klass: `range-local:${key}`, detail: `${key} holds ${held.join(' ')}, a rebuild gives ${whole.join(' ')}` });
+    }
+  }
   return failures;
 }
 

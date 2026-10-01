@@ -20,6 +20,7 @@ import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import { displaySplitRatio } from '../blocks/columns';
 import { asOwnUndoStep } from '../history';
+import { hasAttributeStep, spansToRebuild, staleIn } from './rebuild-spans';
 
 const splitterKey = new PluginKey<DecorationSet>('notes-column-splitter');
 
@@ -122,9 +123,10 @@ function buildSplitter(view: EditorView, getPos: () => number | undefined): HTML
  * own line and the entire left cell, which is exactly the seam between the two
  * rendered `[data-column]` elements.
  */
-export function columnSplitterDecorations(doc: PMNode): Decoration[] {
+export function columnSplitterDecorations(doc: PMNode, from = 0, to = doc.content.size): Decoration[] {
   const decos: Decoration[] = [];
-  doc.descendants((node, pos) => {
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (node.isTextblock || node.isLeaf) return false;
     if (node.type.name !== 'twoColumn') return true;
     const widgetPos = pos + 1 + node.child(0).nodeSize + node.child(1).nodeSize;
     const sid = String(node.attrs.sid ?? '');
@@ -146,7 +148,7 @@ export function columnSplitterDecorations(doc: PMNode): Decoration[] {
   return decos;
 }
 
-/** Rebuilds the splitter set on any document change, like the other decoration plugins. */
+/** Maps the splitter set through each change and rebuilds it only in the top-level blocks the change touched. */
 export function columnSplitterPlugin(): Plugin<DecorationSet> {
   return new Plugin<DecorationSet>({
     key: splitterKey,
@@ -155,7 +157,13 @@ export function columnSplitterPlugin(): Plugin<DecorationSet> {
         DecorationSet.create(state.doc, columnSplitterDecorations(state.doc)),
       apply(tr, old, _oldState, newState) {
         if (!tr.docChanged) return old;
-        return DecorationSet.create(newState.doc, columnSplitterDecorations(newState.doc));
+        if (hasAttributeStep(tr)) return DecorationSet.create(newState.doc, columnSplitterDecorations(newState.doc));
+        let next = old.map(tr.mapping, newState.doc);
+        for (const span of spansToRebuild(newState.doc, tr)) {
+          next = next.remove(staleIn(next, span));
+          next = next.add(newState.doc, columnSplitterDecorations(newState.doc, span.from, span.to));
+        }
+        return next;
       },
     },
     props: {

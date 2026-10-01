@@ -1,8 +1,8 @@
 /**
  * The range-local rebuild helper shared by every decoration plugin that maps
  * its set through a transaction and rebuilds only the top-level blocks the
- * transaction touched, rather than the whole document, as the code
- * highlighter's token colours do.
+ * transaction touched, rather than the whole document: the code highlighter's
+ * token colours, the table header surfaces and the column splitters.
  *
  * The widening predicate is an inclusive "touching, not merely overlapping"
  * test, checked per block against every changed range rather than per range
@@ -11,6 +11,7 @@
  */
 
 import type { Transaction } from 'prosemirror-state';
+import { AttrStep, DocAttrStep } from 'prosemirror-transform';
 import type { Node as PMNode } from 'prosemirror-model';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import { changedRanges, type DocRange } from './invariants';
@@ -45,6 +46,15 @@ export function spansToRebuild(doc: PMNode, tr: Transaction): DocRange[] {
     offset = end;
   }
   return spans;
+}
+
+/**
+ * Whether the transaction changed attributes through a step that maps no range.
+ * `changedRanges` cannot see such a change, so a range-local plugin has to
+ * rebuild from scratch.
+ */
+export function hasAttributeStep(tr: Transaction): boolean {
+  return tr.steps.some((step) => step instanceof AttrStep || step instanceof DocAttrStep);
 }
 
 /**

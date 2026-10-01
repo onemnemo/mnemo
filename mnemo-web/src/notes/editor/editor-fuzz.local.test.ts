@@ -37,7 +37,7 @@ import { defaultTextStyle, type Block, type BlockPayload, type BlockType, type I
 import { blockSidLength, mintSid } from '../model/sid';
 import { makeRng, type Rng } from './editor-fuzz-random';
 import { applyOp, describeOp, generateOp, type FuzzContext, type FuzzOp } from './editor-fuzz-ops';
-import { checkReservedHeights, describeDifference, runChecks, type Failure } from './editor-fuzz-checks';
+import { checkRangeLocalDecorations, checkReservedHeights, describeDifference, runChecks, type Failure } from './editor-fuzz-checks';
 
 /** A difference message reduced to the shape of the difference, for grouping. */
 function normalizeDifference(difference: string): string {
@@ -388,6 +388,7 @@ function runSequence(options: RunOptions): RunOutcome {
       const observed = [
         ...runChecks(harness.view.state, harness.registry, harness.mapper),
         ...checkReservedHeights(harness.view, harness.registry),
+        ...checkRangeLocalDecorations(harness.view.state),
       ];
       for (const failure of observed) {
         if (NON_BLOCKING.has(failure.check) && !notes.has(failure.klass)) {
