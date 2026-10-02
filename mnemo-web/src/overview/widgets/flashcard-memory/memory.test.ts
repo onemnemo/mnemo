@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { weightedRetention, type DeckRetention } from "./memory"
+import { trendDelta, weightedRetention, type DeckRetention } from "./memory"
 
 const deck = (deckId: string, retentionPercent: number, volume: number): DeckRetention => ({
   deckId,
@@ -48,5 +48,23 @@ describe("weightedRetention", () => {
     const result = weightedRetention([deck("first", 90, 20), deck("second", 60, 20)])
 
     expect(result?.busiest.deckId).toBe("first")
+  })
+})
+
+describe("trendDelta", () => {
+  it("reads the move between the first and last days that had reviews", () => {
+    expect(trendDelta([null, 80, 85, null, 90, null])).toBe(10)
+  })
+
+  it("does not read a quiet morning as a crash to zero", () => {
+    expect(trendDelta([88, 90, 92, null])).toBe(4)
+  })
+
+  it("keeps a real zero as a real point", () => {
+    expect(trendDelta([80, 0])).toBe(-80)
+  })
+
+  it("is flat with fewer than two real points", () => {
+    expect(trendDelta([null, 70, null])).toBe(0)
   })
 })

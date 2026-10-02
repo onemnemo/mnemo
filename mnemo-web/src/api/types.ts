@@ -70,13 +70,6 @@ export interface MoveDeckDto {
   sortOrder: number
 }
 
-/** Mirrors Mnemo.Host/Contracts/FlashcardLibraryDto.cs RetentionTrendPointDto. */
-export interface RetentionTrendPointDto {
-  day: string
-  retentionPercent: number
-  reviewsCount: number
-}
-
 /**
  * Mirrors Mnemo.Host/Contracts/ForecastDayDto.cs. One column of the review forecast; `day` is a
  * bare UTC date, the same key shape the statistics records carry.
@@ -484,7 +477,8 @@ export interface TestSummaryDto {
  */
 export interface RetentionTrendPointDto {
   day: string
-  retentionPercent: number
+  /** Null on a day with no reviews: no data, not 0%. */
+  retentionPercent: number | null
   reviewsCount: number
 }
 

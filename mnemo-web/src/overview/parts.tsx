@@ -5,6 +5,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
+import { sparkRuns } from "./spark"
 import type { WidgetManifest } from "./widgets/manifest"
 
 /** The widget's own display name. Every widget draws its own heading, so every widget needs this. */
@@ -208,29 +209,24 @@ export function Ring({
  * by showing direction in a glance; the moment it needs a legend it should have
  * been a chart.
  */
-export function Spark({ values, className }: { values: number[]; className?: string }) {
-  if (values.length < 2) return null
-
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const span = max - min || 1
-  const points = values.map((value, index) => {
-    const x = (index / (values.length - 1)) * 100
-    const y = 100 - ((value - min) / span) * 100
-    return `${x},${y}`
-  })
+export function Spark({ values, className }: { values: readonly (number | null)[]; className?: string }) {
+  const runs = sparkRuns(values)
+  if (!runs.length) return null
 
   return (
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" className={cn("h-full w-full", className)} aria-hidden>
-      <polyline
-        points={points.join(" ")}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-      />
+      {runs.map((points) => (
+        <polyline
+          key={points}
+          points={points}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
     </svg>
   )
 }

@@ -50,3 +50,16 @@ export function weightedRetention(decks: readonly DeckRetention[]): WeightedRete
   // what the desktop asks for explicitly.
   return { retentionPercent: Math.round(weightedSum / totalVolume), busiest }
 }
+
+/**
+ * How far a trend moved across its window, in percentage points, read between the first and last
+ * days that had reviews. A day without reviews has no retention, so it can be neither end.
+ *
+ * The endpoints rather than a fitted slope: the widget's own sentence is "up 2.4 points over
+ * fourteen days", and a slope answers a different question than the one being printed.
+ */
+export function trendDelta(trend: readonly (number | null)[]): number {
+  const real = trend.filter((value): value is number => value !== null)
+  if (real.length < 2) return 0
+  return real[real.length - 1] - real[0]
+}

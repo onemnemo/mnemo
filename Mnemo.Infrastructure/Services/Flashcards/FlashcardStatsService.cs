@@ -82,7 +82,7 @@ public sealed class FlashcardStatsService : IFlashcardStatsService
             for (var i = 0; i < span; i++)
             {
                 var sample = samples[i];
-                var pct = sample.Total == 0 ? 0 : (int)Math.Round(100.0 * sample.Passed / sample.Total, MidpointRounding.AwayFromZero);
+                int? pct = sample.Total == 0 ? null : (int)Math.Round(100.0 * sample.Passed / sample.Total, MidpointRounding.AwayFromZero);
                 points.Add(new FlashcardRetentionTrendPoint(start.AddDays(i), pct, sample.Total));
             }
             return points;

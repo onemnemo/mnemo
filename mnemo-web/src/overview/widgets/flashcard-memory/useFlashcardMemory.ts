@@ -6,7 +6,7 @@ import type { DeckSummaryDto } from "@/api/types"
 import { fetchRetentionTrend, useDecksQuery } from "@/flashcards/api"
 
 import { deckFanOutKey, deckFanOutRoot } from "../../api"
-import { weightedRetention, type DeckRetention } from "./memory"
+import { trendDelta, weightedRetention, type DeckRetention } from "./memory"
 
 /** The window the retention figure and the weights are measured over. */
 const RETENTION_DAYS = 30
@@ -19,8 +19,8 @@ const FAN_OUT = "retention"
 export interface FlashcardMemoryData {
   state: "loading" | "error" | "empty" | "ready"
   retentionPercent: number
-  /** The busiest deck's recent retention, 0 to 100, oldest first. */
-  trend: number[]
+  /** The busiest deck's recent retention, 0 to 100, oldest first; null on a day with no reviews. */
+  trend: (number | null)[]
   trendDeckName: string
   /** How far the trend has moved across its window, in percentage points. */
   trendDelta: number
@@ -29,20 +29,9 @@ export interface FlashcardMemoryData {
   retry: () => void
 }
 
-/**
- * How far a trend moved end to end, in percentage points.
- *
- * The endpoints rather than a fitted slope: the widget's own sentence is "up 2.4 points over
- * fourteen days", and a slope answers a different question than the one being printed.
- */
-export function trendDelta(trend: readonly number[]): number {
-  if (trend.length < 2) return 0
-  return trend[trend.length - 1] - trend[0]
-}
-
 interface MemoryResult {
   retentionPercent: number
-  trend: number[]
+  trend: (number | null)[]
   trendDeckName: string
 }
 

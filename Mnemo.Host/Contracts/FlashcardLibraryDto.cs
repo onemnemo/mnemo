@@ -31,8 +31,9 @@ public sealed record MoveDeckDto(string? FolderId, int SortOrder);
 /// <summary>
 /// A day on the retention trend. <c>Day</c> is an ISO date (the domain models it as a
 /// <c>DateOnly</c>, which carries no time or zone and must not gain one on the wire).
+/// <c>RetentionPercent</c> is null on a day with no reviews and is always written, null included.
 /// </summary>
-public sealed record RetentionTrendPointDto(string Day, int RetentionPercent, int ReviewsCount)
+public sealed record RetentionTrendPointDto(string Day, int? RetentionPercent, int ReviewsCount)
 {
     public static RetentionTrendPointDto FromModel(FlashcardRetentionTrendPoint model)
         => new(model.Day.ToString("yyyy-MM-dd"), model.RetentionPercent, model.ReviewsCount);

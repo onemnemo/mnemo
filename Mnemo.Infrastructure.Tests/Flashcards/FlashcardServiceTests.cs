@@ -267,6 +267,27 @@ public sealed class FlashcardServiceTests
     }
 
     [Fact]
+    public async Task RetentionTrend_ADayWithoutReviewsIsNoData_NotZeroPercent()
+    {
+        await using var h = new FlashcardStoreHarness(new DateTimeOffset(2026, 3, 10, 12, 0, 0, TimeSpan.Zero));
+        var deckId = await h.SeedDeckAsync();
+        var stats = new FlashcardStatsService(h.Store, h.Reviews, h.TestAttempts, h.Decks, h.Presets, h.Clock);
+
+        // Every answer today failed, so today is a real 0%; yesterday nobody studied at all.
+        await h.Store.WriteAsync((c, tx, ct) => h.Reviews.AppendAsync(c, tx, new FlashcardReviewLog(
+            FlashcardReviewLog.Unassigned, "c0", deckId, "s1", FlashcardReviewGrade.Again, h.Clock.Now, 0, 1, null, null,
+            FlashcardFsrsState.Review, FlashcardFsrsState.Review), ct));
+
+        var trend = await stats.GetRetentionTrendAsync(deckId, days: 2);
+
+        Assert.Equal(2, trend.Count);
+        Assert.Null(trend[0].RetentionPercent);
+        Assert.Equal(0, trend[0].ReviewsCount);
+        Assert.Equal(0, trend[1].RetentionPercent);
+        Assert.Equal(1, trend[1].ReviewsCount);
+    }
+
+    [Fact]
     public async Task TestSummary_ReportsLatestPreviousAndBest()
     {
         await using var h = new FlashcardStoreHarness();
