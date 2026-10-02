@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { ApiError } from "@/api/client"
 import { describeError } from "@/api/error-copy"
@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
 import { useT } from "@/i18n/useT"
 import { useI18nStore } from "@/i18n/store"
-import type { TranslateFn } from "@/i18n/types"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
 
@@ -20,42 +19,14 @@ import {
   consumeRestoreStatus,
   getBackupRestoreState,
   type BackupInspection,
-  type RestoreStatus,
   restartForBackupRestore,
   selectBackup,
   stageBackupRestore,
 } from "../../backup-api"
 import { openHostFolder } from "../../folders"
+import { announceRestoreOutcome } from "../../restore-outcome"
 import { useProfileBackup } from "../../useProfileBackup"
 import { Row, Section } from "../kit"
-
-function announceRestoreOutcome(t: TranslateFn, status: RestoreStatus): void {
-  if (status.success) {
-    toast.success(t("Settings", "RestoreComplete"), {
-      description: t("Settings", "RestoreCompleteDescription", {
-        folder: status.recoveryDirectoryName ?? "",
-      }),
-    })
-    return
-  }
-
-  const discardedDescription =
-    status.code === "restore_instance_running"
-      ? "RestoreDiscardedInstanceRunning"
-      : status.code === "restore_request_invalid"
-        ? "RestoreDiscardedRequestInvalid"
-        : null
-  if (discardedDescription) {
-    toast.warning(t("Settings", "RestoreFailed"), {
-      description: t("Settings", discardedDescription),
-    })
-    return
-  }
-
-  toast.warning(t("Settings", "RestoreRolledBack"), {
-    description: t("Settings", "RestoreRolledBackDescription"),
-  })
-}
 
 export function StorageDataPage() {
   const t = useT()
@@ -64,15 +35,6 @@ export function StorageDataPage() {
   const [busy, setBusy] = useState<"select" | "restore" | null>(null)
   const [selection, setSelection] = useState<{ grant: string; inspection: BackupInspection } | null>(null)
   const working = backup.busy || busy !== null
-
-  useEffect(() => {
-    void consumeRestoreStatus().then((status) => {
-      if (!status) return
-      announceRestoreOutcome(t, status)
-    }).catch((error: unknown) => {
-      console.error("[backup] could not read the restore outcome", error)
-    })
-  }, [t])
 
   async function chooseBackup() {
     setBusy("select")

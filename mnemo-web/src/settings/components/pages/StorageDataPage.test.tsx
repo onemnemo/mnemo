@@ -299,9 +299,8 @@ describe("StorageDataPage", () => {
     }
     mocks.restartForBackupRestore.mockRejectedValue(new TypeError("network closed"))
     mocks.getBackupRestoreState.mockResolvedValue({ staged: false, restartRequested: false })
-    await renderPage()
-    await vi.waitFor(() => expect(mocks.consumeRestoreStatus).toHaveBeenCalledOnce())
     mocks.consumeRestoreStatus.mockResolvedValue(status)
+    await renderPage()
     await press("ChooseBackup")
 
     await press("RestoreBackup")
@@ -313,54 +312,9 @@ describe("StorageDataPage", () => {
     expect(container.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it("reports and consumes a completed restore outcome", async () => {
-    mocks.consumeRestoreStatus.mockResolvedValue({
-      success: true,
-      code: "restore_complete",
-      recoveryDirectoryName: "recovery-copy",
-      backupCreatedAtUtc: "2026-09-11T12:00:00Z",
-      backupAppVersion: "0.8.0-beta",
-    })
-
+  it("leaves the outcome of an earlier restore to the app start", async () => {
     await renderPage()
 
-    expect(mocks.success).toHaveBeenCalledWith("RestoreComplete", {
-      description: "RestoreCompleteDescription:recovery-copy",
-    })
-    expect(mocks.consumeRestoreStatus).toHaveBeenCalledOnce()
-  })
-
-  it("reports a restore that was rolled back", async () => {
-    mocks.consumeRestoreStatus.mockResolvedValue({
-      success: false,
-      code: "restore_interrupted_rolled_back",
-      recoveryDirectoryName: "recovery-copy",
-      backupCreatedAtUtc: null,
-      backupAppVersion: null,
-    })
-
-    await renderPage()
-
-    expect(mocks.warning).toHaveBeenCalledWith("RestoreRolledBack", {
-      description: "RestoreRolledBackDescription",
-    })
-  })
-
-  it.each([
-    ["restore_instance_running", "RestoreDiscardedInstanceRunning"],
-    ["restore_request_invalid", "RestoreDiscardedRequestInvalid"],
-  ])("reports why a staged restore was discarded for %s", async (code, description) => {
-    mocks.consumeRestoreStatus.mockResolvedValue({
-      success: false,
-      code,
-      recoveryDirectoryName: null,
-      backupCreatedAtUtc: null,
-      backupAppVersion: null,
-    })
-
-    await renderPage()
-
-    expect(mocks.warning).toHaveBeenCalledWith("RestoreFailed", { description })
-    expect(mocks.warning).not.toHaveBeenCalledWith("RestoreRolledBack", expect.anything())
+    expect(mocks.consumeRestoreStatus).not.toHaveBeenCalled()
   })
 })

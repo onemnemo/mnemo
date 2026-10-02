@@ -23,6 +23,7 @@ import { installNativeDropGuard } from "@/lib/native-drop"
 import { installNativeKeyGuard } from "@/lib/native-keys"
 import { installContextMenuGuard } from "@/lib/native-menu"
 import { OnboardingWizard } from "@/onboarding/OnboardingWizard"
+import { announcePendingRestoreOutcome } from "@/settings/restore-outcome"
 import { dialog } from "@/stores/dialog"
 import { usePaletteStore } from "@/stores/palette"
 import { useSomaStore } from "@/stores/soma"
@@ -60,6 +61,9 @@ function App() {
   // Runs on every boot; the host answers true at most once ever, so this never repeats
   // the warning once it has been shown.
   useEffect(() => checkLegacyInstallWarning(), [])
+
+  // A restore finishes across a restart, and the window reopens wherever the launch lands.
+  useEffect(() => announcePendingRestoreOutcome(), [])
 
   // So a report of a blank or broken window has an engine and a user agent in the
   // host log to match against.
