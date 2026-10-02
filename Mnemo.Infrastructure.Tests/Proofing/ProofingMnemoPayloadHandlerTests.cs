@@ -109,6 +109,40 @@ public sealed class ProofingMnemoPayloadHandlerTests
         Assert.Equal("1", warning.Params["count"]);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AShareOfChosenNotesLeavesTheDictionaryBehind(bool namesANote)
+    {
+        var (handler, _, _, _) = await SourceAsync().ConfigureAwait(false);
+        var options = new MnemoPackageExportOptions();
+        string[] noteIds = namesANote ? ["note-a"] : [];
+        options.PayloadOptions[MnemoPayloadOptionKeys.NoteIds] = noteIds;
+
+        var exported = await handler.ExportAsync(new MnemoPayloadExportContext { Options = options }).ConfigureAwait(false);
+
+        var (target, personal, languages, _) = Empty();
+        await target.ImportAsync(Import(exported)).ConfigureAwait(false);
+        Assert.Empty(await personal.ListAsync(CancellationToken.None));
+        Assert.DoesNotContain("Ordbanken", Encoding.UTF8.GetString(exported.Files["proofing.json"]));
+        if (noteIds.Length > 0)
+            Assert.NotNull(await languages.GetAsync("note-a", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ABackupKeepsTheDictionaryEvenWhenItNamesNotes()
+    {
+        var (handler, _, _, _) = await SourceAsync().ConfigureAwait(false);
+        var options = new MnemoPackageExportOptions { Kind = MnemoPackageKinds.Backup };
+        options.PayloadOptions[MnemoPayloadOptionKeys.NoteIds] = new[] { "note-a" };
+
+        var exported = await handler.ExportAsync(new MnemoPayloadExportContext { Options = options }).ConfigureAwait(false);
+
+        var (target, personal, _, _) = Empty();
+        await target.ImportAsync(Import(exported)).ConfigureAwait(false);
+        Assert.Equal(2, (await personal.ListAsync(CancellationToken.None)).Count);
+    }
+
     private static async Task<(ProofingMnemoPayloadHandler Handler, PersonalDictionaryService Personal,
         NoteLanguageService Languages, NoteIgnoreService Ignores)> SourceAsync()
     {

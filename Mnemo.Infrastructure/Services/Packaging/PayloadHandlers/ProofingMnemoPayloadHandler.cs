@@ -17,9 +17,10 @@ namespace Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 /// </para>
 /// <para>
 /// The per-note halves are keyed by note id and travel with the notes payload, so an export limited
-/// to a selection carries only those notes' choices. On the way back in they follow whatever the
-/// notes payload renamed, because a note that landed under a fresh id would otherwise hand its
-/// languages and its ignored words to the unrelated note that already held the old one.
+/// to a selection carries only those notes' choices and no dictionary. On the way back in they
+/// follow whatever the notes payload renamed, because a note that landed under a fresh id would
+/// otherwise hand its languages and its ignored words to the unrelated note that already held the
+/// old one.
 /// </para>
 /// <para>
 /// A restored word carries the date it was restored. The package records when it was first added,
@@ -58,13 +59,15 @@ public sealed class ProofingMnemoPayloadHandler : IMnemoPayloadHandler
         var languages = await _noteLanguages.GetAllAsync(cancellationToken).ConfigureAwait(false);
         var ignores = await _noteIgnores.GetAllAsync(cancellationToken).ConfigureAwait(false);
 
-        // The dictionary is the user's own vocabulary and belongs to the whole profile, so it is
-        // carried whole. The per-note halves belong to the notes the package holds, and a package
-        // holding one note has no business carrying every other note's choices.
+        // The per-note halves belong to the notes the package holds, and a package holding one note
+        // has no business carrying every other note's choices. The dictionary belongs to the whole
+        // profile, so only a full backup carries it; a notes export is something that gets shared.
         var selectedNotes = ResolveSelectedNoteIds(context.Options);
-        var payloadWords = words
-            .Select(w => new ProofingPayloadWord { Word = w.Word, Language = w.Language, AddedAt = w.AddedAt })
-            .ToList();
+        var payloadWords = IsShareShaped(context.Options)
+            ? []
+            : words
+                .Select(w => new ProofingPayloadWord { Word = w.Word, Language = w.Language, AddedAt = w.AddedAt })
+                .ToList();
         var payloadLanguages = languages
             .Where(pair => selectedNotes.Count == 0 || selectedNotes.Contains(pair.Key))
             .ToDictionary(
@@ -194,6 +197,11 @@ public sealed class ProofingMnemoPayloadHandler : IMnemoPayloadHandler
     {
         return renames is not null && renames.TryGetValue(packagedNoteId, out var stored) ? stored : packagedNoteId;
     }
+
+    /// <summary>True for an export limited to chosen notes.</summary>
+    private static bool IsShareShaped(MnemoPackageExportOptions options) =>
+        !string.Equals(options.Kind, MnemoPackageKinds.Backup, StringComparison.OrdinalIgnoreCase)
+        && options.PayloadOptions.ContainsKey(MnemoPayloadOptionKeys.NoteIds);
 
     /// <summary>The notes the export was limited to, empty when it covers the whole profile.</summary>
     private static HashSet<string> ResolveSelectedNoteIds(MnemoPackageExportOptions options)

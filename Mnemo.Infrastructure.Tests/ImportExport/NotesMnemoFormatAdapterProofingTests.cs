@@ -71,6 +71,29 @@ public sealed class NotesMnemoFormatAdapterProofingTests
     }
 
     [Fact]
+    public async Task SharingOneNoteDoesNotSendThePersonalDictionary()
+    {
+        var source = new Profile();
+        await source.AddNoteAsync("note-a", "Shared");
+        await source.Personal.AddAsync("Ordbanken", null, CancellationToken.None);
+
+        using var package = new PackageFile();
+        var export = await source.Adapter.ExportAsync(new ImportExportRequest
+        {
+            FilePath = package.Path,
+            Payload = new Note { NoteId = "note-a", Title = "Shared" }
+        });
+        Assert.True(export.Success);
+
+        var target = new Profile();
+        var import = await target.Adapter.ImportAsync(new ImportExportRequest { FilePath = package.Path });
+
+        Assert.True(import.Success);
+        Assert.NotNull(await target.Notes.GetNoteAsync("note-a"));
+        Assert.Empty(await target.Personal.ListAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task TheChoicesFollowANoteThatHadToBeStoredUnderANewId()
     {
         var source = new Profile();
