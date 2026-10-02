@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu"
 import { Skeleton } from "@/components/ui/skeleton"
+import { formatCount } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
@@ -150,8 +151,8 @@ export function LibraryPage() {
           <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-ink">{fc("Title")}</h1>
           <p className="mt-0.5 text-[13px] text-ink-2">
             {fc("DeckCountCardCountFormat", {
-              0: model.totals.deckCount,
-              1: model.totals.cardCount.toLocaleString(),
+              0: formatCount(model.totals.deckCount),
+              1: formatCount(model.totals.cardCount),
             })}
           </p>
         </div>

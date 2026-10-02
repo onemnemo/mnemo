@@ -6,6 +6,7 @@ import type { CardTypeLayoutDto } from "@/api/types"
 import { onDirtyCheck } from "@/app/shutdown"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
@@ -202,7 +203,13 @@ export function CardTypeManager({
             ? await ask("CardTypesRequiresChange", required, draft.name, count)
             : await dialog.confirm({
                 title: fc("CardTypesUnlistedCardsTitle"),
-                message: fc("CardTypesUnlistedCardsMessage", { 0: draft.name.trim(), 1: count }),
+                message: tPlural(
+                  t,
+                  "Flashcards",
+                  { one: "CardTypesUnlistedCardsOne", many: "CardTypesUnlistedCardsMany" },
+                  count,
+                  { 0: draft.name.trim() },
+                ),
                 confirmLabel: fc("CardTypesUnlistedCardsConfirm"),
                 cancelLabel: t("Common", "Cancel"),
                 destructive: true,

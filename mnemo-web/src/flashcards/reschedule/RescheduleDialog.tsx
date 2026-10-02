@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/modal"
 import { Segmented, type SegmentedOption } from "@/components/ui/segmented"
 import { Switch } from "@/components/ui/switch"
 import { useI18nStore } from "@/i18n/store"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { toast } from "@/stores/toast"
@@ -105,7 +106,7 @@ export function RescheduleDialog({
       open
       onClose={() => !reschedule.isPending && onClose()}
       title={fc("RescheduleTitle")}
-      subtitle={views.length === 1 ? fc("RescheduleSelectedOne") : fc("RescheduleSelectedFormat", { 0: views.length })}
+      subtitle={tPlural(t, "Flashcards", { one: "RescheduleSelectedOne", many: "RescheduleSelectedMany" }, views.length, undefined, locale)}
       closeLabel={t("Common", "Close")}
       width={560}
       footer={

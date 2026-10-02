@@ -224,7 +224,7 @@ public sealed class FlashcardAnkiClozeImportTests
 
             var page = await cardService.ListCardsAsync(new FlashcardCardQuery(deck.Id));
             Assert.Equal(3, page.Items.Count);
-            Assert.Contains(result.Warnings, w => w.Key == "AnkiClozeSiblingsFiledTogether");
+            Assert.Contains(result.Warnings, w => w.Key == "AnkiClozeSiblingsFiledTogetherMany");
         }
         finally
         {

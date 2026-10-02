@@ -8,6 +8,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
@@ -55,11 +56,12 @@ export function PresetSidebar({
             draft={draft}
             selected={draft.key === selectedKey}
             renaming={draft.key === renamingKey}
-            deckCountLabel={
-              draft.deckCount === 1
-                ? fc("ReviewSettingsDeckCountSingular")
-                : fc("ReviewSettingsDeckCountFormat", { 0: draft.deckCount })
-            }
+            deckCountLabel={tPlural(
+              t,
+              "Flashcards",
+              { one: "ReviewSettingsDeckCountOne", many: "ReviewSettingsDeckCountMany" },
+              draft.deckCount,
+            )}
             onSelect={() => onSelect(draft.key)}
             onBeginRename={() => onBeginRename(draft.key)}
             onCommitRename={(name) => onCommitRename(draft.key, name)}

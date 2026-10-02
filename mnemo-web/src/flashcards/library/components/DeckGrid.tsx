@@ -2,6 +2,7 @@ import type { DeckSummaryDto } from "@/api/types"
 import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
+import { formatCount, pluralKey } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 
 import { Counts, MixBar, Ring, retentionReading } from "../../bits"
@@ -83,7 +84,7 @@ function DeckTile({
           <span className="block truncate text-[12px] text-ink-3">
             {folderName ?? fc("NoFolder")}
             {" · "}
-            {fc("DeckCardCountFormat", { 0: deck.totalCards.toLocaleString() })}
+            {fc(pluralKey({ one: "DeckCardCountOne", many: "DeckCardCountMany" }, deck.totalCards), { count: formatCount(deck.totalCards) })}
           </span>
         </span>
 

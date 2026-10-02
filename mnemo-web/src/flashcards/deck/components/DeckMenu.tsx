@@ -2,6 +2,7 @@ import type { DeckSummaryDto } from "@/api/types"
 import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuSubMenu, MenuTrigger } from "@/components/ui/menu"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
@@ -60,7 +61,7 @@ export function DeckMenu({ deck }: { deck: DeckSummaryDto }) {
     await suspendCards.mutateAsync({ cardIds: ids, value: true })
     // The whole deck just went quiet with nothing else on screen to show for it, unlike
     // a selection bar action where the checked rows visibly change state right there.
-    toast.success(ids.length === 1 ? fc("SuspendAllCardsDoneOne") : fc("SuspendAllCardsDoneFormat", { 0: ids.length }))
+    toast.success(tPlural(t, "Flashcards", { one: "SuspendAllCardsDoneOne", many: "SuspendAllCardsDoneMany" }, ids.length))
   }
 
   const remove = async () => {

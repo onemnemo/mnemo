@@ -375,8 +375,11 @@ public sealed class FlashcardAnkiDeckStructureTests
             Assert.True(result.Success, result.ErrorMessage);
 
             // Leaving the reference on the card with nothing said reads as a rendering bug.
-            var warning = Assert.Single(result.Warnings, w => w.Key == "AnkiAudioNotImported");
+            var warning = Assert.Single(result.Warnings, w => w.Key == "AnkiAudioNotImportedMany");
             Assert.Equal("1", warning.Params["count"]);
+            // One card reads the singular, not "1 card(s)".
+            Assert.Equal("AnkiAudioNotImportedOne", warning.OneKey);
+            Assert.Equal(1, warning.Count);
         }
         finally
         {

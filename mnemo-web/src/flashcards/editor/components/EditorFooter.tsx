@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { isMac } from "@/keybinds/chord"
 
@@ -30,7 +31,7 @@ export function EditorFooter({
   return (
     <div className="flex items-center justify-between border-t border-line-soft px-5 py-3">
       {!isEditMode ? (
-        <span className="text-[12px] text-ink-3">{fc("CardEditorSessionAddedFormat", { 0: sessionAdded })}</span>
+        <span className="text-[12px] text-ink-3">{tPlural(t, "Flashcards", { one: "CardEditorSessionAddedOne", many: "CardEditorSessionAddedMany" }, sessionAdded)}</span>
       ) : (
         <span />
       )}

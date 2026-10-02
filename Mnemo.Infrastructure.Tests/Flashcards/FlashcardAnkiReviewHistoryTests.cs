@@ -100,8 +100,11 @@ public sealed class FlashcardAnkiReviewHistoryTests
             Assert.Equal(new[] { 0d, 1d, 10d }, reviews.Select(r => r.ElapsedDays).ToArray());
             Assert.Equal(new[] { 1d, 10d, 600d / 86400d }, reviews.Select(r => r.ScheduledDays).ToArray());
 
-            var warning = Assert.Single(world.Warnings, w => w.Key == "AnkiReviewHistoryImported");
+            var warning = Assert.Single(world.Warnings, w => w.Key == "AnkiReviewHistoryImportedMany");
             Assert.Equal("3", warning.Params["count"]);
+            Assert.Equal("AnkiReviewHistoryImportedOne", warning.OneKey);
+            // History arriving intact is news, so a clean import shows no warning icon for it.
+            Assert.Equal(TransferWarningSeverity.Info, warning.Severity);
         }
         finally
         {

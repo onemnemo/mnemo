@@ -34,6 +34,23 @@ export function pluralKey(keys: PluralKeys, count: number, locale?: string): str
   return category === "one" ? keys.one : keys.many
 }
 
+const formatsByLocale = new Map<string, Intl.NumberFormat>()
+
+/** A count written the way `locale` (the active UI language when omitted) groups its digits. */
+export function formatCount(count: number, locale?: string): string {
+  const tag = locale ?? useI18nStore.getState().language
+  let format = formatsByLocale.get(tag)
+  if (!format) {
+    try {
+      format = new Intl.NumberFormat(tag)
+    } catch {
+      format = new Intl.NumberFormat("en")
+    }
+    formatsByLocale.set(tag, format)
+  }
+  return format.format(count)
+}
+
 /** Translates the form `count` takes, with `{count}` filled in beside any other params; the count wins a clash. */
 export function tPlural(
   t: TranslateFn,
@@ -43,5 +60,5 @@ export function tPlural(
   params?: Record<string, string | number>,
   locale?: string,
 ): string {
-  return t(ns, pluralKey(keys, count, locale), { ...params, count })
+  return t(ns, pluralKey(keys, count, locale), { ...params, count: formatCount(count, locale) })
 }

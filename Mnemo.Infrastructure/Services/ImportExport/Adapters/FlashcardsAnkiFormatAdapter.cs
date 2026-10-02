@@ -298,9 +298,10 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             // every deck that already worked.
             if (failedDecks > 0)
             {
-                warnings.Add(TransferWarning.Of(
-                    "AnkiDecksImportFailedCount",
-                    ("failedCount", failedDecks.ToString(CultureInfo.InvariantCulture)),
+                warnings.Add(TransferWarning.Counted(
+                    "AnkiDecksImportFailedOne",
+                    "AnkiDecksImportFailedMany",
+                    failedDecks,
                     ("totalCount", plan.Decks.Count.ToString(CultureInfo.InvariantCulture))));
             }
 
@@ -312,21 +313,19 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
             if (tally.CardsWithAudio > 0)
             {
-                warnings.Add(TransferWarning.Of(
-                    "AnkiAudioNotImported", ("count", tally.CardsWithAudio.ToString(CultureInfo.InvariantCulture))));
+                warnings.Add(TransferWarning.Counted("AnkiAudioNotImportedOne", "AnkiAudioNotImportedMany", tally.CardsWithAudio));
             }
 
             // Cards moving between decks without a word is exactly the kind of thing somebody finds
             // months later and cannot explain.
             if (plan.NotesFiledTogether > 0)
             {
-                warnings.Add(TransferWarning.Of(
-                    "AnkiClozeSiblingsFiledTogether",
-                    ("count", plan.NotesFiledTogether.ToString(CultureInfo.InvariantCulture))));
+                warnings.Add(TransferWarning.Counted(
+                    "AnkiClozeSiblingsFiledTogetherOne", "AnkiClozeSiblingsFiledTogetherMany", plan.NotesFiledTogether));
             }
 
             if (importedCards > 0 && tally.CardsWithMemory > 0)
-                warnings.Add(TransferWarning.Of("AnkiMemoryCarriedOver"));
+                warnings.Add(TransferWarning.Of("AnkiMemoryCarriedOver").AsInfo());
 
             // A card with no usable memory or history still has to start measuring from its next
             // answers. Calling that out keeps a mixed import honest about the cards it could not carry.
@@ -337,9 +336,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             // opens a freshly imported deck to a filled in retention figure deserves to know why.
             if (importedReviews > 0)
             {
-                warnings.Add(TransferWarning.Of(
-                    "AnkiReviewHistoryImported",
-                    ("count", importedReviews.ToString(CultureInfo.InvariantCulture))));
+                warnings.Add(TransferWarning.Counted(
+                    "AnkiReviewHistoryImportedOne", "AnkiReviewHistoryImportedMany", importedReviews).AsInfo());
             }
 
             return new ImportExportResult

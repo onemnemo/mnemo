@@ -87,9 +87,8 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
 
         if (read.SkippedRows > read.SkippedLines.Count)
         {
-            warnings.Add(TransferWarning.Of(
-                "CsvRowsSkippedMore",
-                ("count", (read.SkippedRows - read.SkippedLines.Count).ToString(CultureInfo.InvariantCulture))));
+            warnings.Add(TransferWarning.Counted(
+                "CsvRowsSkippedMoreOne", "CsvRowsSkippedMoreMany", read.SkippedRows - read.SkippedLines.Count));
         }
 
         if (read.EndedInsideQuotedValue)

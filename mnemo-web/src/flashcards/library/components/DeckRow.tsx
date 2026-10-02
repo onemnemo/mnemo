@@ -1,6 +1,7 @@
 import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
+import { formatCount, pluralKey } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { formatRelative } from "@/lib/relative-date"
@@ -45,7 +46,9 @@ export function DeckRow({
     id: deck.id,
     parentId: deck.folderId,
     label: deck.name,
-    subtitle: fc("DeckCardCountFormat", { 0: deck.totalCards }),
+    subtitle: fc(pluralKey({ one: "DeckCardCountOne", many: "DeckCardCountMany" }, deck.totalCards), {
+      count: formatCount(deck.totalCards),
+    }),
   }
 
   return (
@@ -82,7 +85,7 @@ export function DeckRow({
             {deck.name}
           </span>
           <span className="block truncate text-[12px] text-ink-3">
-            {fc("DeckCardCountFormat", { 0: deck.totalCards.toLocaleString() })}
+            {fc(pluralKey({ one: "DeckCardCountOne", many: "DeckCardCountMany" }, deck.totalCards), { count: formatCount(deck.totalCards) })}
             {" · "}
             {deck.lastStudied
               ? fc("DeckLastStudiedFormat", { 0: formatRelative(deck.lastStudied, Date.now(), t) })

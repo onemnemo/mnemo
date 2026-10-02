@@ -1,5 +1,6 @@
 import type { CardTypeDto } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 
 import { asFactLike, type FactDraft } from "../fact-draft"
@@ -27,7 +28,9 @@ export function CardCountBar({ type, draft }: { type: CardTypeDto | undefined; d
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-canvas-sunken px-3 py-2 text-[11.5px]">
       <span className="flex items-center gap-1.5 font-medium text-ink-2">
         <AppIcon name="layers" size={13} strokeWidth={1.8} />
-        {count === 0 ? fc("FactMakesNoCards") : count === 1 ? fc("FactMakesOneCard") : fc("FactMakesCardsFormat", { 0: count })}
+        {count === 0
+          ? fc("FactMakesNoCards")
+          : tPlural(t, "Flashcards", { one: "FactMakesCardsOne", many: "FactMakesCardsMany" }, count)}
       </span>
 
       {waiting.map((entry) => (

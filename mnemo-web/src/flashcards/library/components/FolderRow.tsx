@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useInlineEditor } from "@/components/ui/useInlineEditor"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { useUndoDelete } from "@/trash/undo"
@@ -32,7 +33,6 @@ export function FolderRow({
   const deleteFolder = useDeleteFolder()
   const rename = useInlineEditor()
   const { folder, counts } = row
-  const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
 
   const handle: DragHandle = {
     key: `folder:${folder.id}`,
@@ -40,7 +40,7 @@ export function FolderRow({
     id: folder.id,
     parentId: folder.parentId,
     label: folder.name,
-    subtitle: fc("DeckCountFormat", { 0: counts.deckCount }),
+    subtitle: tPlural(t, "Flashcards", { one: "DeckCountOne", many: "DeckCountMany" }, counts.deckCount),
   }
 
   const commitRename = async (name: string) => {
@@ -109,7 +109,7 @@ export function FolderRow({
           </span>
         )}
         <span className="shrink-0 text-[12px] text-ink-3">
-          {counts.deckCount === 1 ? fc("DeckCountSingular") : fc("DeckCountFormat", { 0: counts.deckCount })}
+          {tPlural(t, "Flashcards", { one: "DeckCountOne", many: "DeckCountMany" }, counts.deckCount)}
         </span>
 
         {/* Only while collapsed: with the children on screen the aggregate is just

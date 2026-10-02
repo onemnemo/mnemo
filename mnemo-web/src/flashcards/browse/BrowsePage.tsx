@@ -5,6 +5,7 @@ import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
+import { formatCount, pluralKey } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { toast } from "@/stores/toast"
 import { useUndoDelete } from "@/trash/undo"
@@ -168,7 +169,9 @@ export function BrowsePage() {
           <header className="mt-2">
             <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-ink">{fc("BrowseTitle")}</h1>
             <p className="mt-0.5 text-[12.5px] text-ink-2">
-              {fc("DeckCardCountFormat", { 0: (page?.totalCount ?? 0).toLocaleString() })}
+              {fc(pluralKey({ one: "DeckCardCountOne", many: "DeckCardCountMany" }, page?.totalCount ?? 0), {
+                count: formatCount(page?.totalCount ?? 0),
+              })}
             </p>
           </header>
 

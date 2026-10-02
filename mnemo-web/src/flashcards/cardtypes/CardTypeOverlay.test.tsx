@@ -550,7 +550,7 @@ describe("CardTypeOverlay unlisted card guard", () => {
     expect(mocks.previewCardTypeSave).toHaveBeenCalledTimes(1)
     expect(mocks.confirm.mock.calls[0][0]).toMatchObject({
       title: "CardTypesUnlistedCardsTitle",
-      message: "CardTypesUnlistedCardsMessage(0=Words, 1=2)",
+      message: "CardTypesUnlistedCardsMany(0=Words, count=2)",
       confirmLabel: "CardTypesUnlistedCardsConfirm",
       destructive: true,
     })

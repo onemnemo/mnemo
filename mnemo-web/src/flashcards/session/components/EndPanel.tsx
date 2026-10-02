@@ -1,5 +1,6 @@
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 
 /**
@@ -28,7 +29,7 @@ export function EndPanel({
         {fc(caughtUp ? "StudyAllCaughtUpTitle" : "StudyCompleteTitle")}
       </h2>
       <p className="mt-1 text-[13.5px] text-ink-2">
-        {caughtUp ? fc("StudyAllCaughtUpDesc") : fc("StudyCompleteSummaryFormat", { 0: completed })}
+        {caughtUp ? fc("StudyAllCaughtUpDesc") : tPlural(t, "Flashcards", { one: "StudyCompleteSummaryOne", many: "StudyCompleteSummaryMany" }, completed)}
       </p>
       <div className="mt-6">
         <Button onClick={onBackToDeck}>{fc("BackToDeck")}</Button>

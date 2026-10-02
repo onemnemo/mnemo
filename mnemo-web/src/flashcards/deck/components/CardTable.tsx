@@ -1,6 +1,7 @@
 import type { CardPageDto, DeckSummaryDto } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Checkbox } from "@/components/ui/checkbox"
+import { formatCount } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
@@ -84,7 +85,7 @@ export function CardTable({
           {page.totalCount === deckTotal ? null : (
             <>
               {" · "}
-              {fc("DeckInDeckFormat", { 0: deckTotal.toLocaleString() })}
+              {fc("DeckInDeckFormat", { 0: formatCount(deckTotal) })}
             </>
           )}
         </span>

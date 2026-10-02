@@ -2,6 +2,7 @@ import type { DeckSummaryDto } from "@/api/types"
 import { EmojiPickerButton } from "@/components/emoji/EmojiPickerButton"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
+import { formatCount, pluralKey } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { formatRelative } from "@/lib/relative-date"
 
@@ -62,7 +63,7 @@ export function DeckHeader({ deck }: { deck: DeckSummaryDto }) {
 
         {/* One strip of facts, separated by space rather than by pipes. */}
         <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12.5px] text-ink-2">
-          <span>{fc("DeckCardCountFormat", { 0: deck.totalCards.toLocaleString() })}</span>
+          <span>{fc(pluralKey({ one: "DeckCardCountOne", many: "DeckCardCountMany" }, deck.totalCards), { count: formatCount(deck.totalCards) })}</span>
 
           <span>
             {work > 0 ? (

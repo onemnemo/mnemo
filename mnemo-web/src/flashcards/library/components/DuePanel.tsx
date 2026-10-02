@@ -1,6 +1,7 @@
 import type { DueCountsDto } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 
 import { MixBar } from "../../bits"
@@ -63,7 +64,7 @@ export function DuePanel({
           <Legend fill="bg-state-due" label={fc("SummaryReviewFormat", { 0: due.due })} />
           <span className="text-ink-3">·</span>
           <span className="text-ink-3">
-            {deckCount === 1 ? fc("DeckCountSingular") : fc("DeckCountFormat", { 0: deckCount })}
+            {tPlural(t, "Flashcards", { one: "DeckCountOne", many: "DeckCountMany" }, deckCount)}
             {" · "}
             {fc("EstimatedMinutesFormat", { 0: estimatedMinutes(due.total) })}
           </span>

@@ -1,4 +1,5 @@
 import type { IconName } from "@/components/icon/icon-registry"
+import { formatCount } from "@/i18n/plural"
 import type { TranslateFn } from "@/i18n/types"
 import type { DeckSummaryDto } from "@/api/types"
 
@@ -108,14 +109,14 @@ export function deckMenuItems({
               kind: "item",
               id: "study.cram.due",
               label: fc("StudyCramDueCards"),
-              hint: deck.dueCounts.total.toLocaleString(),
+              hint: formatCount(deck.dueCounts.total),
               run: on.cramDue,
             },
             {
               kind: "item",
               id: "study.cram.all",
               label: fc("StudyCramAllCards"),
-              hint: deck.activeCards.toLocaleString(),
+              hint: formatCount(deck.activeCards),
               run: on.cramAll,
             },
           ],

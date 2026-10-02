@@ -200,7 +200,7 @@ public sealed class FlashcardCsvTransferTests
 
             Assert.True(result.Success, result.ErrorMessage);
             Assert.Equal(5, result.Warnings.Count(w => w.Key == "CsvRowSkipped"));
-            var overflow = Assert.Single(result.Warnings, w => w.Key == "CsvRowsSkippedMore");
+            var overflow = Assert.Single(result.Warnings, w => w.Key == "CsvRowsSkippedMoreMany");
             Assert.Equal("3", overflow.Params["count"]);
 
             var deck = Assert.Single(await library.ListDecksAsync());

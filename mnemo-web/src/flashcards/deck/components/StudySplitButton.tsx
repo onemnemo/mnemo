@@ -1,6 +1,7 @@
 import { navigate } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Menu, MenuContent, MenuItem, MenuSectionLabel, MenuSeparator, MenuSubMenu, MenuTrigger } from "@/components/ui/menu"
+import { formatCount } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 
 /**
@@ -66,13 +67,13 @@ export function StudySplitButton({
           >
             <MenuSectionLabel>{fc("StudyCramSectionHeader")}</MenuSectionLabel>
             <MenuItem
-              hint={dueCount.toLocaleString()}
+              hint={formatCount(dueCount)}
               onSelect={() => navigate("flashcard-session", deckId, "cram", "due")}
             >
               {fc("StudyCramDueCards")}
             </MenuItem>
             <MenuItem
-              hint={allCount.toLocaleString()}
+              hint={formatCount(allCount)}
               onSelect={() => navigate("flashcard-session", deckId, "cram", "all")}
             >
               {fc("StudyCramAllCards")}

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
 
-import { pluralKey, tPlural } from "@/i18n/plural"
+import { formatCount, pluralKey, tPlural } from "@/i18n/plural"
 import { useI18nStore } from "@/i18n/store"
 import type { TranslateFn } from "@/i18n/types"
 
@@ -48,5 +48,29 @@ describe("tPlural", () => {
 
   it("lets the count win over a param of the same name", () => {
     expect(tPlural(t, "TransferWarnings", KEYS, 3, { count: 99 }, "en")).toBe("TransferWarnings.CardsAddedMany(count=3)")
+  })
+
+  it("writes the count the way the language groups its digits", () => {
+    expect(tPlural(t, "TransferWarnings", KEYS, 12345, undefined, "de")).toBe(
+      `TransferWarnings.CardsAddedMany(count=${formatCount(12345, "de")})`,
+    )
+  })
+})
+
+describe("formatCount", () => {
+  afterEach(() => useI18nStore.setState({ language: "en" }))
+
+  it("groups digits for the language it is given", () => {
+    expect(formatCount(12345, "en")).toBe("12,345")
+    expect(formatCount(12345, "de")).toBe("12.345")
+  })
+
+  it("follows the active language rather than the browser's when no locale is given", () => {
+    useI18nStore.setState({ language: "de" })
+    expect(formatCount(12345)).toBe("12.345")
+  })
+
+  it("falls back to English grouping for a tag Intl cannot read", () => {
+    expect(formatCount(12345, "not a locale")).toBe("12,345")
   })
 })
