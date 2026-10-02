@@ -30,6 +30,9 @@ public sealed class FlashcardCardTrashSource : ITrashSource
     /// <summary>Tables that, holding the same entry, mean the entry is not a card entry.</summary>
     private static readonly string[] Above = ["FlashcardFolders", "FlashcardDecks", "FlashcardFacts"];
 
+    /// <summary>Set while a save sweeps cards nothing generates any more into the trash.</summary>
+    private static readonly AsyncLocal<bool> Sweeping = new();
+
     private readonly IFlashcardStore _store;
     private readonly ILoggerService? _logger;
 
@@ -37,6 +40,18 @@ public sealed class FlashcardCardTrashSource : ITrashSource
     {
         _store = store;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Runs a trash delete whose captures mark each card as swept by a save, in the capture's own
+    /// transaction. A card in the trash without the mark is the person's own delete, which a later
+    /// save never takes back, so the mark cannot be a second write an exit could cut off.
+    /// </summary>
+    internal static async Task<T> SweepAsync<T>(Func<Task<T>> delete)
+    {
+        // Set inside an async method, so the flag reaches the captures and never the caller.
+        Sweeping.Value = true;
+        return await delete().ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -75,8 +90,10 @@ public sealed class FlashcardCardTrashSource : ITrashSource
         }, cancellationToken);
 
     /// <inheritdoc />
-    public Task<TrashSnapshot?> CaptureAsync(string itemId, string entryId, CancellationToken cancellationToken = default) =>
-        _store.WriteAsync(async (writer, tx, ct) =>
+    public Task<TrashSnapshot?> CaptureAsync(string itemId, string entryId, CancellationToken cancellationToken = default)
+    {
+        var swept = Sweeping.Value;
+        return _store.WriteAsync(async (writer, tx, ct) =>
         {
             TrashSnapshot? snapshot;
             await using (var read = writer.CreateCommand())
@@ -99,14 +116,27 @@ public sealed class FlashcardCardTrashSource : ITrashSource
                 .MarkAsync(writer, tx, "FlashcardCards", [itemId], entryId, ct)
                 .ConfigureAwait(false);
 
+            if (swept)
+            {
+                await using var tag = writer.CreateCommand();
+                tag.Transaction = tx;
+                tag.CommandText = "UPDATE FlashcardCards SET SweptTrashId = $entry WHERE Id = $id AND TrashId = $entry;";
+                tag.Parameters.AddWithValue("$id", itemId);
+                tag.Parameters.AddWithValue("$entry", entryId);
+                await tag.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+
             return snapshot;
         }, cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task<IReadOnlyDictionary<string, TrashSnapshot>> CaptureManyAsync(
         IReadOnlyDictionary<string, string> entryIdsByItem,
-        CancellationToken cancellationToken = default) =>
-        _store.WriteAsync(async (writer, tx, ct) =>
+        CancellationToken cancellationToken = default)
+    {
+        var swept = Sweeping.Value;
+        return _store.WriteAsync(async (writer, tx, ct) =>
         {
             var rows = await ReadCardsAsync(writer, tx, entryIdsByItem.Keys.ToList(), ct).ConfigureAwait(false);
             var captured = new Dictionary<string, TrashSnapshot>(StringComparer.Ordinal);
@@ -136,14 +166,16 @@ public sealed class FlashcardCardTrashSource : ITrashSource
                     mark.Parameters.AddWithValue($"$entry{i}", live[offset + i].Value);
                 }
 
+                var entries = $"CASE Id {string.Join(" ", cases)} END";
                 mark.CommandText =
-                    $"UPDATE FlashcardCards SET TrashId = CASE Id {string.Join(" ", cases)} END " +
+                    $"UPDATE FlashcardCards SET TrashId = {entries}{(swept ? $", SweptTrashId = {entries}" : "")} " +
                     $"WHERE TrashId IS NULL AND Id IN ({string.Join(", ", ids)});";
                 await mark.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
             }
 
             return (IReadOnlyDictionary<string, TrashSnapshot>)captured;
         }, cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task<TrashRestore> RestoreAsync(

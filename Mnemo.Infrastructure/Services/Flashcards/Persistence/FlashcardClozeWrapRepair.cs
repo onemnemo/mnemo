@@ -70,6 +70,7 @@ internal static class FlashcardClozeWrapRepair
                 previousDeckId: fact.DeckId,
                 importedCards: null,
                 now,
+                generatedBefore: null,
                 context.CancellationToken).ConfigureAwait(false);
         }
     }

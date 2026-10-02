@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
+using Mnemo.Infrastructure.Services.Flashcards.Trash;
 
 namespace Mnemo.Infrastructure.Services.Flashcards.Generation;
 
@@ -14,7 +15,12 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Generation;
 /// Cards that no longer have a layout behind them. They are still live rows when this is handed
 /// back; the caller moves them to the trash once its own transaction has committed.
 /// </param>
-public readonly record struct FlashcardMaterializeResult(int Added, int Updated, IReadOnlyList<string> Orphaned)
+/// <param name="Restored">
+/// Trash entries whose card this save brought back because its layout is generated again. The
+/// card is live once the transaction commits; the caller then drops the ledger rows.
+/// </param>
+public readonly record struct FlashcardMaterializeResult(
+    int Added, int Updated, IReadOnlyList<string> Orphaned, IReadOnlyList<string>? Restored = null)
 {
     /// <summary>How many cards lost their layout.</summary>
     public int Removed => Orphaned?.Count ?? 0;
@@ -66,6 +72,12 @@ public sealed class FlashcardCardMaterializer
     /// handed somebody else's schedule. Only an insert reads this: a card that already exists keeps
     /// the schedule it has been building.
     /// </param>
+    /// <param name="generatedBefore">
+    /// The layouts the material generated before this edit, or null to leave every held card alone.
+    /// A layout that was missing and is generated again, a deletion put back or a required field
+    /// refilled, takes its held card back with its schedule. One that never stopped being generated
+    /// leaves its card in the trash, since that card was deleted on purpose.
+    /// </param>
     public async Task<FlashcardMaterializeResult> ApplyAsync(
         SqliteConnection conn,
         SqliteTransaction tx,
@@ -74,6 +86,7 @@ public sealed class FlashcardCardMaterializer
         string? previousDeckId,
         IReadOnlyDictionary<string, FlashcardImportedCard>? importedCards,
         DateTimeOffset now,
+        IReadOnlySet<string>? generatedBefore,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -87,13 +100,12 @@ public sealed class FlashcardCardMaterializer
         var existing = owned.Where(k => !k.IsHeld)
             .ToDictionary(k => k.LayoutKey, k => k.CardId, StringComparer.Ordinal);
 
-        // A layout whose card is in the trash is left alone entirely: not rewritten, not replaced,
-        // and not swept as an orphan. The card keeps the wording it had when it was deleted and
-        // picks up later edits at the first save after it comes back. That is the price of being
-        // able to put it back where it was; making a second card for the layout in the meantime
-        // would leave the two of them fighting over one slot on the way in.
-        var held = new HashSet<string>(
-            owned.Where(k => k.IsHeld).Select(k => k.LayoutKey), StringComparer.Ordinal);
+        // A layout whose card is in the trash is never given a second card: the two would fight
+        // over one slot on the way back in. Unless this save restores it, the held card is not
+        // rewritten or swept either, and picks up later edits at the first save after it returns.
+        var held = owned.Where(k => k.IsHeld)
+            .GroupBy(k => k.LayoutKey, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().CardId, StringComparer.Ordinal);
 
         var cardType = string.Equals(type.Generator, FlashcardGenerators.Cloze, StringComparison.Ordinal)
             ? FlashcardType.Cloze
@@ -108,10 +120,21 @@ public sealed class FlashcardCardMaterializer
 
         var added = 0;
         var updated = 0;
+        var restored = new List<string>();
         foreach (var card in generated)
         {
-            if (held.Contains(card.Key))
+            if (held.TryGetValue(card.Key, out var heldId))
+            {
+                if (generatedBefore is not null && !generatedBefore.Contains(card.Key)
+                    && await TakeBackAsync(conn, tx, heldId, cancellationToken).ConfigureAwait(false) is { } entryId)
+                {
+                    await UpdateAsync(conn, tx, heldId, fact, card, cardType, factMoved, now, cancellationToken).ConfigureAwait(false);
+                    restored.Add(entryId);
+                    updated++;
+                }
+
                 continue;
+            }
 
             if (existing.Remove(card.Key, out var cardId))
             {
@@ -127,7 +150,46 @@ public sealed class FlashcardCardMaterializer
 
         // Whatever is left in the map no longer has a layout behind it. Held cards were never in
         // it, so one of them cannot be named here a second time.
-        return new FlashcardMaterializeResult(added, updated, existing.Values.ToArray());
+        return new FlashcardMaterializeResult(added, updated, existing.Values.ToArray(), restored);
+    }
+
+    /// <summary>
+    /// Clears the trash mark of a card a save's sweep put away, and returns the entry it was held
+    /// under. Null for a card the person deleted, for one held with a deck, a folder or its
+    /// material or sitting in a deck the trash holds, and for one whose permanent delete has begun.
+    /// A prepared entry is taken back too: a capture cut off before its promotion still marked
+    /// the card, and the promotion that may follow finds no row and changes nothing.
+    /// </summary>
+    private static async Task<string?> TakeBackAsync(
+        SqliteConnection conn, SqliteTransaction tx, string cardId, CancellationToken cancellationToken)
+    {
+        string? entryId;
+        await using (var read = conn.CreateCommand())
+        {
+            read.Transaction = tx;
+            read.CommandText = """
+                SELECT c.TrashId FROM FlashcardCards c
+                JOIN FlashcardDecks d ON d.Id = c.DeckId AND d.TrashId IS NULL
+                JOIN TrashEntries e ON e.Id = c.TrashId AND e.Kind = $kind AND e.State IN ('prepared', 'held')
+                WHERE c.Id = $id AND c.TrashId IS NOT NULL AND c.SweptTrashId = c.TrashId
+                  AND NOT EXISTS (SELECT 1 FROM FlashcardDecks x WHERE x.TrashId = c.TrashId)
+                  AND NOT EXISTS (SELECT 1 FROM FlashcardFolders x WHERE x.TrashId = c.TrashId)
+                  AND NOT EXISTS (SELECT 1 FROM FlashcardFacts x WHERE x.TrashId = c.TrashId);
+                """;
+            read.Parameters.AddWithValue("$id", cardId);
+            read.Parameters.AddWithValue("$kind", FlashcardCardTrashSource.TrashKind);
+            entryId = await read.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
+        }
+
+        if (entryId is null)
+            return null;
+
+        await using var clear = conn.CreateCommand();
+        clear.Transaction = tx;
+        clear.CommandText = "UPDATE FlashcardCards SET TrashId = NULL, SweptTrashId = NULL WHERE Id = $id;";
+        clear.Parameters.AddWithValue("$id", cardId);
+        await clear.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return entryId;
     }
 
     private async Task UpdateAsync(

@@ -86,7 +86,7 @@ public sealed class FlashcardFactService : IFlashcardFactService
                 foreach (var fact in await _facts.ListByTypeAsync(conn, saved.Id, ct).ConfigureAwait(false))
                 {
                     var applied = await _materializer
-                        .ApplyAsync(conn, tx, saved, fact, fact.DeckId, importedCards: null, now, ct)
+                        .ApplyAsync(conn, tx, saved, fact, fact.DeckId, importedCards: null, now, generatedBefore: null, ct)
                         .ConfigureAwait(false);
                     if (applied.Orphaned is { Count: > 0 } lost)
                         orphaned.AddRange(lost);
@@ -192,6 +192,7 @@ public sealed class FlashcardFactService : IFlashcardFactService
 
         var now = _clock.Now;
         var orphaned = new List<string>();
+        var restored = new List<string>();
 
         var written = await _store.WriteAsync(async (conn, tx, ct) =>
         {
@@ -200,7 +201,19 @@ public sealed class FlashcardFactService : IFlashcardFactService
             var types = new Dictionary<string, FlashcardCardType>(StringComparer.Ordinal);
             var saved = new List<FlashcardFactSaved>(drafts.Count);
             foreach (var draft in drafts)
-                saved.Add(await SaveOneAsync(conn, tx, draft, types, orphaned, now, ct).ConfigureAwait(false));
+                saved.Add(await SaveOneAsync(conn, tx, draft, types, orphaned, restored, now, ct).ConfigureAwait(false));
+
+            // The ledger shares this database file, and a taken back card is the only holder of
+            // its entry, so the row goes with the save rather than waiting for a reconcile.
+            foreach (var entryId in restored)
+            {
+                await using var cmd = conn.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = "DELETE FROM TrashEntries WHERE Id = $id AND Kind = $kind;";
+                cmd.Parameters.AddWithValue("$id", entryId);
+                cmd.Parameters.AddWithValue("$kind", FlashcardCardTrashSource.TrashKind);
+                await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
 
             return (IReadOnlyList<FlashcardFactSaved>)saved;
         }, cancellationToken).ConfigureAwait(false);
@@ -215,6 +228,7 @@ public sealed class FlashcardFactService : IFlashcardFactService
         FlashcardFactDraft draft,
         Dictionary<string, FlashcardCardType> types,
         List<string> orphaned,
+        List<string> restored,
         DateTimeOffset now,
         CancellationToken ct)
     {
@@ -244,9 +258,13 @@ public sealed class FlashcardFactService : IFlashcardFactService
         if (!FlashcardCardMaterializer.WouldMakeCards(type, fact))
             throw new ArgumentException("This would make no cards. Fill in a field a card uses.", nameof(draft));
 
+        var generatedBefore = existing is null
+            ? null
+            : await GeneratedKeysAsync(conn, existing, types, ct).ConfigureAwait(false);
+
         await _facts.UpsertAsync(conn, tx, fact, ct).ConfigureAwait(false);
         var result = await _materializer
-            .ApplyAsync(conn, tx, type, fact, existing?.DeckId, draft.Cards, now, ct)
+            .ApplyAsync(conn, tx, type, fact, existing?.DeckId, draft.Cards, now, generatedBefore, ct)
             .ConfigureAwait(false);
 
         // The cards that lost their layout are still live rows until the sweep runs, so they are
@@ -254,6 +272,8 @@ public sealed class FlashcardFactService : IFlashcardFactService
         var lost = result.Orphaned is { Count: > 0 } ? new HashSet<string>(result.Orphaned, StringComparer.Ordinal) : null;
         if (lost is not null)
             orphaned.AddRange(result.Orphaned);
+        if (result.Restored is { Count: > 0 })
+            restored.AddRange(result.Restored);
 
         var keys = await _facts.GetCardKeysAsync(conn, fact.Id, ct).ConfigureAwait(false);
         var cards = new List<Flashcard>(keys.Count);
@@ -270,6 +290,20 @@ public sealed class FlashcardFactService : IFlashcardFactService
             .ConfigureAwait(false);
 
         return new FlashcardFactSaved(fact, cards, result.Added, result.Removed);
+    }
+
+    /// <summary>The layouts a fact generates as stored, under the type it was stored with.</summary>
+    private async Task<IReadOnlySet<string>?> GeneratedKeysAsync(
+        SqliteConnection conn, FlashcardFact fact, Dictionary<string, FlashcardCardType> types, CancellationToken ct)
+    {
+        if (!types.TryGetValue(fact.TypeId, out var type))
+        {
+            if (await _types.GetAsync(conn, fact.TypeId, ct).ConfigureAwait(false) is not { } stored)
+                return null;
+            types[fact.TypeId] = type = stored;
+        }
+
+        return FlashcardGeneration.Generate(type, fact).Select(card => card.Key).ToHashSet(StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -312,7 +346,10 @@ public sealed class FlashcardFactService : IFlashcardFactService
         foreach (var cardId in cardIds)
             requests.Add(new TrashDeleteRequest(FlashcardCardTrashSource.TrashKind, cardId));
 
-        await _trash.DeleteAsync(requests, cancellationToken).ConfigureAwait(false);
+        // The capture marks each card as swept, so the person's own deletes stay told apart.
+        await FlashcardCardTrashSource
+            .SweepAsync(() => _trash.DeleteAsync(requests, cancellationToken))
+            .ConfigureAwait(false);
     }
 
     /// <summary>The files an edit removed from the material's fields, kept until now so a save
