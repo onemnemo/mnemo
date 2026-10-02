@@ -120,6 +120,8 @@
     "SaveLostTitle": "Tus cambios en \"{0}\" no se guardaron",
     "SaveLostFailedDescription": "No se pudo escribir la nota. Ábrela de nuevo para ver qué se guardó y escribe otra vez lo que falte.",
     "SaveLostConflictDescription": "Esta nota se modificó en otro sitio, así que tu versión de aquí no se escribió y no se puede recuperar. Ábrela de nuevo para ver la versión guardada.",
+    "SaveLostIncompleteTitle": "Los últimos cambios en \"{0}\" no se guardaron",
+    "SaveLostIncompleteDescription": "La nota se guardó, pero lo que escribiste mientras se cerraba no. Ábrela de nuevo para revisar el final de tus cambios.",
     "NewNote": "Nueva nota",
     "NewFolder": "Nueva carpeta",
     "NewFolderName": "Nueva carpeta",

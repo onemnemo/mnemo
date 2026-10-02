@@ -35,7 +35,7 @@ public static class LifecycleEndpoints
     public sealed record ClientInfoDto(string? UserAgent);
 
     /// <param name="NoteId">The note whose last write did not land. An identifier, never a title.</param>
-    /// <param name="Verdict">Why it did not land. One of the two names this host records.</param>
+    /// <param name="Verdict">Why it did not land, or did not carry everything. One of the three names this host records.</param>
     /// <param name="Trigger">Which exit it happened on. One of the two names this host records.</param>
     public sealed record SaveLostRequest(string? NoteId, string? Verdict, string? Trigger);
 
@@ -101,7 +101,8 @@ public static class LifecycleEndpoints
         line = string.Empty;
 
         var verdict = body?.Verdict;
-        if (verdict is not ("failed" or "conflict"))
+        // "incomplete" is a write that landed while typing went on past it on the way out.
+        if (verdict is not ("failed" or "conflict" or "incomplete"))
             return SaveLostOutcome.UnknownVerdict;
 
         var trigger = body?.Trigger;

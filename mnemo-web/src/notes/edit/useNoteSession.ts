@@ -17,7 +17,7 @@ import type { EditorView } from 'prosemirror-view';
 import { onDirtyCheck, onShutdown } from '@/app/shutdown';
 import type { SaveState } from '../authority/authority';
 import { closeNoteAssetSession, openNoteAssetSession } from '../assets/api';
-import { reportLostSave } from '../save/lost-exit';
+import { flushForExit, reportLostSave } from '../save/lost-exit';
 import { createNoteSession, type NoteSession, type NoteSessionOptions } from './session';
 
 export type UseNoteSessionOptions = Omit<NoteSessionOptions, 'mount'>;
@@ -78,9 +78,7 @@ export function useNoteSession(options: UseNoteSessionOptions): UseNoteSessionRe
     // Closing the window is the one exit that unmounts nothing, so cleanup never
     // runs and the debounce never fires. The host holds the close open for this.
     const unregister = onShutdown(async () => {
-      let result = await session.flush();
-      // Retry once if typing during the first flush leaves the note dirty.
-      if (result.status === 'saved' && result.stillDirty) result = await session.flush();
+      const result = await flushForExit(() => session.flush());
       // Await reporting before the host closes.
       await reportLostSave(options.noteId, result, 'shutdown');
     });

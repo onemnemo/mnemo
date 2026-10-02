@@ -167,9 +167,20 @@ let handshake: Promise<void> | null = null
  * on a cancelled exit: the window is still open, and the next close has to ask
  * afresh rather than resolve instantly against a gate that has been re-armed.
  */
-export function completeShutdown(): Promise<void> {
-  handshake ??= negotiate()
+export function completeShutdown(graceMs?: number): Promise<void> {
+  handshake ??= negotiate(graceMs)
   return handshake
+}
+
+/** When participants of the running shutdown have to be done by, as a Date.now() time. */
+let participantsDue: number | null = null
+
+/**
+ * How long the running shutdown leaves its participants, or Infinity outside one. A
+ * participant that has to tell the host something sizes its own waits from this.
+ */
+export function shutdownTimeLeftMs(): number {
+  return participantsDue === null ? Number.POSITIVE_INFINITY : participantsDue - Date.now()
 }
 
 /**
@@ -184,14 +195,16 @@ export function completeShutdown(): Promise<void> {
  */
 const participantDeadlineMs = 10_000
 
-async function negotiate(): Promise<void> {
+async function negotiate(graceMs?: number): Promise<void> {
+  const graceEnds = graceMs === undefined ? null : Date.now() + graceMs
+  let held = false
   // Held for saving as much as for asking. The host's grace period starts before
   // the SPA has serialized anything, so the note big enough to be slow to write
   // is exactly the note whose write gets cut off half way through.
   if (guards.size > 0 || participants.size > 0) {
     // Before either, not after: the period will otherwise expire out from under
     // whoever is reading a dialog or waiting on a commit.
-    await report("/app/shutdown-hold")
+    held = await report("/app/shutdown-hold")
   }
 
   if (!(await runShutdownGuards())) {
@@ -200,9 +213,13 @@ async function negotiate(): Promise<void> {
     return
   }
 
+  // A hold that did not land leaves the host's own grace running.
+  const ownDeadline = Date.now() + participantDeadlineMs
+  participantsDue = held || graceEnds === null ? ownDeadline : Math.min(ownDeadline, graceEnds)
   try {
     await withDeadline(runShutdown(), participantDeadlineMs)
   } finally {
+    participantsDue = null
     await report("/app/shutdown-ready")
   }
 }
@@ -226,19 +243,22 @@ async function withDeadline(work: Promise<void>, ms: number): Promise<void> {
   }
 }
 
-async function report(path: string): Promise<void> {
+async function report(path: string): Promise<boolean> {
   try {
     await apiSend(path, { method: "POST" })
+    return true
   } catch (error) {
     // The host closes on its own deadline regardless, so there is nothing to
     // recover, but a silent failure here would look exactly like a slow save.
     console.error(`[shutdown] could not answer the host at ${path}`, error)
+    return false
   }
 }
 
 /** Test seam: forgets the memoized handshake and everything registered. */
 export function resetShutdownForTests(): void {
   handshake = null
+  participantsDue = null
   participants.clear()
   guards.clear()
   probes.clear()

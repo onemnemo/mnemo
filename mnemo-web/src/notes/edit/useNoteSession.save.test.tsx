@@ -7,7 +7,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { EditorView } from 'prosemirror-view';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { resetShutdownForTests, runShutdown } from '@/app/shutdown';
 import { useI18nStore } from '@/i18n/store';
@@ -148,6 +148,7 @@ beforeEach(() => {
     bundle: {
       Notes: {
         SaveLostTitle: 'lost {0}',
+        SaveLostIncompleteTitle: 'last lost {0}',
         SaveLostFailedDescription: 'open it again',
         Untitled: 'no title',
       },
@@ -329,6 +330,38 @@ describe('closing the window with a note open', () => {
     expect(commits[1].doc.textContent).toBe('yxhello');
     // Persist the pending edit before the handshake permits the window to close.
     expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  it('reports the note as incomplete when typing outruns the second write too', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(null, { status: 204 })));
+    vi.stubGlobal('fetch', fetchMock);
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    openGate();
+    const first = gate;
+    render();
+    type('x');
+
+    const draining = runShutdown();
+    await settle();
+    type('y');
+    openGate();
+    first?.open();
+    await settle();
+    expect(commits).toHaveLength(2);
+
+    type('z');
+    gate?.open();
+    gate = null;
+    await act(async () => {
+      await draining;
+    });
+
+    expect(commits).toHaveLength(2);
+    expect(useToastStore.getState().toasts[0]).toMatchObject({ type: 'warning', title: 'last lost no title' });
+    const report = (fetchMock.mock.calls as unknown as [string, RequestInit][]).find(([url]) => url.endsWith('/app/save-lost'));
+    expect(JSON.parse(report?.[1].body as string)).toEqual({ noteId: 'note-1', verdict: 'incomplete', trigger: 'shutdown' });
   });
 });
 

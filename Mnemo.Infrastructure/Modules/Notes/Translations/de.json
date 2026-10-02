@@ -28,6 +28,8 @@
     "SaveLostTitle": "Deine Änderungen an \"{0}\" wurden nicht gespeichert",
     "SaveLostFailedDescription": "Die Notiz konnte nicht geschrieben werden. Öffne sie erneut, um zu sehen, was gespeichert wurde, und tippe das Fehlende noch einmal ein.",
     "SaveLostConflictDescription": "Diese Notiz wurde anderswo geändert, deshalb wurde deine Fassung hier nicht geschrieben und lässt sich nicht wiederherstellen. Öffne sie erneut, um die gespeicherte Fassung zu sehen.",
+    "SaveLostIncompleteTitle": "Die letzten Änderungen an \"{0}\" wurden nicht gespeichert",
+    "SaveLostIncompleteDescription": "Die Notiz wurde gespeichert, aber was du beim Schließen noch getippt hast, nicht. Öffne sie erneut und prüfe das Ende deiner Änderungen.",
     "NewNote": "Neue Notiz",
     "NewFolder": "Neuer Ordner",
     "NewFolderName": "Neuer Ordner",

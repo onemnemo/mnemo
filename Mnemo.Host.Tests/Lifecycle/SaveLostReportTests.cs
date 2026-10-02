@@ -21,6 +21,15 @@ public sealed class SaveLostReportTests
         Assert.Contains("verdict=failed", line, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AnIncompleteExitWriteIsRecorded()
+    {
+        var outcome = Resolve(new SaveLostRequest("6f1c9a2b", "incomplete", "shutdown"), out var line);
+
+        Assert.Equal(SaveLostOutcome.Recorded, outcome);
+        Assert.Contains("verdict=incomplete", line, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("lost")]
     [InlineData("Failed")]

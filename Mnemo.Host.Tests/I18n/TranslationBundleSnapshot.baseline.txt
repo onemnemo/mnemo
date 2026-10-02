@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 b261e0dfab258a817f1ebdca03de27b3e07ada1707918ae48b03054438bce742
+sha256 e03065858789a401bfc47bc6bbe743b3f87ca524b13272498627449bf5aae0bb
 namespaces 39
-keys 2642
+keys 2644
   App 41
   Chat 132
   Common 109
@@ -19,7 +19,7 @@ keys 2642
   Hardware 2
   Keybinds 109
   Mindmap 407
-  Notes 224
+  Notes 226
   NotesEditor 225
   Onboarding 49
   Overview 31
@@ -47,9 +47,9 @@ keys 2642
   WidgetToday 9
 
 culture de
-sha256 347ea09ebaf22766f0b76e427536aae319ea632fe08d4a9773729095d79d2642
+sha256 fb5d465ad9fe921c0f4c9197ef6eeec712e05dd4f7a227c08bb29d7e287d3e5d
 namespaces 39
-keys 2642
+keys 2644
   App 41
   Chat 132
   Common 109
@@ -63,7 +63,7 @@ keys 2642
   Hardware 2
   Keybinds 109
   Mindmap 407
-  Notes 224
+  Notes 226
   NotesEditor 225
   Onboarding 49
   Overview 31
@@ -91,9 +91,9 @@ keys 2642
   WidgetToday 9
 
 culture es
-sha256 bb1ff29f15afb0ba925c197f6ff04c71d1cb81e478135495c61142ee66cc0a69
+sha256 6455378a9306cc1d79d62a7411c3b7ebb8428d68e421eed30bb1c6e4099fe8b1
 namespaces 39
-keys 2642
+keys 2644
   App 41
   Chat 132
   Common 109
@@ -107,7 +107,7 @@ keys 2642
   Hardware 2
   Keybinds 109
   Mindmap 407
-  Notes 224
+  Notes 226
   NotesEditor 225
   Onboarding 49
   Overview 31
@@ -135,9 +135,9 @@ keys 2642
   WidgetToday 9
 
 culture ja
-sha256 682a98959e5d4e09dccf4a32420d9672aa5e625344f89acddb3a2a9ded1d4ed4
+sha256 4b662323f4743ef1f43e95b3bb284dd0aa7013a2b191f91a9746b618919b787c
 namespaces 39
-keys 2642
+keys 2644
   App 41
   Chat 132
   Common 109
@@ -151,7 +151,7 @@ keys 2642
   Hardware 2
   Keybinds 109
   Mindmap 407
-  Notes 224
+  Notes 226
   NotesEditor 225
   Onboarding 49
   Overview 31
@@ -179,9 +179,9 @@ keys 2642
   WidgetToday 9
 
 culture nb
-sha256 38805039b302a2844bc757e3875b20ca241f621a47abadf5731b4e8b9ada0b1f
+sha256 95fb457ab7b12444d5b4288f20864fec7e6e873f2259705602b12814581263d9
 namespaces 39
-keys 2642
+keys 2644
   App 41
   Chat 132
   Common 109
@@ -195,7 +195,7 @@ keys 2642
   Hardware 2
   Keybinds 109
   Mindmap 407
-  Notes 224
+  Notes 226
   NotesEditor 225
   Onboarding 49
   Overview 31

@@ -2,7 +2,7 @@ import { completeShutdown } from "@/app/shutdown"
 import { useToastStore } from "@/stores/toast"
 
 import { notifySubscribers } from "./subscribers"
-import { EventType, type AppEvent, type ToastEventData } from "./types"
+import { EventType, type AppEvent, type ShutdownEventData, type ToastEventData } from "./types"
 
 // The single place that turns a server event into an app-state change. New event
 // types get a case here; the transport (sse-client) and the provider stay
@@ -24,7 +24,7 @@ export function dispatchAppEvent(event: AppEvent): void {
     case EventType.Shutdown:
       // Not awaited: the dispatcher is synchronous, and the handshake reports
       // itself to the host rather than back through here.
-      void completeShutdown()
+      void completeShutdown((event.data as ShutdownEventData | undefined)?.graceMs)
       break
     case EventType.Hello:
       // Handshake only; connection status is set by the provider's onOpen.

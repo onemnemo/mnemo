@@ -28,6 +28,8 @@
     "SaveLostTitle": "「{0}」の変更は保存されませんでした",
     "SaveLostFailedDescription": "ノートを書き込めませんでした。もう一度開いて保存された内容を確認し、足りない部分を入力し直してください。",
     "SaveLostConflictDescription": "このノートは別の場所で変更されたため、ここでの内容は書き込まれず、復元できません。もう一度開いて保存されている内容を確認してください。",
+    "SaveLostIncompleteTitle": "「{0}」の最後の変更は保存されませんでした",
+    "SaveLostIncompleteDescription": "ノートは保存されましたが、閉じている間に入力した内容は保存されませんでした。もう一度開いて、変更の最後の部分を確認してください。",
     "NewNote": "新しいノート",
     "NewFolder": "新しいフォルダー",
     "NewFolderName": "新しいフォルダー",
