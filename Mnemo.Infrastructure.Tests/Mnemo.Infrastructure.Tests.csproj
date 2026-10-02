@@ -19,6 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Flashcards\Fixtures\Anki\*.apkg" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Mnemo.Infrastructure\Mnemo.Infrastructure.csproj" />
   </ItemGroup>
 

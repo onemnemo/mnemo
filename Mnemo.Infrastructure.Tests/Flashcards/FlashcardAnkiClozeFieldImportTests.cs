@@ -78,8 +78,8 @@ public sealed class FlashcardAnkiClozeFieldImportTests
     [Fact]
     public async Task Import_ClozeFieldWithNoTemplateToNameIt_IsTheFirstFieldHoldingADeletion()
     {
-        // The current package layout keeps templates in an encoded config, so nothing says which
-        // field the deletions live in. The markers themselves are the only signal left.
+        // A package that does not define the note's type says nothing about which field the
+        // deletions live in. The markers themselves are the only signal left.
         var apkg = await AnkiPackageFixture.WriteAsync(AnkiFixtureLayout.Modern, [Note()], new Dictionary<string, byte[]>());
         try
         {

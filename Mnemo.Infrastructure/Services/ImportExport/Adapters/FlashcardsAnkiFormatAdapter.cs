@@ -45,7 +45,6 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// template, so its card ordinals name deletions rather than templates.
     /// </summary>
     private const int AnkiClozeModelType = 1;
-    private const string AnkiClozeFilter = "cloze";
 
     /// <summary>
     /// Above this a due value is an absolute second rather than a day offset. Day offsets are
@@ -67,8 +66,6 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
     private static readonly Regex ClozeRegex = new(@"\{\{c\d+::", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    /// <summary>A marker in an Anki card template, which is a field name, a filtered one, or one of Anki's own.</summary>
-    private static readonly Regex AnkiTemplateFieldRegex = new(@"\{\{([^{}]+)\}\}", RegexOptions.Compiled);
     private static readonly Regex ImageTagRegex = new(@"<img\s+[^>]*src\s*=\s*['""](?<src>[^'""]+)['""][^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex BreakRegex = new(@"<\s*br\s*/?\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     /// <summary>Closing tags that end a line of text. Without them a list or a table reads as one run-on line.</summary>
@@ -530,6 +527,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     {
         var tempDirectory = Path.Combine(_importTempDirectory, $"mnemo-anki-import-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDirectory);
+        SqliteConnection? connection = null;
         try
         {
             var contents = await AnkiPackageReader.ExtractAsync(apkgPath, tempDirectory, cancellationToken).ConfigureAwait(false);
@@ -540,8 +538,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 Mode = SqliteOpenMode.ReadOnly,
                 Pooling = false
             }.ToString();
-            var connection = new SqliteConnection(connectionString);
+            connection = new SqliteConnection(connectionString);
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            AnkiNoteTypeReader.RegisterCollations(connection);
             return new OpenedApkg(
                 tempDirectory,
                 connection,
@@ -551,7 +550,10 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         catch
         {
             // The failure happened before the OpenedApkg wrapper exists, so no caller-side
-            // "await using" will ever run its cleanup. Delete the extracted files ourselves.
+            // "await using" will ever run its cleanup. Delete the extracted files ourselves, after
+            // the connection lets go of the collection file.
+            if (connection is not null)
+                await connection.DisposeAsync().ConfigureAwait(false);
             await TryDeleteDirectoryWithRetriesAsync(tempDirectory).ConfigureAwait(false);
             throw;
         }
@@ -586,7 +588,6 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var createdAt = ParseCollectionCreatedAt(crt);
         var deckNames = ParseNameMap(decksJson);
         var modelNames = ParseNameMap(modelsJson);
-        var noteTypes = ParseNoteTypes(modelsJson);
 
         // Newer collections blank these two columns and keep the names in tables of their own.
         // Without the fallback every deck in a modern package would import under a placeholder name.
@@ -596,182 +597,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         if (modelNames.Count == 0)
             modelNames = await ReadNameTableAsync(connection, "notetypes", cancellationToken).ConfigureAwait(false);
 
+        var noteTypes = await AnkiNoteTypeReader.ReadAsync(connection, modelsJson, cancellationToken).ConfigureAwait(false);
         return new CollectionInfo(createdAt, deckNames, modelNames, noteTypes);
-    }
-
-    /// <summary>
-    /// Reads what each note type's templates ask for, so a note that makes several different cards
-    /// imports as several different cards rather than as several copies of the first one.
-    /// </summary>
-    /// <remarks>
-    /// A collection that keeps its note types relationally holds the templates as an encoded blob
-    /// rather than as text, so nothing is read there and such a package keeps landing every card of
-    /// a note on the note's first two fields.
-    /// </remarks>
-    private static Dictionary<long, AnkiNoteType> ParseNoteTypes(string json)
-    {
-        var map = new Dictionary<long, AnkiNoteType>();
-        if (string.IsNullOrWhiteSpace(json))
-            return map;
-
-        JsonDocument doc;
-        try
-        {
-            doc = JsonDocument.Parse(json);
-        }
-        catch (JsonException)
-        {
-            return map;
-        }
-
-        using (doc)
-        {
-            if (doc.RootElement.ValueKind != JsonValueKind.Object)
-                return map;
-
-            foreach (var prop in doc.RootElement.EnumerateObject())
-            {
-                if (!long.TryParse(prop.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
-                    continue;
-                if (prop.Value.ValueKind != JsonValueKind.Object)
-                    continue;
-
-                var fieldNames = ReadOrderedNames(prop.Value, "flds");
-                if (fieldNames.Count == 0)
-                    continue;
-
-                // A cloze note type makes one card per deletion off a single template, so its card
-                // ordinals name deletions rather than templates and this mapping does not apply.
-                var isCloze = prop.Value.TryGetProperty("type", out var type)
-                    && type.ValueKind == JsonValueKind.Number
-                    && type.GetInt32() == AnkiClozeModelType;
-
-                map[id] = new AnkiNoteType(isCloze, fieldNames, ReadTemplates(prop.Value, fieldNames));
-            }
-        }
-
-        return map;
-    }
-
-    private static List<string> ReadOrderedNames(JsonElement model, string property)
-    {
-        var names = new List<string>();
-        if (!model.TryGetProperty(property, out var list) || list.ValueKind != JsonValueKind.Array)
-            return names;
-
-        foreach (var entry in list.EnumerateArray())
-        {
-            names.Add(entry.ValueKind == JsonValueKind.Object && entry.TryGetProperty("name", out var name)
-                ? name.GetString() ?? string.Empty
-                : string.Empty);
-        }
-
-        return names;
-    }
-
-    private static List<AnkiTemplate> ReadTemplates(JsonElement model, IReadOnlyList<string> fieldNames)
-    {
-        var templates = new List<AnkiTemplate>();
-        if (!model.TryGetProperty("tmpls", out var list) || list.ValueKind != JsonValueKind.Array)
-            return templates;
-
-        var position = 0;
-        foreach (var entry in list.EnumerateArray())
-        {
-            if (entry.ValueKind != JsonValueKind.Object)
-            {
-                position++;
-                continue;
-            }
-
-            var ord = entry.TryGetProperty("ord", out var o) && o.ValueKind == JsonValueKind.Number
-                ? o.GetInt32()
-                : position;
-            var name = entry.TryGetProperty("name", out var n) ? n.GetString() ?? string.Empty : string.Empty;
-            var question = ReadString(entry, "qfmt");
-            var answer = ReadString(entry, "afmt");
-            var front = FieldPositions(question, fieldNames);
-            // Anki repeats the question on the answer through FrontSide, so a field the question
-            // already showed is not counted again.
-            var back = FieldPositions(answer, fieldNames).Except(front).ToArray();
-            var clozeField = ClozeFieldPosition(question, fieldNames) ?? ClozeFieldPosition(answer, fieldNames);
-
-            templates.Add(new AnkiTemplate(ord, name, front, back, clozeField));
-            position++;
-        }
-
-        return templates;
-    }
-
-    private static string ReadString(JsonElement element, string property) =>
-        element.TryGetProperty(property, out var value) ? value.GetString() ?? string.Empty : string.Empty;
-
-    /// <summary>
-    /// Which of a note type's fields a template shows, in the order it shows them. A marker naming
-    /// something that is not a field, whether one of Anki's own or a conditional section, is left
-    /// out rather than guessed at.
-    /// </summary>
-    private static int[] FieldPositions(string template, IReadOnlyList<string> fieldNames)
-    {
-        if (string.IsNullOrEmpty(template))
-            return [];
-
-        var positions = new List<int>();
-        foreach (Match match in AnkiTemplateFieldRegex.Matches(template))
-        {
-            var token = match.Groups[1].Value.Trim();
-            // A conditional opens and closes with these, and neither prints anything itself.
-            if (token.Length == 0 || token[0] is '#' or '^' or '/')
-                continue;
-
-            // Filters stack ahead of the field name, as in "{{text:furigana:Reading}}".
-            var colon = token.LastIndexOf(':');
-            if (colon >= 0)
-                token = token[(colon + 1)..].Trim();
-
-            for (var i = 0; i < fieldNames.Count; i++)
-            {
-                if (!string.Equals(fieldNames[i], token, StringComparison.OrdinalIgnoreCase))
-                    continue;
-                if (!positions.Contains(i))
-                    positions.Add(i);
-                break;
-            }
-        }
-
-        return positions.ToArray();
-    }
-
-    /// <summary>
-    /// The field a template runs the cloze filter over, which is the one its deletions live in.
-    /// Null when the template names none.
-    /// </summary>
-    private static int? ClozeFieldPosition(string template, IReadOnlyList<string> fieldNames)
-    {
-        if (string.IsNullOrEmpty(template))
-            return null;
-
-        foreach (Match match in AnkiTemplateFieldRegex.Matches(template))
-        {
-            var token = match.Groups[1].Value.Trim();
-            var colon = token.LastIndexOf(':');
-            if (colon < 0)
-                continue;
-
-            // Filters stack ahead of the field name, as in "{{type:cloze:Text}}".
-            var filters = token[..colon].Split(':', StringSplitOptions.TrimEntries);
-            if (!filters.Any(f => string.Equals(f, AnkiClozeFilter, StringComparison.OrdinalIgnoreCase)))
-                continue;
-
-            var name = token[(colon + 1)..].Trim();
-            for (var i = 0; i < fieldNames.Count; i++)
-            {
-                if (string.Equals(fieldNames[i], name, StringComparison.OrdinalIgnoreCase))
-                    return i;
-            }
-        }
-
-        return null;
     }
 
     /// <summary>
@@ -791,8 +618,19 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             return ClozeSides(fields, clozeField, noteType);
         if (noteType is null)
             return fallback;
-        if (noteType.TemplateFor(ord) is not { } template || template.FrontFields.Count == 0)
+        // A cloze kind type has one template and its ordinals name deletions, so every row of an
+        // occlusion note reads that one template.
+        var template = noteType.IsImageOcclusion ? noteType.Templates.FirstOrDefault() : noteType.TemplateFor(ord);
+        if (template is null || template.FrontFields.Count == 0)
             return fallback;
+
+        // An occlusion type's cloze field holds mask shapes, which read as noise on a plain card.
+        if (noteType.IsImageOcclusion && template.ClozeField is { } masks)
+        {
+            return (
+                JoinFields(fields, [.. template.FrontFields.Where(i => i != masks)]),
+                JoinFields(fields, [.. template.BackFields.Where(i => i != masks)]));
+        }
 
         return (JoinFields(fields, template.FrontFields), JoinFields(fields, template.BackFields));
     }
@@ -824,15 +662,16 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// </summary>
     /// <remarks>
     /// A cloze note type says so outright, and its named field is taken even when the note has no
-    /// deletion in it, since that is the field the other app would have made cards from. A
-    /// collection that keeps its note types in an encoded config says nothing about any of them,
-    /// so there the deletions in the note's own fields are the only signal left.
+    /// deletion in it, since that is the field the other app would have made cards from. A note
+    /// whose type the package does not define says nothing, so there the deletions in its own
+    /// fields are the only signal left. Anki's image occlusion type is cloze over mask shapes, not
+    /// text, so its notes keep landing as plain cards.
     /// </remarks>
     private static int? ClozeFieldFor(string[] fields, AnkiNoteType? noteType)
     {
         if (noteType is null)
             return FirstFieldWithDeletion(fields);
-        if (!noteType.IsCloze)
+        if (!noteType.IsCloze || noteType.IsImageOcclusion)
             return null;
         if (noteType.ClozeField is { } named && named < fields.Length)
             return named;
@@ -2870,33 +2709,6 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         IReadOnlyDictionary<long, string> Decks,
         IReadOnlyDictionary<long, string> Models,
         IReadOnlyDictionary<long, AnkiNoteType> NoteTypes);
-
-    /// <summary>
-    /// One of a note type's card templates, reduced to the question it asks and the answer it
-    /// gives, as positions in the note's fields.
-    /// </summary>
-    /// <remarks>
-    /// The template itself is HTML and lays out a card that is not the shape of ours, so only the
-    /// part that decides what the card is about survives the crossing: which fields the question
-    /// shows and which the answer adds. Anki repeats the question on the answer through
-    /// <c>FrontSide</c>, so a field already asked is not counted again on the back.
-    /// </remarks>
-    /// <param name="ClozeField">The field the template runs the cloze filter over, when it does.</param>
-    private sealed record AnkiTemplate(
-        int Ord,
-        string Name,
-        IReadOnlyList<int> FrontFields,
-        IReadOnlyList<int> BackFields,
-        int? ClozeField);
-
-    /// <summary>A note type's field names and the templates it makes cards from.</summary>
-    private sealed record AnkiNoteType(bool IsCloze, IReadOnlyList<string> FieldNames, IReadOnlyList<AnkiTemplate> Templates)
-    {
-        public AnkiTemplate? TemplateFor(int ord) => Templates.FirstOrDefault(t => t.Ord == ord);
-
-        /// <summary>The field the deletions live in, as the first template that names one says.</summary>
-        public int? ClozeField => Templates.Select(t => t.ClozeField).FirstOrDefault(f => f is not null);
-    }
 
     private sealed record NoteRow(long Id, string Tags, string[] Fields, long ModelId)
     {
