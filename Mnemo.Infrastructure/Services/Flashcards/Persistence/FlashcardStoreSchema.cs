@@ -7,7 +7,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 internal static class FlashcardStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 11;
+    public const int TargetVersion = 12;
 
     /// <summary>
     /// Columns added after v1, for databases that already exist.
@@ -36,6 +36,9 @@ internal static class FlashcardStoreSchema
         // Where the answer came from. Zero is answered here, which is what every row written
         // before the column existed was, so the default needs no backfill.
         ("FlashcardReviews", "Origin", "INTEGER NOT NULL DEFAULT 0"),
+        // Equal to TrashId only while the card is held by an entry a save's sweep made, never one
+        // the person made, so a save may take back only what a save put away.
+        ("FlashcardCards", "SweptTrashId", "TEXT NULL"),
     ];
 
     /// <summary>
@@ -169,7 +172,8 @@ internal static class FlashcardStoreSchema
             UpdatedAt      TEXT NOT NULL,
             FactId         TEXT NULL REFERENCES FlashcardFacts(Id) ON DELETE CASCADE,
             LayoutKey      TEXT NULL,
-            TrashId        TEXT NULL
+            TrashId        TEXT NULL,
+            SweptTrashId   TEXT NULL
         );
 
         CREATE TABLE IF NOT EXISTS FlashcardScheduling (

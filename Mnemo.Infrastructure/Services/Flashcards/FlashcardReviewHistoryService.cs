@@ -29,8 +29,8 @@ public sealed class FlashcardReviewHistoryService : IFlashcardReviewHistoryServi
 
     /// <summary>
     /// Writes the rows and nothing else. No schedule is moved, no daily counter is charged and no
-    /// deck is marked as studied: a package arriving is not a study session, and treating it as one
-    /// would spend today's review cap on answers given months ago in another app.
+    /// deck is marked as studied today: a package arriving is not a study session, and treating it
+    /// as one would spend today's review cap on answers given months ago in another app.
     /// </summary>
     public Task<int> AddImportedAsync(
         IReadOnlyList<FlashcardReviewLog> reviews, CancellationToken cancellationToken = default)

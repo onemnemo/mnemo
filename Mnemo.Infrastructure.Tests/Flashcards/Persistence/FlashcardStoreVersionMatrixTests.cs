@@ -10,7 +10,7 @@ using Xunit;
 namespace Mnemo.Infrastructure.Tests.Flashcards.Persistence;
 
 /// <summary>
-/// Every schema version from 1 through <see cref="FlashcardStoreSchema.TargetVersion"/> (10), opened
+/// Every schema version from 1 through <see cref="FlashcardStoreSchema.TargetVersion"/> (12), opened
 /// from a real per-version fixture and checked against a column list this file owns rather than
 /// reads from production.
 /// </summary>
@@ -57,6 +57,7 @@ public sealed class FlashcardStoreVersionMatrixTests
         ("FlashcardFacts", "TrashId"),
         ("FlashcardCards", "TrashId"),
         ("FlashcardReviews", "Origin"),
+        ("FlashcardCards", "SweptTrashId"),
     ];
 
     [Theory]
@@ -70,6 +71,8 @@ public sealed class FlashcardStoreVersionMatrixTests
     [InlineData(8)]
     [InlineData(9)]
     [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(12)]
     public async Task Opening_a_database_from_any_version_reaches_current_with_every_column_present(int fromVersion)
     {
         var path = Path.Combine(Path.GetTempPath(), $"mnemo_fc_matrix_v{fromVersion}_{Guid.NewGuid():N}.db");
@@ -131,6 +134,7 @@ public sealed class FlashcardStoreVersionMatrixTests
     {
         await FlashcardStoreUpgradeTests.WriteRealCollectionAsync(path, deckId, cardId);
 
+        if (targetVersion < 12) await StripSweptTrashIdAsync(path);
         if (targetVersion < 10) await StripLiveIndexesAsync(path);
         if (targetVersion < 9) await StripOriginAsync(path);
         if (targetVersion < 8) await StripTrashAsync(path);
@@ -147,6 +151,10 @@ public sealed class FlashcardStoreVersionMatrixTests
     // --- Strip steps, one per version transition, applied high to low. ---
     // Each removes exactly what the commit introducing that version added to
     // FlashcardStoreSchema (verified against git history), nothing more.
+
+    /// <summary>v12 added FlashcardCards.SweptTrashId.</summary>
+    private static Task StripSweptTrashIdAsync(string path) =>
+        ExecuteAsync(path, "ALTER TABLE FlashcardCards DROP COLUMN SweptTrashId;");
 
     /// <summary>v10 added IX_Decks_Live and IX_Folders_Live.</summary>
     private static Task StripLiveIndexesAsync(string path) =>

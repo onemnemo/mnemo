@@ -246,9 +246,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     var (folderId, deckName) = await folders.ResolvePathAsync(deckPath, cancellationToken).ConfigureAwait(false);
                     var deck = await _library.CreateDeckAsync(deckName, folderId, preset.Id, cancellationToken).ConfigureAwait(false);
                     createdDeckId = deck.Id;
-                    await _library.SaveDeckAsync(
-                        deck with { Description = "Imported from Anki package" },
-                        cancellationToken).ConfigureAwait(false);
+                    var header = deck with { Description = "Imported from Anki package" };
+                    await _library.SaveDeckAsync(header, cancellationToken).ConfigureAwait(false);
 
                     // Which package card row each card that just landed came from. The history in
                     // the package is keyed by that row, and a note's deletions each have one of
@@ -275,8 +274,14 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
                     await ApplyFlagsAsync(landed, flaggedRows, cancellationToken).ConfigureAwait(false);
 
-                    importedReviews += await AttachHistoryAsync(
+                    var (attached, newestReview) = await AttachHistoryAsync(
                         deck.Id, landed, revlog, importSessionId, cancellationToken).ConfigureAwait(false);
+                    importedReviews += attached;
+
+                    // The deck was last studied when its newest imported answer was given, in
+                    // the other app; leaving it unset reads "Never studied" beside a real retention.
+                    if (newestReview is { } lastStudied)
+                        await _library.SaveDeckAsync(header with { LastStudied = lastStudied }, cancellationToken).ConfigureAwait(false);
 
                     importedDecks++;
                 }
@@ -1148,7 +1153,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// Writes the answers the package recorded against the cards that just landed.
     /// </summary>
     /// <returns>How many answers were written.</returns>
-    private async Task<int> AttachHistoryAsync(
+    private async Task<(int Written, DateTimeOffset? Newest)> AttachHistoryAsync(
         string deckId,
         IReadOnlyList<(long PackageCardId, string CardId)> landed,
         IReadOnlyDictionary<long, List<AnkiRevlogRow>> revlog,
@@ -1156,7 +1161,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         CancellationToken cancellationToken)
     {
         if (revlog.Count == 0 || landed.Count == 0)
-            return 0;
+            return (0, null);
 
         var logs = new List<FlashcardReviewLog>();
         foreach (var (packageCardId, cardId) in landed)
@@ -1165,7 +1170,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 logs.AddRange(AnkiRevlog.ToReviewLogs(cardId, deckId, sessionId, rows));
         }
 
-        return await _history.AddImportedAsync(logs, cancellationToken).ConfigureAwait(false);
+        var written = await _history.AddImportedAsync(logs, cancellationToken).ConfigureAwait(false);
+        return (written, logs.Count == 0 ? null : logs.Max(l => l.ReviewedAt));
     }
 
     private static async Task<List<CardRow>> ReadCardsAsync(SqliteConnection connection, CancellationToken cancellationToken)
