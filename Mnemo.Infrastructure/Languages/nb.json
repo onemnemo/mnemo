@@ -1138,6 +1138,8 @@
     "MapChangedElsewhere": "Dette kartet ble endret et annet sted, så det ble lastet inn på nytt og angrehistorikken ble tømt.",
     "MapDeletedElsewhere": "Dette kartet ble slettet et annet sted.",
     "FitClamped": "Dette kartet er for stort til å vises i sin helhet, så bare en del av det vises.",
+    "CopyUnsupported": "Former, fritekst, rammer, bilder og linjer kan ikke kopieres ennå.",
+    "CopyNodesOnly": "Bare nodene ble kopiert. Former, fritekst, rammer, bilder og linjer kan ikke kopieres ennå.",
     "Title": "Tankekart",
     "Subtitle": "Visualiser sammenhenger og brainstorm ideer",
     "NewMindmap": "Nytt tankekart",

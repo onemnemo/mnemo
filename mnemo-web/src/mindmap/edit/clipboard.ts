@@ -68,6 +68,30 @@ export function captureSelection(
   return capture
 }
 
+/**
+ * What a copy of this selection says about the part it leaves behind: nothing when every selected
+ * element is a node and no line is selected, "nodes-only" when some came along, and "nothing" when
+ * none could.
+ */
+export function copyShortfall(
+  hierarchy: Hierarchy,
+  ids: Iterable<string>,
+  captured: Capture,
+  selectedEdges = 0,
+): "none" | "nodes-only" | "nothing" {
+  let skipped = selectedEdges > 0
+  for (const id of ids) {
+    if (!hierarchy.byId.has(id)) {
+      skipped = true
+      break
+    }
+  }
+  if (!skipped) {
+    return "none"
+  }
+  return captured.specs.length > 0 ? "nodes-only" : "nothing"
+}
+
 /** The ones with no selected ancestor above them, in the order they were given. */
 export function topLevelIds(hierarchy: Hierarchy, ids: readonly string[]): string[] {
   const within = new Set(ids)

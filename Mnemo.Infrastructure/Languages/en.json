@@ -1132,6 +1132,8 @@
     "MapChangedElsewhere": "This map changed elsewhere, so it was reloaded and the undo history was cleared.",
     "MapDeletedElsewhere": "This map was deleted elsewhere.",
     "FitClamped": "This map is too large to fit on screen, so only part of it is shown.",
+    "CopyUnsupported": "Shapes, free text, frames, images and lines can't be copied yet.",
+    "CopyNodesOnly": "Only the nodes came along. Shapes, free text, frames, images and lines can't be copied yet.",
     "Loading": "Loading map...",
     "MapIsEmpty": "This map is empty.",
     "MapNotFound": "That mindmap could not be opened.",

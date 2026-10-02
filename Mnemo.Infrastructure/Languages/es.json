@@ -1138,6 +1138,8 @@
     "MapChangedElsewhere": "Este mapa cambió en otro lugar, así que se recargó y se borró el historial para deshacer.",
     "MapDeletedElsewhere": "Este mapa se eliminó en otro lugar.",
     "FitClamped": "Este mapa es demasiado grande para mostrarse por completo, así que solo se muestra una parte.",
+    "CopyUnsupported": "Las formas, el texto libre, los marcos, las imágenes y las líneas aún no se pueden copiar.",
+    "CopyNodesOnly": "Solo se han incluido los nodos. Las formas, el texto libre, los marcos, las imágenes y las líneas aún no se pueden copiar.",
     "Title": "Mapas mentales",
     "Subtitle": "Visualice conexiones y proponga ideas",
     "NewMindmap": "Nuevo mapa mental",

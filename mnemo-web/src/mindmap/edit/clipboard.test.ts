@@ -5,6 +5,7 @@ import { analyzeHierarchy } from "../scene/hierarchy"
 import {
   captureOrigin,
   captureSelection,
+  copyShortfall,
   offsetPlacement,
   topLevelIds,
   translated,
@@ -97,6 +98,36 @@ describe("what a selection can carry off", () => {
 
     expect(specs[0]!.xy).toEqual([10, 20])
     expect(specs[0]!.c![0]!.xy).toEqual([30, 20])
+  })
+})
+
+describe("what a copy has to say about what it left behind", () => {
+  it("says nothing when every selected element is a node", () => {
+    const ids = ["a", "b"]
+    expect(copyShortfall(H, ids, captureSelection(TREE, H, ids))).toBe("none")
+  })
+
+  it("says only the nodes came along when a shape was selected with them", () => {
+    const ids = ["a", "s"]
+    expect(copyShortfall(H, ids, captureSelection(TREE, H, ids))).toBe("nodes-only")
+  })
+
+  it("says nothing could be copied when only a connector was selected", () => {
+    expect(copyShortfall(H, [], captureSelection(TREE, H, []), 1)).toBe("nothing")
+  })
+
+  it("says only the nodes came along when a connector was selected with them", () => {
+    const ids = ["a", "b"]
+    expect(copyShortfall(H, ids, captureSelection(TREE, H, ids), 1)).toBe("nodes-only")
+  })
+
+  it("says nothing could be copied when only a shape was selected", () => {
+    const ids = ["s"]
+    expect(copyShortfall(H, ids, captureSelection(TREE, H, ids))).toBe("nothing")
+  })
+
+  it("stays quiet about an empty selection", () => {
+    expect(copyShortfall(H, [], captureSelection(TREE, H, []))).toBe("none")
   })
 })
 

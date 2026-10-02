@@ -47,8 +47,10 @@ import { ALIGN_MIN } from "../edit/align"
 import { canDistribute, planAlign, type AlignCandidate } from "../edit/align-plan"
 import { connectOps, forestOf, planConnect } from "../edit/connect-plan"
 import {
+  type Capture,
   captureOrigin,
   captureSelection,
+  copyShortfall,
   heldCopy,
   holdCopy,
   offsetPlacement,
@@ -833,6 +835,19 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     }
   }, [])
 
+  /** Says when a copy, cut or duplicate had to leave shapes, text, frames, images or lines out. */
+  const reportShortfall = useCallback(
+    (taken: Capture) => {
+      const shortfall = hierarchy
+        ? copyShortfall(hierarchy, selection.elements, taken, selection.edges.size)
+        : "none"
+      if (shortfall !== "none") {
+        toast.info(shortfall === "nothing" ? t("Mindmap", "CopyUnsupported") : t("Mindmap", "CopyNodesOnly"))
+      }
+    },
+    [hierarchy, selection, t],
+  )
+
   /**
    * Holds a copy of the selection. An empty selection leaves the last copy alone rather than clearing it.
    *
@@ -847,8 +862,9 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
     if (taken.specs.length > 0) {
       holdCopy(taken.specs)
     }
+    reportShortfall(taken)
     return taken
-  }, [capture, map.data, scene])
+  }, [capture, map.data, reportShortfall, scene])
 
   /** Includes collapsed descendants removed by the server cascade. */
   const withDescendants = useCallback(
@@ -924,6 +940,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       return
     }
     const taken = capture(offsetPlacement(map.data, scene?.elements ?? [], DUPLICATE_STEP, DUPLICATE_STEP))
+    reportShortfall(taken)
     if (taken.specs.length === 0) {
       return
     }
@@ -935,7 +952,7 @@ export function MindmapRoute({ mapId }: { mapId: string | undefined }) {
       { label: t("Mindmap", "Duplicate") },
     )
     selectCreated(result)
-  }, [capture, editor, hierarchy, map.data, scene, selectCreated, t])
+  }, [capture, editor, hierarchy, map.data, reportShortfall, scene, selectCreated, t])
 
   const deleteSelection = useCallback(() => {
     const ops: MindmapOp[] = []
