@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 
+import { readRepoText } from "@/i18n/test-bundle"
+import { createTranslate } from "@/i18n/translate"
 import type { TranslateFn } from "@/i18n/types"
 
 import { formatRelative, formatSmart } from "./relative-date"
@@ -13,25 +15,35 @@ const t: TranslateFn = (ns, key, params) =>
   params === undefined ? `${ns}/${key}` : `${ns}/${key}(${Object.values(params).join(",")})`
 
 describe("formatRelative", () => {
-  it("takes the singular key at a count of one", () => {
-    expect(formatRelative(new Date(NOW - DAY), NOW, t)).toBe("Common/DayAgo(1)")
-    expect(formatRelative(new Date(NOW - 8 * DAY), NOW, t)).toBe("Common/WeekAgo(1)")
-    expect(formatRelative(new Date(NOW - 40 * DAY), NOW, t)).toBe("Common/MonthAgo(1)")
-    expect(formatRelative(new Date(NOW - 400 * DAY), NOW, t)).toBe("Common/YearAgo(1)")
+  it("takes the one key at a count of one", () => {
+    expect(formatRelative(new Date(NOW - 5 * 60_000), NOW, t)).toBe("Common/MinutesAgoMany(5)")
+    expect(formatRelative(new Date(NOW - 60 * 60_000), NOW, t)).toBe("Common/HoursAgoOne(1)")
+    expect(formatRelative(new Date(NOW - DAY), NOW, t)).toBe("Common/DaysAgoOne(1)")
+    expect(formatRelative(new Date(NOW - 8 * DAY), NOW, t)).toBe("Common/WeeksAgoOne(1)")
+    expect(formatRelative(new Date(NOW - 40 * DAY), NOW, t)).toBe("Common/MonthsAgoOne(1)")
+    expect(formatRelative(new Date(NOW - 400 * DAY), NOW, t)).toBe("Common/YearsAgoOne(1)")
   })
 
-  it("takes the plural key at any other count", () => {
-    expect(formatRelative(new Date(NOW - 2 * DAY), NOW, t)).toBe("Common/DaysAgo(2)")
-    expect(formatRelative(new Date(NOW - 21 * DAY), NOW, t)).toBe("Common/WeeksAgo(3)")
-    expect(formatRelative(new Date(NOW - 800 * DAY), NOW, t)).toBe("Common/YearsAgo(2)")
+  it("takes the many key at any other count", () => {
+    expect(formatRelative(new Date(NOW - 2 * DAY), NOW, t)).toBe("Common/DaysAgoMany(2)")
+    expect(formatRelative(new Date(NOW - 21 * DAY), NOW, t)).toBe("Common/WeeksAgoMany(3)")
+    expect(formatRelative(new Date(NOW - 800 * DAY), NOW, t)).toBe("Common/YearsAgoMany(2)")
+  })
+
+  it("reads naturally in German", () => {
+    const de = createTranslate(JSON.parse(readRepoText("Mnemo.Infrastructure", "Languages", "de.json")))
+    expect(formatRelative(new Date(NOW - 10_000), NOW, de)).toBe("gerade eben")
+    expect(formatRelative(new Date(NOW - 60_000), NOW, de)).toBe("vor 1 Minute")
+    expect(formatRelative(new Date(NOW - 3 * DAY), NOW, de)).toBe("vor 3 Tagen")
+    expect(formatRelative(new Date(NOW - 800 * DAY), NOW, de)).toBe("vor 2 Jahren")
   })
 })
 
 describe("formatSmart", () => {
   it("words anything under a week relatively", () => {
     expect(formatSmart(new Date(NOW - 30_000), NOW, t, "en-US")).toBe("Common/JustNow")
-    expect(formatSmart(new Date(NOW - 3 * DAY), NOW, t, "en-US")).toBe("Common/DaysAgo(3)")
-    expect(formatSmart(new Date(NOW - 6.9 * DAY), NOW, t, "en-US")).toBe("Common/DaysAgo(6)")
+    expect(formatSmart(new Date(NOW - 3 * DAY), NOW, t, "en-US")).toBe("Common/DaysAgoMany(3)")
+    expect(formatSmart(new Date(NOW - 6.9 * DAY), NOW, t, "en-US")).toBe("Common/DaysAgoMany(6)")
   })
 
   it("switches to a short date at exactly seven days", () => {
@@ -50,7 +62,7 @@ describe("formatSmart", () => {
 
   it("accepts an ISO string as well as a Date", () => {
     const value = new Date(NOW - 2 * DAY)
-    expect(formatSmart(value.toISOString(), NOW, t, "en-US")).toBe("Common/DaysAgo(2)")
+    expect(formatSmart(value.toISOString(), NOW, t, "en-US")).toBe("Common/DaysAgoMany(2)")
   })
 
   it("renders an unparseable timestamp as nothing rather than as Invalid Date", () => {

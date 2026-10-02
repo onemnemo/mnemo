@@ -1,3 +1,4 @@
+import { tPlural } from "@/i18n/plural"
 import type { TranslateFn } from "@/i18n/types"
 
 const MINUTE = 60_000
@@ -8,8 +9,9 @@ const DAY = 24 * HOUR
  * Relative wording for a timestamp ("3 days ago"), following the desktop's
  * DateDisplayService thresholds so both apps break at the same boundaries.
  *
- * It diverges on one point the desktop gets wrong: a count of one takes a singular
- * key, so a card studied yesterday reads "1 day ago" rather than "1 days ago".
+ * It diverges on one point the desktop gets wrong: the count picks its form by the
+ * language's plural rules, so a card studied yesterday reads "1 day ago" rather than
+ * "1 days ago".
  *
  * A future timestamp clamps to "just now" rather than counting backwards - clock
  * skew between writes should not produce "in 2 minutes" on a last-studied label.
@@ -19,19 +21,25 @@ export function formatRelative(timestamp: string | Date, now: number, t: Transla
   const diff = Math.max(0, now - value)
 
   if (diff < MINUTE) return t("Common", "JustNow")
-  if (diff < HOUR) return countAgo(t, Math.floor(diff / MINUTE), "MinuteAgo", "MinutesAgo")
-  if (diff < DAY) return countAgo(t, Math.floor(diff / HOUR), "HourAgo", "HoursAgo")
+  if (diff < HOUR) return ago(t, Math.floor(diff / MINUTE), MINUTES)
+  if (diff < DAY) return ago(t, Math.floor(diff / HOUR), HOURS)
 
   const days = Math.floor(diff / DAY)
-  if (days < 7) return countAgo(t, days, "DayAgo", "DaysAgo")
-  if (days < 30) return countAgo(t, Math.floor(days / 7), "WeekAgo", "WeeksAgo")
-  if (days < 365) return countAgo(t, Math.floor(days / 30), "MonthAgo", "MonthsAgo")
-  return countAgo(t, Math.floor(days / 365), "YearAgo", "YearsAgo")
+  if (days < 7) return ago(t, days, DAYS)
+  if (days < 30) return ago(t, Math.floor(days / 7), WEEKS)
+  if (days < 365) return ago(t, Math.floor(days / 30), MONTHS)
+  return ago(t, Math.floor(days / 365), YEARS)
 }
 
-/** One takes the singular key, everything else the plural; both carry the count. */
-function countAgo(t: TranslateFn, count: number, singular: string, plural: string): string {
-  return t("Common", count === 1 ? singular : plural, { 0: count })
+const MINUTES = { one: "MinutesAgoOne", many: "MinutesAgoMany" }
+const HOURS = { one: "HoursAgoOne", many: "HoursAgoMany" }
+const DAYS = { one: "DaysAgoOne", many: "DaysAgoMany" }
+const WEEKS = { one: "WeeksAgoOne", many: "WeeksAgoMany" }
+const MONTHS = { one: "MonthsAgoOne", many: "MonthsAgoMany" }
+const YEARS = { one: "YearsAgoOne", many: "YearsAgoMany" }
+
+function ago(t: TranslateFn, count: number, keys: { one: string; many: string }): string {
+  return tPlural(t, "Common", keys, count)
 }
 
 const WEEK = 7 * DAY

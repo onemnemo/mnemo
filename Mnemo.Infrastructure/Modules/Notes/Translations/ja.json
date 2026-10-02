@@ -57,7 +57,7 @@
     "IndexChip": "目次",
     "IndexEmpty": "見出しがまだありません",
     "WordCountFormat": "{0} 語",
-    "EditedRelativeFormat": "{0}に編集",
+    "EditedRelativeFormat": "最終編集：{0}",
     "AddCover": "カバーを追加",
     "ChangeCover": "カバーを変更",
     "RemoveCover": "カバーを削除",
