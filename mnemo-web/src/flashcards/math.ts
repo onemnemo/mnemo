@@ -5,6 +5,8 @@
 // Kept apart from the component that renders this (CardText.tsx) so the deck table, which
 // never renders KaTeX, does not pull it in just to strip a formula down to plain text.
 
+import { flattenTex } from "./math-flatten"
+
 /** Alternating literal and maths, so one pass does both forms. */
 const SEGMENT = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/g
 
@@ -32,36 +34,12 @@ export function splitMath(source: string): MathPiece[] {
  * is a two-storey object in a one-storey space that pushes the line height of every row around
  * it. Stripping only the `$` is worse than useless, a row reading `-90\,\text{mV}` is noisier
  * than the formula it stands for. What a row wants is how you would say it out loud:
- * `-90 mV`, `RT/zF`. Approximate on purpose, and never shown anywhere you would work from it.
+ * `-90 mV`, `RT/zF`, `Vₘₐₓ`. Approximate on purpose, and never shown anywhere you would work
+ * from it.
  */
-const FLATTEN: [RegExp, string][] = [
-  [/\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, "$1/$2"],
-  [/\\(?:text|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, "$1"],
-  [/\\(?:quad|qquad|,|;|:|!)/g, " "],
-  [/\\left|\\right/g, ""],
-  [/\\cdot/g, "·"],
-  [/\\times/g, "×"],
-  [/\\pm/g, "±"],
-  [/\\approx/g, "≈"],
-  [/\\leq/g, "≤"],
-  [/\\geq/g, "≥"],
-  // Anything still carrying a backslash is a named thing, ln, log, alpha. The word is the
-  // readable part, the backslash never was.
-  [/\\([a-zA-Z]+)/g, "$1"],
-  [/[{}]/g, ""],
-]
-
 export function stripMath(source: string): string {
   return source
-    .replace(SEGMENT, (m) => {
-      let tex = m.replace(/^\$\$?|\$\$?$/g, "")
-      // Repeated because a fraction can hold a fraction, and one pass would leave the inner
-      // one as `\frac`.
-      for (let pass = 0; pass < 3; pass += 1) {
-        for (const [re, to] of FLATTEN) tex = tex.replace(re, to)
-      }
-      return tex
-    })
+    .replace(SEGMENT, (m) => flattenTex(m.replace(/^\$\$?|\$\$?$/g, "")))
     .replace(/[ \t]{2,}/g, " ")
     .trim()
 }

@@ -65,17 +65,43 @@ describe("stripMath", () => {
     expect(stripMath("The ratio is $\\frac{RT}{zF}$.")).toBe("The ratio is RT/zF.")
   })
 
-  it("does not fully flatten a fraction nested inside another fraction's argument", () => {
-    // The repeated passes collapse the inner \frac{a}{b} to "a/b" in the first pass, but the
-    // same pass also strips the outer \frac's backslash and braces before a later pass gets a
-    // chance to match it, so the outer wrapper survives as bare text rather than a second
-    // slash. Documented here rather than silently relied on: a browser row is an approximation
-    // by design, and this is one of its rough edges.
-    expect(stripMath("$\\frac{\\frac{a}{b}}{c}$")).toBe("fraca/bc")
+  it("reads the arrows that start with left or right as arrows", () => {
+    expect(stripMath("$A \\rightarrow B \\leftarrow C$")).toBe("A → B ← C")
+    expect(stripMath("$p \\Rightarrow q \\leftrightarrow r$")).toBe("p ⇒ q ↔ r")
   })
 
-  it("reads named operators and greek letters as their bare word", () => {
-    expect(stripMath("$\\alpha \\cdot \\beta$")).toBe("alpha · beta")
+  it("drops the sizing commands left and right around a bracket", () => {
+    expect(stripMath("$\\left(x\\right)$")).toBe("(x)")
+    expect(stripMath("$\\left[ x \\right]$")).toBe("[ x ]")
+  })
+
+  it("flattens a fraction nested inside another fraction's argument", () => {
+    expect(stripMath("$\\frac{\\frac{a}{b}}{c}$")).toBe("a/b/c")
+  })
+
+  it("reads greek letters as their symbols", () => {
+    expect(stripMath("$\\alpha \\cdot \\beta$")).toBe("α · β")
+  })
+
+  it("lowers and raises scripts that have a Unicode form", () => {
+    expect(stripMath("Define $K_m$ and $V_{max}$ for $x^2 + y^{n+1}$")).toBe("Define Kₘ and Vₘₐₓ for x² + yⁿ⁺¹")
+  })
+
+  it("marks a script that has no Unicode form plainly rather than gluing it on", () => {
+    expect(stripMath("$k_{cat}$ and $e^{i\\pi}$")).toBe("k_(cat) and e^(iπ)")
+  })
+
+  it("keeps named functions as their word", () => {
+    expect(stripMath("$\\ln x + \\sqrt{2}$")).toBe("ln x + √2")
+  })
+
+  it("flattens the spaced dollars an Anki import writes", () => {
+    expect(stripMath("$ x^2 $")).toBe("x²")
+    expect(stripMath("$ \\frac{RT}{zF} $")).toBe("RT/zF")
+  })
+
+  it("reads a ring as composition and a raised ring as degrees", () => {
+    expect(stripMath("$f \\circ g$ at $90^\\circ$ or $45^{\\circ}$")).toBe("f ∘ g at 90° or 45°")
   })
 
   it("renders comparison and arithmetic symbols", () => {
