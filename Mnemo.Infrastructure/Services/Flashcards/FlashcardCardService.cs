@@ -74,11 +74,14 @@ public sealed class FlashcardCardService : IFlashcardCardService
             .ToArray();
         await _store.WriteAsync(async (conn, tx, ct) =>
         {
-            foreach (var (draft, fact, card) in prepared)
+            for (var i = 0; i < prepared.Length; i++)
             {
+                var (draft, fact, card) = prepared[i];
                 await _facts.UpsertAsync(conn, tx, fact, ct).ConfigureAwait(false);
                 await _cards.InsertAsync(conn, tx, card, ct).ConfigureAwait(false);
-                await _schedules.UpsertAsync(conn, tx, ScheduleFor(draft, card.Id, now), ct).ConfigureAwait(false);
+                // The new queue sorts by due date and then by id, which is random, so cards that
+                // share one instant would study in no particular order. A tick each keeps the batch's.
+                await _schedules.UpsertAsync(conn, tx, ScheduleFor(draft, card.Id, now.AddTicks(i)), ct).ConfigureAwait(false);
             }
         }, cancellationToken).ConfigureAwait(false);
         return prepared.Select(p => p.Card).ToArray();

@@ -185,6 +185,36 @@ public sealed class FlashcardCsvTransferTests
     }
 
     [Fact]
+    public async Task Import_NewQueueStudiesTheRowsInFileOrder()
+    {
+        await using var h = new FlashcardStoreHarness();
+        var library = NewLibrary(h);
+        var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+
+        var fronts = Enumerable.Range(1, 30).Select(i => $"Word {i:D2}").ToArray();
+        var csvPath = NewCsvPath();
+        await File.WriteAllTextAsync(csvPath, "front,back\n" + string.Concat(fronts.Select(f => $"\"{f}\",\"x\"\n")));
+        try
+        {
+            var result = await NewAdapter(h, library, cards).ImportAsync(new ImportExportRequest { FilePath = csvPath });
+            Assert.True(result.Success, result.ErrorMessage);
+
+            var deck = Assert.Single(await library.ListDecksAsync());
+            var queue = await h.Store.ReadAsync((conn, ct) => h.Schedules.ListNewQueueAsync(conn, deck.Id, ct));
+            var frontById = (await cards.ListCardsAsync(new FlashcardCardQuery(deck.Id, Limit: 100))).Items
+                .ToDictionary(v => v.Card.Id, v => v.Card.Front);
+
+            // A frequency list or a textbook's order is the point of the file; ties broken by a
+            // random id would study it shuffled.
+            Assert.Equal(fronts, queue.Select(e => frontById[e.CardId]).ToArray());
+        }
+        finally
+        {
+            File.Delete(csvPath);
+        }
+    }
+
+    [Fact]
     public async Task Import_ManyUnreadableRows_WarnsFiveTimesAndCountsTheRest()
     {
         await using var h = new FlashcardStoreHarness();

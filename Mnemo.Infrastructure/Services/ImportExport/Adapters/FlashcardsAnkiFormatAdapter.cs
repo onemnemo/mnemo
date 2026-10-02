@@ -169,7 +169,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             warnings.AddRange(opened.Warnings);
             var collectionInfo = await ReadCollectionInfoAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
             var notes = await ReadNotesAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
-            var cards = await ReadCardsAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
+            var cards = RankNewCards(await ReadCardsAsync(opened.Connection, cancellationToken).ConfigureAwait(false));
             foreach (var note in notes.Values)
             {
                 if (collectionInfo.Models.TryGetValue(note.ModelId, out var modelName))
@@ -1170,6 +1170,22 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
         var written = await _history.AddImportedAsync(logs, cancellationToken).ConfigureAwait(false);
         return (written, logs.Count == 0 ? null : logs.Max(l => l.ReviewedAt));
+    }
+
+    /// <summary>
+    /// Numbers the new cards in the order the package queues them: by their due position, which
+    /// sibling cards of one note share, then by template.
+    /// </summary>
+    private static List<CardRow> RankNewCards(List<CardRow> cards)
+    {
+        var rank = 0;
+        var ranks = cards
+            .Where(c => c.Type is not (AnkiCardTypeLearning or AnkiCardTypeReview or AnkiCardTypeRelearning))
+            .OrderBy(c => c.EffectiveDue)
+            .ThenBy(c => c.NoteId)
+            .ThenBy(c => c.Ord)
+            .ToDictionary(c => c.Id, _ => rank++);
+        return [.. cards.Select(c => ranks.TryGetValue(c.Id, out var r) ? c with { NewRank = r } : c)];
     }
 
     private static async Task<List<CardRow>> ReadCardsAsync(SqliteConnection connection, CancellationToken cancellationToken)
@@ -2415,9 +2431,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         TryReadUnixTimestamp(value, out var instant) ? instant : DateTimeOffset.UtcNow;
 
     /// <summary>
-    /// Turns one Anki card row's scheduling into the state this app keeps, or null for a card that
-    /// has never been answered. Native FSRS memory wins over review-log replay, which wins over the
-    /// published SM-2 approximation. A card with none of those keeps its schedule without memory.
+    /// Turns one Anki card row's scheduling into the state this app keeps. A new card carries only
+    /// its place in the new queue. Native FSRS memory wins over review-log replay, which wins over
+    /// the published SM-2 approximation. A card with none of those keeps its schedule without memory.
     /// </summary>
     private static FlashcardImportedSchedule? BuildImportedSchedule(
         CardRow card,
@@ -2435,9 +2451,10 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             _ => FlashcardFsrsState.New
         };
 
-        // A new card's due is its place in the queue, not a date, so there is nothing to carry.
+        // A new card's due is its place in the queue, not a date. One tick per place keeps that
+        // order, since the new queue sorts by due date and new cards are not gated on it.
         if (state == FlashcardFsrsState.New)
-            return null;
+            return new FlashcardImportedSchedule(now.AddTicks(card.NewRank), null, null, 0, 0, FlashcardFsrsState.New, null);
 
         var due = ResolveDueDate(card, state, collectionCreatedAt, now);
 
@@ -2744,6 +2761,9 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
         /// <summary>The due value that survives the filtered deck it is parked in.</summary>
         public long EffectiveDue => OriginalDeckId != 0 && OriginalDue != 0 ? OriginalDue : Due;
+
+        /// <summary>A new card's place in the package's new queue, counted from zero.</summary>
+        public int NewRank { get; init; }
     }
 
     private sealed record AnkiDueData(
