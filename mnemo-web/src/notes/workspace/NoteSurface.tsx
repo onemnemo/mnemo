@@ -6,6 +6,7 @@ import '../proofing/proofing.css';
 import { useMemo, useRef, useState } from 'react';
 import { Selection, type EditorState } from 'prosemirror-state';
 
+import { pluralKey } from '@/i18n/plural'
 import { useT } from '@/i18n/useT';
 import { cn } from '@/lib/utils';
 import { formatRelative } from '@/lib/relative-date';
@@ -42,6 +43,8 @@ import { useEditorMeasure } from './useEditorMeasure';
 import { IndexChip } from './IndexChip';
 import { NodeViewPortals } from '../editor/view/NodeViewPortal';
 import { createPortalRegistry } from '../editor/view/portal-registry';
+
+const WORD_COUNT = { one: 'WordCountOne', many: 'WordCountMany' };
 
 /**
  * One note's whole editing surface: the breadcrumb over it, the document itself,
@@ -195,7 +198,7 @@ export function NoteSurface({
           />
           <NoteTags tags={note.tags} onChange={(tags) => patch({ tags })} />
           <div className="mb-6 mt-2 text-[0.8125rem] text-ink-3">
-            {nt('WordCountFormat', { 0: wordCount.toLocaleString() })}
+            {nt(pluralKey(WORD_COUNT, wordCount), { count: wordCount.toLocaleString() })}
             {' · '}
             {nt('EditedRelativeFormat', { 0: formatRelative(note.modifiedAt, Date.now(), t) })}
             {proofing.paused ? (

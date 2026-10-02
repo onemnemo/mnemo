@@ -1,3 +1,4 @@
+import { pluralKey } from "@/i18n/plural"
 import { useI18nStore } from "@/i18n/store"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
@@ -29,7 +30,7 @@ export function ActivityWidget({ instance, manifest }: WidgetProps) {
         right={
           activity.state === "ready" ? (
             <span className="text-[11.5px] tabular-nums text-ink-3">
-              {t(NS, "ReviewsTotal", { 0: total.toLocaleString(locale) })}
+              {t(NS, pluralKey({ one: "ReviewsTotalOne", many: "ReviewsTotalMany" }, total), { count: total.toLocaleString(locale) })}
             </span>
           ) : undefined
         }

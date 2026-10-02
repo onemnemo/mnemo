@@ -105,7 +105,9 @@ public sealed class ProofingMnemoPayloadHandlerTests
         // the file it is the only one skipped.
         Assert.Equal(2, result.SkippedCount);
         var warning = Assert.Single(result.Warnings);
-        Assert.Equal("ProofingWordsSkipped", warning.Key);
+        Assert.Equal("ProofingWordsSkippedMany", warning.Key);
+        Assert.Equal("ProofingWordsSkippedOne", warning.OneKey);
+        Assert.Equal(1, warning.Count);
         Assert.Equal("1", warning.Params["count"]);
     }
 

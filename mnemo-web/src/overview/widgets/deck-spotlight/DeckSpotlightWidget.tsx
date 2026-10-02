@@ -1,5 +1,6 @@
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useDecksQuery } from "@/flashcards/api"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 
 import { settingString } from "../../config/encode"
@@ -72,7 +73,7 @@ export function DeckSpotlightWidget({ instance, manifest, renderColumns }: Widge
             )}
           </>
         ) : (
-          <p className="text-[12.5px] text-ink-3">{t(NS, "CaughtUpFormat", { 0: deck.totalCards })}</p>
+          <p className="text-[12.5px] text-ink-3">{tPlural(t, NS, { one: "CaughtUpOne", many: "CaughtUpMany" }, deck.totalCards)}</p>
         )}
       </div>
     </Body>

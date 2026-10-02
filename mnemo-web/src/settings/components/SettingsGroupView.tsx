@@ -1,3 +1,4 @@
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 
@@ -72,7 +73,7 @@ function MasterGatedRows({ group, rows }: { group: SettingsGroup; rows: Settings
         description={
           enabled
             ? rowDescription(master, t)
-            : t("Settings", "HiddenSettingsFormat", { 0: hiddenCount })
+            : tPlural(t, "Settings", { one: "HiddenSettingsOne", many: "HiddenSettingsMany" }, hiddenCount)
         }
         divider={enabled}
       >

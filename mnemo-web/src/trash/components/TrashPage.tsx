@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { dialog } from "@/stores/dialog"
 import { toast } from "@/stores/toast"
@@ -112,8 +113,8 @@ export function TrashPage() {
 
     try {
       const result = await empty.mutateAsync()
-      if (result.blocked.length > 0) toast.warning(t("Trash", "EmptyBlockedFormat", { 0: result.blocked.length }))
-      else toast.success(t("Trash", "EmptyDoneFormat", { 0: result.purgedCount }))
+      if (result.blocked.length > 0) toast.warning(tPlural(t, "Trash", { one: "EmptyBlockedOne", many: "EmptyBlockedMany" }, result.blocked.length))
+      else toast.success(tPlural(t, "Trash", { one: "EmptyDoneOne", many: "EmptyDoneMany" }, result.purgedCount))
     } catch {
       toast.warning(t("Common", "Error"))
     }

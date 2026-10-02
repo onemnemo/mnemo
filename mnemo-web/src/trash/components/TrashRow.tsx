@@ -1,5 +1,6 @@
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { formatRelative } from "@/lib/relative-date"
 
@@ -41,7 +42,7 @@ export function TrashRow({
     kindLabel(entry.kind, t),
     entry.origin ? t("Trash", "FromFormat", { 0: entry.origin }) : null,
     entry.containedCount > 0
-      ? t("Trash", entry.containedCount === 1 ? "ContainedOne" : "ContainedManyFormat", { 0: entry.containedCount })
+      ? tPlural(t, "Trash", { one: "ContainedOne", many: "ContainedMany" }, entry.containedCount)
       : null,
     formatRelative(entry.deletedAt, now, t),
     formatExpiresIn(entry.expiresAt, now, t),

@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 3790809aac2288a68e61f7911027c62ad5a6d4da307990efbaf291547da21d14
+sha256 2b2df74a37940d90d320e4a91a6a45608f56819a2faa6b987f4817485ae4f71c
 namespaces 39
-keys 2622
+keys 2633
   App 41
   Chat 132
   Common 109
@@ -19,23 +19,23 @@ keys 2622
   Hardware 2
   Keybinds 109
   Mindmap 407
-  Notes 223
+  Notes 224
   NotesEditor 225
   Onboarding 49
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 392
+  Settings 395
   Sidebar 14
   StudyGoals 14
   Topbar 28
-  TransferWarnings 64
-  Trash 48
+  TransferWarnings 65
+  Trash 50
   UsageSummary 22
-  WidgetActivity 6
+  WidgetActivity 8
   WidgetConfig 4
-  WidgetDeck 10
+  WidgetDeck 11
   WidgetForecast 4
   WidgetGoals 17
   WidgetLeeches 4
@@ -43,13 +43,13 @@ keys 2622
   WidgetRecent 5
   WidgetRetention 4
   WidgetSoma 6
-  WidgetStreak 5
+  WidgetStreak 6
   WidgetToday 9
 
 culture de
-sha256 f3b85d1619242bf3d560175702773c6eb1a0874a7652c602740f05158e1699e7
+sha256 f1b696929ba979408cc9c9b760219683182181906975d9663a55ffe0d8b33fd4
 namespaces 39
-keys 2622
+keys 2633
   App 41
   Chat 132
   Common 109
@@ -63,23 +63,23 @@ keys 2622
   Hardware 2
   Keybinds 109
   Mindmap 407
-  Notes 223
+  Notes 224
   NotesEditor 225
   Onboarding 49
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 392
+  Settings 395
   Sidebar 14
   StudyGoals 14
   Topbar 28
-  TransferWarnings 64
-  Trash 48
+  TransferWarnings 65
+  Trash 50
   UsageSummary 22
-  WidgetActivity 6
+  WidgetActivity 8
   WidgetConfig 4
-  WidgetDeck 10
+  WidgetDeck 11
   WidgetForecast 4
   WidgetGoals 17
   WidgetLeeches 4
@@ -87,13 +87,13 @@ keys 2622
   WidgetRecent 5
   WidgetRetention 4
   WidgetSoma 6
-  WidgetStreak 5
+  WidgetStreak 6
   WidgetToday 9
 
 culture es
-sha256 648b1f17f71cda551beb5d2e00444ef12d3096603fb84e48beef36259512cbb9
+sha256 ff3a75f12c32869275b58732fdfc3af806a7f5bf252d81b486e0be81cf34194b
 namespaces 39
-keys 2622
+keys 2633
   App 41
   Chat 132
   Common 109
@@ -107,23 +107,23 @@ keys 2622
   Hardware 2
   Keybinds 109
   Mindmap 407
-  Notes 223
+  Notes 224
   NotesEditor 225
   Onboarding 49
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 392
+  Settings 395
   Sidebar 14
   StudyGoals 14
   Topbar 28
-  TransferWarnings 64
-  Trash 48
+  TransferWarnings 65
+  Trash 50
   UsageSummary 22
-  WidgetActivity 6
+  WidgetActivity 8
   WidgetConfig 4
-  WidgetDeck 10
+  WidgetDeck 11
   WidgetForecast 4
   WidgetGoals 17
   WidgetLeeches 4
@@ -131,13 +131,13 @@ keys 2622
   WidgetRecent 5
   WidgetRetention 4
   WidgetSoma 6
-  WidgetStreak 5
+  WidgetStreak 6
   WidgetToday 9
 
 culture ja
-sha256 9e8ed02ae523d588e84f7a55d34ffe77d3256f8a6c38036e2afdc8634aa453f8
+sha256 87c25c77239633215cc4ebbc4adc56ec2c76ca88fdee239d62373b9bbae5ee3f
 namespaces 39
-keys 2622
+keys 2633
   App 41
   Chat 132
   Common 109
@@ -151,23 +151,23 @@ keys 2622
   Hardware 2
   Keybinds 109
   Mindmap 407
-  Notes 223
+  Notes 224
   NotesEditor 225
   Onboarding 49
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 392
+  Settings 395
   Sidebar 14
   StudyGoals 14
   Topbar 28
-  TransferWarnings 64
-  Trash 48
+  TransferWarnings 65
+  Trash 50
   UsageSummary 22
-  WidgetActivity 6
+  WidgetActivity 8
   WidgetConfig 4
-  WidgetDeck 10
+  WidgetDeck 11
   WidgetForecast 4
   WidgetGoals 17
   WidgetLeeches 4
@@ -175,13 +175,13 @@ keys 2622
   WidgetRecent 5
   WidgetRetention 4
   WidgetSoma 6
-  WidgetStreak 5
+  WidgetStreak 6
   WidgetToday 9
 
 culture nb
-sha256 844aa537b80b4464943c18fea1b35e6e209877e54dd9f7cfc7c26324e97a8dd2
+sha256 b29ee33fdb22f1d56171a8bc9dcb52e9debfa510f2376427564c9c73f58a1ba1
 namespaces 39
-keys 2622
+keys 2633
   App 41
   Chat 132
   Common 109
@@ -195,23 +195,23 @@ keys 2622
   Hardware 2
   Keybinds 109
   Mindmap 407
-  Notes 223
+  Notes 224
   NotesEditor 225
   Onboarding 49
   Overview 31
   Permissions 6
   RecentDecks 8
   RecentNotes 9
-  Settings 392
+  Settings 395
   Sidebar 14
   StudyGoals 14
   Topbar 28
-  TransferWarnings 64
-  Trash 48
+  TransferWarnings 65
+  Trash 50
   UsageSummary 22
-  WidgetActivity 6
+  WidgetActivity 8
   WidgetConfig 4
-  WidgetDeck 10
+  WidgetDeck 11
   WidgetForecast 4
   WidgetGoals 17
   WidgetLeeches 4
@@ -219,5 +219,5 @@ keys 2622
   WidgetRecent 5
   WidgetRetention 4
   WidgetSoma 6
-  WidgetStreak 5
+  WidgetStreak 6
   WidgetToday 9

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 
 import { useHashRoute } from "@/app/router"
 import { AppIcon } from "@/components/icon/AppIcon"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 import { KeyboardPage } from "@/settings/components/pages/KeyboardPage"
@@ -168,7 +169,7 @@ function SearchResults({
       title={t("Settings", "SearchResults")}
       description={
         total > 0
-          ? t("Settings", "SearchResultsSubtitleFormat", { 0: total, 1: query })
+          ? tPlural(t, "Settings", { one: "SearchResultsSubtitleOne", many: "SearchResultsSubtitleMany" }, total, { 1: query })
           : t("Settings", "SearchNoResultsFormat", { 0: query })
       }
     >

@@ -149,7 +149,7 @@ public sealed class ProofingMnemoPayloadHandler : IMnemoPayloadHandler
         // Counted apart from the running total, which the per-note loops below also raise. Warning
         // on the total would tell the user a number their result never shows.
         if (wordsSkipped > 0)
-            result.Warnings.Add(TransferWarning.Of("ProofingWordsSkipped", ("count", wordsSkipped.ToString())));
+            result.Warnings.Add(TransferWarning.Counted("ProofingWordsSkippedOne", "ProofingWordsSkippedMany", wordsSkipped));
 
         foreach (var (packagedNoteId, entry) in noteLanguages)
         {

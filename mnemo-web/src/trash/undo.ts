@@ -1,5 +1,6 @@
 import { useCallback } from "react"
 
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { toast } from "@/stores/toast"
 
@@ -53,7 +54,7 @@ export function useUndoDelete() {
           ? t("Trash", "DeletedOneFormat", { 0: first.title })
           : t("Trash", "DeletedManyFormat", { 0: action.entries.length }),
         {
-          description: t("Trash", days === 1 ? "KeptForDay" : "KeptForDays", { 0: days }),
+          description: tPlural(t, "Trash", { one: "KeptForDaysOne", many: "KeptForDaysMany" }, days),
           // Longer than the default: the whole point is that it can be read and answered, and
           // five seconds is not long enough to notice a mistake in what was just deleted.
           durationMs: 9000,

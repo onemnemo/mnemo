@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Button } from "@/components/ui/button"
 import { Keycap } from "@/components/ui/keycap"
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import type { TranslateFn } from "@/i18n/types"
 import { deleteKeybindOverride, fetchKeybinds, putKeybindOverride, resetKeybindOverrides } from "@/keybinds/api"
@@ -159,7 +160,7 @@ export function KeyboardPage() {
         <div className="mt-4 flex items-start gap-2.5 rounded-lg bg-danger-wash px-3 py-2.5">
           <AppIcon name="triangle-alert" size={16} strokeWidth={1.8} className="mt-px shrink-0 text-danger" />
           <p className="text-[12.5px] leading-snug text-ink-2">
-            {t("Settings", "KeyboardConflictsFormat", { 0: conflicted })}
+            {tPlural(t, "Settings", { one: "KeyboardConflictsOne", many: "KeyboardConflictsMany" }, conflicted)}
           </p>
         </div>
       ) : null}

@@ -1,3 +1,4 @@
+import { tPlural } from "@/i18n/plural"
 import { useI18nStore } from "@/i18n/store"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
@@ -52,7 +53,7 @@ export function StreakWidget({ manifest, renderColumns }: WidgetProps) {
       {week.map((day, index) => (
         <div key={day.day} className="flex flex-col items-center gap-1">
           <span
-            title={t(NS, "ReviewsOnDay", { 0: day.reviews, 1: day.day })}
+            title={tPlural(t, NS, { one: "ReviewsOnDayOne", many: "ReviewsOnDayMany" }, day.reviews, { 1: day.day })}
             className={cn(
               "size-[7px] rounded-full",
               day.reviews > 0 ? "bg-ink-2" : "bg-canvas-sunken",

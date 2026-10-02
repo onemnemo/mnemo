@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react"
 
+import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
@@ -62,7 +63,7 @@ export function Heatmap({ days, rowSpan }: { days: readonly ActivityDay[]; rowSp
             {week.map((day, dayIndex) => (
               <span
                 key={dayIndex}
-                title={day ? t("WidgetActivity", "ReviewsOnDay", { 0: day.reviews, 1: day.day }) : undefined}
+                title={day ? tPlural(t, "WidgetActivity", { one: "ReviewsOnDayOne", many: "ReviewsOnDayMany" }, day.reviews, { 1: day.day }) : undefined}
                 className={cn("rounded-[2px]", day ? LEVELS[levelFor(day.reviews, peak)] : "bg-transparent")}
                 style={{ width: cell, height: cell }}
               />

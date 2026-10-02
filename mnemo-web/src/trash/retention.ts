@@ -1,3 +1,4 @@
+import { pluralKey } from "@/i18n/plural"
 import type { TranslateFn } from "@/i18n/types"
 
 import type { TrashEntryDto } from "./types"
@@ -43,5 +44,5 @@ export function retentionDays(entry: TrashEntryDto): number {
 }
 
 function count(t: TranslateFn, value: number, singular: string, plural: string): string {
-  return t("Trash", value === 1 ? singular : plural, { 0: value })
+  return t("Trash", pluralKey({ one: singular, many: plural }, value), { 0: value })
 }

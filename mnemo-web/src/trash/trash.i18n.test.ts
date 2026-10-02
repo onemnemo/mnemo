@@ -29,8 +29,8 @@ const RETENTION_KEYS = ["ExpiresSoon", "ExpiresHour", "ExpiresHours", "ExpiresDa
 const UNDO_KEYS = [
   "DeletedOneFormat",
   "DeletedManyFormat",
-  "KeptForDay",
-  "KeptForDays",
+  "KeptForDaysOne",
+  "KeptForDaysMany",
   "Undo",
   "UndoIncomplete",
   "UndoFailed",
@@ -42,8 +42,10 @@ const PAGE_KEYS = [
   "AllKinds",
   "EmptyTrash",
   "EmptyTrashConfirm",
-  "EmptyDoneFormat",
-  "EmptyBlockedFormat",
+  "EmptyDoneOne",
+  "EmptyDoneMany",
+  "EmptyBlockedOne",
+  "EmptyBlockedMany",
   "LoadMore",
   "NoMatches",
   "EmptyTitle",
@@ -56,7 +58,7 @@ const PAGE_KEYS = [
   "SourceUnavailable",
   "FromFormat",
   "ContainedOne",
-  "ContainedManyFormat",
+  "ContainedMany",
   "NoDecks",
 ] as const
 
@@ -75,9 +77,12 @@ const OUTCOME_KEYS = [
 const TRASH_KEYS = [...KIND_KEYS, ...RETENTION_KEYS, ...UNDO_KEYS, ...PAGE_KEYS, ...OUTCOME_KEYS] as const
 
 /** Every key whose copy has somewhere to put a value. */
-const FORMAT_KEYS = TRASH_KEYS.filter(
-  (key) => key.endsWith("Format") || key.startsWith("Expires") || key.startsWith("KeptFor"),
-).filter((key) => key !== "ExpiresSoon")
+const FORMAT_KEYS = TRASH_KEYS.filter((key) => key.endsWith("Format") || key.startsWith("Expires")).filter(
+  (key) => key !== "ExpiresSoon",
+)
+
+/** One and Many halves of a count pair, which read `{count}`. */
+const PAIR_KEYS = TRASH_KEYS.filter((key) => key.endsWith("One") || key.endsWith("Many"))
 
 describe("Trash translations", () => {
   const bundle = mergedEnglishBundle()
@@ -93,6 +98,10 @@ describe("Trash translations", () => {
 
   it.each(FORMAT_KEYS)("keeps the placeholder in Trash/%s", (key) => {
     expect(bundle.Trash?.[key] ?? "").toContain("{0}")
+  })
+
+  it.each(PAIR_KEYS)("reads the count in Trash/%s", (key) => {
+    expect(bundle.Trash?.[key] ?? "").toContain("{count}")
   })
 
   it("names the settings category the trash page hangs off", () => {
