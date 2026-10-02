@@ -89,7 +89,7 @@ export function ReviewSettings({
   const loadError = presets.isError ? presets.error : deck.isError ? deck.error : null
   useEffect(() => {
     if (!loadError) return
-    toast.warning(t("Flashcards", "ReviewSettingsLoadErrorTitle"), { description: loadError.message })
+    toast.warning(t("Flashcards", "ReviewSettingsLoadErrorTitle"), { description: describeError(t, loadError) })
     onClose()
   }, [loadError, onClose, t])
 

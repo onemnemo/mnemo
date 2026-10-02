@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   confirm: vi.fn(async (_options: ConfirmOptions) => false),
   warn: vi.fn(),
+  loadError: null as Error | null,
 }))
 
 const vocabulary = {
@@ -88,14 +89,17 @@ const idioms = {
 
 // The manager initially selects the first type. Idioms has no material.
 vi.mock("../facts/api", () => ({
-  useCardTypesQuery: () => ({
-    data: [
-      { type: vocabulary, factCount: 3 },
-      { type: grammar, factCount: 5 },
-      { type: idioms, factCount: 0 },
-    ],
-    isError: false,
-  }),
+  useCardTypesQuery: () =>
+    mocks.loadError
+      ? { data: undefined, isError: true, error: mocks.loadError }
+      : {
+          data: [
+            { type: vocabulary, factCount: 3 },
+            { type: grammar, factCount: 5 },
+            { type: idioms, factCount: 0 },
+          ],
+          isError: false,
+        },
   useRefreshAfterFactWrite: () => mocks.refresh,
   saveCardType: mocks.saveCardType,
   deleteCardType: mocks.deleteCardType,
@@ -134,6 +138,7 @@ let root: Root
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.loadError = null
   // Clear mock implementations so consent cannot leak between tests.
   mocks.confirm.mockResolvedValue(false)
   mocks.deleteCardType.mockResolvedValue(undefined)
@@ -614,5 +619,17 @@ describe("CardTypeOverlay delete refusal", () => {
     expect(mocks.warn).toHaveBeenCalledWith("CardTypesDeleteBlockedTitle", {
       description: "the collection is locked",
     })
+  })
+})
+
+describe("a failed load", () => {
+  it("words the failure in the reader's language rather than the host's sentence", async () => {
+    mocks.loadError = new ApiError("Something broke on the host.", 500, "internal_error")
+
+    open()
+    await settle()
+
+    expect(mocks.warn).toHaveBeenCalledWith("CardTypesLoadErrorTitle", { description: "InternalError" })
+    expect(useCardTypeManager.getState().open).toBe(false)
   })
 })

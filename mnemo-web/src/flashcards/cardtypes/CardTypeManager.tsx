@@ -77,7 +77,7 @@ export function CardTypeManager({
   const loadError = types.isError ? types.error : null
   useEffect(() => {
     if (!loadError) return
-    toast.warning(t("Flashcards", "CardTypesLoadErrorTitle"), { description: loadError.message })
+    toast.warning(t("Flashcards", "CardTypesLoadErrorTitle"), { description: describeError(t, loadError) })
     onClose()
   }, [loadError, onClose, t])
 

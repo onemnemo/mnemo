@@ -9,6 +9,7 @@ import { act, StrictMode, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { ApiError } from "@/api/client"
 import type { ConfirmOptions } from "@/stores/dialog"
 
 import { ReviewSettingsOverlay } from "./ReviewSettingsOverlay"
@@ -17,10 +18,12 @@ import { useReviewSettings } from "./store"
 const mocks = vi.hoisted(() => ({
   confirm: vi.fn(async (_options: ConfirmOptions) => false),
   refresh: vi.fn(),
+  warn: vi.fn(),
+  loadError: null as Error | null,
 }))
 
 vi.mock("./api", () => ({
-  usePresetsQuery: () => ({
+  usePresetsQuery: () => mocks.loadError ? { data: undefined, isError: true, error: mocks.loadError } : ({
     data: [
       {
         id: "preset-standard",
@@ -64,7 +67,7 @@ vi.mock("@/stores/dialog", () => ({
 }))
 
 vi.mock("@/stores/toast", () => ({
-  toast: { warning: vi.fn(), info: vi.fn(), success: vi.fn() },
+  toast: { warning: mocks.warn, info: vi.fn(), success: vi.fn() },
 }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -81,6 +84,7 @@ let root: Root
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.loadError = null
   mocks.confirm.mockResolvedValue(false)
   container = document.createElement("div")
   document.body.appendChild(container)
@@ -225,6 +229,18 @@ describe("ReviewSettingsOverlay discard guard", () => {
     await settle()
 
     expect(mocks.confirm).toHaveBeenCalledTimes(1)
+    expect(useReviewSettings.getState().target).toBeNull()
+  })
+})
+
+describe("a failed load", () => {
+  it("words the failure in the reader's language rather than the host's sentence", async () => {
+    mocks.loadError = new ApiError("Something broke on the host.", 500, "internal_error")
+
+    open()
+    await settle()
+
+    expect(mocks.warn).toHaveBeenCalledWith("ReviewSettingsLoadErrorTitle", { description: "InternalError" })
     expect(useReviewSettings.getState().target).toBeNull()
   })
 })
