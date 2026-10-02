@@ -50,6 +50,12 @@ public static class Program
 {
     internal const string WaitForProcessArgument = "--wait-for-process";
 
+    /// <summary>
+    /// The server's localization once it has loaded the saved language, kept past the server's
+    /// own lifetime so a window that fails to open can still say why in that language.
+    /// </summary>
+    private static ILocalizationService? _localization;
+
     [STAThread]
     public static int Main(string[] args)
     {
@@ -65,6 +71,15 @@ public static class Program
         }
         catch (Exception ex)
         {
+            if (OperatingSystem.IsLinux() && LinuxNativeDependencies.DescribeMissingPackage(ex) is { } missing)
+            {
+                CrashLog.Write(missing, ex);
+                FatalDialog.ShowError(
+                    LinuxNativeDependencies.Title(_localization),
+                    LinuxNativeDependencies.DescribeMissingPackage(ex, FatalDialog.SafeLogsDirectory(), _localization) ?? missing);
+                return 1;
+            }
+
             CrashLog.Write("Mnemo.Host could not start.", ex);
             FatalDialog.ShowStartupFailure(ex);
             return 1;
@@ -126,6 +141,7 @@ public static class Program
         // Photino needs the window on this (STA) entry thread, so asynchronous server startup
         // is completed before the native message loop takes ownership of this thread.
         var server = Task.Run(() => StartServerAsync(options, startupLogger, instanceLock)).GetAwaiter().GetResult();
+        _localization = server.App.Services.GetRequiredService<ILocalizationService>();
         var restart = false;
         try
         {

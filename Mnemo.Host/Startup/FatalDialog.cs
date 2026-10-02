@@ -46,6 +46,9 @@ internal static class FatalDialog
     /// </summary>
     public static void ShowNotice(string title, string message) => Show(message, title, isError: false);
 
+    /// <summary>Reports a fault whose message is already written for a person. Never throws.</summary>
+    public static void ShowError(string title, string message) => Show(message, title, isError: true);
+
     private static void Show(Exception error, string title) =>
         Show(ComposeMessage(error, title, SafeLogsDirectory()), title, isError: true);
 
@@ -174,7 +177,7 @@ internal static class FatalDialog
               + $"{Environment.NewLine}{Environment.NewLine}The full details were written to:{Environment.NewLine}{logsDirectory}";
     }
 
-    private static string? SafeLogsDirectory()
+    internal static string? SafeLogsDirectory()
     {
         try
         {

@@ -27,9 +27,19 @@ public class EmbeddedBuiltInTranslationSource : ITranslationSource
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>> GetTranslationsForCultureAsync(
+    public Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>> GetTranslationsForCultureAsync(
         string cultureCode,
         CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(GetTranslationsForCulture(cultureCode));
+    }
+
+    /// <summary>
+    /// The same bundle, read synchronously. The resources live in memory, so nothing here waits on I/O,
+    /// and a caller with no async path (a crash notice at startup) can use it without blocking on a task.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> GetTranslationsForCulture(string cultureCode)
     {
         if (string.IsNullOrEmpty(cultureCode))
             return new Dictionary<string, IReadOnlyDictionary<string, string>>();
@@ -41,26 +51,19 @@ public class EmbeddedBuiltInTranslationSource : ITranslationSource
         }
 
         var resourceName = ResourcePrefix + cultureCode + ".json";
-        await using var stream = _assembly.GetManifestResourceStream(resourceName);
+        using var stream = _assembly.GetManifestResourceStream(resourceName);
         if (stream == null)
             return new Dictionary<string, IReadOnlyDictionary<string, string>>();
 
-        var dict = await DeserializeAsync(stream, cancellationToken).ConfigureAwait(false);
-        var immutable = ToReadOnly(dict);
+        var root = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(stream)
+            ?? new Dictionary<string, Dictionary<string, string>>();
+        var immutable = ToReadOnly(root);
 
         lock (_cache)
         {
             _cache[cultureCode] = immutable;
         }
         return immutable;
-    }
-
-    private static async Task<Dictionary<string, Dictionary<string, string>>> DeserializeAsync(Stream stream, CancellationToken cancellationToken)
-    {
-        var root = await JsonSerializer.DeserializeAsync<Dictionary<string, Dictionary<string, string>>>(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
-        if (root == null)
-            return new Dictionary<string, Dictionary<string, string>>();
-        return root;
     }
 
     private static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> ToReadOnly(
