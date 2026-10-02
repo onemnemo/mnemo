@@ -23,13 +23,18 @@ public static partial class NoteBlockMarkdownConverter
     /// </remarks>
     public static string Serialize(IReadOnlyList<Block> blocks) => JoinBlocks(blocks);
 
-    public static string SerializeBlock(Block block)
+    public static string SerializeBlock(Block block) => SerializeBlock(block, 1);
+
+    /// <summary>
+    /// One block, a numbered item written as <paramref name="listNumber"/>: its place in its run, the
+    /// number the editor shows. A stored number goes stale on the first edit above it.
+    /// </summary>
+    private static string SerializeBlock(Block block, int listNumber)
     {
         block.EnsureSpans();
         var body = block.Type is BlockType.Code or BlockType.Divider or BlockType.Equation or BlockType.Sketch
             ? block.Content
             : InlineMarkdownSerializer.SerializeSpans(block.Spans);
-        var listNum = GetListNumber(block);
         var isChecked = GetChecklistChecked(block);
         return block.Type switch
         {
@@ -42,7 +47,7 @@ public static partial class NoteBlockMarkdownConverter
             BlockType.Heading3 => $"### {body}",
             BlockType.Heading4 => $"#### {body}",
             BlockType.BulletList => WithNestedItems($"- {body}", block, BulletChildIndent),
-            BlockType.NumberedList => WithNestedItems($"{listNum}. {body}", block, NumberedChildIndent),
+            BlockType.NumberedList => WithNestedItems($"{listNumber}. {body}", block, NumberedChildIndent),
             BlockType.Checklist => WithNestedItems(isChecked ? $"- [x] {body}" : $"- [ ] {body}", block, BulletChildIndent),
             BlockType.Quote => "> " + body.Replace("\n", "\n> ", StringComparison.Ordinal),
             BlockType.Callout => SerializeCallout(block, body),
@@ -72,10 +77,11 @@ public static partial class NoteBlockMarkdownConverter
             return head;
 
         var sb = new System.Text.StringBuilder(head);
+        var run = new ListRun();
         foreach (var child in children.OrderBy(c => c.Order))
         {
             sb.AppendLine();
-            sb.Append(IndentLines(SerializeBlock(child), indent));
+            sb.Append(IndentLines(SerializeBlock(child, run.Next(child)), indent));
         }
 
         return sb.ToString();
@@ -224,6 +230,16 @@ public static partial class NoteBlockMarkdownConverter
             }
             open.Add((indent, item));
         }
+        // The indent of the numbered item a list item at this indent sits in, if any.
+        int? NumberedDepth(int indent)
+        {
+            for (var k = open.Count - 1; k >= 0; k--)
+            {
+                if (open[k].Indent < indent && open[k].Item.Type == BlockType.NumberedList)
+                    return open[k].Indent;
+            }
+            return null;
+        }
 
         // A block's text with the lines it continues onto folded in: while the text ends in a
         // hard break, the next physical line belongs to the same block. A quote or callout needs
@@ -248,11 +264,11 @@ public static partial class NoteBlockMarkdownConverter
         }
 
         // A paragraph's text with its wrapped lines folded in, lazy continuation lines included.
-        // A numbered item's sibling at its own depth opens a new item whatever its number. When
+        // A number at or left of a numbered list's depth opens its next item whatever the number. When
         // the first line is not prose (raw HTML, a container fence, indented code), or the joined
         // text would stop being one paragraph, every line stays its own block, as a line by line
         // reading has it, so a parser never swallows the text the join folded in.
-        string Paragraph(string text, int? numberedItemIndent = null)
+        string Paragraph(string text, int? numberedIndent = null)
         {
             var single = WithContinuation(text);
             var singleEnd = i;
@@ -260,7 +276,7 @@ public static partial class NoteBlockMarkdownConverter
                 joinParagraphs
                 && i + 1 < lines.Length
                 && lines[i].Trim().Length > 0
-                && !OpensBlock(lines, i + 1, numberedItemIndent is int depth && IndentWidth(lines[i + 1]) <= depth)
+                && !OpensBlock(lines, i + 1, numberedIndent is int depth && IndentWidth(lines[i + 1]) <= depth)
                 && ReadPipeTable(lines, i + 1, out _) is null;
 
             if (!TakesNextLine() || !InlineMarkdownParser.ReadsAsOneParagraph(single))
@@ -350,7 +366,7 @@ public static partial class NoteBlockMarkdownConverter
             {
                 var fenceLang = trimmed[fence.Length..].Trim();
                 var isSketch = string.Equals(fenceLang, "sketch", StringComparison.OrdinalIgnoreCase);
-                var language = string.IsNullOrEmpty(fenceLang) ? "csharp" : fenceLang;
+                var language = fenceLang;
                 var codeContent = new System.Text.StringBuilder();
                 i++;
                 while (i < lines.Length)
@@ -448,7 +464,7 @@ public static partial class NoteBlockMarkdownConverter
             if (Regex.IsMatch(trimmed, @"^-\s*\[\s*[xX]\s*\]"))
             {
                 var content = Regex.Replace(trimmed, @"^-\s*\[\s*[xX]\s*\]\s*", "", RegexOptions.None);
-                var b = CreateRichBlock(BlockType.Checklist, Paragraph(content), 0);
+                var b = CreateRichBlock(BlockType.Checklist, Paragraph(content, NumberedDepth(indent)), 0);
                 b.Payload = new ChecklistPayload(true);
                 AddListItem(b, indent);
                 i++;
@@ -458,7 +474,7 @@ public static partial class NoteBlockMarkdownConverter
             if (Regex.IsMatch(trimmed, @"^-\s*\[\s*\]"))
             {
                 var content = Regex.Replace(trimmed, @"^-\s*\[\s*\]\s*", "", RegexOptions.None);
-                var b = CreateRichBlock(BlockType.Checklist, Paragraph(content), 0);
+                var b = CreateRichBlock(BlockType.Checklist, Paragraph(content, NumberedDepth(indent)), 0);
                 b.Payload = new ChecklistPayload(false);
                 AddListItem(b, indent);
                 i++;
@@ -467,7 +483,7 @@ public static partial class NoteBlockMarkdownConverter
 
             if (trimmed.StartsWith("- ", StringComparison.Ordinal))
             {
-                AddListItem(CreateRichBlock(BlockType.BulletList, Paragraph(trimmed["- ".Length..].TrimStart()), 0), indent);
+                AddListItem(CreateRichBlock(BlockType.BulletList, Paragraph(trimmed["- ".Length..].TrimStart(), NumberedDepth(indent)), 0), indent);
                 i++;
                 continue;
             }
@@ -475,7 +491,7 @@ public static partial class NoteBlockMarkdownConverter
             var starOrPlusBullet = StarOrPlusBulletPattern.Match(trimmed);
             if (starOrPlusBullet.Success)
             {
-                AddListItem(CreateRichBlock(BlockType.BulletList, Paragraph(starOrPlusBullet.Groups[2].Value), 0), indent);
+                AddListItem(CreateRichBlock(BlockType.BulletList, Paragraph(starOrPlusBullet.Groups[2].Value, NumberedDepth(indent)), 0), indent);
                 i++;
                 continue;
             }
@@ -494,14 +510,9 @@ public static partial class NoteBlockMarkdownConverter
                     // absorbs it and two callouts come back as one.
                     if (StartsCallout(nextTrimmed))
                         break;
-                    if (nextTrimmed.StartsWith("> ", StringComparison.Ordinal))
+                    if (nextTrimmed.StartsWith('>'))
                     {
-                        calloutLines.Add(nextTrimmed["> ".Length..].TrimStart());
-                        i++;
-                    }
-                    else if (nextTrimmed == ">")
-                    {
-                        calloutLines.Add(string.Empty);
+                        calloutLines.Add(nextTrimmed[1..].TrimStart());
                         i++;
                     }
                     else
@@ -518,9 +529,10 @@ public static partial class NoteBlockMarkdownConverter
                 continue;
             }
 
-            if (trimmed.StartsWith("> ", StringComparison.Ordinal) || trimmed == ">")
+            // CommonMark lets the space after the marker go, as the editor's paste reader does.
+            if (trimmed.StartsWith('>'))
             {
-                var firstLine = trimmed == ">" ? string.Empty : trimmed["> ".Length..].TrimStart();
+                var firstLine = trimmed[1..].TrimStart();
                 var quoteLines = new List<string> { firstLine };
                 i++;
                 while (i < lines.Length)
@@ -530,14 +542,9 @@ public static partial class NoteBlockMarkdownConverter
                     // block, not another line of the quotation.
                     if (StartsCallout(nextTrimmed))
                         break;
-                    if (nextTrimmed.StartsWith("> ", StringComparison.Ordinal))
+                    if (nextTrimmed.StartsWith('>'))
                     {
-                        quoteLines.Add(nextTrimmed["> ".Length..].TrimStart());
-                        i++;
-                    }
-                    else if (nextTrimmed == ">")
-                    {
-                        quoteLines.Add(string.Empty);
+                        quoteLines.Add(nextTrimmed[1..].TrimStart());
                         i++;
                     }
                     else
@@ -555,11 +562,10 @@ public static partial class NoteBlockMarkdownConverter
                 var content = Regex.Replace(trimmed, @"^[0-9]{1,9}[.)]\s*", "", RegexOptions.None);
                 var m = Regex.Match(trimmed, @"^(\d+)[.)]\s");
                 var n = m.Success && int.TryParse(m.Groups[1].Value, out var num) ? num : 1;
-                var nb = CreateRichBlock(BlockType.NumberedList, Paragraph(content, numberedItemIndent: indent), 0);
-                // Written under the canonical key the editor and PDF composer read. The legacy
-                // "listNumber" key nothing else looks at is never emitted again, so a numbered
-                // list imported from markdown keeps its start value instead of silently
-                // renumbering from 1 the moment it opens.
+                var nb = CreateRichBlock(BlockType.NumberedList, Paragraph(content, indent), 0);
+                // The number as the file wrote it, under the canonical key. The editor and the export
+                // both number a list by position, so nothing reads it back. The legacy "listNumber"
+                // key is never emitted again.
                 nb.Meta["listNumberIndex"] = n;
                 AddListItem(nb, indent);
                 i++;
@@ -642,27 +648,6 @@ public static partial class NoteBlockMarkdownConverter
         }
 
         b.Spans = InlineSpanFormatApplier.Normalize(list);
-    }
-
-    private static int GetListNumber(Block block)
-    {
-        // listNumberIndex is the key the editor and PDF composer read; listNumber is the legacy
-        // key markdown used to write. Read either, preferring the canonical one, defaulting to 1.
-        return ReadMetaInt(block, "listNumberIndex") ?? ReadMetaInt(block, "listNumber") ?? 1;
-    }
-
-    private static int? ReadMetaInt(Block block, string key)
-    {
-        if (!block.Meta.TryGetValue(key, out var v) || v is null)
-            return null;
-        return v switch
-        {
-            int i => i,
-            long l => (int)l,
-            JsonElement je when je.TryGetInt32(out var n) => n,
-            string s when int.TryParse(s, out var n) => n,
-            _ => null
-        };
     }
 
     private static bool GetChecklistChecked(Block block)

@@ -251,49 +251,83 @@ public class NoteBlockMarkdownConverterTests
 
         Assert.Equal(2, back.Count);
         Assert.All(back, b => Assert.Equal(BlockType.NumberedList, b.Type));
-        // The canonical key the editor and PDF composer read, never the legacy key nothing reads.
+        // The canonical key the export reads back, never the legacy key.
         Assert.Equal(3, Assert.IsType<int>(back[0].Meta["listNumberIndex"]));
         Assert.Equal(4, Assert.IsType<int>(back[1].Meta["listNumberIndex"]));
         Assert.DoesNotContain("listNumber", back[0].Meta.Keys);
     }
 
-    [Fact]
-    public void Serialize_NumberedList_ReadsCanonicalIndex()
+    [Theory]
+    [InlineData("listNumberIndex")]
+    [InlineData("listNumber")]
+    public void Serialize_NumberedList_WritesItsPlaceNotAStoredNumber(string key)
     {
+        // A stored number goes stale on the first edit above it; the editor shows the position.
         var block = new Block
         {
             Type = BlockType.NumberedList,
             Order = 0,
             Spans = new List<InlineSpan> { InlineSpan.Plain("Item") },
-            Meta = new Dictionary<string, object> { ["listNumberIndex"] = 5 }
+            Meta = new Dictionary<string, object> { [key] = 5 }
         };
 
-        Assert.Contains("5. Item", NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
+        Assert.Equal("1. Item", NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
     }
 
     [Fact]
-    public void Serialize_NumberedList_FallsBackToLegacyKey()
-    {
-        // Old data on disk carries only "listNumber"; its start value must still survive export.
-        var block = new Block
-        {
-            Type = BlockType.NumberedList,
-            Order = 0,
-            Spans = new List<InlineSpan> { InlineSpan.Plain("Item") },
-            Meta = new Dictionary<string, object> { ["listNumber"] = 7 }
-        };
-
-        Assert.Contains("7. Item", NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
-    }
-
-    [Fact]
-    public void RoundTrip_NumberedList_PreservesStartValue()
+    public void RoundTrip_NumberedList_WritesTheNumbersShown()
     {
         var back = NoteBlockMarkdownConverter.Deserialize("5. First\n6. Second");
-        var md = NoteBlockMarkdownConverter.Serialize(back);
+        var md = NoteBlockMarkdownConverter.Serialize(back).Replace("\r\n", "\n");
 
-        Assert.Contains("5. First", md);
-        Assert.Contains("6. Second", md);
+        Assert.Equal("1. First\n2. Second", md);
+    }
+
+    [Fact]
+    public void RoundTrip_StaleChildNumber_KeepsTheNesting()
+    {
+        var child = Numbered("c", 0, 3);
+        var blocks = new List<Block> { Rich(BlockType.Heading1, "Doc", 0), Numbered("a", 1, 1), Numbered("b", 2, 2, child) };
+
+        var back = NoteBlockMarkdownConverter.Deserialize(NoteBlockMarkdownConverter.Serialize(blocks)).Skip(1).ToList();
+
+        Assert.Equal(new[] { "a", "b" }, back.Select(b => b.Content));
+        Assert.All(back, b => Assert.Equal(BlockType.NumberedList, b.Type));
+        var nested = Assert.Single(back[1].Children!);
+        Assert.Equal((BlockType.NumberedList, "c"), (nested.Type, nested.Content));
+    }
+
+    [Fact]
+    public void RoundTrip_NumberedAfterABullet_StaysItsOwnItem()
+    {
+        var bullet = new Block { Type = BlockType.BulletList, Order = 2, Spans = new List<InlineSpan> { InlineSpan.Plain("b") } };
+        var blocks = new List<Block> { Rich(BlockType.Heading1, "Doc", 0), Numbered("a", 1, 1), bullet, Numbered("c", 3, 2) };
+
+        var back = NoteBlockMarkdownConverter.Deserialize(NoteBlockMarkdownConverter.Serialize(blocks)).Skip(1);
+
+        Assert.Equal(
+            new[] { (BlockType.NumberedList, "a"), (BlockType.BulletList, "b"), (BlockType.NumberedList, "c") },
+            back.Select(b => (b.Type, b.Content)));
+    }
+
+    [Fact]
+    public void RoundTrip_NumberedChildOfABullet_StaysNested()
+    {
+        var bullet = new Block
+        {
+            Type = BlockType.BulletList,
+            Order = 1,
+            Spans = new List<InlineSpan> { InlineSpan.Plain("a") },
+            Children = new List<Block> { Numbered("b", 0, 2) }
+        };
+
+        var blocks = new List<Block> { Rich(BlockType.Heading1, "Doc", 0), bullet };
+        var back = NoteBlockMarkdownConverter.Deserialize(NoteBlockMarkdownConverter.Serialize(blocks));
+
+        var top = Assert.Single(back.Skip(1));
+        Assert.Equal((BlockType.BulletList, "a"), (top.Type, top.Content));
+        var nested = Assert.Single(top.Children!);
+        Assert.Equal((BlockType.NumberedList, "b"), (nested.Type, nested.Content));
     }
 
     [Fact]
@@ -830,8 +864,7 @@ public class NoteBlockMarkdownConverterTests
         Assert.Equal("a\n```\nb", Assert.IsType<CodePayload>(back[0].Payload).Source.Replace("\r\n", "\n"));
 
         var md = NoteBlockMarkdownConverter.Serialize(back).Replace("\r\n", "\n");
-        // A fence without a language reads as the editor's default one.
-        Assert.Equal("````csharp\na\n```\nb\n````\n\nz", md);
+        Assert.Equal("````\na\n```\nb\n````\n\nz", md);
 
         var again = NoteBlockMarkdownConverter.Deserialize(md);
         Assert.Equal(new[] { BlockType.Code, BlockType.Text }, again.Select(b => b.Type));
@@ -889,6 +922,109 @@ public class NoteBlockMarkdownConverterTests
         Assert.True(watch.ElapsedMilliseconds < 5_000, $"took {watch.ElapsedMilliseconds} ms");
     }
 
+    [Fact]
+    public void Deserialize_ListStartingPastOne_KeepsItsNumbers()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("# Steps\n\n5. step five\n6. step six");
+
+        Assert.Equal(new[] { BlockType.Heading1, BlockType.NumberedList, BlockType.NumberedList }, back.Select(b => b.Type));
+        Assert.Equal(5, Assert.IsType<int>(back[1].Meta["listNumberIndex"]));
+        Assert.Equal(6, Assert.IsType<int>(back[2].Meta["listNumberIndex"]));
+    }
+
+    [Fact]
+    public void Deserialize_InstallStepsSplitByCode_KeepBothLists()
+    {
+        var md = "# Install\n\n1. Clone the repo\n2. Enter it\n\n```sh\ngit clone x\n```\n\n3. Build\n4. Run";
+
+        var back = NoteBlockMarkdownConverter.Deserialize(md);
+
+        Assert.Equal(
+            new[] { BlockType.Heading1, BlockType.NumberedList, BlockType.NumberedList, BlockType.Code, BlockType.NumberedList, BlockType.NumberedList },
+            back.Select(b => b.Type));
+        Assert.Equal(3, Assert.IsType<int>(back[4].Meta["listNumberIndex"]));
+        Assert.Equal("Run", back[5].Content);
+    }
+
+    [Fact]
+    public void Deserialize_NumberAfterANestedBullet_KeepsTheNextItem()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("# H\n\n1. a\n   - sub\n2. b");
+
+        var items = back.Where(b => b.Type == BlockType.NumberedList).ToList();
+        Assert.Equal(new[] { "a", "b" }, items.Select(b => b.Content));
+        Assert.Equal("sub", Assert.Single(items[0].Children!).Content);
+    }
+
+    [Fact]
+    public void RoundTrip_ExportedListStartingAtTwo_StaysAList()
+    {
+        var blocks = new List<Block>
+        {
+            new() { Type = BlockType.NumberedList, Order = 0, Spans = new List<InlineSpan> { InlineSpan.Plain("two") }, Meta = new Dictionary<string, object> { ["listNumberIndex"] = 2 } },
+            new() { Type = BlockType.NumberedList, Order = 1, Spans = new List<InlineSpan> { InlineSpan.Plain("three") }, Meta = new Dictionary<string, object> { ["listNumberIndex"] = 3 } },
+        };
+
+        var back = NoteBlockMarkdownConverter.Deserialize(NoteBlockMarkdownConverter.Serialize(blocks));
+
+        Assert.All(back, b => Assert.Equal(BlockType.NumberedList, b.Type));
+        // Written as the editor shows them, so they come back numbered from one.
+        Assert.Equal(new[] { 1, 2 }, back.Select(b => Assert.IsType<int>(b.Meta["listNumberIndex"])));
+        Assert.Equal(new[] { "two", "three" }, back.Select(b => b.Content));
+    }
+
+    [Fact]
+    public void Deserialize_ReadmeHtmlBlocks_LeaveNoVisibleCloser()
+    {
+        var md = "# App\n\n<div align=\"center\">\n\n**Fast** notes\n\n</div>\n\n<details>\n<summary>More</summary>\n\nHidden text\n\n</details>";
+
+        var back = NoteBlockMarkdownConverter.Deserialize(md);
+
+        Assert.DoesNotContain(back, b => b.Content.Contains("</", StringComparison.Ordinal));
+        Assert.Contains(back, b => b.Content == "Fast notes");
+        Assert.Contains(back, b => b.Content == "Hidden text");
+    }
+
+    [Fact]
+    public void Deserialize_AngleBracketLinkDestination_ReadsAsALink()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("See [doc](<my file.md>) here");
+
+        var block = Assert.Single(back);
+        Assert.Equal("See doc here", block.Content);
+        Assert.Contains(block.Spans, s => s is TextSpan { Text: "doc" } t && t.Style.LinkUrl == "my file.md");
+    }
+
+    [Fact]
+    public void Deserialize_QuoteMarkerWithoutSpace_ReadsAsQuote()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize(">first\n>second");
+
+        var quote = Assert.Single(back);
+        Assert.Equal(BlockType.Quote, quote.Type);
+        Assert.Equal("first\nsecond", quote.Content);
+    }
+
+    [Fact]
+    public void Deserialize_CalloutContinuationWithoutSpace_StaysInTheCallout()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("> [!note] Heads up\n>and more");
+
+        var callout = Assert.Single(back);
+        Assert.Equal(BlockType.Callout, callout.Type);
+        Assert.Contains("and more", callout.Content);
+    }
+
+    [Fact]
+    public void Deserialize_BareFence_HasNoLanguage()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("```\nx = 1\n```");
+
+        var code = Assert.IsType<CodePayload>(Assert.Single(back).Payload);
+        Assert.Equal(string.Empty, code.Language);
+        Assert.Equal("x = 1", code.Source);
+    }
+
     private static Block Rich(BlockType type, string text, int order, BlockPayload? payload = null)
     {
         // A heading reads back bold, so one is built bold to keep the second trip comparable.
@@ -898,6 +1034,15 @@ public class NoteBlockMarkdownConverterTests
             block.Payload = payload;
         return block;
     }
+
+    private static Block Numbered(string text, int order, int stored, params Block[] children) => new()
+    {
+        Type = BlockType.NumberedList,
+        Order = order,
+        Spans = new List<InlineSpan> { InlineSpan.Plain(text) },
+        Meta = new Dictionary<string, object> { ["listNumberIndex"] = stored },
+        Children = children.Length > 0 ? children.ToList() : null
+    };
 
     private static Block Text(string text, int order) => new()
     {

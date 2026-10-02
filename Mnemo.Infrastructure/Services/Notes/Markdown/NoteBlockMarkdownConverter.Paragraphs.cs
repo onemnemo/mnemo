@@ -56,9 +56,10 @@ public static partial class NoteBlockMarkdownConverter
     {
         var sb = new StringBuilder();
         Block? previous = null;
+        var run = new ListRun();
         foreach (var block in Flatten(blocks))
         {
-            var text = SerializeBlock(block);
+            var text = SerializeBlock(block, run.Next(block));
             if (text.Length == 0)
                 continue;
             if (previous is not null)
@@ -73,6 +74,21 @@ public static partial class NoteBlockMarkdownConverter
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// The editor's numbering: a run of numbered items counts from 1, and any other block ends it.
+    /// </summary>
+    private sealed class ListRun
+    {
+        private int _count;
+
+        /// <summary>The number <paramref name="block"/> shows, 1 for anything not numbered.</summary>
+        public int Next(Block block)
+        {
+            _count = block.Type == BlockType.NumberedList ? _count + 1 : 0;
+            return System.Math.Max(_count, 1);
+        }
     }
 
     /// <summary>
