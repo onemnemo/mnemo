@@ -155,7 +155,7 @@ public static class UpdateChannels
     /// Whether a channel's feed lists builds published to <paramref name="released"/>. The
     /// release workflow puts a finished release on Beta too, and crosses no other tracks.
     /// </summary>
-    private static bool FeedCarries(string feed, string released)
+    public static bool FeedCarries(string feed, string released)
     {
         feed = Normalize(feed);
         return feed == released || (feed == Beta && released == Stable);

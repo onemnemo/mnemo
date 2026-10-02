@@ -481,7 +481,7 @@ public sealed class UpdateCoordinatorTests
         var stored = await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson);
         Assert.NotNull(stored);
 
-        var offer = AppUpdateInfoPersistence.Deserialize(stored!);
+        var offer = AppUpdateInfoPersistence.Read(stored!)?.Offer;
         Assert.NotNull(offer);
         Assert.Equal("0.9.0", offer!.Version);
         Assert.Equal("Fixed the thing.", offer.ReleaseNotesMarkdown);
@@ -532,7 +532,7 @@ public sealed class UpdateCoordinatorTests
         var world = new World();
         await world.Settings.SetAsync<string?>(
             UpdateSettingsKeys.PendingOfferJson,
-            AppUpdateInfoPersistence.Serialize(new AppUpdateInfo("0.9.0", null, null, false)));
+            AppUpdateInfoPersistence.Serialize(new AppUpdateInfo("0.9.0", null, null, false), UpdateChannels.Stable));
         await world.Settings.SetAsync(UpdateSettingsKeys.SkippedVersion, "0.9.0");
         await world.Settings.SetAsync<DateTime?>(UpdateSettingsKeys.LastCheckedUtc, DateTime.UtcNow - TimeSpan.FromMinutes(5));
 
@@ -553,7 +553,7 @@ public sealed class UpdateCoordinatorTests
         var world = new World();
         await world.Settings.SetAsync<string?>(
             UpdateSettingsKeys.PendingOfferJson,
-            AppUpdateInfoPersistence.Serialize(new AppUpdateInfo("0.9.0", null, null, false)));
+            AppUpdateInfoPersistence.Serialize(new AppUpdateInfo("0.9.0", null, null, false), UpdateChannels.Stable));
         await world.Settings.SetAsync<DateTime?>(UpdateSettingsKeys.RemindAtUtc, DateTime.UtcNow + UpdateCoordinator.SnoozeDuration);
         await world.Settings.SetAsync(UpdateSettingsKeys.SnoozeLaunchesRemaining, UpdateCoordinator.SnoozeLaunches);
         await world.Settings.SetAsync<DateTime?>(UpdateSettingsKeys.LastCheckedUtc, DateTime.UtcNow - TimeSpan.FromMinutes(5));
@@ -655,7 +655,7 @@ public sealed class UpdateCoordinatorTests
 
         var stored = await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson);
         Assert.NotNull(stored);
-        Assert.Equal("0.9.0", AppUpdateInfoPersistence.Deserialize(stored!)?.Version);
+        Assert.Equal("0.9.0", AppUpdateInfoPersistence.Read(stored!)?.Offer?.Version);
     }
 
     [Fact]
@@ -670,6 +670,180 @@ public sealed class UpdateCoordinatorTests
 
         // Restore the persisted value, not the cached offer that a skip may have cleared.
         Assert.Null(await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson));
+    }
+
+    [Fact]
+    public async Task AFoundOfferIsStoredWithTheChannelItWasFoundOn()
+    {
+        var world = new World();
+        world.Updates.Channel = UpdateChannels.Beta;
+        world.Updates.Available = new AppUpdateInfo("0.9.0-beta.1", null, null, false);
+
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        var stored = AppUpdateInfoPersistence.Read((await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson))!);
+        Assert.Equal("0.9.0-beta.1", stored?.Offer.Version);
+        Assert.Equal(UpdateChannels.Beta, stored?.Channel);
+    }
+
+    [Theory]
+    [InlineData("0.9.0")]
+    [InlineData("0.9.0+3f2a1b9")]
+    [InlineData("0.9.1")]
+    public async Task AResumedOfferThatIsNotNewerThanTheRunningBuildIsDeclined(string running)
+    {
+        // Installed by hand inside the cooldown, from the website or the release page.
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: false);
+        var stored = await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson);
+
+        world.Updates.CurrentDisplayVersion = running;
+        var status = await world.NextLaunch().CheckAsync(automatic: true);
+
+        Assert.Equal(UpdateStage.Idle, status.Stage);
+        Assert.Null(status.AvailableVersion);
+        Assert.False(status.ShouldPrompt);
+        Assert.Equal(1, world.Updates.Checks);
+        // Left for the next real check to replace rather than deleted on a guess.
+        Assert.Equal(stored, await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson));
+    }
+
+    [Fact]
+    public async Task AResumedOfferIsDeclinedWhenTheRunningVersionCannotBeRead()
+    {
+        var world = new World();
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        world.Updates.CurrentDisplayVersion = "not a version";
+        var status = await world.NextLaunch().CheckAsync(automatic: true);
+
+        Assert.Equal(UpdateStage.Idle, status.Stage);
+        Assert.Null(status.AvailableVersion);
+    }
+
+    [Fact]
+    public async Task AResumedOfferFromAnotherChannelIsDeclined()
+    {
+        var world = new World();
+        world.Updates.Channel = UpdateChannels.Beta;
+        world.Updates.Available = new AppUpdateInfo("0.9.0-beta.1", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        world.Updates.Channel = UpdateChannels.Stable;
+        var status = await world.NextLaunch().CheckAsync(automatic: true);
+
+        Assert.Equal(UpdateStage.Idle, status.Stage);
+        Assert.Null(status.AvailableVersion);
+        Assert.Equal(1, world.Updates.Checks);
+    }
+
+    [Fact]
+    public async Task SwitchingChannelInsideTheCooldownDoesNotBringBackTheOldChannelsOffer()
+    {
+        var world = new World();
+        world.Updates.Channel = UpdateChannels.Nightly;
+        world.Updates.Available = new AppUpdateInfo("0.9.0-nightly.1", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        world.Updates.Channel = UpdateChannels.Stable;
+        var status = await world.Coordinator.CheckAsync(automatic: true);
+
+        Assert.Null(status.AvailableVersion);
+        Assert.Equal(1, world.Updates.Checks);
+    }
+
+    [Fact]
+    public async Task AStableReleaseFoundOnBetaIsNotResumedAfterSwitchingToStable()
+    {
+        // Stable reads its own feed; until it has been asked, a Beta answer is not its answer.
+        var world = new World();
+        world.Updates.Channel = UpdateChannels.Beta;
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        world.Updates.Channel = UpdateChannels.Stable;
+        var status = await world.NextLaunch().CheckAsync(automatic: true);
+
+        Assert.Null(status.AvailableVersion);
+    }
+
+    [Fact]
+    public async Task AResumedOfferOnTheSameChannelStillResumes()
+    {
+        var world = new World();
+        world.Updates.Channel = UpdateChannels.Nightly;
+        world.Updates.CurrentDisplayVersion = "0.9.0-nightly.3";
+        world.Updates.Available = new AppUpdateInfo("0.9.0-nightly.4", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        var status = await world.NextLaunch().CheckAsync(automatic: true);
+
+        Assert.Equal(UpdateStage.Available, status.Stage);
+        Assert.Equal("0.9.0-nightly.4", status.AvailableVersion);
+        Assert.True(status.ShouldPrompt);
+    }
+
+    [Theory]
+    [InlineData("0.9.0", UpdateChannels.Stable, true)]
+    [InlineData("0.9.0-beta.1", UpdateChannels.Stable, false)]
+    [InlineData("0.9.0-nightly.1", UpdateChannels.Stable, false)]
+    [InlineData("0.9.0-beta.1", UpdateChannels.Beta, true)]
+    [InlineData("0.9.0-nightly.1", UpdateChannels.Beta, false)]
+    [InlineData("0.9.0", UpdateChannels.Beta, true)]
+    [InlineData("0.9.0-beta.1", UpdateChannels.Nightly, false)]
+    [InlineData("0.9.0-nightly.1", UpdateChannels.Nightly, true)]
+    public async Task AnOfferStoredWithoutAChannelResumesOnlyWhereTheFeedListsItsTrack(string offered, string selected, bool resumes)
+    {
+        // Written by a build that did not record the channel.
+        var world = new World();
+        world.Updates.Channel = selected;
+        await world.Settings.SetAsync<string?>(
+            UpdateSettingsKeys.PendingOfferJson,
+            """{"version":"VERSION","releaseNotesMarkdown":null,"publishedAtUtc":null,"isMandatory":false}""".Replace("VERSION", offered));
+        await world.Settings.SetAsync<DateTime?>(UpdateSettingsKeys.LastCheckedUtc, DateTime.UtcNow - TimeSpan.FromMinutes(5));
+
+        var status = await world.Coordinator.CheckAsync(automatic: true);
+
+        Assert.Equal(resumes ? offered : null, status.AvailableVersion);
+        Assert.Equal(resumes ? UpdateStage.Available : UpdateStage.Idle, status.Stage);
+        Assert.Equal(0, world.Updates.Checks);
+    }
+
+    [Fact]
+    public async Task ABlankStoredChannelIsReadAsAnOfferWithoutOne()
+    {
+        var world = new World();
+        world.Updates.Channel = UpdateChannels.Stable;
+        await world.Settings.SetAsync<string?>(
+            UpdateSettingsKeys.PendingOfferJson,
+            """{"version":"0.9.0-nightly.1","releaseNotesMarkdown":null,"publishedAtUtc":null,"isMandatory":false,"channel":"  "}""");
+        await world.Settings.SetAsync<DateTime?>(UpdateSettingsKeys.LastCheckedUtc, DateTime.UtcNow - TimeSpan.FromMinutes(5));
+
+        Assert.Null(AppUpdateInfoPersistence.Read((await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson))!)?.Channel);
+        Assert.Null((await world.Coordinator.CheckAsync(automatic: true)).AvailableVersion);
+    }
+
+    [Fact]
+    public async Task ADeclinedOfferDoesNotHoldBackTheNextRealCheck()
+    {
+        var world = new World();
+        world.Updates.Channel = UpdateChannels.Beta;
+        world.Updates.Available = new AppUpdateInfo("0.9.0-beta.1", null, null, false);
+        await world.Coordinator.CheckAsync(automatic: false);
+
+        world.Updates.Channel = UpdateChannels.Stable;
+        world.Updates.Available = new AppUpdateInfo("0.9.0", null, null, false);
+        var next = world.NextLaunch();
+        Assert.Null((await next.CheckAsync(automatic: true)).AvailableVersion);
+
+        await world.Settings.SetAsync<DateTime?>(UpdateSettingsKeys.LastCheckedUtc, DateTime.UtcNow - UpdateCoordinator.AutoCheckCooldown - TimeSpan.FromMinutes(1));
+        var status = await next.CheckAsync(automatic: true);
+
+        Assert.Equal(UpdateStage.Available, status.Stage);
+        Assert.Equal("0.9.0", status.AvailableVersion);
+        Assert.Equal(UpdateChannels.Stable, AppUpdateInfoPersistence.Read((await world.Settings.GetAsync<string?>(UpdateSettingsKeys.PendingOfferJson))!)?.Channel);
     }
 
     /// <summary>The coordinator and the four things it talks to.</summary>

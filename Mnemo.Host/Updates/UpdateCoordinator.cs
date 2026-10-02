@@ -207,8 +207,10 @@ public sealed class UpdateCoordinator
     /// mid-download, is left alone. Routed through <see cref="RefreshPromptGateAsync"/>
     /// rather than a separate check, so a resumed offer honours snooze and skip exactly as
     /// a freshly found one does.
+    /// A declined offer stays on disk for the next real check to replace; see
+    /// <see cref="UpdateGatePolicy.ShouldResumeOffer"/>.
     /// </remarks>
-    private async Task ResumePendingOfferAsync()
+    private async Task ResumePendingOfferAsync(string channel)
     {
         if (_available is not null)
             return;
@@ -217,13 +219,16 @@ public sealed class UpdateCoordinator
         if (string.IsNullOrEmpty(json))
             return;
 
-        // A value from an older build, or a corrupt write, is treated as no offer at all
-        // rather than something worth failing over.
-        var offer = AppUpdateInfoPersistence.Deserialize(json);
-        if (offer is null)
+        // A corrupt write is treated as no offer at all rather than something worth failing over.
+        var stored = AppUpdateInfoPersistence.Read(json);
+        if (stored is null)
             return;
 
-        _available = offer;
+        if (!UpdateGatePolicy.ShouldResumeOffer(
+                stored.Offer.Version, stored.Channel, _updates.CurrentDisplayVersion, channel))
+            return;
+
+        _available = stored.Offer;
         // A persisted offer does not retain its resolved download object.
         _serviceHoldsOffer = false;
         _error = null;
@@ -313,7 +318,7 @@ public sealed class UpdateCoordinator
 
             if (lastChecked.HasValue && DateTime.UtcNow - lastChecked.Value < AutoCheckCooldown)
             {
-                await ResumePendingOfferAsync().ConfigureAwait(false);
+                await ResumePendingOfferAsync(channel).ConfigureAwait(false);
                 return BuildStatus(channel, lastChecked);
             }
         }
@@ -349,7 +354,7 @@ public sealed class UpdateCoordinator
             _serviceHoldsOffer = _available is not null;
             await _settings.SetAsync<string?>(
                 UpdateSettingsKeys.PendingOfferJson,
-                _available is null ? null : AppUpdateInfoPersistence.Serialize(_available)).ConfigureAwait(false);
+                _available is null ? null : AppUpdateInfoPersistence.Serialize(_available, channel)).ConfigureAwait(false);
             await RefreshPromptGateAsync().ConfigureAwait(false);
             SetStage(_available is null ? UpdateStage.UpToDate : UpdateStage.Available, channel, lastChecked);
             return BuildStatus(channel, lastChecked);
