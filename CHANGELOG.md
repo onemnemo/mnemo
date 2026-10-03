@@ -10,13 +10,13 @@ leading `v`. The release workflow copies that section into the release notes. A 
 candidate without its own section uses the matching finished release section, while nightly
 builds without a section receive a short generated fallback.
 
-## 0.8.0
+## 0.8.1
 
-Mnemo 0.8.0 is a rebuild. The old desktop shell is gone. Mnemo now ships a web interface inside a native window with a local .NET backend on Windows, macOS and Linux. Windows has had months of daily use. The macOS and Linux packages are previews with far less use than Windows, so expect rough edges and keep backups of anything important.
+Mnemo 0.8.1 is the first finished release of the rebuild. It lists every change from the 0.8.0 release candidates. The old desktop shell is gone. Mnemo now ships a web interface inside a native window with a local .NET backend on Windows, macOS and Linux. Windows has had months of daily use. The macOS and Linux packages are previews with far less use than Windows, so expect rough edges and keep backups of anything important.
 
 ### Upgrading from 0.6.x
 
-The update feed identity changed with the rebuild, so an existing 0.6.x installation is never offered this version. Download and install 0.8.0 directly. Notes, flashcards and mind maps stay in the same local data folder and are migrated on first launch. Nothing needs exporting first, but close Mnemo and back up that folder before upgrading.
+The update feed identity changed with the rebuild, so an existing 0.6.x installation is never offered this version. Download and install 0.8.1 directly. Notes, flashcards and mind maps stay in the same local data folder and are migrated on first launch. Nothing needs exporting first, but close Mnemo and back up that folder before upgrading.
 
 ### Added
 
@@ -67,7 +67,9 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 - **Mind maps.** Node and branch styling can be saved as a personal template alongside a set of built in ones, and applied again later, including how many levels of a branch it reaches. A style panel controls the whole map's look, a docked inspector offers custom colors, an edge's color and weight can be set individually or applied to a whole branch at once, and a starting style can be chosen when a map is created.
 - **Mind maps.** A shape tool adds flowchart shapes and a free form blob to the canvas, with a picker that opens by holding the tool down. Holding Q opens a radial quick menu of actions at the pointer, where a flick and release performs an action without a separate click.
 - **Mind maps.** A map can be arranged automatically with a choice of layout algorithms from the editor's top bar, loose elements can be lined up and evenly spaced, and a node can be pinned so arranging leaves it in place, shown with a small badge.
-- **Mind maps.** A minimap in the corner shows the whole map and jumps the camera there when clicked.
+- **Mind maps.** A view dock in the corner shows the whole map, jumps the camera there when clicked, and holds the zoom controls.
+- **Mind maps.** A dockable toolbar holds the map's tools and can be driven from the keyboard, with a hand tool that pans on a plain drag and a lasso in the select tool.
+- **Mind maps.** Images on the canvas can stand empty until a picture is chosen, dropped or pasted, and have a menu to replace, crop and reposition, copy or download them.
 - **Mind maps.** A mind map can be exported as a PNG or SVG image, or as a nested outline, and whole maps can be bundled into a file, with their folders, images, and style templates, to move them between libraries. An integrity check can find references to notes, decks, or images that no longer exist.
 - **Mind maps.** The mind map library has folders that can be sorted and searched, with drill in navigation, due badges, and a right click menu for common actions.
 - **Mind maps.** A branch can be copied and pasted back down elsewhere, including into a different map.
@@ -80,7 +82,8 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 - **Overview and settings.** First run now walks through a proper setup: a welcome screen, then your name and picture, appearance, and language, with a closing screen and skip always one click away. Your picture can be your own upload, from the same picker used later in Settings.
 - **Overview and settings.** Profile pictures are optional. Without one, your initials use a colour you choose in Settings.
 - **Overview and settings.** Spell check can use several languages at once. Add languages in the order you want suggestions prioritized, and a word is only flagged when every active language disagrees with it. English and Spanish dictionaries are included, and other languages are listed with the reason they cannot be used yet.
-- **Overview and settings.** A misspelled word's menu can add it to your personal dictionary or ignore it for just the current note, from a searchable list with one click removal, and either action can be undone. Personal dictionary entries and a note's language settings and ignored words are also carried along when you export or import that note.
+- **Overview and settings.** A misspelled word's menu can add it to your personal dictionary or ignore it for just the current note, from a searchable list with one click removal, and either action can be undone. A note's language settings and ignored words are also carried along when you export or import that note. The personal dictionary is carried only by a full backup, never by an exported note.
+- **Overview and settings.** Settings > Appearance offers a choice of logo and accent colour, and the app icon follows the chosen logo.
 - **App and platform.** The app can check for updates automatically, show when one is ready, and download and apply it. Stable, Beta and Nightly release channels are available.
 - **App and platform.** The first launch of a beta build shows a short notice saying so, with a button that makes the same one-file backup as Settings and a link to the issue form. It appears once per beta version.
 - **App and platform.** Deleting a note, mindmap, flashcard deck, or card now moves it to a trash for thirty days instead of erasing it immediately, and restoring a deck or folder brings back everything that was inside it.
@@ -89,7 +92,7 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 - **App and platform.** The app now asks for confirmation before closing the window.
 - **App and platform.** Added a side peek panel that shows a note or flashcard beside the current page without navigating away.
 - **App and platform.** The app now warns once if it notices this install is sharing its data with an older, separately installed copy of Mnemo.
-- **App and platform.** Added a global search palette for quickly finding notes, cards, and other content from anywhere in the app.
+- **App and platform.** Added a global search palette that opens any page, note or flashcard deck by its title from anywhere in the app.
 - **App and platform.** The macOS and Linux packages now run on the new shell. They are preview builds and have less hardware coverage than Windows. On macOS the window has the standard app menu, and Cmd+Q, or Quit from the Dock, waits for unsaved work before quitting.
 - **App and platform.** Opening Mnemo while it is already running brings the open window forward instead of starting a second copy on the same data.
 - **App and platform.** Launch at startup now works on macOS and Linux. It previously toggled on those platforms and silently did nothing.
@@ -98,7 +101,10 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 
 ### Changed
 
+- **Notes.** Text and highlight colours, and the mind map branch colours, use a new, more even palette.
 - **Mind maps.** Existing math nodes become text nodes containing an inline equation. The tool dock and shape picker have been redesigned.
+- **Notes.** Long notes open and respond to typing much faster. On a note with 10,000 blocks, slow keystrokes are about six times faster and opening takes 1.5 seconds instead of 4. Scrolling a note with many headings is also faster.
+- **Notes.** Pasted text is split into blocks closer to how it looked. Blank lines separate blocks, line breaks in addresses and poems are kept, and text is only read as Markdown when it has a heading, a code block or a table.
 
 
 - **Flashcards.** The spaced-repetition scheduler has been upgraded from FSRS-5 to FSRS-6, which more accurately predicts how likely you are to remember a card at review time.
@@ -111,7 +117,7 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 - **Overview and settings.** Context menus and other flyout menus were restyled with a more compact, dark themed look and monospace shortcut hints.
 - **Overview and settings.** Settings was reorganized around the pages people actually use, with clearer section headings, a comfortable width for each row so a label and its control read as one thing, and a category list that scrolls on its own instead of dragging the page around with it. Appearance now shows a live miniature preview of each theme, plus the option to match your system's light or dark setting automatically.
 - **Overview and settings.** Spelling settings moved from Notes to Application settings as a single page, spell check itself is now one switch instead of separate browser and Mnemo controls, and language names throughout the app (settings, the language picker, and a note's language menu) are now shown in your own language instead of always in English.
-- **Soma.** The unfinished assistant is hidden throughout the beta while it is prepared for general use.
+- **Soma.** The unfinished assistant is hidden.
 - **App and platform.** The app now draws its own window frame and title bar with rounded corners, on macOS too, instead of using the operating system's default, and dragging the title bar to move the window now works correctly on Linux.
 - **App and platform.** Theme and language choices are now saved through the app's own settings instead of only the browser, so they survive things like clearing browser data.
 - **App and platform.** The updater now automatically follows whichever channel, stable or nightly, you actually installed, instead of needing it set separately.
@@ -123,6 +129,20 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 
 ### Fixed
 
+- **Notes.** Markdown written by Mnemo keeps its paragraphs apart in other editors, and Markdown from other editors no longer turns blank lines into empty paragraphs.
+- **Notes.** Numbered lists keep the number they start at, so a list starting at 8 stays 8, 9 in the editor, in copies and in Markdown and PDF exports. Typing "1. " starts a numbered list, while text such as "2. oktober" stays text.
+- **Notes.** Markdown import reads pipe tables, quotes without a space after >, code blocks without a language and numbered items after a nested bullet. A table ends at the next heading, list, quote or code block, a very large table is kept as plain lines, and pipes in ordinary text are no longer dropped.
+- **Notes.** Copied blocks are written as standard Markdown, with a blank line between blocks.
+- **Notes.** Closing the window while a note is saving no longer drops the last edit without any message. If edits are still unsaved after a few seconds, the app says so.
+- **Notes.** The slash menu keeps the row chosen with the arrow keys when the spell checker updates, block handles hide after a block is dragged, and resizing columns no longer stops when text above them changes.
+- **Flashcards.** Packages from current Anki versions keep every field of their note types, and basic and reversed notes no longer make duplicate cards. Imported new cards keep their original order, decks imported with review history show when they were last studied, and a clean import shows as a success.
+- **Flashcards.** The retention trend skips days without reviews instead of dropping to 0%, and the card tables show maths as readable symbols instead of LaTeX source. A card moved to the trash because its cloze or field was removed comes back when that content is added again.
+- **Mind maps.** Copying a selection that holds items which cannot be copied, such as shapes or lines, shows a message instead of doing nothing.
+- **Overview and settings.** The result of a restore is shown on whichever page the app reopens on, not only on the Storage page, and a failed restore stays on screen until dismissed.
+- **App and platform.** A count of one uses the singular form across the app, relative times read naturally in German, Japanese, Norwegian and Spanish, and card type and preset load errors are translated.
+- **App and platform.** The app no longer offers an update that is already installed. On Linux, a missing system library names the package to install instead of showing a PhotinoX error.
+- **Flashcards.** Anki packages carry a card's flag and move basic and reverse cards as one note, a tag containing spaces leaves as one tag, and CSV keeps same-named decks in different folders apart.
+- **Overview and settings.** A restore keeps the three newest recovery copies, so a second restore no longer deletes the only copy from before the first.
 - **Notes.** Pasting nested lists into tables keeps their content, Markdown round trips preserve soft breaks, and empty equation chips no longer export as math fences. Older notes with numeric fields stored as text remain readable.
 - **Notes.** Paste progress stays below dialogs and notifications instead of covering them.
 - **Flashcards.** Anki imports preserve mature review state more accurately and read cloze text from the field named by the card template. CSV imports detect the file's delimiter and explain the import action in the preview. Image references containing brackets are read correctly.
