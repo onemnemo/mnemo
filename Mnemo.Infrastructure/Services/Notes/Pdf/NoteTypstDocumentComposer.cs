@@ -237,13 +237,26 @@ internal static class NoteTypstDocumentComposer
     }
 
     /// <summary>
-    /// Where a run of numbered items stands: the number the next one takes. A numbered item's
-    /// number is never stored, the editor counts it from its position on every change, so the
-    /// composer counts the same way and reads no index off the block.
+    /// Where a run of numbered items stands: the number the next one takes, or none while no run
+    /// is open. A run starts at the number its first item stores, as in the editor, and every later
+    /// item counts on from there.
     /// </summary>
     private sealed class NumberRun
     {
-        public int Next = 1;
+        private int? _next;
+
+        public void End() => _next = null;
+
+        /// <summary>
+        /// The number <paramref name="first"/> takes, opening the run on it when none is open, with
+        /// <paramref name="count"/> items counted from there.
+        /// </summary>
+        public int Take(Block first, int count, int listDepth)
+        {
+            var start = _next ?? NumberedListStart.Of(first, listDepth);
+            _next = start + count;
+            return start;
+        }
     }
 
     /// <summary>
@@ -280,7 +293,7 @@ internal static class NoteTypstDocumentComposer
         switch (block.Type)
         {
             case BlockType.Page:
-                run.Next = 1;
+                run.End();
                 if (options.RenderSubpageLinks)
                     EmitSubpage(sb, block, options);
                 return;
@@ -297,7 +310,7 @@ internal static class NoteTypstDocumentComposer
                 EmitNumberedItems(sb, [block], options, assets, listDepth, run);
                 return;
             default:
-                run.Next = 1;
+                run.End();
                 EmitLeafBlock(sb, block, options, assets, listDepth);
                 return;
         }
@@ -309,7 +322,7 @@ internal static class NoteTypstDocumentComposer
     /// </summary>
     private static void EmitNumberedItems(StringBuilder sb, List<Block> items, NotePdfExportOptions options, INoteTypstAssetResolver? assets, int listDepth, NumberRun run)
     {
-        sb.Append("#enum(start: ").Append(run.Next);
+        sb.Append("#enum(start: ").Append(run.Take(items[0], items.Count, listDepth));
         var numbering = EnumNumberingAt(listDepth);
         if (numbering != null)
             sb.Append(", numbering: \"").Append(numbering).Append('"');
@@ -322,7 +335,6 @@ internal static class NoteTypstDocumentComposer
             EmitInline(sb, item.Spans, options);
             EmitNestedItems(sb, item, options, assets, listDepth + 1);
             sb.Append(']');
-            run.Next++;
         }
 
         sb.Append("\n\n");

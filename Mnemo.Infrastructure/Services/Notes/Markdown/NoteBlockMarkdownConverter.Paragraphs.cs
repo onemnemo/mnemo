@@ -59,13 +59,13 @@ public static partial class NoteBlockMarkdownConverter
         var run = new ListRun();
         foreach (var block in Flatten(blocks))
         {
-            var text = SerializeBlock(block, run.Next(block));
+            var text = SerializeBlock(block, run.Next(block), 0);
             if (text.Length == 0)
                 continue;
             if (previous is not null)
             {
                 sb.AppendLine();
-                if (!(IsListItem(previous.Type) && IsListItem(block.Type)))
+                if (!(IsListItem(previous.Type) && IsListItem(block.Type)) || run.OpensPastOne)
                     sb.AppendLine();
             }
 
@@ -77,17 +77,34 @@ public static partial class NoteBlockMarkdownConverter
     }
 
     /// <summary>
-    /// The editor's numbering: a run of numbered items counts from 1, and any other block ends it.
+    /// The editor's numbering: a run of numbered items counts up from the start its first item
+    /// stores, and any other block ends it.
     /// </summary>
-    private sealed class ListRun
+    private sealed class ListRun(int listDepth = 0)
     {
-        private int _count;
+        private int? _count;
 
-        /// <summary>The number <paramref name="block"/> shows, 1 for anything not numbered.</summary>
+        /// <summary>
+        /// Whether the last item opened a run at a number other than 1. CommonMark lets only a 1
+        /// interrupt a paragraph, so such an item needs a blank line above it to stay an item.
+        /// </summary>
+        public bool OpensPastOne { get; private set; }
+
+        /// <summary>The number <paramref name="block"/> shows, 0 for anything not numbered.</summary>
         public int Next(Block block)
         {
-            _count = block.Type == BlockType.NumberedList ? _count + 1 : 0;
-            return System.Math.Max(_count, 1);
+            OpensPastOne = false;
+            if (block.Type != BlockType.NumberedList)
+            {
+                _count = null;
+                return 0;
+            }
+            if (_count is int count)
+                return (_count = count + 1).Value;
+            var start = NumberedListStart.Of(block, listDepth);
+            _count = start;
+            OpensPastOne = start != 1;
+            return start;
         }
     }
 

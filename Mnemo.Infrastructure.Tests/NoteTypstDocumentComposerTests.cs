@@ -1,5 +1,6 @@
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services.Notes.Markdown;
 using Mnemo.Infrastructure.Services.Notes.Pdf;
 
 namespace Mnemo.Infrastructure.Tests;
@@ -42,13 +43,78 @@ public sealed class NoteTypstDocumentComposerTests
     }
 
     [Fact]
-    public void NumberedList_CountsFromItsPositionNotAStoredIndex()
+    public void NumberedList_StartsAtTheNumberItsFirstItemStores()
     {
-        // The editor never stores a number and ignores this key; a lone item is a run of one.
+        var block = Leaf(BlockType.NumberedList, "third");
+        block.Meta["listStart"] = 3;
+        var typ = Compose(NoteWith(block));
+        Assert.Contains("#enum(start: 3, tight: false)[third]", typ);
+    }
+
+    [Fact]
+    public void NumberedList_ImportedPastOne_PrintsFromItsStart()
+    {
+        var blocks = NoteBlockMarkdownConverter.Deserialize("# Steps\n\n8. eight\n9. nine");
+        var typ = Compose(new Note { Title = "T", Blocks = blocks.ToList() });
+        Assert.Contains("#enum(start: 8, tight: false)[eight][nine]", typ);
+    }
+
+    [Fact]
+    public void NumberedList_IgnoresThePerItemNumberOlderImportsWrote()
+    {
         var block = Leaf(BlockType.NumberedList, "third");
         block.Meta["listNumberIndex"] = 3;
         var typ = Compose(NoteWith(block));
         Assert.Contains("#enum(start: 1, tight: false)[third]", typ);
+    }
+
+    [Fact]
+    public void NumberedList_StartOfZero_CountsAtADecimalDepthOnly()
+    {
+        var top = Leaf(BlockType.NumberedList, "zero");
+        top.Meta["listStart"] = 0;
+        var x = Leaf(BlockType.NumberedList, "x");
+        x.Meta["listStart"] = 0;
+        var bullet = Leaf(BlockType.BulletList, "a");
+        bullet.Order = 1;
+        bullet.Children = [x];
+
+        var typ = Compose(NoteWith(top, bullet));
+
+        Assert.Contains("#enum(start: 0, tight: false)[zero]", typ);
+        Assert.Contains("#enum(start: 1, numbering: \"a.\", tight: false)[x]", typ);
+    }
+
+    [Fact]
+    public void NumberedList_LaterItemsCountOnFromTheStart()
+    {
+        var eight = Leaf(BlockType.NumberedList, "eight");
+        eight.Meta["listStart"] = 8;
+        var nine = Leaf(BlockType.NumberedList, "nine");
+        nine.Order = 1;
+        nine.Meta["listStart"] = 2;
+        var gap = Leaf(BlockType.Text, "gap");
+        gap.Order = 2;
+        var again = Leaf(BlockType.NumberedList, "again");
+        again.Order = 3;
+
+        var typ = Compose(NoteWith(eight, nine, gap, again));
+
+        Assert.Contains("#enum(start: 8, tight: false)[eight][nine]\n\n", typ);
+        Assert.Contains("#enum(start: 1, tight: false)[again]\n\n", typ);
+    }
+
+    [Fact]
+    public void NumberedList_NestedRunUnderABulletStartsAtItsOwnNumber()
+    {
+        var x = Leaf(BlockType.NumberedList, "x");
+        x.Meta["listStart"] = 3;
+        var bullet = Leaf(BlockType.BulletList, "a");
+        bullet.Children = [x];
+
+        var typ = Compose(NoteWith(bullet));
+
+        Assert.Contains("#enum(start: 3, numbering: \"a.\", tight: false)[x]", typ);
     }
 
     [Fact]

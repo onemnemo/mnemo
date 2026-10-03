@@ -23,13 +23,14 @@ public static partial class NoteBlockMarkdownConverter
     /// </remarks>
     public static string Serialize(IReadOnlyList<Block> blocks) => JoinBlocks(blocks);
 
-    public static string SerializeBlock(Block block) => SerializeBlock(block, 1);
+    public static string SerializeBlock(Block block) => SerializeBlock(block, 1, 0);
 
     /// <summary>
-    /// One block, a numbered item written as <paramref name="listNumber"/>: its place in its run, the
-    /// number the editor shows. A stored number goes stale on the first edit above it.
+    /// One block, <paramref name="listDepth"/> list items down, a numbered item written as
+    /// <paramref name="listNumber"/>: its run's start plus its place in the run, the number the
+    /// editor shows.
     /// </summary>
-    private static string SerializeBlock(Block block, int listNumber)
+    private static string SerializeBlock(Block block, int listNumber, int listDepth)
     {
         block.EnsureSpans();
         var body = block.Type is BlockType.Code or BlockType.Divider or BlockType.Equation or BlockType.Sketch
@@ -46,9 +47,9 @@ public static partial class NoteBlockMarkdownConverter
             BlockType.Heading2 => $"## {body}",
             BlockType.Heading3 => $"### {body}",
             BlockType.Heading4 => $"#### {body}",
-            BlockType.BulletList => WithNestedItems($"- {body}", block, BulletChildIndent),
-            BlockType.NumberedList => WithNestedItems($"{listNumber}. {body}", block, NumberedChildIndent),
-            BlockType.Checklist => WithNestedItems(isChecked ? $"- [x] {body}" : $"- [ ] {body}", block, BulletChildIndent),
+            BlockType.BulletList => WithNestedItems($"- {body}", block, BulletChildIndent, listDepth + 1),
+            BlockType.NumberedList => WithNestedItems($"{listNumber}. {body}", block, NumberedChildIndent(listNumber), listDepth + 1),
+            BlockType.Checklist => WithNestedItems(isChecked ? $"- [x] {body}" : $"- [ ] {body}", block, BulletChildIndent, listDepth + 1),
             BlockType.Quote => "> " + body.Replace("\n", "\n> ", StringComparison.Ordinal),
             BlockType.Callout => SerializeCallout(block, body),
             BlockType.Code => SerializeCodeFence(block),
@@ -63,25 +64,30 @@ public static partial class NoteBlockMarkdownConverter
     }
 
     /// <summary>
-    /// Two spaces under a bullet or a checkbox and three under a numbered item: the child lands at
-    /// its parent's content column, which is what CommonMark readers nest on too. Our own reader
-    /// accepts anything deeper than the parent's own indent.
+    /// Two spaces under a bullet or a checkbox and the marker's width under a numbered item: the
+    /// child lands at its parent's content column, which is what CommonMark readers nest on too.
+    /// Our own reader accepts anything deeper than the parent's own indent.
     /// </summary>
     private const string BulletChildIndent = "  ";
-    private const string NumberedChildIndent = "   ";
+
+    private static string NumberedChildIndent(int listNumber) =>
+        new(' ', listNumber.ToString(System.Globalization.CultureInfo.InvariantCulture).Length + 2);
 
     /// <summary>A list item followed by its nested items, each indented one level under it.</summary>
-    private static string WithNestedItems(string head, Block item, string indent)
+    private static string WithNestedItems(string head, Block item, string indent, int childDepth)
     {
         if (item.Children is not { Count: > 0 } children)
             return head;
 
         var sb = new System.Text.StringBuilder(head);
-        var run = new ListRun();
+        var run = new ListRun(childDepth);
         foreach (var child in children.OrderBy(c => c.Order))
         {
+            var number = run.Next(child);
             sb.AppendLine();
-            sb.Append(IndentLines(SerializeBlock(child, run.Next(child)), indent));
+            if (run.OpensPastOne)
+                sb.AppendLine();
+            sb.Append(IndentLines(SerializeBlock(child, number, childDepth), indent));
         }
 
         return sb.ToString();
@@ -212,23 +218,19 @@ public static partial class NoteBlockMarkdownConverter
             block.Order = result.Count;
             result.Add(block);
         }
-        void AddListItem(Block item, int indent)
+        // Returns the sibling the item lands after, if any.
+        Block? AddListItem(Block item, int indent)
         {
             while (open.Count > 0 && open[^1].Indent >= indent)
                 open.RemoveAt(open.Count - 1);
+            var container = result;
             if (open.Count > 0)
-            {
-                var parent = open[^1].Item;
-                parent.Children ??= new List<Block>();
-                item.Order = parent.Children.Count;
-                parent.Children.Add(item);
-            }
-            else
-            {
-                item.Order = result.Count;
-                result.Add(item);
-            }
+                container = open[^1].Item.Children ??= new List<Block>();
+            var previous = container.Count > 0 ? container[^1] : null;
+            item.Order = container.Count;
+            container.Add(item);
             open.Add((indent, item));
+            return previous;
         }
         // The indent of the numbered item a list item at this indent sits in, if any.
         int? NumberedDepth(int indent)
@@ -563,11 +565,10 @@ public static partial class NoteBlockMarkdownConverter
                 var m = Regex.Match(trimmed, @"^(\d+)[.)]\s");
                 var n = m.Success && int.TryParse(m.Groups[1].Value, out var num) ? num : 1;
                 var nb = CreateRichBlock(BlockType.NumberedList, Paragraph(content, indent), 0);
-                // The number as the file wrote it, under the canonical key. The editor and the export
-                // both number a list by position, so nothing reads it back. The legacy "listNumber"
-                // key is never emitted again.
-                nb.Meta["listNumberIndex"] = n;
-                AddListItem(nb, indent);
+                // Only the number that opens a run means anything, as in CommonMark: it is the
+                // run's start, stored when it is not the default.
+                if (AddListItem(nb, indent)?.Type != BlockType.NumberedList && n != 1)
+                    nb.Meta[NumberedListStart.Key] = n;
                 i++;
                 continue;
             }

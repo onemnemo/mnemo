@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Mnemo.Core.Formatting;
 using Mnemo.Core.Models;
 using Mnemo.Infrastructure.Services.Notes.Markdown;
@@ -245,33 +246,118 @@ public class NoteBlockMarkdownConverterTests
     }
 
     [Fact]
-    public void Deserialize_NumberedList_WritesCanonicalIndexKeyNotLegacy()
+    public void Deserialize_NumberedList_StoresTheStartOnTheFirstItemOnly()
     {
         var back = NoteBlockMarkdownConverter.Deserialize("3. First\n4. Second");
 
         Assert.Equal(2, back.Count);
         Assert.All(back, b => Assert.Equal(BlockType.NumberedList, b.Type));
-        // The canonical key the export reads back, never the legacy key.
-        Assert.Equal(3, Assert.IsType<int>(back[0].Meta["listNumberIndex"]));
-        Assert.Equal(4, Assert.IsType<int>(back[1].Meta["listNumberIndex"]));
-        Assert.DoesNotContain("listNumber", back[0].Meta.Keys);
+        Assert.Equal(3, Assert.IsType<int>(back[0].Meta["listStart"]));
+        Assert.Empty(back[1].Meta);
+        Assert.All(back, b => Assert.DoesNotContain("listNumberIndex", b.Meta.Keys));
+    }
+
+    [Fact]
+    public void Deserialize_ListStartingAtOne_StoresNoStart()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("1. First\n2. Second");
+
+        Assert.All(back, b => Assert.Empty(b.Meta));
+    }
+
+    [Fact]
+    public void Serialize_NumberedList_WritesTheStartItStores()
+    {
+        Assert.Equal("5. Item", NoteBlockMarkdownConverter.Serialize(new List<Block> { Started("Item", 0, 5) }));
     }
 
     [Theory]
     [InlineData("listNumberIndex")]
     [InlineData("listNumber")]
-    public void Serialize_NumberedList_WritesItsPlaceNotAStoredNumber(string key)
+    public void Serialize_PerItemNumbersOlderImportsWrote_AreNotRead(string key)
     {
-        // A stored number goes stale on the first edit above it; the editor shows the position.
-        var block = new Block
-        {
-            Type = BlockType.NumberedList,
-            Order = 0,
-            Spans = new List<InlineSpan> { InlineSpan.Plain("Item") },
-            Meta = new Dictionary<string, object> { [key] = 5 }
-        };
+        var block = Started("Item", 0, null);
+        block.Meta[key] = 5;
 
         Assert.Equal("1. Item", NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
+    }
+
+    [Fact]
+    public void Serialize_ReorderedOldImport_StillShowsOneTwoThree()
+    {
+        var blocks = new List<Block> { Numbered("c", 0, 3), Numbered("a", 1, 1), Numbered("b", 2, 2) };
+
+        var md = NoteBlockMarkdownConverter.Serialize(blocks).Replace("\r\n", "\n");
+
+        Assert.Equal("1. c\n2. a\n3. b", md);
+    }
+
+    [Fact]
+    public void Serialize_StartReadFromSavedJson_IsWritten()
+    {
+        // A note loaded from disk carries its meta values as JSON elements.
+        var block = Started("Item", 0, null);
+        block.Meta["listStart"] = JsonSerializer.Deserialize<JsonElement>("8");
+
+        Assert.Equal("8. Item", NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
+    }
+
+    public static TheoryData<object, string> StoredStarts => new()
+    {
+        { 8.0, "8. Item" },
+        { 8L, "8. Item" },
+        { 8.5, "1. Item" },
+        { -1, "1. Item" },
+        { "8", "1. Item" },
+        { 1_000_000_000, "1. Item" },
+    };
+
+    [Theory]
+    [MemberData(nameof(StoredStarts))]
+    public void Serialize_StoredStart_IsReadOnlyAsAWholeNumberInRange(object stored, string expected)
+    {
+        var block = Started("Item", 0, null);
+        block.Meta["listStart"] = stored;
+
+        Assert.Equal(expected, NoteBlockMarkdownConverter.Serialize(new List<Block> { block }));
+    }
+
+    [Fact]
+    public void Serialize_StartOfZero_CountsAtADecimalDepthOnly()
+    {
+        var bullet = new Block
+        {
+            Type = BlockType.BulletList,
+            Order = 1,
+            Spans = new List<InlineSpan> { InlineSpan.Plain("b") },
+            Children = new List<Block> { Started("x", 0, 0) }
+        };
+
+        var md = NoteBlockMarkdownConverter.Serialize(new List<Block> { Started("z", 0, 0), bullet }).Replace("\r\n", "\n");
+
+        // A letter label has no zero, so the nested run starts at 1 as the editor shows it.
+        Assert.Equal("0. z\n- b\n  1. x", md);
+        Assert.Equal(0, Assert.IsType<int>(NoteBlockMarkdownConverter.Deserialize("# H\n\n0. z")[1].Meta["listStart"]));
+    }
+
+    [Fact]
+    public void Serialize_LaterItems_CountOnFromTheStart()
+    {
+        var blocks = new List<Block> { Started("a", 0, 8), Numbered("b", 1, 3), Started("c", 2, 99) };
+
+        var md = NoteBlockMarkdownConverter.Serialize(blocks).Replace("\r\n", "\n");
+
+        Assert.Equal("8. a\n9. b\n10. c", md);
+    }
+
+    [Fact]
+    public void Serialize_TwoDigitItem_IndentsItsChildrenToTheMarkerWidth()
+    {
+        var bullet = new Block { Type = BlockType.BulletList, Order = 0, Spans = new List<InlineSpan> { InlineSpan.Plain("sub") } };
+
+        var md = NoteBlockMarkdownConverter.Serialize(new List<Block> { Started("ten", 0, 10, bullet) }).Replace("\r\n", "\n");
+
+        Assert.Equal("10. ten\n    - sub", md);
     }
 
     [Fact]
@@ -280,7 +366,57 @@ public class NoteBlockMarkdownConverterTests
         var back = NoteBlockMarkdownConverter.Deserialize("5. First\n6. Second");
         var md = NoteBlockMarkdownConverter.Serialize(back).Replace("\r\n", "\n");
 
-        Assert.Equal("1. First\n2. Second", md);
+        Assert.Equal("5. First\n6. Second", md);
+    }
+
+    [Fact]
+    public void RoundTrip_ListStartingAtEight_KeepsEightAndNine()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("# Steps\n\n8. eight\n9. nine");
+
+        Assert.Equal(8, Assert.IsType<int>(back[1].Meta["listStart"]));
+        Assert.Empty(back[2].Meta);
+        var md = NoteBlockMarkdownConverter.Serialize(back.Skip(1).ToList()).Replace("\r\n", "\n");
+        Assert.Equal("8. eight\n9. nine", md);
+    }
+
+    [Theory]
+    [InlineData("2. oktober")]
+    [InlineData("1. oktober")]
+    [InlineData("2026. was a year")]
+    public void RoundTrip_TextThatReadsAsAListItem_IsEscapedAndStaysText(string text)
+    {
+        var blocks = new List<Block> { Rich(BlockType.Heading1, "Plan", 0), Rich(BlockType.Text, text, 1) };
+
+        var md = NoteBlockMarkdownConverter.Serialize(blocks).Replace("\r\n", "\n");
+
+        var marker = text.IndexOf('.');
+        Assert.EndsWith("\n\n" + text[..marker] + "\\" + text[marker..], md);
+        var back = NoteBlockMarkdownConverter.Deserialize(md);
+        Assert.Equal(new[] { BlockType.Heading1, BlockType.Text }, back.Select(b => b.Type));
+        Assert.Equal(text, back[1].Content);
+        Assert.Empty(back[1].Meta);
+    }
+
+    [Fact]
+    public void RoundTrip_NestedRunStartingAtThreeUnderABullet_KeepsItsStartAndNesting()
+    {
+        var bullet = new Block
+        {
+            Type = BlockType.BulletList,
+            Order = 1,
+            Spans = new List<InlineSpan> { InlineSpan.Plain("a") },
+            Children = new List<Block> { Started("x", 0, 3), Numbered("y", 1, 1) }
+        };
+
+        var md = NoteBlockMarkdownConverter.Serialize(new List<Block> { Rich(BlockType.Heading1, "Doc", 0), bullet }).Replace("\r\n", "\n");
+
+        // Only a 1 may interrupt a paragraph, so the blank line keeps the 3 an item.
+        Assert.EndsWith("- a\n\n  3. x\n  4. y", md);
+        var top = Assert.Single(NoteBlockMarkdownConverter.Deserialize(md).Skip(1));
+        Assert.Equal((BlockType.BulletList, "a"), (top.Type, top.Content));
+        Assert.Equal(new[] { "x", "y" }, top.Children!.Select(c => c.Content));
+        Assert.Equal(3, Assert.IsType<int>(top.Children![0].Meta["listStart"]));
     }
 
     [Fact]
@@ -928,8 +1064,8 @@ public class NoteBlockMarkdownConverterTests
         var back = NoteBlockMarkdownConverter.Deserialize("# Steps\n\n5. step five\n6. step six");
 
         Assert.Equal(new[] { BlockType.Heading1, BlockType.NumberedList, BlockType.NumberedList }, back.Select(b => b.Type));
-        Assert.Equal(5, Assert.IsType<int>(back[1].Meta["listNumberIndex"]));
-        Assert.Equal(6, Assert.IsType<int>(back[2].Meta["listNumberIndex"]));
+        Assert.Equal(5, Assert.IsType<int>(back[1].Meta["listStart"]));
+        Assert.Empty(back[2].Meta);
     }
 
     [Fact]
@@ -942,7 +1078,7 @@ public class NoteBlockMarkdownConverterTests
         Assert.Equal(
             new[] { BlockType.Heading1, BlockType.NumberedList, BlockType.NumberedList, BlockType.Code, BlockType.NumberedList, BlockType.NumberedList },
             back.Select(b => b.Type));
-        Assert.Equal(3, Assert.IsType<int>(back[4].Meta["listNumberIndex"]));
+        Assert.Equal(3, Assert.IsType<int>(back[4].Meta["listStart"]));
         Assert.Equal("Run", back[5].Content);
     }
 
@@ -961,15 +1097,15 @@ public class NoteBlockMarkdownConverterTests
     {
         var blocks = new List<Block>
         {
-            new() { Type = BlockType.NumberedList, Order = 0, Spans = new List<InlineSpan> { InlineSpan.Plain("two") }, Meta = new Dictionary<string, object> { ["listNumberIndex"] = 2 } },
-            new() { Type = BlockType.NumberedList, Order = 1, Spans = new List<InlineSpan> { InlineSpan.Plain("three") }, Meta = new Dictionary<string, object> { ["listNumberIndex"] = 3 } },
+            Started("two", 0, 2),
+            Started("three", 1, null),
         };
 
         var back = NoteBlockMarkdownConverter.Deserialize(NoteBlockMarkdownConverter.Serialize(blocks));
 
         Assert.All(back, b => Assert.Equal(BlockType.NumberedList, b.Type));
-        // Written as the editor shows them, so they come back numbered from one.
-        Assert.Equal(new[] { 1, 2 }, back.Select(b => Assert.IsType<int>(b.Meta["listNumberIndex"])));
+        Assert.Equal(2, Assert.IsType<int>(back[0].Meta["listStart"]));
+        Assert.Empty(back[1].Meta);
         Assert.Equal(new[] { "two", "three" }, back.Select(b => b.Content));
     }
 
@@ -1035,6 +1171,16 @@ public class NoteBlockMarkdownConverterTests
         return block;
     }
 
+    private static Block Started(string text, int order, int? start, params Block[] children) => new()
+    {
+        Type = BlockType.NumberedList,
+        Order = order,
+        Spans = new List<InlineSpan> { InlineSpan.Plain(text) },
+        Meta = start is int s ? new Dictionary<string, object> { ["listStart"] = s } : new Dictionary<string, object>(),
+        Children = children.Length > 0 ? children.ToList() : null
+    };
+
+    /// <summary>A numbered item as earlier imports stored it, with its own number under the old key.</summary>
     private static Block Numbered(string text, int order, int stored, params Block[] children) => new()
     {
         Type = BlockType.NumberedList,
