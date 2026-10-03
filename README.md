@@ -90,7 +90,7 @@ Mnemo does not try to trap your material inside the application.
 
 ## Project status
 
-Mnemo is currently in the **0.8.0 beta**.
+Mnemo is currently in the **0.8.1 beta**.
 
 | Platform | Build | Status |
 | --- | --- | --- |
@@ -104,16 +104,26 @@ specific to your platform.
 
 Starting with v0.8.1-nightly.5, the macOS downloads are signed and notarized. macOS still asks
 you to confirm the first time you open an app downloaded from the internet, but no longer blocks
-it. Earlier macOS releases, including the current beta v0.8.0-rc.2, are unsigned; see
+it. Earlier macOS releases, including the 0.8.0 release candidates, are unsigned; see
 [macOS](#macos). The Windows builds are not code signed yet, so SmartScreen warns before the
 first run. Tagged releases are built from public source through GitHub Actions, and the 0.8
-release workflow publishes a `SHA256SUMS.txt` file for its installers and portable archives.
+release workflow publishes a `SHA256SUMS.txt` file for its installers and portable archives;
+see [Verify a download](#verify-a-download).
 
 This is pre-release software. Keep a current backup of anything important.
 
 ## Install
 
 Choose the newest 0.8 beta on the [releases page](https://github.com/onemnemo/mnemo/releases).
+
+### Verify a download
+
+Download `SHA256SUMS.txt` from the same release into the folder that holds your download, then
+run the line for your platform there. A match prints the file name (with `OK` on macOS and Linux).
+
+* Windows, in PowerShell: `Select-String (Get-FileHash .\<downloaded file>).Hash SHA256SUMS.txt`
+* macOS: `shasum -a 256 -c SHA256SUMS.txt --ignore-missing`
+* Linux: `sha256sum -c --ignore-missing SHA256SUMS.txt`
 
 ### Upgrading from 0.6.x
 
@@ -144,7 +154,7 @@ Mnemo cannot update itself.
 The first time you open Mnemo, macOS asks whether you want to open an app downloaded from the
 internet. Choose **Open**.
 
-Releases before v0.8.1-nightly.5, including v0.8.0-rc.2, are unsigned, and macOS blocks them.
+Releases before v0.8.1-nightly.5 are unsigned, and macOS blocks them.
 Their portable download is a `.tar.gz` folder rather than **Mnemo.app**. First check the
 download against the release's `SHA256SUMS.txt`. Then try to open it once, open **System
 Settings > Privacy & Security**, scroll to Security, choose **Open Anyway**, and confirm
@@ -160,14 +170,30 @@ chmod +x Mnemo.Desktop.V2-linux-x64-*.AppImage
 ./Mnemo.Desktop.V2-linux-x64-*.AppImage
 ```
 
-On Ubuntu 24.04, install the native runtime packages first:
+Install the native runtime packages first. On Ubuntu 24.04:
 
 ```bash
 sudo apt install libfuse2t64 libwebkit2gtk-4.1-0 libjavascriptcoregtk-4.1-0 libgtk-3-0t64 libnotify4
 ```
 
+On Ubuntu 22.04:
+
+```bash
+sudo apt install libfuse2 libwebkit2gtk-4.1-0 libjavascriptcoregtk-4.1-0 libgtk-3-0 libnotify4
+```
+
 Other distributions need equivalent GTK 3, WebKitGTK 4.1, JavaScriptCoreGTK, libnotify and
-FUSE 2 packages.
+FUSE 2 packages. If libnotify, WebKitGTK, JavaScriptCoreGTK or GTK 3 is missing, Mnemo does not
+start and says which package to install.
+
+Mnemo turns off WebKit's DMA-BUF renderer before GTK starts, which avoids a blank or black window
+on some graphics stacks, unless `WEBKIT_DISABLE_DMABUF_RENDERER` is already set in your
+environment. If the window still opens blank or black, make sure the variable is not set to `0`,
+or start Mnemo with it set explicitly:
+
+```bash
+WEBKIT_DISABLE_DMABUF_RENDERER=1 ./Mnemo.Desktop.V2-linux-x64-*.AppImage
+```
 
 ## Backups
 
@@ -197,13 +223,8 @@ Linux desktop's autostart settings.
 
 ## Roadmap
 
-Mnemo is in beta. The 0.8.x releases focus on fixes and platform coverage. Version 0.9 brings
-search across notes and the rebuilt assistant, which runs locally. Version 1.0 means signed
-builds on every platform, Windows, macOS and Linux validated on real hardware, and an assistant
-available to everyone.
-
-Document reading, more ways to practise, optional sync and extensions follow. A full roadmap
-will be published soon.
+More ways to practise, optional sync and extensions are planned. A full roadmap will be
+published soon.
 
 ## Architecture
 
