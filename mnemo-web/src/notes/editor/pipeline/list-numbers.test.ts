@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { EditorState } from 'prosemirror-state';
-import { DecorationSet } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 
 import { createEditorSchema } from '../schema';
@@ -55,7 +54,7 @@ describe('numbered-list numbering', () => {
     expect(numbers(doc(num('a'), bullet('b'), num('c')))).toEqual(['1', '1']);
   });
 
-  it('starts every run at 1, the leading number is not stored', () => {
+  it('starts a run at 1 when its first item stores no start', () => {
     // Two separate runs; neither remembers a prior index.
     expect(numbers(doc(num(), para(), num(), num()))).toEqual(['1', '1', '2']);
   });
@@ -110,14 +109,25 @@ describe('numberedListPlugin', () => {
   it('exposes a decoration set and recomputes it on document change', () => {
     const plugin = numberedListPlugin();
     let state = EditorState.create({ schema, doc: doc(num('a'), num('b')), plugins: [plugin] });
-    const initial = plugin.getState(state) as DecorationSet;
-    expect(initial.find()).toHaveLength(2);
+    expect(plugin.getState(state)!.decorations.find()).toHaveLength(2);
 
     // Insert a paragraph between the two items; the second item must renumber to 1.
     const between = doc(num('a')).firstChild!.nodeSize; // end of the first item
     state = state.apply(state.tr.insert(between, para('x')));
     const after = numbers(state.doc);
     expect(after).toEqual(['1', '1']);
+  });
+
+  it('maps the set through typing instead of rebuilding it', () => {
+    const plugin = numberedListPlugin();
+    const state = EditorState.create({ schema, doc: doc(num('a'), num('b')), plugins: [plugin] });
+    const typed = state.apply(state.tr.insertText('z', 2));
+    const set = plugin.getState(typed)!.decorations;
+    expect(set.find().map((d) => [d.from, d.to])).toEqual([
+      [0, typed.doc.child(0).nodeSize],
+      [typed.doc.child(0).nodeSize, typed.doc.content.size],
+    ]);
+    expect(plugin.getState(typed)!.decorations).not.toBe(plugin.getState(state)!.decorations);
   });
 });
 
@@ -159,6 +169,53 @@ describe('numbered-list numbering in nested lists', () => {
   it('keeps a two-column transparent inside a sub-list', () => {
     const d = doc(numWith('one', num('x'), twoColumn(column(num('l')), column(num('r'))), num('y')));
     expect(numbers(d)).toEqual(['1', 'a', 'b', 'c', 'd']);
+  });
+});
+
+// --- stored starts ------------------------------------------------------------
+
+function numFrom(start: unknown, text?: string, key = 'listStart'): PMNode {
+  return schema.nodes.numberedItem.create({ meta: { [key]: start } }, line(text));
+}
+
+describe('numbered-list numbering from a stored start', () => {
+  it('counts a run up from the start its first item stores', () => {
+    expect(numbers(doc(numFrom(8, 'a'), num('b'), num('c')))).toEqual(['8', '9', '10']);
+  });
+
+  it('never reads what a later item stores', () => {
+    expect(numbers(doc(numFrom(8), numFrom(3), numFrom(99)))).toEqual(['8', '9', '10']);
+  });
+
+  it('gives every run its own start', () => {
+    expect(numbers(doc(numFrom(5), num(), para(), num(), para(), numFrom(2)))).toEqual(['5', '6', '1', '2']);
+  });
+
+  it('never reads the per-item numbers older imports stored', () => {
+    expect(numbers(doc(numFrom(7, 'a', 'listNumberIndex'), num('b')))).toEqual(['1', '2']);
+    expect(numbers(doc(numFrom('7.', 'a', 'listNumber'), num('b')))).toEqual(['1', '2']);
+  });
+
+  it('keeps a start of 0 at decimal depth and counts from 1 under a letter label', () => {
+    expect(numbers(doc(numFrom(0), num()))).toEqual(['0', '1']);
+    const nested = schema.nodes.numberedItem.create(null, [line('one'), numFrom(0, 'x'), num('y')]);
+    expect(numbers(doc(nested))).toEqual(['1', 'a', 'b']);
+  });
+
+  it('starts at 1 for a stored number no list can start at', () => {
+    expect(numbers(doc(numFrom(-4)))).toEqual(['1']);
+    expect(numbers(doc(numFrom(2.5)))).toEqual(['1']);
+    expect(numbers(doc(numFrom('soon')))).toEqual(['1']);
+  });
+
+  it('gives a nested run its own start, labelled at its depth', () => {
+    const nested = schema.nodes.numberedItem.create(null, [line('one'), numFrom(3, 'x'), num('y')]);
+    expect(numbers(doc(nested, num('two')))).toEqual(['1', 'c', 'd', '2']);
+  });
+
+  it('carries a start through a two-column the run flows into', () => {
+    const d = doc(numFrom(4, 'top'), twoColumn(column(num('l')), column(num('r'))));
+    expect(numbers(d)).toEqual(['4', '5', '6']);
   });
 });
 

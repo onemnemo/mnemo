@@ -198,6 +198,24 @@ describe('parseMarkdownToBlocks: a markdown document', () => {
     expect(read('# T\n\n- a\n1999. b')).toEqual(['Heading1:T', 'BulletList:a 1999. b']);
   });
 
+  it('keeps the number that opens a run as its start, on the first item only', () => {
+    const blocks = parseMarkdownToBlocks('# Steps\n\n8. eight\n9. nine');
+    expect(blocks.map((b) => b.meta)).toEqual([{}, { listStart: 8 }, {}]);
+    const nested = parseMarkdownToBlocks('# T\n\n- a\n\n  3. x\n  4. y')[1];
+    expect(nested.children?.map((b) => b.meta)).toEqual([{ listStart: 3 }, {}]);
+    expect(parseMarkdownToBlocks('# T\n\n1. a\n2. b').map((b) => b.meta)).toEqual([{}, {}, {}]);
+    expect(parseMarkdownToBlocks('# T\n\n0. a\n1. b').map((b) => b.meta)).toEqual([{}, { listStart: 0 }, {}]);
+  });
+
+  it('reads an escaped number back as text', () => {
+    expect(read('# Plan\n\n2\\. oktober')).toEqual(['Heading1:Plan', 'Text:2. oktober']);
+    expect(read('2\\. oktober')).toEqual(['Text:2. oktober']);
+  });
+
+  it('stores no number outside a markdown document, where only a one opens a list', () => {
+    expect(parseMarkdownToBlocks('1. a\n2. b').map((b) => b.meta)).toEqual([{}, {}]);
+  });
+
   it('keeps both lists of install steps split by a code block', () => {
     const readme = '# Install\n\n1. Clone the repo\n2. Enter it\n\n```sh\ngit clone x\n```\n\n3. Build\n4. Run';
     expect(read(readme)).toEqual([

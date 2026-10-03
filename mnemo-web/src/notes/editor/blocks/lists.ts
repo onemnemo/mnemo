@@ -20,9 +20,9 @@ import { checklistView } from './checklist-view';
 
 /**
  * An item's sub-list, indented under it. Two spaces per level under a bullet or
- * a checkbox and three under a numbered item, so a child line sits at its
- * parent's content column and CommonMark readers nest it too; our own parsers
- * accept anything deeper than the parent's own indent.
+ * a checkbox and the marker's width under a numbered item, so a child line sits
+ * at its parent's content column and CommonMark readers nest it too; our own
+ * parsers accept anything deeper than the parent's own indent.
  */
 function nestedMarkdown(node: PMNode, ctx: MdContext, indent: string): string {
   return ctx.serializeChildren(node).replace(/^(?=.)/gm, indent);
@@ -56,18 +56,16 @@ export function bulletItemBlock(deps: BlockDeps): AnyBlockModule {
 }
 
 /**
- * The displayed number is **not** stored.
+ * Only the run's start is stored, as `listStart` in the first item's `meta`
+ * (see `list-start.ts`); every displayed number is recomputed from it
+ * and document order by a decoration plugin. A stored index on each item goes
+ * stale the moment a block is inserted above it, and a CSS counter would have
+ * to be scoped somewhere, but the counter must not reset at a column boundary,
+ * and the block tree emits a column's left cells then its right cells with no
+ * break between them.
  *
- * It is recomputed from document order by a decoration plugin, for two reasons.
- * A stored index goes stale the moment a block is inserted above it, and a CSS
- * counter would have to be scoped somewhere, but the counter must not reset at
- * a column boundary, and the block tree emits a column's left cells then its
- * right cells with no break between them. Any scoping that produces correct CSS
- * nesting renumbers every existing note.
- *
- * `listNumberIndex` and `listNumber` do appear in real `meta` bags. They stay
- * there, untouched, as opaque passthrough: promoting them to attrs would store
- * the same value twice and create exactly the shadow-key divergence the
+ * The start stays in `meta` rather than an attr: promoting it would store the
+ * same value twice and create exactly the shadow-key divergence the
  * normalization pass exists to clean up.
  */
 export function numberedItemBlock(deps: BlockDeps): AnyBlockModule {
@@ -81,8 +79,10 @@ export function numberedItemBlock(deps: BlockDeps): AnyBlockModule {
       },
       attrsFrom: () => ({}),
       wireFrom: () => ({ type: 'NumberedList' as BlockType, payload: { kind: 'empty' as const } }),
-      // Markdown renumbers on its own, so a literal `1.` is correct output.
-      toMarkdown: (node, ctx, inline) => `1. ${inline}\n${nestedMarkdown(node, ctx, '   ')}`,
+      toMarkdown: (node, ctx, inline) => {
+        const marker = `${ctx.listNumber}. `;
+        return `${marker}${inline}\n${nestedMarkdown(node, ctx, ' '.repeat(marker.length))}`;
+      },
       slash: [
         {
           label: 'NumberedList',

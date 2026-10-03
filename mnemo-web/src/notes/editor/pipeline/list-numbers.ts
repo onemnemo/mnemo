@@ -1,54 +1,48 @@
 /**
  * Numbered-list numbering, as decorations rather than stored data.
  *
- * A numbered item's displayed number is never persisted, the list schema keeps
- * `data-numbered` items as siblings with no index attr, because a stored number
- * goes stale the instant a block is inserted above it. So the number is
- * recomputed from document order on every change and painted through a
- * `data-list-number` attribute the stylesheet renders.
+ * Only a run's start is stored, on its first item (see `blocks/list-start.ts`).
+ * Every other number is recomputed from document order and painted through a
+ * `data-list-number` attribute the stylesheet renders, because a stored number
+ * goes stale the instant a block is inserted above it.
  *
  * The rules:
  *
- *  - A run of consecutive numbered items counts 1, 2, 3; every run restarts at
- *    1 (there is no stored start, so a `5. ` shortcut still starts wherever its
- *    position dictates, the documented number-not-stored divergence).
+ *  - A run of consecutive numbered items counts up from its first item's start,
+ *    1 when that item stores none: 8, 9, 10.
  *
  *  - **Any** non-numbered block resets the run. A paragraph, a heading, a bullet
  *    between two numbered items breaks the sequence.
  *
- *  - A nested list is a run of its own. An item's block children start at 1
- *    whatever their parent's number is, and the parent's run carries on past
- *    them: 1, then a and b beneath it, then 2. The label style follows the
- *    nesting depth the way every outliner's does: decimal, then lower-case
- *    letters, then lower-case roman, repeating from there.
+ *  - A nested list is a run of its own, with its own start, and the parent's run
+ *    carries on past it: 1, then a and b beneath it, then 2. The label style
+ *    follows the nesting depth the way every outliner's does: decimal, then
+ *    lower-case letters, then lower-case roman, repeating from there.
  *
  *  - A two-column block is transparent. Its cells' blocks continue the run they
  *    sit in, **left column top to bottom, then right**, and neither the container
  *    nor the boundary between its columns resets it, so a run flows straight
  *    through a two-column and out the other side. That holds at any depth.
  *
- * The whole set is recomputed per document change. That is O(blocks), the walk
- * never enters a line's inline content; a range-local recompute (map the old
- * set, rebuild only the runs a change touched) is the optimization the
- * typing-at-size work will decide is worth its complexity.
+ * A structural change rebuilds the set in one O(blocks) walk that never enters a
+ * line's inline content. Typing cannot change a number, so it only maps the set.
  */
 
 import { Plugin, PluginKey, type EditorState } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import { isListItem } from '../blocks/shared';
+import { listStartOf, storedListStart } from '../blocks/list-start';
+import { onlyEditsText } from './text-only-steps';
 
-const listNumberKey = new PluginKey<DecorationSet>('notes-list-numbers');
-
-/** The state of one run of numbered items: what the next one is called, and whether the last block was one. */
-interface Run {
-  next: number;
-  prevNumbered: boolean;
+/** The numbering of one document. */
+export interface ListNumbering {
+  readonly decorations: DecorationSet;
+  /** Whether any numbered item stores a start, the only case edits have a start to keep. */
+  readonly anyStart: boolean;
 }
 
-function freshRun(): Run {
-  return { next: 1, prevNumbered: false };
-}
+export const listNumberKey = new PluginKey<ListNumbering>('notes-list-numbers');
 
 /** Bijective base 26: a, b, ... z, aa, ab, the way spreadsheet columns count. */
 function alphaLabel(index: number): string {
@@ -100,12 +94,30 @@ export function listLabel(index: number, depth: number): string {
 const transparentNames: ReadonlySet<string> = new Set(['twoColumn', 'columnGroup']);
 
 /**
- * The node decorations that number every numbered item in `doc`. Pure and
- * view-free, so the numbering is testable without mounting anything.
+ * Called for every numbered item in document order: its place in its run (0 for
+ * the first), the number it shows, the list depth its label is drawn at, and an
+ * id every item of its run shares.
  */
-export function listNumberDecorations(doc: PMNode): Decoration[] {
-  const decos: Decoration[] = [];
+export type NumberedVisitor = (
+  node: PMNode,
+  pos: number,
+  index: number,
+  number: number,
+  depth: number,
+  run: number,
+) => void;
 
+/** The run a walk is in: its id, the place of its last item, and the number it opened at. */
+interface Run {
+  id: number;
+  index: number;
+  start: number;
+}
+
+/** Walks every numbered item of `doc` with the number the editor shows for it. */
+export function forEachNumbered(doc: PMNode, visit: NumberedVisitor): void {
+  let runs = 0;
+  const fresh = (): Run => ({ id: -1, index: -1, start: 1 });
   // `contentStart` is the position of the parent's first child.
   const walk = (parent: PMNode, contentStart: number, depth: number, run: Run): void => {
     let offset = contentStart;
@@ -121,47 +133,71 @@ export function listNumberDecorations(doc: PMNode): Decoration[] {
       }
 
       if (child.type.name === 'numberedItem') {
-        if (!run.prevNumbered) run.next = 1;
-        decos.push(
-          Decoration.node(pos, pos + child.nodeSize, { 'data-list-number': listLabel(run.next, depth) }),
-        );
-        run.next += 1;
-        run.prevNumbered = true;
-        walk(child, pos + 1, depth + 1, freshRun());
+        if (run.index < 0) {
+          run.id = runs++;
+          run.start = listStartOf(child.attrs.meta, depth);
+        }
+        run.index += 1;
+        visit(child, pos, run.index, run.start + run.index, depth, run.id);
+        // Only an item holding a sub-list needs a run of its own; most hold just their line.
+        if (child.childCount > 1) walk(child, pos + 1, depth + 1, fresh());
         return;
       }
 
       // Every other block breaks the run. Its own children, if it has any, are
       // a run of their own, one level deeper when the block is a list item.
-      run.next = 1;
-      run.prevNumbered = false;
-      walk(child, pos + 1, isListItem(child) ? depth + 1 : depth, freshRun());
+      run.index = -1;
+      if (child.childCount > 1 || !child.firstChild?.isTextblock) {
+        walk(child, pos + 1, isListItem(child) ? depth + 1 : depth, fresh());
+      }
     });
   };
 
-  walk(doc, 0, 0, freshRun());
-  return decos;
+  walk(doc, 0, 0, fresh());
 }
 
 /**
- * The plugin. Holds the current `DecorationSet` in its state and rebuilds it on
- * any document change, exposing it through `props.decorations` so both the
- * read-only and the editable view paint the same numbers.
+ * The node decorations that number every numbered item in `doc`. Pure and
+ * view-free, so the numbering is testable without mounting anything.
  */
-export function numberedListPlugin(): Plugin<DecorationSet> {
-  return new Plugin<DecorationSet>({
+export function listNumberDecorations(doc: PMNode): Decoration[] {
+  return collect(doc).decorations;
+}
+
+function collect(doc: PMNode): { decorations: Decoration[]; anyStart: boolean } {
+  const decorations: Decoration[] = [];
+  let anyStart = false;
+  forEachNumbered(doc, (node, pos, _index, number, depth) => {
+    if (!anyStart && storedListStart(node.attrs.meta) !== null) anyStart = true;
+    decorations.push(Decoration.node(pos, pos + node.nodeSize, { 'data-list-number': listLabel(number, depth) }));
+  });
+  return { decorations, anyStart };
+}
+
+function numberingOf(doc: PMNode): ListNumbering {
+  const { decorations, anyStart } = collect(doc);
+  return { decorations: DecorationSet.create(doc, decorations), anyStart };
+}
+
+/**
+ * The plugin. Holds the current numbering in its state, exposing the decorations
+ * through `props.decorations` so both the read-only and the editable view paint
+ * the same numbers.
+ */
+export function numberedListPlugin(): Plugin<ListNumbering> {
+  return new Plugin<ListNumbering>({
     key: listNumberKey,
     state: {
-      init: (_config, state) =>
-        DecorationSet.create(state.doc, listNumberDecorations(state.doc)),
+      init: (_config, state) => numberingOf(state.doc),
       apply(tr, old, _oldState, newState) {
         if (!tr.docChanged) return old;
-        return DecorationSet.create(newState.doc, listNumberDecorations(newState.doc));
+        if (onlyEditsText([tr])) return { decorations: old.decorations.map(tr.mapping, tr.doc), anyStart: old.anyStart };
+        return numberingOf(newState.doc);
       },
     },
     props: {
-      decorations(this: Plugin<DecorationSet>, state: EditorState) {
-        return this.getState(state);
+      decorations(this: Plugin<ListNumbering>, state: EditorState) {
+        return this.getState(state)?.decorations;
       },
     },
   });

@@ -114,7 +114,8 @@ export function markdownShortcutTriggers(): readonly InputTriggerContribution[] 
     },
     {
       id: 'markdown.numbered',
-      match: /^\d+\. $/,
+      // Only a 1 opens a list, so a typed date or year ("2. oktober") stays text.
+      match: /^1\. $/,
       handler: (state) => convertLeadingMarker(state, 'numberedItem'),
     },
     // Whole-line shortcuts clear the line.

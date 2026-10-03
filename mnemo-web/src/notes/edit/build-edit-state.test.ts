@@ -46,7 +46,7 @@ describe('editorPlugins wiring', () => {
   it('wires the full stack in precedence order', () => {
     const { registry, inline } = editorSchema();
     const plugins = editorPlugins(registry, inline);
-    expect(plugins).toHaveLength(38);
+    expect(plugins).toHaveLength(39);
     // Input guards run before handlers that could claim the same event.
     expect(plugins[0].props.handleDOMEvents?.keydown).toBeTypeOf('function');
     expect(plugins[1].props.handleDOMEvents?.mousedown).toBeTypeOf('function');

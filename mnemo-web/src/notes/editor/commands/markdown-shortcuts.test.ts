@@ -216,20 +216,30 @@ describe('markdown leading list markers', () => {
     expect(b.textContent).toBe('hello');
   });
 
-  it('converts "1. " to a numbered item (the number itself is not stored)', () => {
+  it('converts "1. " to a numbered item with no stored start', () => {
     const d = doc(para('1.'));
     const { state, handled } = type(d, caretAt(d, 0, 2), ' ');
     expect(handled).toBe(true);
     expect(blockAt(state.doc, 0).type.name).toBe('numberedItem');
+    expect(blockAt(state.doc, 0).attrs.meta).toEqual({});
   });
 
-  it('keeps the remainder when a numbered marker has trailing text, ignoring the digit', () => {
-    const d = doc(para('3.task'));
+  it('keeps the remainder when a numbered marker has trailing text', () => {
+    const d = doc(para('1.task'));
     const { state, handled } = type(d, caretAt(d, 0, 2), ' ');
     expect(handled).toBe(true);
     const n = blockAt(state.doc, 0);
     expect(n.type.name).toBe('numberedItem');
     expect(n.textContent).toBe('task');
+  });
+
+  it('leaves any other number as text, so a typed date or year stays a paragraph', () => {
+    for (const marker of ['2.', '10.', '2026.', '0.', '01.']) {
+      const d = doc(para(`${marker}oktober`));
+      const { state, handled } = type(d, caretAt(d, 0, marker.length), ' ');
+      expect(handled).toBe(false);
+      expect(blockAt(state.doc, 0).type.name).toBe('paragraph');
+    }
   });
 
   it('preserves marks on the kept remainder', () => {

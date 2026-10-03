@@ -18,9 +18,45 @@ import type { MdContext } from '../registry/types';
 import type { InlineMapper } from './inline';
 import { escapeMarkdownText, serializeInlineMarkdown } from '../../model/markdown-serialize';
 import type { BlockType } from '../../model/types';
+import { listStartOf, storedListStart } from '../blocks/list-start';
+import { isListItem } from '../blocks/shared';
 
 const LIST_TYPES: ReadonlySet<BlockType> = new Set<BlockType>(['BulletList', 'NumberedList', 'Checklist']);
 const COLUMN_TYPES: ReadonlySet<BlockType> = new Set<BlockType>(['TwoColumn', 'ColumnGroup']);
+
+interface Numbered {
+  readonly number: number;
+  /**
+   * Whether the item opens a run at a number other than 1. CommonMark lets only
+   * a 1 interrupt a paragraph, so such an item needs a blank line above it.
+   */
+  readonly opensPastOne: boolean;
+  /** Whether the item ends the run above it and opens its own, see `splitRunsAtStarts`. */
+  readonly splits: boolean;
+}
+
+/** The CommonMark way to end a list, so the items after it start one of their own. */
+const RUN_BREAK = '<!-- -->\n\n';
+
+/**
+ * Numbers the blocks of one sibling run, `listDepth` list items down, the way the
+ * editor does: from the start the first item stores.
+ */
+function listCounter(listDepth: number, splitAtStarts: boolean): (node: PMNode, numbered: boolean) => Numbered {
+  let next: number | null = null;
+  return (node, numbered) => {
+    if (!numbered) {
+      next = null;
+      return { number: 1, opensPastOne: false, splits: false };
+    }
+    const stored = storedListStart(node.attrs.meta);
+    const splits = next !== null && splitAtStarts && stored !== null && stored !== next;
+    if (next !== null && !splits) return { number: next++, opensPastOne: false, splits };
+    const start = listStartOf(node.attrs.meta, listDepth);
+    next = start + 1;
+    return { number: start, opensPastOne: start !== 1, splits };
+  };
+}
 
 export interface MarkdownSerializer {
   /** The whole document as markdown, with no trailing blank line. */
@@ -35,6 +71,12 @@ export interface MarkdownSerializerOptions {
    * back; the clipboard's plain text, read by people and other apps, leaves the line blank.
    */
   readonly emptyParagraph?: 'nbsp' | 'blank';
+  /**
+   * Whether a numbered item that stores a start other than the next number opens a
+   * run of its own. A copy stores the shown number on each picked item that does not
+   * count on from the one before it; in a document only a run's first item stores one.
+   */
+  readonly splitRunsAtStarts?: boolean;
 }
 
 export function createMarkdownSerializer(
@@ -43,29 +85,39 @@ export function createMarkdownSerializer(
   options: MarkdownSerializerOptions = {},
 ): MarkdownSerializer {
   const emptyParagraph = options.emptyParagraph ?? 'nbsp';
+  const splitAtStarts = options.splitRunsAtStarts ?? false;
 
   function serializeInline(line: PMNode): string {
     return serializeInlineMarkdown(inline.fromInline(line));
   }
 
-  function contextAt(depth: number): MdContext {
+  function contextAt(depth: number, listDepth: number, listNumber: number): MdContext {
     return {
       depth,
-      serializeChildren: (node) => serializeFragment(node.content, depth + 1),
+      serializeChildren: (node) => serializeFragment(node.content, depth + 1, isListItem(node) ? listDepth + 1 : listDepth),
       serializeInline,
       escapeText: escapeMarkdownText,
       emptyParagraph,
+      listNumber,
     };
   }
 
-  function serializeFragment(fragment: Fragment, depth: number): string {
+  function isNumbered(wireTypes: readonly BlockType[]): boolean {
+    return wireTypes.includes('NumberedList');
+  }
+
+  function serializeFragment(fragment: Fragment, depth: number, listDepth: number): string {
     let out = '';
+    const count = listCounter(listDepth, splitAtStarts);
     fragment.forEach((child) => {
       const module = registry.byNodeName.get(child.type.name);
       // A `line`/`codeLine` child is inline content, not a block, and is never in the
       // registry; each module renders its own line through `serializeInline`.
       if (!module) return;
-      out += module.serialize.toMarkdown(child, contextAt(depth));
+      const { number, opensPastOne, splits } = count(child, isNumbered(module.wireTypes));
+      if (opensPastOne || splits) out += '\n';
+      if (splits) out += RUN_BREAK;
+      out += module.serialize.toMarkdown(child, contextAt(depth, listDepth, number));
     });
     return out;
   }
@@ -84,12 +136,15 @@ export function createMarkdownSerializer(
   function serializeBlocks(fragment: Fragment): string {
     let out = '';
     let previousIsItem: boolean | null = null;
+    const count = listCounter(0, splitAtStarts);
     for (const node of flatten(fragment, [])) {
       const module = registry.byNodeName.get(node.type.name)!;
-      const text = module.serialize.toMarkdown(node, contextAt(0));
+      const { number, opensPastOne, splits } = count(node, isNumbered(module.wireTypes));
+      const text = module.serialize.toMarkdown(node, contextAt(0, 0, number));
       if (text === '') continue;
       const isItem = module.wireTypes.some((type) => LIST_TYPES.has(type));
-      if (previousIsItem !== null && !(previousIsItem && isItem)) out += '\n';
+      if (previousIsItem !== null && (!(previousIsItem && isItem) || opensPastOne || splits)) out += '\n';
+      if (splits) out += RUN_BREAK;
       out += text;
       previousIsItem = isItem;
     }

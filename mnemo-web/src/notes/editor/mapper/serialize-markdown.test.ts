@@ -117,10 +117,74 @@ describe('createMarkdownSerializer', () => {
     );
   });
 
-  it('renders a numbered item with a literal 1. (markdown renumbers on parse)', () => {
+  it('writes each numbered item as the number it shows', () => {
     expect(md.document(doc(block('numberedItem', {}, text('one')), block('numberedItem', {}, text('two'))))).toBe(
-      '1. one\n1. two',
+      '1. one\n2. two',
     );
+  });
+
+  it('counts a run on from the start its first item stores', () => {
+    const out = md.document(
+      doc(
+        block('numberedItem', { meta: { listStart: 8 } }, text('eight')),
+        block('numberedItem', { meta: { listStart: 2 } }, text('nine')),
+        block('numberedItem', {}, text('ten')),
+      ),
+    );
+    expect(out).toBe('8. eight\n9. nine\n10. ten');
+    expect(readBack(out).map((b) => b.meta)).toEqual([{ listStart: 8 }, {}, {}]);
+  });
+
+  it('never reads the per-item numbers older imports stored', () => {
+    const out = md.document(
+      doc(
+        block('numberedItem', { meta: { listNumberIndex: 8, listNumber: '8.' } }, text('a')),
+        block('numberedItem', { meta: { listNumberIndex: 9 } }, text('b')),
+      ),
+    );
+    expect(out).toBe('1. a\n2. b');
+  });
+
+  it('keeps a start of 0 at decimal depth, and counts from 1 under a letter label', () => {
+    const bullet = schema.nodes.bulletItem.create({ sid: 'b', id: 'b' }, [
+      line(text('b')),
+      block('numberedItem', { meta: { listStart: 0 } }, text('x')),
+    ]);
+    const out = md.document(doc(block('numberedItem', { meta: { listStart: 0 } }, text('zero')), bullet));
+    expect(out).toBe('0. zero\n- b\n  1. x');
+    expect(readBack(out)[0].meta).toEqual({ listStart: 0 });
+  });
+
+  it('puts a blank line above a run that starts past one, so a reader does not fold it into the line above', () => {
+    const bullet = schema.nodes.bulletItem.create({ sid: 'b', id: 'b' }, [
+      line(text('a')),
+      block('numberedItem', { meta: { listStart: 3 } }, text('x')),
+    ]);
+    const out = md.document(doc(bullet, block('numberedItem', { meta: { listStart: 5 } }, text('five'))));
+    expect(out).toBe('- a\n\n  3. x\n\n5. five');
+    const back = readBack(out);
+    expect(back.map((b) => b.type)).toEqual(['BulletList', 'NumberedList']);
+    expect(back[0].children?.map((b) => b.meta)).toEqual([{ listStart: 3 }]);
+    expect(back[1].meta).toEqual({ listStart: 5 });
+  });
+
+  it('indents a sub-list to the width of a two digit marker', () => {
+    const ten = schema.nodes.numberedItem.create({ sid: 't', id: 't', meta: { listStart: 10 } }, [
+      line(text('ten')),
+      block('bulletItem', {}, text('sub')),
+    ]);
+    expect(md.document(doc(ten))).toBe('10. ten\n    - sub');
+  });
+
+  it('escapes a paragraph that would read as a list item, so it reads back as text', () => {
+    for (const value of ['2. oktober', '1. oktober', '2026. was a year']) {
+      const out = md.document(doc(block('heading', { level: 1 }, text('Plan')), block('paragraph', {}, text(value))));
+      const dot = value.indexOf('.');
+      expect(out.endsWith(`\n\n${value.slice(0, dot)}\\${value.slice(dot)}`)).toBe(true);
+      const back = parseMarkdownToBlocks(out);
+      expect(back.map((b) => b.type)).toEqual(['Heading1', 'Text']);
+      expect(back[1].spans.map((span) => ('text' in span ? span.text : '')).join('')).toBe(value);
+    }
   });
 
   it('joins top-level blocks with a blank line and trims the trailing newline', () => {

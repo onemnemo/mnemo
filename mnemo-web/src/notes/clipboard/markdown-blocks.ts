@@ -23,6 +23,7 @@ import { endsWithBreakMarker } from '../model/hard-break';
 import { oneParagraphSpans, parseInlineMarkdown } from '../model/markdown';
 import { plainSpan } from '../model/spans';
 import { TABLE_COL_W } from '../editor/table/model';
+import { withListStart } from '../editor/blocks/list-start';
 import { isTextSpan, type Block, type BlockPayload, type BlockType, type InlineSpan } from '../model/types';
 import {
   EMPTY_PARAGRAPH,
@@ -43,7 +44,7 @@ import { readPipeTable } from './markdown-table';
 const PAGE_REF = /^\[\[page:([^\]]*)\]\]\s*$/;
 /** A bullet introduced by `*` or `+`; the trailing space stops `*emphasis*` reading as a list. */
 const STAR_BULLET = /^(?:\*|\+)\s+(.*)$/;
-/** A numbered item; the editor renumbers on render, so the index is not stored. */
+/** A numbered item. The number that opens a run is kept as the run's start. */
 const NUMBERED = /^(\d{1,9})[.)]\s/;
 const IMAGE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/;
 /** `> [!tone glyph]`, the editor's own head, and Obsidian's `> [!type]` with an optional fold sign. */
@@ -182,12 +183,12 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
     else runs.set(indent, number);
     const item = makeBlock(type, spans, payload);
     const parent = open.length > 0 ? open[open.length - 1].item : null;
-    if (parent) {
-      parent.children ??= [];
-      place(item, parent.children);
-    } else {
-      place(item, out);
+    const container = parent ? (parent.children ??= []) : out;
+    // Only the number that opens a run means anything, as in CommonMark.
+    if (number !== undefined && container[container.length - 1]?.type !== 'NumberedList') {
+      item.meta = withListStart(item.meta, number);
     }
+    place(item, container);
     open.push({ indent, item });
   };
 

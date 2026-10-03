@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 
+import { LIST_START_KEY, storedListStart } from '../editor/blocks/list-start';
 import { createEditorSchema } from '../editor/schema';
 import { blockSelectionKey, blockSelectionPlugin } from '../selection/block-selection-plugin';
 import { buildCopySlice } from './copy';
@@ -11,6 +12,8 @@ const { schema, registry } = createEditorSchema();
 
 const line = (text?: string) => schema.nodes.line.create(null, text ? schema.text(text) : null);
 const para = (text: string, sid: string) => schema.nodes.paragraph.create({ sid, id: sid }, line(text));
+const numbered = (text: string, sid: string, start?: number) =>
+  schema.nodes.numberedItem.create({ sid, id: sid, meta: start === undefined ? {} : { [LIST_START_KEY]: start } }, line(text));
 const cell = (sid: string, ...blocks: PMNode[]) =>
   schema.nodes.columnGroup.create({ sid, id: sid }, [line(), ...blocks]);
 const twoColumn = (sid: string, left: PMNode, right: PMNode) =>
@@ -51,6 +54,19 @@ describe('buildCopySlice', () => {
     const copy = buildCopySlice(selecting(doc, ['sA', 'sB']), registry);
     expect(copy?.slice.content.childCount).toBe(1);
     expect(copy?.slice.content.child(0).type.name).toBe('twoColumn');
+  });
+
+  it('stamps the numbers shown on numbered items inside a copied column row', () => {
+    // Columns continue the run around them, so the row's items show 9 and 10.
+    const doc = docOf(numbered('eight', 'n8', 8), twoColumn('tc', cell('cl', numbered('nine', 'n9')), cell('cr', numbered('ten', 'n10'))));
+    const copy = buildCopySlice(selecting(doc, ['n9', 'n10']), registry);
+    expect(copy?.slice.content.child(0).type.name).toBe('twoColumn');
+    const starts: Record<string, number | null> = {};
+    copy!.slice.content.descendants((node) => {
+      if (node.type.name === 'numberedItem') starts[node.textContent] = storedListStart(node.attrs.meta);
+      return true;
+    });
+    expect(starts).toEqual({ nine: 9, ten: 10 });
   });
 
   it('copies only the covered leaf from a partly selected column', () => {

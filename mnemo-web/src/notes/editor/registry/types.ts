@@ -153,6 +153,8 @@ export interface MdContext {
   escapeText(text: string): string;
   /** How an empty paragraph is written: `&nbsp;` for a file, a blank line for plain text. */
   readonly emptyParagraph: 'nbsp' | 'blank';
+  /** The number a numbered item shows: its run's start plus its place in the run. */
+  readonly listNumber: number;
 }
 
 /**

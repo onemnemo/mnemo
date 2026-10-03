@@ -40,6 +40,7 @@ import { nestedInputGuard } from '../editor/pipeline/nested-input';
 import { trailingClickPlugin } from '../editor/pipeline/trailing-click';
 import { selectionDragPlugin } from '../editor/pipeline/selection-drag';
 import { numberedListPlugin } from '../editor/pipeline/list-numbers';
+import { listStartPlugin } from '../editor/pipeline/list-starts';
 import { tableHeaderPlugin } from '../editor/table/header-decorations';
 import { imageCaptionCaretPlugin } from '../editor/blocks/image-caption-caret';
 import { codeHighlightPlugin } from '../editor/code/highlight';
@@ -269,6 +270,8 @@ export function editorPlugins(
     proofingPlugin(),
     columnSplitterPlugin(),
     blockIdentityPlugin(registry),
+    // After identity: it matches list items across an edit by block id.
+    listStartPlugin(),
     // Holds one number for one state, the position an equation was just
     // inserted at, so the atom's view knows to open its source card. It claims
     // no key, appends nothing and reads no document, so it takes no part in the

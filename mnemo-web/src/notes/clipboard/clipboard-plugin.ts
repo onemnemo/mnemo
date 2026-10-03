@@ -41,7 +41,7 @@ export function clipboardPlugin(
   support?: PasteAssetSupport,
   progress: PasteProgressReporter = storePasteProgress,
 ): Plugin {
-  const markdown = createMarkdownSerializer(registry, inline, { emptyParagraph: 'blank' });
+  const markdown = createMarkdownSerializer(registry, inline, { emptyParagraph: 'blank', splitRunsAtStarts: true });
 
   function writeSelection(view: EditorView, data: DataTransfer): boolean {
     if (view.composing) return false;

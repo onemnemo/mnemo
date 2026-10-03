@@ -29,6 +29,7 @@ import { keymap } from 'prosemirror-keymap';
 import { chainCommands } from 'prosemirror-commands';
 import type { Plugin } from 'prosemirror-state';
 import { blockChildrenOf, containerBlockNames, isListItem, lineIsCaretTarget, lineOf } from '../blocks/shared';
+import { storedListStart, withListStart } from '../blocks/list-start';
 import { asOwnUndoStep } from '../history';
 import { blockContext, blockContextAt, type BlockContext } from './caret-block';
 import { toggleChecklistItem } from './checklist';
@@ -155,6 +156,11 @@ export function convertBlockType(
 ): Transaction {
   const schema = targetType.schema;
   const attrs = { ...commonAttrs(node), ...(opts.attrs ?? {}) };
+  // Only a run's first item stores a start, and a block turned into a numbered
+  // item never brings one along.
+  if (node.type !== targetType && storedListStart(attrs.meta) !== null) {
+    attrs.meta = withListStart(attrs.meta, null);
+  }
   const targetLine = lineTypeFor(targetType);
   const oldLine = lineOf(node);
   const preserve = (opts.content ?? 'preserve') === 'preserve';
