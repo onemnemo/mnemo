@@ -1,7 +1,10 @@
 /**
  * GFM pipe tables for the paste reader: a header row, a delimiter row with as many
- * cells, then body rows while lines keep holding a pipe. The outer pipes are optional.
+ * cells, then body rows while lines keep holding a pipe and do not open another block.
+ * The outer pipes are optional.
  */
+
+import { endsPipeTable } from './markdown-lines';
 
 /** One delimiter cell: dashes, with the colons that mark alignment, which are dropped. */
 const DELIMITER_CELL = /^:?-+:?$/;
@@ -114,7 +117,12 @@ export function readPipeTable(
 
   const rows: string[][] = [headerCells];
   let next = index + 2;
-  while (next < lines.length && lines[next].trim() !== '' && hasCellPipe(lines[next])) {
+  while (
+    next < lines.length &&
+    lines[next].trim() !== '' &&
+    hasCellPipe(lines[next]) &&
+    !endsPipeTable(lines[next])
+  ) {
     rows.push(splitPipeRow(lines[next]));
     next++;
   }

@@ -12,42 +12,85 @@ public static partial class NoteBlockMarkdownConverter
     /// <summary>The editor's default column width; markdown carries none.</summary>
     private const double ImportedColumnWidth = 180;
 
+    /// <summary>The most columns an imported table gets; the paste reader's limit is the same.</summary>
+    internal const int MaxTableColumns = 64;
+
+    /// <summary>The most cells (width times rows) an imported table gets, before it is read as plain lines.</summary>
+    internal const int MaxTableCells = 10_000;
+
     /// <summary>One delimiter cell: dashes, with the colons that mark alignment, which are dropped.</summary>
     private static readonly Regex DelimiterCellPattern = new(@"^:?-+:?$", RegexOptions.Compiled);
 
     /// <summary>
-    /// Reads the GFM pipe table opening at <paramref name="index"/>: a header row holding a pipe, a
-    /// delimiter row with as many cells, then body rows while lines keep holding a pipe. The outer
-    /// pipes are optional. Returns null, taking nothing, for anything else, so the lines are read
-    /// one block each and no text is lost.
+    /// Reads the GFM pipe tables of one document: a header row holding a pipe, a delimiter row with
+    /// as many cells, then body rows while lines keep holding a pipe and do not open another block.
+    /// The outer pipes are optional. <see cref="Read"/> returns null, taking nothing, for anything
+    /// else, so the lines are read one block each and no text is lost.
     /// </summary>
     /// <remarks>
     /// A body row wider than the header widens the table rather than dropping its extra cells, and
-    /// a shorter one is padded. The first row is the header row, as the writer marks it.
+    /// a shorter one is padded. The first row is the header row, as the writer marks it. A table
+    /// past <see cref="MaxTableColumns"/> or <see cref="MaxTableCells"/> is not built at all, since
+    /// one wide row would pad every other, and its whole span stays plain lines: any later line of
+    /// it would otherwise be read again as the start of a table, which is quadratic.
     /// </remarks>
-    private static Block? ReadPipeTable(string[] lines, int index, out int next)
+    private sealed class PipeTableReader(string[] lines)
     {
-        next = index;
-        if (index + 1 >= lines.Length || !HasCellPipe(lines[index]) || !HasCellPipe(lines[index + 1]))
-            return null;
+        private int _plainUntil;
 
-        var delimiterCells = SplitPipeRow(lines[index + 1].Trim());
-        if (!delimiterCells.All(c => DelimiterCellPattern.IsMatch(c)))
-            return null;
-        var headerCells = SplitPipeRow(lines[index].Trim());
-        if (headerCells.Count != delimiterCells.Count)
-            return null;
-
-        var rows = new List<List<string>> { headerCells };
-        var j = index + 2;
-        while (j < lines.Length && lines[j].Trim().Length > 0 && HasCellPipe(lines[j]))
+        public Block? Read(int index, out int next)
         {
-            rows.Add(SplitPipeRow(lines[j].Trim()));
-            j++;
+            next = index;
+            if (index < _plainUntil || index + 1 >= lines.Length
+                || !HasCellPipe(lines[index]) || !HasCellPipe(lines[index + 1]))
+                return null;
+
+            var delimiterCells = SplitPipeRow(lines[index + 1].Trim());
+            if (!delimiterCells.All(c => DelimiterCellPattern.IsMatch(c)))
+                return null;
+            var headerCells = SplitPipeRow(lines[index].Trim());
+            if (headerCells.Count != delimiterCells.Count)
+                return null;
+
+            var end = index + 2;
+            while (end < lines.Length && lines[end].Trim().Length > 0 && HasCellPipe(lines[end]) && !OpensBlockAfterTable(lines[end]))
+                end++;
+
+            var rowCount = end - index - 1;
+            var rows = new List<List<string>>(Math.Min(rowCount, MaxTableCells)) { headerCells };
+            var width = headerCells.Count;
+            for (var j = index + 2; j < end && Fits(width, rowCount); j++)
+            {
+                var cells = SplitPipeRow(lines[j].Trim());
+                width = Math.Max(width, cells.Count);
+                rows.Add(cells);
+            }
+
+            if (!Fits(width, rowCount))
+            {
+                _plainUntil = end;
+                return null;
+            }
+
+            next = end;
+            return CreateTable(rows);
         }
 
-        next = j;
-        return CreateTable(rows);
+        private static bool Fits(int width, int rowCount) =>
+            width <= MaxTableColumns && (long)width * rowCount <= MaxTableCells;
+    }
+
+    /// <summary>A heading, list item, quote or code fence ends a table, as it ends a paragraph, even when it holds a pipe.</summary>
+    private static bool OpensBlockAfterTable(string line)
+    {
+        var trimmed = line.TrimStart();
+        return CodeFenceOf(trimmed) is not null
+            || trimmed.StartsWith('>')
+            || HeadingStartPattern.IsMatch(trimmed)
+            || NumberedPattern.IsMatch(trimmed)
+            || trimmed.StartsWith("- ", StringComparison.Ordinal)
+            || ChecklistPattern.IsMatch(trimmed)
+            || StarOrPlusBulletPattern.IsMatch(trimmed);
     }
 
     /// <summary>Whether the line holds a pipe no backslash escapes.</summary>

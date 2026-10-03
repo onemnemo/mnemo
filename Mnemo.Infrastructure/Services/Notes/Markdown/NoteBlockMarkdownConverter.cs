@@ -206,6 +206,7 @@ public static partial class NoteBlockMarkdownConverter
     private static List<Block> Deserialize(string[] lines, bool joinParagraphs)
     {
         var result = new List<Block>();
+        var tables = new PipeTableReader(lines);
         var i = 0;
 
         // The list items still open for nesting, outermost first, each with the indent it was
@@ -279,7 +280,7 @@ public static partial class NoteBlockMarkdownConverter
                 && i + 1 < lines.Length
                 && lines[i].Trim().Length > 0
                 && !OpensBlock(lines, i + 1, numberedIndent is int depth && IndentWidth(lines[i + 1]) <= depth)
-                && ReadPipeTable(lines, i + 1, out _) is null;
+                && tables.Read(i + 1, out _) is null;
 
             if (!TakesNextLine() || !InlineMarkdownParser.ReadsAsOneParagraph(single))
                 return single;
@@ -573,7 +574,7 @@ public static partial class NoteBlockMarkdownConverter
                 continue;
             }
 
-            if (ReadPipeTable(lines, i, out var afterTable) is { } table)
+            if (tables.Read(i, out var afterTable) is { } table)
             {
                 AddTop(table);
                 i = afterTable;

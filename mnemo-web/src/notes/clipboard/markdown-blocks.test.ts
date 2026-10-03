@@ -108,6 +108,36 @@ describe('parseMarkdownToBlocks: pipe tables', () => {
     expect(block.type).toBe('Text');
     expect(textOf(block)).toBe('| not a table');
   });
+
+  it.each([
+    ['# Heading | extra', 'Heading1', 'Heading | extra'],
+    ['- item | x', 'BulletList', 'item | x'],
+    ['1. item | x', 'NumberedList', 'item | x'],
+    ['> quote | x', 'Quote', 'quote | x'],
+  ])('ends the table at %s directly below it', (line, type, text) => {
+    const blocks = parseMarkdownToBlocks(['| a | b |', '| --- | --- |', '| 1 | 2 |', line].join('\n'));
+    expect(blocks.map((b) => b.type)).toEqual(['Table', type]);
+    expect(cellTexts(blocks[0])).toEqual([
+      ['a', 'b'],
+      ['1', '2'],
+    ]);
+    expect(textOf(blocks[1])).toBe(text);
+  });
+
+  it('ends the table at a code fence directly below it', () => {
+    const blocks = parseMarkdownToBlocks(['| a | b |', '| --- | --- |', '| 1 | 2 |', '```c | d', 'x', '```'].join('\n'));
+    expect(blocks.map((b) => b.type)).toEqual(['Table', 'Code']);
+    expect(blocks[0].children).toHaveLength(2);
+  });
+
+  it('keeps a table with a short and a wide row, padded to the widest', () => {
+    const table = one('| a |\n| --- |\n| b | extra |\n| c');
+    expect(cellTexts(table)).toEqual([
+      ['a', ''],
+      ['b', 'extra'],
+      ['c', ''],
+    ]);
+  });
 });
 
 describe('parseMarkdownToBlocks: atomic blocks', () => {

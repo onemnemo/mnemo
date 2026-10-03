@@ -140,4 +140,92 @@ public class NoteBlockMarkdownTableTests
             Assert.Equal(lines[k].Replace("\\", string.Empty, StringComparison.Ordinal).Replace(" ", string.Empty, StringComparison.Ordinal),
                 back[k].Content.Replace(" ", string.Empty, StringComparison.Ordinal));
     }
+
+    [Theory]
+    [InlineData("# Heading | extra", BlockType.Heading1, "Heading")]
+    [InlineData("- item | x", BlockType.BulletList, "item")]
+    [InlineData("1. item | x", BlockType.NumberedList, "item")]
+    [InlineData("> quote | x", BlockType.Quote, "quote")]
+    public void Deserialize_ABlockLineRightAfterATable_EndsTheTableAndKeepsItsStructure(string line, BlockType type, string content)
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("| a | b |\n| --- | --- |\n| 1 | 2 |\n" + line);
+
+        Assert.Equal(new[] { BlockType.Table, type }, back.Select(b => b.Type));
+        Assert.Equal(new[] { new[] { "a", "b" }, new[] { "1", "2" } }, CellTexts(back[0]));
+        Assert.StartsWith(content, back[1].Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Deserialize_ACodeFenceRightAfterATable_EndsTheTable()
+    {
+        var back = NoteBlockMarkdownConverter.Deserialize("| a | b |\n| --- | --- |\n| 1 | 2 |\n```c | d\nx\n```");
+
+        Assert.Equal(new[] { BlockType.Table, BlockType.Code }, back.Select(b => b.Type));
+        Assert.Equal(2, back[0].Children!.Count);
+    }
+
+    [Fact]
+    public void Deserialize_ARowWiderThanTheColumnLimit_ReadsTheLinesAsPlainBlocksAndKeepsEveryCell()
+    {
+        var wide = string.Join(" | ", Enumerable.Range(0, 500).Select(n => "c" + n));
+        var lines = new[] { "| h | i |", "| --- | --- |", "| " + wide + " |" }
+            .Concat(Enumerable.Repeat("| a | b |", 50))
+            .ToArray();
+
+        var back = NoteBlockMarkdownConverter.Deserialize(string.Join("\n", lines));
+
+        Assert.DoesNotContain(back, b => b.Type == BlockType.Table);
+        Assert.Equal(lines.Length, back.Count);
+        Assert.Contains("c499", back[2].Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Deserialize_ATableOverTheCellLimit_ReadsTheLinesAsPlainBlocks()
+    {
+        var lines = new[] { "| a | b | c | d |", "| - | - | - | - |" }
+            .Concat(Enumerable.Repeat("| 1 | 2 | 3 | 4 |", NoteBlockMarkdownConverter.MaxTableCells / 4))
+            .ToArray();
+
+        var back = NoteBlockMarkdownConverter.Deserialize(string.Join("\n", lines));
+
+        Assert.DoesNotContain(back, b => b.Type == BlockType.Table);
+        Assert.Equal(lines.Length, back.Count);
+    }
+
+    [Theory]
+    [InlineData(1, 12_000)]
+    [InlineData(65, 600)]
+    public void Deserialize_AnOversizedRunOfDelimiterRows_IsReadInLinearWork(int width, int rows)
+    {
+        // Every line here could open a table. Read again from each, the work grows with the square.
+        var row = "|" + string.Concat(Enumerable.Repeat("-|", width));
+        long Allocated(int count)
+        {
+            var markdown = string.Join("\n", Enumerable.Repeat(row, count));
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var back = NoteBlockMarkdownConverter.Deserialize(markdown);
+            var used = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.DoesNotContain(back, b => b.Type == BlockType.Table);
+            Assert.Equal(count, back.Count);
+            return used;
+        }
+
+        Allocated(rows);
+        var single = Allocated(rows);
+        var twice = Allocated(rows * 2);
+
+        Assert.True(twice < single * 3, $"{rows} rows allocated {single} bytes, {rows * 2} rows {twice}.");
+    }
+
+    [Fact]
+    public void Deserialize_ATableAtTheColumnLimit_StaysATable()
+    {
+        string Row(string cell) => "| " + string.Join(" | ", Enumerable.Repeat(cell, NoteBlockMarkdownConverter.MaxTableColumns)) + " |";
+
+        var back = NoteBlockMarkdownConverter.Deserialize(Row("a") + "\n" + Row("---") + "\n" + Row("1"));
+
+        var table = Assert.Single(back);
+        Assert.Equal(BlockType.Table, table.Type);
+        Assert.Equal(NoteBlockMarkdownConverter.MaxTableColumns, table.Children![0].Children!.Count);
+    }
 }

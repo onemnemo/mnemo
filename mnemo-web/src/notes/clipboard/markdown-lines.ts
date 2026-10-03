@@ -51,6 +51,23 @@ export function fenceOf(trimmed: string): Fence | null {
 }
 
 /**
+ * True when a trimmed-start line ends a pipe table: a heading, list item, quote or code
+ * fence, even one that holds a pipe. A table ends there the way a paragraph does.
+ */
+export function endsPipeTable(line: string): boolean {
+  const trimmed = trimStart(line);
+  return (
+    fenceOf(trimmed) !== null ||
+    trimmed.startsWith('>') ||
+    HEADING_START.test(trimmed) ||
+    NUMBERED_START.test(trimmed) ||
+    trimmed.startsWith('- ') ||
+    CHECKLIST.test(trimmed) ||
+    STAR_OR_PLUS_BULLET.test(trimmed)
+  );
+}
+
+/**
  * Which fences close below each line, found in one backward pass so a paste with
  * thousands of openers stays linear. An opener with no closer below it is text.
  */
