@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Markdig;
 using Markdig.Extensions.Mathematics;
+using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using Mnemo.Core.Formatting;
@@ -17,9 +18,18 @@ public static class InlineMarkdownParser
         @"\\(\d+)/(\d+)",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
-    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions()
-        .Build();
+    private static readonly MarkdownPipeline Pipeline = BuildPipeline();
+
+    /// <summary>
+    /// The block reader finds tables itself and hands over only text, so a pipe here is a literal
+    /// character. Left in, the table extensions read a line holding one as a table and drop the pipes.
+    /// </summary>
+    private static MarkdownPipeline BuildPipeline()
+    {
+        var builder = new MarkdownPipelineBuilder().UseAdvancedExtensions();
+        builder.Extensions.RemoveAll(extension => extension is PipeTableExtension or GridTableExtension);
+        return builder.Build();
+    }
 
     public static List<InlineSpan> ToSpans(string? markdown)
     {

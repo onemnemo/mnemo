@@ -142,17 +142,17 @@ public class NoteBlockMarkdownTableTests
     }
 
     [Theory]
-    [InlineData("# Heading | extra", BlockType.Heading1, "Heading")]
-    [InlineData("- item | x", BlockType.BulletList, "item")]
-    [InlineData("1. item | x", BlockType.NumberedList, "item")]
-    [InlineData("> quote | x", BlockType.Quote, "quote")]
+    [InlineData("# Heading | extra", BlockType.Heading1, "Heading | extra")]
+    [InlineData("- item | x", BlockType.BulletList, "item | x")]
+    [InlineData("1. item | x", BlockType.NumberedList, "item | x")]
+    [InlineData("> quote | x", BlockType.Quote, "quote | x")]
     public void Deserialize_ABlockLineRightAfterATable_EndsTheTableAndKeepsItsStructure(string line, BlockType type, string content)
     {
         var back = NoteBlockMarkdownConverter.Deserialize("| a | b |\n| --- | --- |\n| 1 | 2 |\n" + line);
 
         Assert.Equal(new[] { BlockType.Table, type }, back.Select(b => b.Type));
         Assert.Equal(new[] { new[] { "a", "b" }, new[] { "1", "2" } }, CellTexts(back[0]));
-        Assert.StartsWith(content, back[1].Content, StringComparison.Ordinal);
+        Assert.Equal(content, back[1].Content);
     }
 
     [Fact]
@@ -215,6 +215,18 @@ public class NoteBlockMarkdownTableTests
         var twice = Allocated(rows * 2);
 
         Assert.True(twice < single * 3, $"{rows} rows allocated {single} bytes, {rows * 2} rows {twice}.");
+    }
+
+    [Theory]
+    [InlineData("a | b")]
+    [InlineData("plain text with a|pipe")]
+    [InlineData("x | y | z and more")]
+    public void Deserialize_APipeInOrdinaryText_StaysInTheText(string line)
+    {
+        var block = Assert.Single(NoteBlockMarkdownConverter.Deserialize("before\n\n" + line).Skip(1));
+
+        Assert.Equal(BlockType.Text, block.Type);
+        Assert.Equal(line, block.Content);
     }
 
     [Fact]

@@ -582,9 +582,8 @@ public static partial class NoteBlockMarkdownConverter
             }
 
             // A pipe row stays its own line: joined, a broken table would fold into one run-on
-            // paragraph. Its pipes are escaped, or the inline parser reads the line as a table of
-            // its own and drops them.
-            var paragraph = trimmed.StartsWith('|') ? EscapeCellPipes(WithContinuation(line)) : Paragraph(line);
+            // paragraph.
+            var paragraph = trimmed.StartsWith('|') ? WithContinuation(line) : Paragraph(line);
             if (joinParagraphs && i + 1 < lines.Length && SetextH1UnderlinePattern.IsMatch(lines[i + 1].Trim()))
             {
                 i++;
