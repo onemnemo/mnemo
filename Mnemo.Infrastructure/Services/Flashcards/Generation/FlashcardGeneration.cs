@@ -126,7 +126,7 @@ public static class FlashcardGeneration
             return GenerateCloze(type, fact, source);
 
         if (string.Equals(type.Generator, FlashcardGenerators.Occlusion, StringComparison.Ordinal))
-            return GenerateOcclusion(type, fact, source);
+            return FlashcardOcclusionGeneration.Generate(fact);
 
         return
         [
@@ -191,25 +191,6 @@ public static class FlashcardGeneration
                 // against, not the answer to it.
                 FrontMedia: fact.MediaOn(source),
                 BackMedia: extraMedia))
-        ];
-    }
-
-    private static IReadOnlyList<FlashcardGeneratedCard> GenerateOcclusion(
-        FlashcardCardType type, FlashcardFact fact, string source)
-    {
-        var rest = type.Fields
-            .Where(f => !string.Equals(f.Id, source, StringComparison.Ordinal))
-            .ToArray();
-
-        return
-        [
-            new FlashcardGeneratedCard(
-                Key: "m1",
-                LayoutName: null,
-                Front: fact.Value(source),
-                Back: JoinParagraphs(rest.Select(f => fact.Value(f.Id).Trim())),
-                FrontMedia: fact.MediaOn(source),
-                BackMedia: [.. rest.SelectMany(f => fact.MediaOn(f.Id))])
         ];
     }
 

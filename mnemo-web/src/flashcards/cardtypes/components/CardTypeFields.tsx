@@ -3,7 +3,11 @@ import { IconButton } from "@/components/ui/icon-button"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
+import { OCCLUSION_GENERATOR } from "../../facts/generation"
+import { OCCLUSION_BACK_FIELD, OCCLUSION_FRONT_FIELD, OCCLUSION_IMAGE_FIELD, OCCLUSION_MASKS_FIELD } from "../../facts/occlusion"
 import type { CardTypeDraft, CardTypeFieldDraft } from "../card-types"
+
+const OCCLUSION_FIELDS = [OCCLUSION_IMAGE_FIELD, OCCLUSION_FRONT_FIELD, OCCLUSION_BACK_FIELD, OCCLUSION_MASKS_FIELD]
 
 /**
  * The fields a card type asks for, in the order the editor asks for them. The sort field is picked
@@ -26,6 +30,8 @@ export function CardTypeFields({
 }) {
   const t = useT()
   const fc = (key: string) => t("Flashcards", key)
+  // The occlusion generator reads these fields by id, so removing one would leave its material making no cards.
+  const kept = draft.generator === OCCLUSION_GENERATOR ? OCCLUSION_FIELDS : []
 
   return (
     <section className="space-y-2">
@@ -96,7 +102,7 @@ export function CardTypeFields({
               icon="common/trash"
               iconSize={13}
               label={fc("CardTypesRemoveField")}
-              disabled={draft.fields.length === 1}
+              disabled={draft.fields.length === 1 || kept.includes(field.id)}
               onClick={() => onRemoveField(field.id)}
             />
           </div>

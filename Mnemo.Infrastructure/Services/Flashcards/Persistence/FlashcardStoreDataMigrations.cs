@@ -44,5 +44,6 @@ internal static class FlashcardStoreDataMigrations
         new(9, FlashcardFactDeckHeal.ApplyAsync),
         new(11, FlashcardClozeWrapRepair.ApplyAsync),
         new(12, FlashcardLastStudiedBackfill.ApplyAsync),
+        new(13, FlashcardOcclusionTypeSeed.ApplyAsync),
     ];
 }

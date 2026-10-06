@@ -52,11 +52,12 @@ public class BlockTypeOrdinalContractTests
     {
         Assert.Equal(0, (int)FlashcardType.Classic);
         Assert.Equal(1, (int)FlashcardType.Cloze);
+        Assert.Equal(2, (int)FlashcardType.Occlusion);
     }
 
     [Fact]
     public void FlashcardType_HasExactlyTheMembersListedAbove()
     {
-        Assert.Equal(2, Enum.GetValues<FlashcardType>().Length);
+        Assert.Equal(3, Enum.GetValues<FlashcardType>().Length);
     }
 }

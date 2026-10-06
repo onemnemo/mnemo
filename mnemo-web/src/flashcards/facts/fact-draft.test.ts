@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { CardTypeDto, CardTypeFieldDto } from "@/api/types"
 
 import type { DraftAttachment } from "../editor/draft"
-import { droppedCardCount, resolveDraftDeck, retypeDraft, type FactDraft } from "./fact-draft"
+import { canSaveFact, droppedCardCount, droppedCards, resolveDraftDeck, retypeDraft, type FactDraft } from "./fact-draft"
 
 function field(id: string, name: string): CardTypeFieldDto {
   return { id, name, hint: null }
@@ -160,5 +160,94 @@ describe("droppedCardCount", () => {
     const after = { type: vocabulary, draft: draft({ ...filled, example: "" }) }
 
     expect(droppedCardCount(before, after)).toBe(1)
+  })
+})
+
+const occlusionType = cardType({
+  id: "occlusion",
+  name: "Image occlusion",
+  fields: [field("image", "Image"), field("front", "Front"), field("back", "Back"), field("masks", "Masks")],
+  sortFieldId: "front",
+  generator: "occlusion",
+  generateFrom: "image",
+})
+
+function maskDoc(...masks: { id: string; label?: string; group?: string; order: number }[]): string {
+  return JSON.stringify({
+    v: 1,
+    masks: masks.map((mask) => ({ shape: "rect", x: 0.1, y: 0.1, w: 0.2, h: 0.2, ...mask })),
+  })
+}
+
+function occlusionDraft(masks: string, withImage = true): FactDraft {
+  return draft({ front: "Q", masks }, withImage ? { image: [attachment("diagram")] } : {})
+}
+
+describe("image occlusion saving", () => {
+  it("can save with an image and one mask, whatever else is blank", () => {
+    expect(canSaveFact(occlusionType, { ...occlusionDraft(maskDoc({ id: "aa", order: 0 })), values: { masks: maskDoc({ id: "aa", order: 0 }) } })).toBe(true)
+  })
+
+  it("cannot save without an image or without a mask", () => {
+    expect(canSaveFact(occlusionType, occlusionDraft(maskDoc({ id: "aa", order: 0 }), false))).toBe(false)
+    expect(canSaveFact(occlusionType, occlusionDraft(maskDoc()))).toBe(false)
+  })
+
+  it("names the cards a deleted mask stops making, with their labels", () => {
+    const before = { type: occlusionType, draft: occlusionDraft(maskDoc({ id: "aa", label: "One", order: 0 }, { id: "bb", label: "Two", order: 1 })) }
+    const after = { type: occlusionType, draft: occlusionDraft(maskDoc({ id: "aa", label: "One", order: 0 })) }
+
+    expect(droppedCards(before, after).map((card) => [card.key, card.label])).toEqual([["mbb", "Two"]])
+    expect(droppedCardCount(before, after)).toBe(1)
+  })
+
+  it("drops nothing for a move, a relabel, a reorder or a change of mode", () => {
+    const before = { type: occlusionType, draft: occlusionDraft(maskDoc({ id: "aa", label: "One", order: 0 }, { id: "bb", order: 1 })) }
+    const edited = JSON.stringify({
+      v: 1,
+      mode: "hideOne",
+      masks: [
+        { id: "bb", shape: "rect", x: 0.5, y: 0.5, w: 0.2, h: 0.2, order: 0 },
+        { id: "aa", shape: "rect", x: 0.3, y: 0.3, w: 0.2, h: 0.2, label: "Renamed", order: 1 },
+      ],
+    })
+
+    expect(droppedCards(before, { type: occlusionType, draft: occlusionDraft(edited) })).toEqual([])
+  })
+
+  it("drops the other members' cards when masks are grouped, and keeps the first key", () => {
+    const before = { type: occlusionType, draft: occlusionDraft(maskDoc({ id: "aa", order: 0 }, { id: "bb", order: 1 })) }
+    const after = { type: occlusionType, draft: occlusionDraft(maskDoc({ id: "aa", group: "aa", order: 0 }, { id: "bb", group: "aa", order: 1 })) }
+
+    expect(droppedCards(before, after).map((card) => card.key)).toEqual(["mbb"])
+  })
+})
+
+describe("retypeDraft and image occlusion", () => {
+  it("never carries the masks out, or the picture to a type with no image field", () => {
+    const from = draft({ front: "Q", back: "A", masks: maskDoc({ id: "aa", order: 0 }) }, { image: [attachment("diagram")] })
+
+    const next = retypeDraft(from, occlusionType, basic)
+
+    expect(next.values).toEqual({ front: "Q", back: "A" })
+    expect(next.media).toEqual({})
+  })
+
+  it("never fills the masks, and lands the first picture on the image field", () => {
+    const from = draft({ front: "Q", back: "A" }, { front: [attachment("one"), attachment("two")] })
+
+    const next = retypeDraft(from, basic, occlusionType)
+
+    expect(next.values).toEqual({ front: "Q", back: "A" })
+    expect(next.media).toEqual({ image: [attachment("one")] })
+  })
+
+  it("does not push leftover fields into the image or masks slots", () => {
+    const from = draft({ word: "Haus", meaning: "house", example: "Das Haus ist alt." })
+
+    const next = retypeDraft(from, vocabulary, occlusionType)
+
+    expect(Object.keys(next.values).sort()).toEqual(["back", "front"])
+    expect(next.values.masks).toBeUndefined()
   })
 })

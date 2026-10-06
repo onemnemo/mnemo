@@ -1701,6 +1701,8 @@
     "AnkiFrontOverflowToken": "Die Vorderseite der Karte hatte bereits {max} Bilder, daher wurde „{fileName}“ stattdessen als eingebetteter Verweis im Text angehängt.",
     "AnkiBackOverflowToken": "Die Rückseite der Karte hatte bereits {max} Bilder, daher wurde „{fileName}“ stattdessen als eingebetteter Verweis im Text angehängt.",
     "AnkiExportImageMissing": "Bilddatei für den Export nicht gefunden: {filePath}",
+    "ExportOcclusionSkippedOne": "{count} Bildverdeckungskarte wurde ausgelassen, weil dieses Format keine Masken speichern kann.",
+    "ExportOcclusionSkippedMany": "{count} Bildverdeckungskarten wurden ausgelassen, weil dieses Format keine Masken speichern kann.",
     "AnkiEntryUnpackFailed": "Der Paketeintrag „{entryName}“ konnte nicht entpackt werden: {error}",
     "AnkiEntryUnpackFailedCount": "{count} Paketeinträge konnten nicht entpackt werden: {reason}. Beispiele: {examples}.",
     "AnkiEntryUnpackFailedNoReasonCount": "{count} Paketeinträge konnten nicht entpackt werden. Beispiele: {examples}.",

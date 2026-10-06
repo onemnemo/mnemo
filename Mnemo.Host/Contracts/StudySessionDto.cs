@@ -79,7 +79,19 @@ public sealed record StudySessionDto(
     StudyProgressDto Progress,
     StudyIntervalsDto? Intervals)
 {
-    public static StudySessionDto FromEntry(StudySessionEntry entry)
+    /// <summary>The state with the current card's occlusion payload filled in, when it has one.</summary>
+    public static async Task<StudySessionDto> FromEntryAsync(
+        StudySessionEntry entry, Mnemo.Core.Services.IFlashcardFactService facts, CancellationToken cancellationToken)
+    {
+        var dto = FromEntry(entry);
+        if (entry.Session.Current is not { } current || dto.Current is null)
+            return dto;
+
+        var payload = await new OcclusionPayloadReader(facts).ReadAsync(current.Card, cancellationToken).ConfigureAwait(false);
+        return payload is null ? dto : dto with { Current = dto.Current with { Occlusion = payload } };
+    }
+
+    private static StudySessionDto FromEntry(StudySessionEntry entry)
     {
         var session = entry.Session;
         var current = session.Current;

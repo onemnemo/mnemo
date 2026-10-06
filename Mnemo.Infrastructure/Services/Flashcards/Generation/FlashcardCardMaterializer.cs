@@ -107,9 +107,7 @@ public sealed class FlashcardCardMaterializer
             .GroupBy(k => k.LayoutKey, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First().CardId, StringComparer.Ordinal);
 
-        var cardType = string.Equals(type.Generator, FlashcardGenerators.Cloze, StringComparison.Ordinal)
-            ? FlashcardType.Cloze
-            : FlashcardType.Classic;
+        var cardType = CardTypeOf(type);
 
         // The material itself moving to a new deck takes every card it makes along, even one that
         // had been filed elsewhere on its own; that is what re-homing the whole piece of material
@@ -153,6 +151,26 @@ public sealed class FlashcardCardMaterializer
         return new FlashcardMaterializeResult(added, updated, existing.Values.ToArray(), restored);
     }
 
+    /// <summary>Brings a restored card up to what its edited fact generates, through the update a save uses.</summary>
+    public async Task RefreshAsync(
+        SqliteConnection conn, SqliteTransaction tx, FlashcardCardType type, FlashcardFact fact,
+        string cardId, string layoutKey, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var card = FlashcardGeneration.Generate(type, fact)
+            .FirstOrDefault(c => string.Equals(c.Key, layoutKey, StringComparison.Ordinal));
+        if (card is null)
+            return;
+
+        await UpdateAsync(conn, tx, cardId, fact, card, CardTypeOf(type), false, now, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static FlashcardType CardTypeOf(FlashcardCardType type) => type.Generator switch
+    {
+        FlashcardGenerators.Cloze => FlashcardType.Cloze,
+        FlashcardGenerators.Occlusion => FlashcardType.Occlusion,
+        _ => FlashcardType.Classic,
+    };
+
     /// <summary>
     /// Clears the trash mark of a card a save's sweep put away, and returns the entry it was held
     /// under. Null for a card the person deleted, for one held with a deck, a folder or its
@@ -186,7 +204,7 @@ public sealed class FlashcardCardMaterializer
 
         await using var clear = conn.CreateCommand();
         clear.Transaction = tx;
-        clear.CommandText = "UPDATE FlashcardCards SET TrashId = NULL, SweptTrashId = NULL WHERE Id = $id;";
+        clear.CommandText = "UPDATE FlashcardCards SET TrashId = NULL, SweptTrashId = NULL, SweptMaskJson = NULL WHERE Id = $id;";
         clear.Parameters.AddWithValue("$id", cardId);
         await clear.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return entryId;

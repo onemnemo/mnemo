@@ -197,13 +197,17 @@ public static class FactEndpoints
 
         if (body.Values is not null)
         {
-            foreach (var value in body.Values.Values)
+            foreach (var (fieldId, value) in body.Values)
             {
-                if ((value?.Length ?? 0) > FlashcardTextLimits.MaxFieldValueLength)
+                // The masks document of an occlusion fact is data rather than prose and runs longer.
+                var limit = body.TypeId?.Trim() == FlashcardCardType.OcclusionId && fieldId?.Trim() == FlashcardCardType.OcclusionMasksFieldId
+                    ? FlashcardOcclusion.MaxFieldLength
+                    : FlashcardTextLimits.MaxFieldValueLength;
+                if ((value?.Length ?? 0) > limit)
                 {
                     return Results.BadRequest(new ErrorDto(
                         "invalid_value",
-                        $"A field value must be {FlashcardTextLimits.MaxFieldValueLength} characters or fewer."));
+                        $"A field value must be {limit} characters or fewer."));
                 }
             }
         }

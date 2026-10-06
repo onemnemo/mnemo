@@ -87,7 +87,7 @@ export interface ForecastDayDto {
 // letting it serialize as an integer, so these mirror as string unions - see
 // Mnemo.Host/Contracts/FlashcardWire.cs.
 
-export type CardType = "classic" | "cloze"
+export type CardType = "classic" | "cloze" | "occlusion"
 export type CardState = "active" | "suspended"
 export type FsrsState = "new" | "learning" | "review" | "relearning"
 
@@ -131,7 +131,39 @@ export interface CardAttachmentInputDto {
   caption: string | null
 }
 
-/** Mirrors Mnemo.Host/Contracts/FlashcardCardDto.cs CardDto. */
+/** Mirrors Mnemo.Host/Contracts/OcclusionDto.cs OcclusionMaskDto. Coordinates are fractions of the image. */
+export interface OcclusionMaskDto {
+  id: string
+  shape: "rect" | "ellipse" | "polygon"
+  x: number
+  y: number
+  w: number
+  h: number
+  points: [number, number][] | null
+  label: string | null
+  group: string | null
+  order: number
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/OcclusionDto.cs. What review needs to draw an image occlusion card,
+ * read from the fact when the card is served.
+ */
+export interface OcclusionDto {
+  mode: "hideAll" | "hideOne"
+  masks: OcclusionMaskDto[]
+  /** The masks this card asks; several for a group. */
+  askedIds: string[]
+  /** The fact's Back text, empty when it has none. */
+  back: string
+  /** Null when the image file sits outside the managed images directory and cannot be served. */
+  imageAssetId: string | null
+}
+
+/**
+ * Mirrors Mnemo.Host/Contracts/FlashcardCardDto.cs CardDto. `occlusion` is filled only where one
+ * card is shown (the study session's current card, a card fetched by id, test queues).
+ */
 export interface CardDto {
   id: string
   deckId: string
@@ -144,6 +176,7 @@ export interface CardDto {
   attachments: CardAttachmentDto[]
   createdAt: string
   updatedAt: string
+  occlusion?: OcclusionDto | null
 }
 
 /** Mirrors Mnemo.Host/Contracts/FlashcardCardDto.cs CardScheduleDto. */

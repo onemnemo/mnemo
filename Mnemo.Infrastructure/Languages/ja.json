@@ -1701,6 +1701,8 @@
     "AnkiFrontOverflowToken": "カードの表面にはすでに{max}枚の画像があるため、「{fileName}」は代わりにテキスト内のインライン参照として追加されました。",
     "AnkiBackOverflowToken": "カードの裏面にはすでに{max}枚の画像があるため、「{fileName}」は代わりにテキスト内のインライン参照として追加されました。",
     "AnkiExportImageMissing": "書き出し用の画像ファイルが見つかりません: {filePath}",
+    "ExportOcclusionSkippedOne": "画像オクルージョンのカード {count} 枚は、この形式ではマスクを保存できないため除外されました。",
+    "ExportOcclusionSkippedMany": "画像オクルージョンのカード {count} 枚は、この形式ではマスクを保存できないため除外されました。",
     "AnkiEntryUnpackFailed": "パッケージ内の項目「{entryName}」を展開できませんでした: {error}",
     "AnkiEntryUnpackFailedCount": "パッケージ内の{count}件の項目を展開できませんでした: {reason}。例: {examples}。",
     "AnkiEntryUnpackFailedNoReasonCount": "パッケージ内の{count}件の項目を展開できませんでした。例: {examples}。",

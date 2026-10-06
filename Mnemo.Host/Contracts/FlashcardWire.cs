@@ -16,13 +16,16 @@ public static class FlashcardWire
     public static string Type(FlashcardType value) => value switch
     {
         FlashcardType.Cloze => "cloze",
+        FlashcardType.Occlusion => "occlusion",
         _ => "classic",
     };
 
-    public static FlashcardType ParseType(string? value) =>
-        string.Equals(value, "cloze", StringComparison.OrdinalIgnoreCase)
-            ? FlashcardType.Cloze
-            : FlashcardType.Classic;
+    public static FlashcardType ParseType(string? value) => value?.ToLowerInvariant() switch
+    {
+        "cloze" => FlashcardType.Cloze,
+        "occlusion" => FlashcardType.Occlusion,
+        _ => FlashcardType.Classic,
+    };
 
     /// <summary>
     /// The filter form, where absent means "every type". <see cref="ParseType"/> cannot serve
@@ -33,6 +36,7 @@ public static class FlashcardWire
     {
         "classic" => FlashcardType.Classic,
         "cloze" => FlashcardType.Cloze,
+        "occlusion" => FlashcardType.Occlusion,
         _ => null,
     };
 

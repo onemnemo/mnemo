@@ -48,6 +48,14 @@ public static class FlashcardCardTypeEdit
         };
     }
 
+    private static readonly string[] OcclusionFieldIds =
+    [
+        FlashcardCardType.OcclusionImageFieldId,
+        FlashcardCardType.OcclusionFrontFieldId,
+        FlashcardCardType.OcclusionBackFieldId,
+        FlashcardCardType.OcclusionMasksFieldId,
+    ];
+
     /// <summary>
     /// Throws when a card type could not do its job. Everything checked here is something the
     /// editor should have stopped first; this is the line the store is not crossed at.
@@ -81,6 +89,10 @@ public static class FlashcardCardTypeEdit
         {
             if (!ids.Contains(type.EffectiveGenerateFrom))
                 throw new ArgumentException("The field cards are generated from is not one of the fields.", nameof(type));
+            // The occlusion generator reads these by id; without one, every fact of the type would make no cards.
+            if (string.Equals(type.Generator, FlashcardGenerators.Occlusion, StringComparison.Ordinal)
+                && OcclusionFieldIds.FirstOrDefault(id => !ids.Contains(id)) is { } missing)
+                throw new ArgumentException($"Image occlusion needs its '{missing}' field.", nameof(type));
             // A generated type makes its cards from the content, so a layout list would be a
             // promise nothing keeps.
             return;

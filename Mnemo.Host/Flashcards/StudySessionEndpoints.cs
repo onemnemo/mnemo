@@ -36,6 +36,7 @@ public static class StudySessionEndpoints
         IFlashcardPresetService presets,
         IStatisticsManager statistics,
         IStudyDayService studyDay,
+        IFlashcardFactService facts,
         ILoggerService logger,
         CancellationToken cancellationToken)
     {
@@ -84,7 +85,7 @@ public static class StudySessionEndpoints
                 session, deck.Name, scope, preset?.AutoReveal ?? FlashcardAutoReveal.Off, DateTimeOffset.UtcNow);
         }, cancellationToken).ConfigureAwait(false);
 
-        return Results.Ok(StudySessionDto.FromEntry(entry));
+        return Results.Ok(await StudySessionDto.FromEntryAsync(entry, facts, cancellationToken).ConfigureAwait(false));
     }
 
     private static async Task<IResult> GetSessionAsync(
@@ -92,6 +93,7 @@ public static class StudySessionEndpoints
         StudySessionRegistry registry,
         IStatisticsManager statistics,
         IStudyDayService studyDay,
+        IFlashcardFactService facts,
         ILoggerService logger,
         CancellationToken cancellationToken)
     {
@@ -104,7 +106,7 @@ public static class StudySessionEndpoints
         // mutating that list mid-walk faults the read - so a screen that refetches while the
         // reader is grading would sporadically get a 500 instead of its state.
         return await entry
-            .MutateAsync(() => Task.FromResult(Results.Ok(StudySessionDto.FromEntry(entry))), cancellationToken)
+            .MutateAsync(async () => Results.Ok(await StudySessionDto.FromEntryAsync(entry, facts, cancellationToken).ConfigureAwait(false)), cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -118,6 +120,7 @@ public static class StudySessionEndpoints
         string sessionId,
         GradeCardDto body,
         StudySessionRegistry registry,
+        IFlashcardFactService facts,
         CancellationToken cancellationToken)
     {
         if (!FlashcardWire.TryParseGrade(body.Grade, out var grade))
@@ -137,14 +140,15 @@ public static class StudySessionEndpoints
             // Nothing left to grade is not an error: it is what the last card's grade racing an
             // unmount looks like. The unchanged state goes back and the client sees it is over.
             if (current is null)
-                return Results.Ok(StudySessionDto.FromEntry(entry));
+                return Results.Ok(await StudySessionDto.FromEntryAsync(entry, facts, cancellationToken).ConfigureAwait(false));
 
             if (!string.Equals(current.Card.Id, body.CardId, StringComparison.Ordinal))
             {
                 // The duplicate of an already-applied grade lands here. Answering with the real
                 // state lets the client re-render onto the card that is actually up.
                 return Results.Json(
-                    StudySessionDto.FromEntry(entry), statusCode: StatusCodes.Status409Conflict);
+                    await StudySessionDto.FromEntryAsync(entry, facts, cancellationToken).ConfigureAwait(false),
+                    statusCode: StatusCodes.Status409Conflict);
             }
 
             // Not the request token: the engine commits the review before it advances the queue,
@@ -152,13 +156,14 @@ public static class StudySessionEndpoints
             // local write is quick enough that seeing it through costs nothing.
             await entry.Session.GradeAsync(grade, CancellationToken.None).ConfigureAwait(false);
             entry.RecordGrade();
-            return Results.Ok(StudySessionDto.FromEntry(entry));
+            return Results.Ok(await StudySessionDto.FromEntryAsync(entry, facts, cancellationToken).ConfigureAwait(false));
         }, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<IResult> UndoAsync(
         string sessionId,
         StudySessionRegistry registry,
+        IFlashcardFactService facts,
         CancellationToken cancellationToken)
     {
         var entry = registry.Get(sessionId, DateTimeOffset.UtcNow);
@@ -175,7 +180,7 @@ public static class StudySessionEndpoints
                 // The engine's stack is the truth; if it has nothing left, the counter was stale.
                 entry.ClearUndo();
 
-            return Results.Ok(StudySessionDto.FromEntry(entry));
+            return Results.Ok(await StudySessionDto.FromEntryAsync(entry, facts, cancellationToken).ConfigureAwait(false));
         }, cancellationToken).ConfigureAwait(false);
     }
 

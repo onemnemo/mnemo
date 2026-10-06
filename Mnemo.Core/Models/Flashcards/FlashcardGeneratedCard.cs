@@ -8,7 +8,7 @@ namespace Mnemo.Core.Models.Flashcards;
 /// <param name="Key">
 /// Stable within the fact, so a card keeps its schedule and history across an ordinary edit.
 /// A layout id for an ordinary type, <c>c</c> plus the deletion number for cloze, <c>m</c> plus
-/// the mask number for occlusion.
+/// the mask id (or group label) for occlusion.
 /// </param>
 /// <param name="LayoutName">
 /// The layout's authored name, or null for a generated card whose label belongs to the

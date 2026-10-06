@@ -243,11 +243,20 @@ public sealed class FlashcardFactService : IFlashcardFactService
             ? null
             : await _facts.GetAsync(conn, draft.Id, ct).ConfigureAwait(false);
 
+        // A retype drops the image and masks, and the cards it sweeps have no snapshot to restore from.
+        if (existing is not null && !string.Equals(existing.TypeId, draft.TypeId, StringComparison.Ordinal))
+        {
+            var previous = types.GetValueOrDefault(existing.TypeId)
+                ?? await _types.GetAsync(conn, existing.TypeId, ct).ConfigureAwait(false);
+            if (previous is not null && IsOcclusion(previous))
+                throw new ArgumentException("Image occlusion material keeps its type.", nameof(draft));
+        }
+
         var fact = new FlashcardFact(
             Id: existing?.Id ?? Guid.NewGuid().ToString("N"),
             DeckId: draft.DeckId,
             TypeId: draft.TypeId,
-            Values: draft.Values,
+            Values: IsOcclusion(type) ? WithCanonicalMasks(draft.Values) : draft.Values,
             Media: draft.Media,
             Tags: draft.Tags,
             IsFlagged: existing?.IsFlagged ?? false,
@@ -271,7 +280,11 @@ public sealed class FlashcardFactService : IFlashcardFactService
         // left out here rather than reported back as cards the material still has.
         var lost = result.Orphaned is { Count: > 0 } ? new HashSet<string>(result.Orphaned, StringComparer.Ordinal) : null;
         if (lost is not null)
+        {
             orphaned.AddRange(result.Orphaned);
+            if (existing is not null && string.Equals(type.Generator, FlashcardGenerators.Occlusion, StringComparison.Ordinal))
+                await FlashcardOcclusionSnapshots.KeepAsync(conn, tx, existing, result.Orphaned, ct).ConfigureAwait(false);
+        }
         if (result.Restored is { Count: > 0 })
             restored.AddRange(result.Restored);
 
@@ -350,6 +363,32 @@ public sealed class FlashcardFactService : IFlashcardFactService
         await FlashcardCardTrashSource
             .SweepAsync(() => _trash.DeleteAsync(requests, cancellationToken))
             .ConfigureAwait(false);
+    }
+
+    private static bool IsOcclusion(FlashcardCardType type) =>
+        string.Equals(type.Generator, FlashcardGenerators.Occlusion, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Stores the Masks field in the form cards are made from. A mask that cannot be read is refused
+    /// rather than dropped, since the next save would otherwise lose it for good.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> WithCanonicalMasks(IReadOnlyDictionary<string, string> values)
+    {
+        if (!values.TryGetValue(FlashcardCardType.OcclusionMasksFieldId, out var raw) || string.IsNullOrWhiteSpace(raw))
+            return values;
+
+        var parsed = FlashcardOcclusion.Parse(raw);
+        if (parsed.Masks.Count < FlashcardOcclusion.CountWritten(raw))
+        {
+            throw new ArgumentException(
+                $"Some masks could not be read, or there are more than {FlashcardOcclusion.MaxMasks}. Nothing was saved.",
+                nameof(values));
+        }
+
+        return new Dictionary<string, string>(values, StringComparer.Ordinal)
+        {
+            [FlashcardCardType.OcclusionMasksFieldId] = FlashcardOcclusion.Serialize(parsed),
+        };
     }
 
     /// <summary>The files an edit removed from the material's fields, kept until now so a save

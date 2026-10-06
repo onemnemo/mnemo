@@ -1701,6 +1701,8 @@
     "AnkiFrontOverflowToken": "El anverso de la tarjeta ya tenía {max} imágenes, así que «{fileName}» se añadió al texto como referencia insertada.",
     "AnkiBackOverflowToken": "El reverso de la tarjeta ya tenía {max} imágenes, así que «{fileName}» se añadió al texto como referencia insertada.",
     "AnkiExportImageMissing": "No se encontró el archivo de imagen para exportar: {filePath}",
+    "ExportOcclusionSkippedOne": "Se omitió {count} tarjeta de oclusión de imagen, porque este formato no puede guardar máscaras.",
+    "ExportOcclusionSkippedMany": "Se omitieron {count} tarjetas de oclusión de imagen, porque este formato no puede guardar máscaras.",
     "AnkiEntryUnpackFailed": "No se pudo extraer la entrada del paquete «{entryName}»: {error}",
     "AnkiEntryUnpackFailedCount": "No se pudieron extraer {count} entradas del paquete: {reason}. Por ejemplo: {examples}.",
     "AnkiEntryUnpackFailedNoReasonCount": "No se pudieron extraer {count} entradas del paquete. Por ejemplo: {examples}.",

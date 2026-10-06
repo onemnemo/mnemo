@@ -7,7 +7,7 @@ namespace Mnemo.Infrastructure.Services.Flashcards.Persistence;
 internal static class FlashcardStoreSchema
 {
     /// <summary>Target schema version. Bump alongside a migration step in the store.</summary>
-    public const int TargetVersion = 12;
+    public const int TargetVersion = 13;
 
     /// <summary>
     /// Columns added after v1, for databases that already exist.
@@ -39,6 +39,9 @@ internal static class FlashcardStoreSchema
         // Equal to TrashId only while the card is held by an entry a save's sweep made, never one
         // the person made, so a save may take back only what a save put away.
         ("FlashcardCards", "SweptTrashId", "TEXT NULL"),
+        // The masks an image occlusion card was made from, kept while a save's sweep holds it so a
+        // restore can put them back. Null on every other card.
+        ("FlashcardCards", "SweptMaskJson", "TEXT NULL"),
     ];
 
     /// <summary>
@@ -173,7 +176,8 @@ internal static class FlashcardStoreSchema
             FactId         TEXT NULL REFERENCES FlashcardFacts(Id) ON DELETE CASCADE,
             LayoutKey      TEXT NULL,
             TrashId        TEXT NULL,
-            SweptTrashId   TEXT NULL
+            SweptTrashId   TEXT NULL,
+            SweptMaskJson  TEXT NULL
         );
 
         CREATE TABLE IF NOT EXISTS FlashcardScheduling (

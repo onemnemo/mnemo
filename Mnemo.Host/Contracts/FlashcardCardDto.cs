@@ -44,6 +44,10 @@ public sealed record CardAssetDto(string AssetId, string AttachmentId, string Di
 /// A card's content. Hand-mirrored in <c>mnemo-web/src/api/types.ts</c>; the C# side is
 /// authoritative.
 /// </summary>
+/// <param name="Occlusion">
+/// How to draw an image occlusion card. Filled only where one card is shown (the study session's
+/// current card, a card fetched by id and test queues); null in lists and for every other card.
+/// </param>
 public sealed record CardDto(
     string Id,
     string DeckId,
@@ -55,7 +59,8 @@ public sealed record CardDto(
     bool IsFlagged,
     IReadOnlyList<CardAttachmentDto> Attachments,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt)
+    DateTimeOffset UpdatedAt,
+    OcclusionDto? Occlusion = null)
 {
     public static CardDto FromModel(Flashcard model)
         => new(

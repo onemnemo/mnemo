@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
@@ -264,6 +265,7 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
         var selectedIds = ResolveSelectedDeckIds(request.Payload);
 
         var sb = new StringBuilder();
+        var occlusionSkipped = new StrongBox<int>();
         int exportedCards;
         if (selectedIds is { Count: 1 })
         {
@@ -273,6 +275,7 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
             exportedCards = await AppendCardsAsync(
                 deckId,
                 (front, back) => sb.AppendLine($"{EscapeCsv(front)},{EscapeCsv(back)}"),
+                occlusionSkipped,
                 cancellationToken).ConfigureAwait(false);
         }
         else
@@ -294,21 +297,32 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
                 exportedCards += await AppendCardsAsync(
                     deck.Id,
                     (front, back) => sb.AppendLine($"{path},{EscapeCsv(front)},{EscapeCsv(back)}"),
+                    occlusionSkipped,
                     cancellationToken).ConfigureAwait(false);
             }
         }
 
         await File.WriteAllTextAsync(request.FilePath, sb.ToString(), Encoding.UTF8, cancellationToken).ConfigureAwait(false);
+        var warnings = new List<TransferWarning>();
+        if (occlusionSkipped.Value > 0)
+        {
+            // A row of text cannot carry masks, so the cards would read as questions over nothing.
+            warnings.Add(TransferWarning.Counted(
+                "ExportOcclusionSkippedOne", "ExportOcclusionSkippedMany", occlusionSkipped.Value));
+        }
+
         return new ImportExportResult
         {
             Success = true,
             ContentType = ContentType,
             FormatId = FormatId,
+            Warnings = warnings,
             ProcessedCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["flashcards"] = exportedCards }
         };
     }
 
-    private async Task<int> AppendCardsAsync(string deckId, Action<string, string> append, CancellationToken cancellationToken)
+    private async Task<int> AppendCardsAsync(
+        string deckId, Action<string, string> append, StrongBox<int> occlusionSkipped, CancellationToken cancellationToken)
     {
         var offset = 0;
         var written = 0;
@@ -320,6 +334,12 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
                 cancellationToken).ConfigureAwait(false);
             foreach (var view in page.Items)
             {
+                if (view.Card.Type == FlashcardType.Occlusion)
+                {
+                    occlusionSkipped.Value++;
+                    continue;
+                }
+
                 append(view.Card.Front, view.Card.Back);
                 written++;
             }

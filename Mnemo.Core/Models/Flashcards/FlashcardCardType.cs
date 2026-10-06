@@ -55,6 +55,24 @@ public sealed record FlashcardCardType(
     /// <summary>Field id shown on every card a cloze fact makes.</summary>
     public const string ClozeExtraFieldId = "extra";
 
+    /// <summary>Id of the seeded type that makes one card per mask on an image.</summary>
+    public const string OcclusionId = "occlusion";
+
+    /// <summary>Display name of the seeded occlusion type.</summary>
+    public const string OcclusionName = "Image occlusion";
+
+    /// <summary>Field id whose attachment is the image on <see cref="OcclusionId"/>.</summary>
+    public const string OcclusionImageFieldId = "image";
+
+    /// <summary>Field id holding the masks document on <see cref="OcclusionId"/>.</summary>
+    public const string OcclusionMasksFieldId = "masks";
+
+    /// <summary>Field id holding the question on <see cref="OcclusionId"/>.</summary>
+    public const string OcclusionFrontFieldId = "front";
+
+    /// <summary>Field id holding the text shown with every answer on <see cref="OcclusionId"/>.</summary>
+    public const string OcclusionBackFieldId = "back";
+
     /// <summary>Layout id of the single card a basic fact makes.</summary>
     public const string RecognitionLayoutId = "recognition";
 
@@ -136,6 +154,23 @@ public sealed record FlashcardCardType(
             Layouts: [],
             Generator: FlashcardGenerators.Cloze,
             GenerateFrom: ClozeTextFieldId,
+            CreatedAt: now,
+            UpdatedAt: now),
+        new(
+            Id: OcclusionId,
+            Name: OcclusionName,
+            IsBuiltIn: true,
+            Fields:
+            [
+                new FlashcardField(OcclusionImageFieldId, "Image"),
+                new FlashcardField(OcclusionFrontFieldId, "Front", "The question"),
+                new FlashcardField(OcclusionBackFieldId, "Back", "Shown with every answer"),
+                new FlashcardField(OcclusionMasksFieldId, "Masks"),
+            ],
+            SortFieldId: OcclusionFrontFieldId,
+            Layouts: [],
+            Generator: FlashcardGenerators.Occlusion,
+            GenerateFrom: OcclusionImageFieldId,
             CreatedAt: now,
             UpdatedAt: now),
     ];

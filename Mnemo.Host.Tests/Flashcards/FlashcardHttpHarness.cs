@@ -16,6 +16,7 @@ using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Services.Flashcards.Trash;
 using Mnemo.Infrastructure.Services.Search;
+using Mnemo.Infrastructure.Services.Statistics;
 using Mnemo.Infrastructure.Services.Trash;
 using LogLevel = Mnemo.Core.Enums.LogLevel;
 
@@ -100,6 +101,8 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         builder.Services.AddSingleton<IFlashcardOptimizerService>(optimizerService);
         builder.Services.AddSingleton<IFlashcardStudyService>(studyService);
         builder.Services.AddSingleton<IFlashcardStatsService>(statsService);
+        builder.Services.AddSingleton<IStudyDayService>(new StudyDayService(presetService, clock));
+        builder.Services.AddSingleton<IStatisticsManager>(StatisticsManager.CreateInMemory(logger));
         builder.Services.AddSingleton<IImageAssetService>(new NoopImageAssetService());
         builder.Services.AddSingleton<ISearchProvider>(searchProvider);
         builder.Services.AddSingleton<IGlobalSearchService, GlobalSearchService>();
@@ -130,6 +133,7 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         _app.MapFlashcardCards();
         _app.MapFlashcardReschedule();
         _app.MapFlashcardAssets();
+        _app.MapFlashcardTests();
         _app.MapFlashcardPresets();
         _app.MapSearch();
         _app.MapTrash();
@@ -152,6 +156,9 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         await TrashStartup.StartAsync(_app.Services.GetRequiredService<TrashMaintenance>(), _trashDatabase)
             .ConfigureAwait(false);
     }
+
+    /// <summary>The material service behind the fact routes, for seeding without going through a body.</summary>
+    public IFlashcardFactService Facts => _app.Services.GetRequiredService<IFlashcardFactService>();
 
     /// <summary>The trash coordinator the delete routes run through.</summary>
     public ITrashService Trash => _app.Services.GetRequiredService<ITrashService>();

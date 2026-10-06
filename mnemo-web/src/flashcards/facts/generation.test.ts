@@ -289,23 +289,45 @@ describe("stable keys", () => {
 })
 
 describe("occlusion", () => {
-  it("makes one card carrying the prompt image", () => {
-    const diagram = image("diagram")
-    const type = cardType({
-      id: "occ",
-      name: "Occlusion",
-      fields: [field("prompt", "Prompt"), field("notes", "Notes")],
-      sortFieldId: "prompt",
-      generator: "occlusion",
-      generateFrom: "prompt",
-    })
+  const occlusion = cardType({
+    id: "occlusion",
+    name: "Image occlusion",
+    isBuiltIn: true,
+    fields: [field("image", "Image"), field("front", "Front"), field("back", "Back"), field("masks", "Masks")],
+    sortFieldId: "front",
+    generator: "occlusion",
+    generateFrom: "image",
+  })
+  const masks = JSON.stringify({
+    v: 1,
+    masks: [{ id: "aa", shape: "rect", x: 0.1, y: 0.1, w: 0.2, h: 0.2, label: "One", order: 0 }],
+  })
 
-    const cards = generate(type, fact({ prompt: "Name the region", notes: "Anterior wall" }, { prompt: [diagram] }))
+  it("carries only the first image on its card", () => {
+    const first = image("first")
+
+    const cards = generate(occlusion, fact({ front: "Q", masks }, { image: [first, image("second")] }))
 
     expect(cards).toHaveLength(1)
-    expect(cards[0].key).toBe("m1")
-    expect(cards[0].front).toBe("Name the region")
-    expect(cards[0].back).toBe("Anterior wall")
-    expect(cards[0].frontMedia).toEqual([diagram])
+    expect(cards[0].frontMedia).toEqual([first])
+    expect(cards[0].backMedia).toEqual([])
+    expect(cards[0].label).toBe("One")
+  })
+
+  it("does not copy the fact's back text into its cards", () => {
+    const cards = generate(occlusion, fact({ front: "Q", back: "Extra text", masks }, { image: [image("diagram")] }))
+
+    expect(cards[0].back).toBe("One")
+  })
+
+  it("reads its fields by their fixed ids, whatever the type now lists", () => {
+    const edited = cardType({ ...occlusion, fields: [] })
+
+    expect(generate(edited, fact({ front: "Q", masks }, { image: [image("diagram")] }))).toHaveLength(1)
+  })
+
+  it("makes no cards, rather than throwing, when the material lacks the fields", () => {
+    expect(generate(occlusion, fact({}))).toEqual([])
+    expect(generate(occlusion, fact({ masks: "{broken" }, { image: [image("diagram")] }))).toEqual([])
   })
 })

@@ -1701,6 +1701,8 @@
     "AnkiFrontOverflowToken": "Forsiden av kortet hadde allerede {max} bilder, så «{fileName}» ble i stedet lagt til i teksten som en innebygd lenke.",
     "AnkiBackOverflowToken": "Baksiden av kortet hadde allerede {max} bilder, så «{fileName}» ble i stedet lagt til i teksten som en innebygd lenke.",
     "AnkiExportImageMissing": "Fant ikke bildefilen for eksport: {filePath}",
+    "ExportOcclusionSkippedOne": "{count} kort for bildeskjuling ble utelatt, fordi dette formatet ikke kan lagre masker.",
+    "ExportOcclusionSkippedMany": "{count} kort for bildeskjuling ble utelatt, fordi dette formatet ikke kan lagre masker.",
     "AnkiEntryUnpackFailed": "Pakkeoppføringen «{entryName}» kunne ikke pakkes ut: {error}",
     "AnkiEntryUnpackFailedCount": "{count} pakkeoppføringer kunne ikke pakkes ut: {reason}. For eksempel: {examples}.",
     "AnkiEntryUnpackFailedNoReasonCount": "{count} pakkeoppføringer kunne ikke pakkes ut. For eksempel: {examples}.",

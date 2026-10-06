@@ -1701,6 +1701,8 @@
     "AnkiFrontOverflowToken": "The card's front already had {max} images, so '{fileName}' was appended to the text as an inline token instead.",
     "AnkiBackOverflowToken": "The card's back already had {max} images, so '{fileName}' was appended to the text as an inline token instead.",
     "AnkiExportImageMissing": "Image asset not found for export: {filePath}",
+    "ExportOcclusionSkippedOne": "{count} image occlusion card was left out, because this format cannot hold masks.",
+    "ExportOcclusionSkippedMany": "{count} image occlusion cards were left out, because this format cannot hold masks.",
     "AnkiEntryUnpackFailed": "Package entry '{entryName}' could not be unpacked: {error}",
     "AnkiEntryUnpackFailedCount": "{count} package entries could not be unpacked: {reason}. For example: {examples}.",
     "AnkiEntryUnpackFailedNoReasonCount": "{count} package entries could not be unpacked. For example: {examples}.",

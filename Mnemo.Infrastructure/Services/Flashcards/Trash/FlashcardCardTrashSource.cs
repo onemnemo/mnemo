@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
+using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
@@ -66,7 +67,7 @@ public sealed class FlashcardCardTrashSource : ITrashSource
         {
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-                SELECT c.Front, d.Name FROM FlashcardCards c
+                SELECT c.Front, d.Name, c.Type, c.Back FROM FlashcardCards c
                 LEFT JOIN FlashcardDecks d ON d.Id = c.DeckId AND d.TrashId IS NULL
                 WHERE c.Id = $id AND c.TrashId IS NULL;
                 """;
@@ -100,7 +101,7 @@ public sealed class FlashcardCardTrashSource : ITrashSource
             {
                 read.Transaction = tx;
                 read.CommandText = """
-                    SELECT c.Front, d.Name FROM FlashcardCards c
+                    SELECT c.Front, d.Name, c.Type, c.Back FROM FlashcardCards c
                     LEFT JOIN FlashcardDecks d ON d.Id = c.DeckId AND d.TrashId IS NULL
                     WHERE c.Id = $id AND (c.TrashId IS NULL OR c.TrashId = $entry);
                     """;
@@ -184,7 +185,15 @@ public sealed class FlashcardCardTrashSource : ITrashSource
         CancellationToken cancellationToken = default) =>
         _store.WriteAsync(async (writer, tx, ct) =>
         {
-            if (await LayoutIsGoneAsync(writer, tx, entryId, ct).ConfigureAwait(false))
+            // Everything that can refuse is decided before the first write, so a refused restore
+            // leaves the fact, the snapshot and the card exactly as they were.
+            var now = DateTimeOffset.UtcNow;
+            var check = await FlashcardOcclusionRestore
+                .PlanAsync(writer, tx, entryId, now, _logger, ct).ConfigureAwait(false);
+            if (check.Refused)
+                return new TrashRestore(TrashRestoreOutcome.NoLongerGenerated);
+
+            if (check.Plan is null && await LayoutIsGoneAsync(writer, tx, entryId, ct).ConfigureAwait(false))
                 return new TrashRestore(TrashRestoreOutcome.NoLongerGenerated);
 
             var placement = await FlashcardTrashPlacement
@@ -193,6 +202,11 @@ public sealed class FlashcardCardTrashSource : ITrashSource
 
             if (placement.Restore is { } refusal)
                 return refusal;
+
+            if (check.Plan is { } plan)
+                await FlashcardOcclusionRestore.WriteFactAsync(writer, tx, plan, _logger, ct).ConfigureAwait(false);
+
+            await FlashcardOcclusionRestore.ClearSnapshotsAsync(writer, tx, entryId, ct).ConfigureAwait(false);
 
             if (placement.MoveToId is { } deckId)
             {
@@ -207,6 +221,9 @@ public sealed class FlashcardCardTrashSource : ITrashSource
             await FlashcardTrashSql
                 .ClearMarksAsync(writer, tx, "FlashcardCards", [entryId], ct)
                 .ConfigureAwait(false);
+
+            if (check.Plan is { } live)
+                await FlashcardOcclusionRestore.RefreshCardAsync(writer, tx, live, now, _logger, ct).ConfigureAwait(false);
 
             return new TrashRestore(TrashRestoreOutcome.Restored, placement.DeckId, placement.DeckName);
         }, cancellationToken);
@@ -332,17 +349,22 @@ public sealed class FlashcardCardTrashSource : ITrashSource
     }
 
     private static async Task<TrashSnapshot?> ReadSnapshotAsync(
-        Microsoft.Data.Sqlite.SqliteCommand cmd, CancellationToken cancellationToken)
+        SqliteCommand cmd, CancellationToken cancellationToken)
     {
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             return null;
 
         return new TrashSnapshot(
-            reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+            TitleOf(reader.IsDBNull(0) ? string.Empty : reader.GetString(0), reader, 2, 3),
             reader.IsDBNull(1) ? null : reader.GetString(1),
             0);
     }
+
+    private static string TitleOf(string front, SqliteDataReader reader, int typeColumn, int backColumn) =>
+        !reader.IsDBNull(typeColumn) && reader.GetInt32(typeColumn) == (int)FlashcardType.Occlusion
+            ? FlashcardOcclusionUnits.TitleOf(front, reader.IsDBNull(backColumn) ? null : reader.GetString(backColumn))
+            : front;
 
     private static async Task<IReadOnlyList<CardCaptureRow>> ReadCardsAsync(
         SqliteConnection connection,
@@ -365,7 +387,7 @@ public sealed class FlashcardCardTrashSource : ITrashSource
             }
 
             cmd.CommandText = $"""
-                SELECT c.Id, c.Front, d.Name, c.TrashId FROM FlashcardCards c
+                SELECT c.Id, c.Front, d.Name, c.TrashId, c.Type, c.Back FROM FlashcardCards c
                 LEFT JOIN FlashcardDecks d ON d.Id = c.DeckId AND d.TrashId IS NULL
                 WHERE c.Id IN ({string.Join(", ", names)});
                 """;
@@ -375,7 +397,7 @@ public sealed class FlashcardCardTrashSource : ITrashSource
                 rows.Add(new CardCaptureRow(
                     reader.GetString(0),
                     new TrashSnapshot(
-                        reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                        TitleOf(reader.IsDBNull(1) ? string.Empty : reader.GetString(1), reader, 4, 5),
                         reader.IsDBNull(2) ? null : reader.GetString(2),
                         0),
                     reader.IsDBNull(3) ? null : reader.GetString(3)));

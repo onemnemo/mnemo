@@ -1,5 +1,14 @@
 import type { CardAttachmentDto, CardTypeDto, CardTypeLayoutDto } from "@/api/types"
 
+import {
+  OCCLUSION_FRONT_FIELD,
+  OCCLUSION_IMAGE_FIELD,
+  OCCLUSION_MASKS_FIELD,
+  buildOcclusionUnits,
+  occlusionLabelOf,
+  parseOcclusion,
+} from "./occlusion"
+
 /**
  * Turns a card type and the material filling it into the cards they currently make. Pure, so the
  * editor can call it on every keystroke to say how many cards a save would produce, before
@@ -42,12 +51,14 @@ export interface FactLike<TMedia = CardAttachmentDto> {
 
 /** One card the material makes. */
 export interface GeneratedCard<TMedia = CardAttachmentDto> {
-  /** Stable half of the card's identity: a layout id, or `c<n>` for a deletion. */
+  /** Stable half of the card's identity: a layout id, `c<n>` for a deletion, `m<id>` for a mask. */
   key: string
   /** Names the card beside its siblings, or null when the generator decides the shape. */
   layoutName: string | null
   front: string
   back: string
+  /** The answer an image occlusion card asks for, which may be empty. Absent on other cards. */
+  label?: string
   frontMedia: TMedia[]
   backMedia: TMedia[]
 }
@@ -184,19 +195,27 @@ function generateCloze<TMedia>(type: CardTypeDto, fact: FactLike<TMedia>, source
   }))
 }
 
-function generateOcclusion<TMedia>(type: CardTypeDto, fact: FactLike<TMedia>, source: string): GeneratedCard<TMedia>[] {
-  const rest = type.fields.filter((field) => field.id !== source)
+/**
+ * One card per ungrouped mask and per group, under the first image. Fields are read by fixed id, so
+ * a type edited in the card type manager makes no cards rather than throwing.
+ */
+function generateOcclusion<TMedia>(fact: FactLike<TMedia>): GeneratedCard<TMedia>[] {
+  const image = mediaOn(fact, OCCLUSION_IMAGE_FIELD)[0]
+  if (image === undefined) return []
 
-  return [
-    {
-      key: "m1",
+  const front = value(fact, OCCLUSION_FRONT_FIELD).trim()
+  return buildOcclusionUnits(parseOcclusion(value(fact, OCCLUSION_MASKS_FIELD))).units.map((unit) => {
+    const label = occlusionLabelOf(unit)
+    return {
+      key: unit.key,
       layoutName: null,
-      front: value(fact, source),
-      back: joinParagraphs(rest.map((field) => value(fact, field.id).trim())),
-      frontMedia: mediaOn(fact, source),
-      backMedia: rest.flatMap((field) => mediaOn(fact, field.id)),
-    },
-  ]
+      front,
+      back: label,
+      label,
+      frontMedia: [image],
+      backMedia: [],
+    }
+  })
 }
 
 /** Every card the material currently makes, in the order they are shown. */
@@ -204,7 +223,7 @@ export function generate<TMedia>(type: CardTypeDto, fact: FactLike<TMedia>): Gen
   const source = effectiveGenerateFrom(type)
 
   if (type.generator === CLOZE_GENERATOR) return generateCloze(type, fact, source)
-  if (type.generator === OCCLUSION_GENERATOR) return generateOcclusion(type, fact, source)
+  if (type.generator === OCCLUSION_GENERATOR) return generateOcclusion(fact)
 
   return type.layouts
     .filter((layout) => filled(fact, layout.requires))

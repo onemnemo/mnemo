@@ -349,30 +349,4 @@ public sealed class FlashcardGenerationTests
         Assert.Null(FlashcardGeneration.ClozeOrdinalFromKey("recognition"));
         Assert.Null(FlashcardGeneration.ClozeOrdinalFromKey("c"));
     }
-
-    // --- occlusion ---
-
-    [Fact]
-    public void An_occlusion_fact_makes_one_card_carrying_the_prompt_image()
-    {
-        var diagram = Image("diagram");
-        var type = new FlashcardCardType(
-            "occ", "Occlusion", false,
-            [new FlashcardField("prompt", "Prompt"), new FlashcardField("notes", "Notes")],
-            "prompt",
-            [],
-            Generator: FlashcardGenerators.Occlusion,
-            GenerateFrom: "prompt");
-        var fact = Fact(
-            "occ",
-            new() { ["prompt"] = "Name the region", ["notes"] = "Anterior wall" },
-            new() { ["prompt"] = [diagram] });
-
-        var card = Assert.Single(FlashcardGeneration.Generate(type, fact));
-
-        Assert.Equal("m1", card.Key);
-        Assert.Equal("Name the region", card.Front);
-        Assert.Equal("Anterior wall", card.Back);
-        Assert.Equal([diagram], card.FrontMedia);
-    }
 }

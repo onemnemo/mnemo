@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 e03065858789a401bfc47bc6bbe743b3f87ca524b13272498627449bf5aae0bb
+sha256 8d7c5090a455173a260dadfb26743fae317218b5e35f65665102765483871314
 namespaces 39
-keys 2644
+keys 2647
   App 41
   Chat 132
   Common 109
@@ -14,7 +14,7 @@ keys 2644
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 477
+  Flashcards 478
   GlobalSearch 18
   Hardware 2
   Keybinds 109
@@ -30,7 +30,7 @@ keys 2644
   Sidebar 14
   StudyGoals 14
   Topbar 28
-  TransferWarnings 70
+  TransferWarnings 72
   Trash 50
   UsageSummary 22
   WidgetActivity 8
@@ -47,9 +47,9 @@ keys 2644
   WidgetToday 9
 
 culture de
-sha256 fb5d465ad9fe921c0f4c9197ef6eeec712e05dd4f7a227c08bb29d7e287d3e5d
+sha256 60b660df0fe51bc86fa2f0d6effe4824965c758be61d9e53c2c69c4597dbfcab
 namespaces 39
-keys 2644
+keys 2647
   App 41
   Chat 132
   Common 109
@@ -58,7 +58,7 @@ keys 2644
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 477
+  Flashcards 478
   GlobalSearch 18
   Hardware 2
   Keybinds 109
@@ -74,7 +74,7 @@ keys 2644
   Sidebar 14
   StudyGoals 14
   Topbar 28
-  TransferWarnings 70
+  TransferWarnings 72
   Trash 50
   UsageSummary 22
   WidgetActivity 8
@@ -91,9 +91,9 @@ keys 2644
   WidgetToday 9
 
 culture es
-sha256 6455378a9306cc1d79d62a7411c3b7ebb8428d68e421eed30bb1c6e4099fe8b1
+sha256 6af125efdd9c3d5b8f03414e62dc1cb98400014e8385298598cea90127bcc8cf
 namespaces 39
-keys 2644
+keys 2647
   App 41
   Chat 132
   Common 109
@@ -102,7 +102,7 @@ keys 2644
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 477
+  Flashcards 478
   GlobalSearch 18
   Hardware 2
   Keybinds 109
@@ -118,7 +118,7 @@ keys 2644
   Sidebar 14
   StudyGoals 14
   Topbar 28
-  TransferWarnings 70
+  TransferWarnings 72
   Trash 50
   UsageSummary 22
   WidgetActivity 8
@@ -135,9 +135,9 @@ keys 2644
   WidgetToday 9
 
 culture ja
-sha256 4b662323f4743ef1f43e95b3bb284dd0aa7013a2b191f91a9746b618919b787c
+sha256 b4fa0c96015daa0485ad2ec37d1da2ce3be5d7736d054f38e533964157eebb3f
 namespaces 39
-keys 2644
+keys 2647
   App 41
   Chat 132
   Common 109
@@ -146,7 +146,7 @@ keys 2644
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 477
+  Flashcards 478
   GlobalSearch 18
   Hardware 2
   Keybinds 109
@@ -162,7 +162,7 @@ keys 2644
   Sidebar 14
   StudyGoals 14
   Topbar 28
-  TransferWarnings 70
+  TransferWarnings 72
   Trash 50
   UsageSummary 22
   WidgetActivity 8
@@ -179,9 +179,9 @@ keys 2644
   WidgetToday 9
 
 culture nb
-sha256 95fb457ab7b12444d5b4288f20864fec7e6e873f2259705602b12814581263d9
+sha256 7df6b144479c9c3597e69ad6e14a2a1ed5e88efffda2d91b85105c79c9ae2da9
 namespaces 39
-keys 2644
+keys 2647
   App 41
   Chat 132
   Common 109
@@ -190,7 +190,7 @@ keys 2644
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 477
+  Flashcards 478
   GlobalSearch 18
   Hardware 2
   Keybinds 109
@@ -206,7 +206,7 @@ keys 2644
   Sidebar 14
   StudyGoals 14
   Topbar 28
-  TransferWarnings 70
+  TransferWarnings 72
   Trash 50
   UsageSummary 22
   WidgetActivity 8

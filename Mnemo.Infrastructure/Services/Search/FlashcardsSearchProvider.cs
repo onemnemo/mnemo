@@ -46,6 +46,9 @@ public sealed class FlashcardsSearchProvider : ISearchProvider
 
             deckNamesById.TryGetValue(card.DeckId, out var deckName);
             var preview = BuildPreview(card);
+            var title = card.Type == FlashcardType.Occlusion
+                ? FlashcardOcclusionUnits.TitleOf(card.Front, card.Back)
+                : card.Front;
             var subtitle = string.IsNullOrWhiteSpace(deckName) ? null : $"Deck: {deckName}";
 
             // The service already returns results ranked (bm25 -> UpdatedAt desc); preserve that
@@ -57,7 +60,7 @@ public sealed class FlashcardsSearchProvider : ISearchProvider
                 Id = card.Id,
                 Type = SearchResultType.Flashcard,
                 ProviderId = ProviderId,
-                Title = card.Front,
+                Title = title,
                 Subtitle = subtitle,
                 Preview = preview,
                 GroupName = deckName ?? string.Empty,

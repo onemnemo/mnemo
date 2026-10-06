@@ -10,6 +10,7 @@ using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Host.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards;
+using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Services.Statistics;
 using LogLevel = Mnemo.Core.Enums.LogLevel;
@@ -36,6 +37,8 @@ internal sealed class StudySessionHttpHarness : IAsyncDisposable
     public IFlashcardLibraryService Library { get; }
 
     public IFlashcardCardService Cards { get; }
+
+    public IFlashcardFactService Facts { get; }
 
     public IStatisticsManager Statistics { get; }
 
@@ -74,6 +77,10 @@ internal sealed class StudySessionHttpHarness : IAsyncDisposable
         var studyDay = new StudyDayService(presetService, clock);
         var statistics = StatisticsManager.CreateInMemory(Logger);
 
+        // The study routes only read material, so the sweep to the trash is never reached.
+        var materializer = new FlashcardCardMaterializer(cards, schedules, facts);
+        Facts = new FlashcardFactService(Store, facts, new CardTypeRepository(), cards, materializer, clock, null!);
+
         Library = libraryService;
         Cards = cardService;
         Statistics = statistics;
@@ -87,6 +94,7 @@ internal sealed class StudySessionHttpHarness : IAsyncDisposable
         builder.Services.AddSingleton<ILoggerService>(Logger);
         builder.Services.AddSingleton<IFlashcardLibraryService>(libraryService);
         builder.Services.AddSingleton<IFlashcardPresetService>(presetService);
+        builder.Services.AddSingleton(Facts);
         builder.Services.AddSingleton<IFlashcardStudyService>(studyService);
         builder.Services.AddSingleton<IStudyDayService>(studyDay);
         builder.Services.AddSingleton<IStatisticsManager>(statistics);

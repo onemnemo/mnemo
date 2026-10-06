@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -52,12 +53,13 @@ public static class TestSessionEndpoints
         IFlashcardCardService cards,
         IFlashcardLibraryService library,
         IFlashcardPresetService presets,
+        IFlashcardFactService facts,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(deckId))
             return Results.BadRequest(new ErrorDto("deck_required", "A test must name a deck."));
 
-        var queue = await BuildQueueAsync(deckId, onlyIds: null, cards, library, presets, cancellationToken).ConfigureAwait(false);
+        var queue = await BuildQueueAsync(deckId, onlyIds: null, cards, library, presets, facts, cancellationToken).ConfigureAwait(false);
         return queue is null
             ? Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{deckId}'."))
             : Results.Ok(queue);
@@ -77,6 +79,7 @@ public static class TestSessionEndpoints
         IFlashcardCardService cards,
         IFlashcardLibraryService library,
         IFlashcardPresetService presets,
+        IFlashcardFactService facts,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(deckId))
@@ -86,7 +89,7 @@ public static class TestSessionEndpoints
             return Results.BadRequest(new ErrorDto("no_cards", "A retake must name the cards to run again."));
 
         var wanted = body.CardIds.ToHashSet(StringComparer.Ordinal);
-        var queue = await BuildQueueAsync(deckId, wanted, cards, library, presets, cancellationToken).ConfigureAwait(false);
+        var queue = await BuildQueueAsync(deckId, wanted, cards, library, presets, facts, cancellationToken).ConfigureAwait(false);
         return queue is null
             ? Results.NotFound(new ErrorDto("unknown_deck", $"No deck '{deckId}'."))
             : Results.Ok(queue);
@@ -108,6 +111,7 @@ public static class TestSessionEndpoints
         IFlashcardCardService cards,
         IFlashcardLibraryService library,
         IFlashcardPresetService presets,
+        IFlashcardFactService facts,
         CancellationToken cancellationToken)
     {
         var deck = await library.GetDeckAsync(deckId, cancellationToken).ConfigureAwait(false);
@@ -122,13 +126,17 @@ public static class TestSessionEndpoints
                 cancellationToken)
             .ConfigureAwait(false);
 
-        var active = page.Items
-            .Where(v => v.Card.State == FlashcardCardState.Active && (onlyIds is null || onlyIds.Contains(v.Card.Id)))
-            .Select(v => CardDto.FromModel(v.Card))
-            .ToArray();
+        var reader = new OcclusionPayloadReader(facts);
+        var active = new List<CardDto>();
+        foreach (var view in page.Items.Where(v =>
+                     v.Card.State == FlashcardCardState.Active && (onlyIds is null || onlyIds.Contains(v.Card.Id))))
+        {
+            var occlusion = await reader.ReadAsync(view.Card, cancellationToken).ConfigureAwait(false);
+            active.Add(CardDto.FromModel(view.Card) with { Occlusion = occlusion });
+        }
 
         if (preset?.ShuffleOrder == true)
-            Random.Shared.Shuffle(active);
+            Random.Shared.Shuffle(CollectionsMarshal.AsSpan(active));
 
         return new TestQueueDto(deckId, deck.Name, DateTimeOffset.UtcNow, active);
     }

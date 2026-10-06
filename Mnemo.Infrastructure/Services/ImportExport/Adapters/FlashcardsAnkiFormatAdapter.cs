@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO.Compression;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -372,7 +373,17 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var warnings = new List<TransferWarning>();
         try
         {
-            var decksToExport = await ResolveDecksToExportAsync(request, cancellationToken).ConfigureAwait(false);
+            var occlusionSkipped = new StrongBox<int>();
+            var decksToExport = await ResolveDecksToExportAsync(request, occlusionSkipped, cancellationToken).ConfigureAwait(false);
+
+            // An Anki note cannot hold masks, and the fallback would write each card as a question
+            // over the unmasked picture, so these are left out and counted.
+            if (occlusionSkipped.Value > 0)
+            {
+                warnings.Add(TransferWarning.Counted(
+                    "ExportOcclusionSkippedOne", "ExportOcclusionSkippedMany", occlusionSkipped.Value));
+            }
+
             if (decksToExport.Count == 0)
             {
                 return new ImportExportResult
@@ -1499,7 +1510,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return FlashcardType.Classic;
     }
 
-    private async Task<List<AnkiExportDeck>> ResolveDecksToExportAsync(ImportExportRequest request, CancellationToken cancellationToken)
+    private async Task<List<AnkiExportDeck>> ResolveDecksToExportAsync(
+        ImportExportRequest request, StrongBox<int> occlusionSkipped, CancellationToken cancellationToken)
     {
         var summaries = await _library.ListDecksAsync(cancellationToken).ConfigureAwait(false);
         var selectedIds = ResolveSelectedDeckIds(request.Payload);
@@ -1511,7 +1523,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         var result = new List<AnkiExportDeck>();
         foreach (var summary in selected)
         {
-            var cards = await LoadExportCardsAsync(summary.Id, cancellationToken).ConfigureAwait(false);
+            var cards = await LoadExportCardsAsync(summary.Id, occlusionSkipped, cancellationToken).ConfigureAwait(false);
             var material = await LoadMaterialAsync(cards, cancellationToken).ConfigureAwait(false);
             result.Add(new AnkiExportDeck(
                 summary.Id,
@@ -1689,7 +1701,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         return chains.ToDictionary(c => c.Key, c => string.Join(DeckPathSeparator, c.Value), StringComparer.Ordinal);
     }
 
-    private async Task<List<AnkiExportCard>> LoadExportCardsAsync(string deckId, CancellationToken cancellationToken)
+    private async Task<List<AnkiExportCard>> LoadExportCardsAsync(
+        string deckId, StrongBox<int> occlusionSkipped, CancellationToken cancellationToken)
     {
         var cards = new List<AnkiExportCard>();
         var offset = 0;
@@ -1702,6 +1715,12 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             foreach (var view in page.Items)
             {
                 var card = view.Card;
+                if (card.Type == FlashcardType.Occlusion)
+                {
+                    occlusionSkipped.Value++;
+                    continue;
+                }
+
                 cards.Add(new AnkiExportCard(
                     card.Id, card.Front, card.Back, card.Tags, card.Attachments, card.FrontBlocks, card.BackBlocks,
                     card.FactId, card.LayoutKey, card.State, card.IsFlagged, view.Schedule));

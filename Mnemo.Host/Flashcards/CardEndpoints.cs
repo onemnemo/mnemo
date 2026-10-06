@@ -149,12 +149,15 @@ public static class CardEndpoints
 
     private static void MapCardCrud(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/cards/{id}", async (string id, IFlashcardCardService cards, CancellationToken cancellationToken) =>
+        endpoints.MapGet("/api/cards/{id}", async (
+            string id, IFlashcardCardService cards, IFlashcardFactService facts, CancellationToken cancellationToken) =>
         {
             var card = await cards.GetCardAsync(id, cancellationToken).ConfigureAwait(false);
-            return card is null
-                ? Results.NotFound(new ErrorDto("unknown_card", $"No card '{id}'."))
-                : Results.Ok(CardDto.FromModel(card));
+            if (card is null)
+                return Results.NotFound(new ErrorDto("unknown_card", $"No card '{id}'."));
+
+            var occlusion = await new OcclusionPayloadReader(facts).ReadAsync(card, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(CardDto.FromModel(card) with { Occlusion = occlusion });
         });
 
         endpoints.MapPost("/api/decks/{deckId}/cards", async (
@@ -216,6 +219,10 @@ public static class CardEndpoints
             var existing = await cards.GetCardAsync(id, cancellationToken).ConfigureAwait(false);
             if (existing is null)
                 return Results.NotFound(new ErrorDto("unknown_card", $"No card '{id}'."));
+
+            // A card made from material is rebuilt from it on every save, so its text and type are not this route's to change.
+            if (existing.FactId is not null)
+                return Results.Conflict(new ErrorDto("card_has_material", "This card is made from material. Edit the material instead."));
 
             var deckId = existing.DeckId;
             if (!string.IsNullOrWhiteSpace(body.DeckId) && body.DeckId != deckId)

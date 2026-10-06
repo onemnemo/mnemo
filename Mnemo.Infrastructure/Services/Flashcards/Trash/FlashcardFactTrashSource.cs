@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
+using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Models.Trash;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
@@ -22,7 +23,7 @@ public sealed class FlashcardFactTrashSource : ITrashSource
     private static readonly string[] Above = ["FlashcardFolders", "FlashcardDecks"];
 
     private const string SnapshotSql = """
-        SELECT f.ValuesJson, t.SortFieldId, d.Name FROM FlashcardFacts f
+        SELECT f.ValuesJson, t.SortFieldId, d.Name, f.TypeId, t.Name FROM FlashcardFacts f
         LEFT JOIN FlashcardCardTypes t ON t.Id = f.TypeId
         LEFT JOIN FlashcardDecks d ON d.Id = f.DeckId AND d.TrashId IS NULL
         """;
@@ -196,11 +197,19 @@ public sealed class FlashcardFactTrashSource : ITrashSource
         var sortFieldId = reader.IsDBNull(1) ? null : reader.GetString(1);
         var deckName = reader.IsDBNull(2) ? null : reader.GetString(2);
 
+        var isOcclusion = !reader.IsDBNull(3) && reader.GetString(3) == FlashcardCardType.OcclusionId;
         var title = sortFieldId is not null
+            && !(isOcclusion && sortFieldId == FlashcardCardType.OcclusionMasksFieldId)
             && values.TryGetValue(sortFieldId, out var sorted)
             && !string.IsNullOrWhiteSpace(sorted)
                 ? sorted
-                : values.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? string.Empty;
+                : null;
+
+        // The only other filled field of an occlusion fact is its masks document, which is not a
+        // heading, so the type's own name stands in.
+        title ??= isOcclusion
+            ? (reader.IsDBNull(4) ? string.Empty : reader.GetString(4))
+            : values.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? string.Empty;
 
         return new TrashSnapshot(title, deckName, 0);
     }

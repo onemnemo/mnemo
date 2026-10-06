@@ -40,7 +40,7 @@ internal static class FlashcardFactBackfill
 
     public static async Task ApplyAsync(FlashcardMigrationContext context)
     {
-        await SeedCardTypesAsync(context).ConfigureAwait(false);
+        await SeedCardTypesAsync(context, FlashcardCardType.CreateBuiltIns(context.Time.GetUtcNow())).ConfigureAwait(false);
 
         foreach (var batch in (await ReadUnmigratedCardIdsAsync(context).ConfigureAwait(false)).Chunk(BatchSize))
         {
@@ -49,10 +49,11 @@ internal static class FlashcardFactBackfill
         }
     }
 
-    private static async Task SeedCardTypesAsync(FlashcardMigrationContext context)
+    /// <summary>Inserts built-in types that are absent. A row already there, edited or not, is left alone.</summary>
+    internal static async Task SeedCardTypesAsync(FlashcardMigrationContext context, IEnumerable<FlashcardCardType> types)
     {
         var now = FlashcardSqlMap.Ts(context.Time.GetUtcNow());
-        foreach (var type in FlashcardCardType.CreateBuiltIns(context.Time.GetUtcNow()))
+        foreach (var type in types)
         {
             await using var cmd = context.CreateCommand();
             cmd.CommandText = """

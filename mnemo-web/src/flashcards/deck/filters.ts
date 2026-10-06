@@ -58,6 +58,7 @@ export const STATE_FILTER_KEY: Record<CardStateFilter, string> = {
 export const CARD_TYPE_KEY: Record<CardType, string> = {
   classic: "CardTypeClassic",
   cloze: "CardTypeCloze",
+  occlusion: "CardTypeOcclusion",
 }
 
 export const LAPSES_FILTER_KEY: Record<LapsesFilter, string> = {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
+using Mnemo.Core.Models.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Tests.Widgets;
 using Xunit;
@@ -10,7 +11,7 @@ using Xunit;
 namespace Mnemo.Infrastructure.Tests.Flashcards.Persistence;
 
 /// <summary>
-/// Every schema version from 1 through <see cref="FlashcardStoreSchema.TargetVersion"/> (12), opened
+/// Every schema version from 1 through <see cref="FlashcardStoreSchema.TargetVersion"/> (13), opened
 /// from a real per-version fixture and checked against a column list this file owns rather than
 /// reads from production.
 /// </summary>
@@ -58,6 +59,7 @@ public sealed class FlashcardStoreVersionMatrixTests
         ("FlashcardCards", "TrashId"),
         ("FlashcardReviews", "Origin"),
         ("FlashcardCards", "SweptTrashId"),
+        ("FlashcardCards", "SweptMaskJson"),
     ];
 
     [Theory]
@@ -91,6 +93,10 @@ public sealed class FlashcardStoreVersionMatrixTests
                 Assert.True(
                     await FlashcardStoreUpgradeTests.ColumnExistsAsync(store, table, column),
                     $"{table}.{column} is missing after opening a v{fromVersion} database.");
+
+            var occlusionType = await store.ReadAsync((conn, ct) => new CardTypeRepository().GetAsync(conn, "occlusion", ct));
+            Assert.NotNull(occlusionType);
+            Assert.Equal(FlashcardGenerators.Occlusion, occlusionType!.Generator);
 
             Assert.True(
                 await FlashcardStoreUpgradeTests.IndexExistsAsync(store, "IX_Decks_Live"),
@@ -134,6 +140,7 @@ public sealed class FlashcardStoreVersionMatrixTests
     {
         await FlashcardStoreUpgradeTests.WriteRealCollectionAsync(path, deckId, cardId);
 
+        if (targetVersion < 13) await StripOcclusionAsync(path);
         if (targetVersion < 12) await StripSweptTrashIdAsync(path);
         if (targetVersion < 10) await StripLiveIndexesAsync(path);
         if (targetVersion < 9) await StripOriginAsync(path);
@@ -151,6 +158,15 @@ public sealed class FlashcardStoreVersionMatrixTests
     // --- Strip steps, one per version transition, applied high to low. ---
     // Each removes exactly what the commit introducing that version added to
     // FlashcardStoreSchema (verified against git history), nothing more.
+
+    /// <summary>v13 added FlashcardCards.SweptMaskJson and seeded the image occlusion card type.</summary>
+    private static Task StripOcclusionAsync(string path) =>
+        ExecuteAsync(
+            path,
+            """
+            ALTER TABLE FlashcardCards DROP COLUMN SweptMaskJson;
+            DELETE FROM FlashcardCardTypes WHERE Id = 'occlusion';
+            """);
 
     /// <summary>v12 added FlashcardCards.SweptTrashId.</summary>
     private static Task StripSweptTrashIdAsync(string path) =>

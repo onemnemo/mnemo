@@ -46,7 +46,7 @@ public sealed class FlashcardLastStudiedBackfillTests
                 });
             }
 
-            await StampVersionAsync(path, FlashcardStoreSchema.TargetVersion - 1);
+            await StampVersionAsync(path, 11);
 
             await using (var store = new FlashcardStore(new TestLogger(), path, new TestTimeProvider(Seeded)))
             {
