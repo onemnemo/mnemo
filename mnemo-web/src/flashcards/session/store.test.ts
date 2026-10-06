@@ -206,3 +206,32 @@ describe("useSession overlays", () => {
     expect(shownCard(useSession.getState())?.front).toBe("OLD")
   })
 })
+
+describe("useSession start overlap", () => {
+  it("sends a second start only after the first settles and ends the first's session", async () => {
+    const resolvers: ((value: StudySessionDto) => void)[] = []
+    mocks.startSession.mockImplementation(
+      () => new Promise<StudySessionDto>((resolve) => resolvers.push(resolve)),
+    )
+    mocks.endSession.mockResolvedValue(undefined)
+
+    const first = useSession.getState().start("d1", "review", "due")
+    await vi.waitFor(() => expect(resolvers).toHaveLength(1))
+    await useSession.getState().end()
+    const second = useSession.getState().start("d1", "review", "due")
+    await flush()
+
+    expect(mocks.startSession).toHaveBeenCalledTimes(1)
+
+    resolvers[0]!(session({ sessionId: "first" }))
+    await first
+    expect(mocks.endSession).toHaveBeenCalledWith("first")
+
+    await vi.waitFor(() => expect(resolvers).toHaveLength(2))
+    resolvers[1]!(session({ sessionId: "second" }))
+    await second
+
+    expect(useSession.getState().status).toBe("ready")
+    expect(useSession.getState().session?.sessionId).toBe("second")
+  })
+})

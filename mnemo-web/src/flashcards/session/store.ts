@@ -45,6 +45,12 @@ interface SessionState {
  */
 let generation = 0
 
+/**
+ * The start request still in flight; a start sends nothing until it settles. The host supersedes a
+ * deck's live session on every start and may handle two concurrent requests in either order.
+ */
+let startInFlight: Promise<void> = Promise.resolve()
+
 export const useSession = create<SessionState>((set, get) => ({
   status: "idle",
   session: null,
@@ -52,21 +58,27 @@ export const useSession = create<SessionState>((set, get) => ({
   overlays: {},
   busy: false,
 
-  start: async (deckId, mode, scope) => {
+  start: (deckId, mode, scope) => {
     const mine = ++generation
     set({ status: "loading", session: null, busy: false, revealed: false, overlays: {} })
-    try {
-      const session = await startSession({ deckId, mode, scope })
-      if (mine !== generation) {
-        void endSession(session.sessionId)
-        return
-      }
-      set({ status: "ready", session, revealed: false })
-    } catch {
+    const run = startInFlight.then(async () => {
+      // Checked after the wait so a start cancelled in the same tick never reaches the host.
       if (mine !== generation) return
-      // The desktop bounces to the deck when a session cannot be started, with no error surface.
-      set({ status: "gone", session: null })
-    }
+      try {
+        const session = await startSession({ deckId, mode, scope })
+        if (mine !== generation) {
+          void endSession(session.sessionId)
+          return
+        }
+        set({ status: "ready", session, revealed: false })
+      } catch {
+        if (mine !== generation) return
+        // The desktop bounces to the deck when a session cannot be started, with no error surface.
+        set({ status: "gone", session: null })
+      }
+    })
+    startInFlight = run
+    return run
   },
 
   reveal: () => {
