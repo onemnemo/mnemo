@@ -25,6 +25,7 @@ public static class StudySessionEndpoints
         endpoints.MapGet("/api/study/sessions/{sessionId}", GetSessionAsync);
         endpoints.MapPost("/api/study/sessions/{sessionId}/grade", GradeAsync);
         endpoints.MapPost("/api/study/sessions/{sessionId}/undo", UndoAsync);
+        endpoints.MapPost("/api/study/sessions/{sessionId}/drop", DropAsync);
         endpoints.MapDelete("/api/study/sessions/{sessionId}", EndAsync);
     }
 
@@ -180,6 +181,27 @@ public static class StudySessionEndpoints
                 // The engine's stack is the truth; if it has nothing left, the counter was stale.
                 entry.ClearUndo();
 
+            return Results.Ok(await StudySessionDto.FromEntryAsync(entry, facts, cancellationToken).ConfigureAwait(false));
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<IResult> DropAsync(
+        string sessionId,
+        DropCardDto body,
+        StudySessionRegistry registry,
+        IFlashcardFactService facts,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(body.CardId))
+            return Results.BadRequest(new ErrorDto("card_required", "A drop must name the card it applies to."));
+
+        var entry = registry.Get(sessionId, DateTimeOffset.UtcNow);
+        if (entry is null)
+            return UnknownSession(sessionId);
+
+        return await entry.MutateAsync(async () =>
+        {
+            entry.Session.Drop(body.CardId);
             return Results.Ok(await StudySessionDto.FromEntryAsync(entry, facts, cancellationToken).ConfigureAwait(false));
         }, cancellationToken).ConfigureAwait(false);
     }

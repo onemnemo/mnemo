@@ -125,3 +125,6 @@ public sealed record StartStudySessionDto(string DeckId, string Mode, string? Sc
 /// whatever came next.
 /// </summary>
 public sealed record GradeCardDto(string CardId, string Grade);
+
+/// <summary>The card to take out of a session because it left the deck, such as by an edit.</summary>
+public sealed record DropCardDto(string CardId);

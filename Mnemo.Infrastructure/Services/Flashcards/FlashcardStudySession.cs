@@ -65,6 +65,14 @@ internal sealed class FlashcardStudySession : IFlashcardSession
         Completed: _completed,
         Total: _total);
 
+    public bool Drop(string cardId)
+    {
+        var dropped = _queue.RemoveAll(v => string.Equals(v.Card.Id, cardId, StringComparison.Ordinal));
+        // The card no longer exists to be studied, so it stops counting toward the session's size.
+        _total -= dropped;
+        return dropped > 0;
+    }
+
     public string DescribeInterval(FlashcardReviewGrade grade)
     {
         var current = Current;

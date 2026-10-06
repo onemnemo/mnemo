@@ -178,3 +178,45 @@
   --accent-fg: oklch(0.99 0.01 88.7);
 }
 
+/* Images are drawn on white in both themes, so the ring colour is the light accent. The asked
+ * mask carries a white "?", so its fill is darkened where the accent is under 4.5:1. */
+[data-accent="blue"] {
+  --accent-paper: oklch(0.606 0.167 252.7);
+  --accent-paper-asked: oklch(0.555 0.167 252.7);
+}
+[data-accent="terracotta"] {
+  --accent-paper: oklch(0.63 0.185 40);
+  --accent-paper-asked: oklch(0.575 0.185 40);
+}
+[data-accent="amber"] {
+  --accent-paper: oklch(0.639 0.141 58.6);
+  --accent-paper-asked: oklch(0.56 0.141 58.6);
+}
+[data-accent="rose"] {
+  --accent-paper: oklch(0.597 0.158 5.4);
+  --accent-paper-asked: oklch(0.57 0.158 5.4);
+}
+[data-accent="plum"] {
+  --accent-paper: oklch(0.535 0.123 329.9);
+  --accent-paper-asked: oklch(0.535 0.123 329.9);
+}
+[data-accent="iris"] {
+  --accent-paper: oklch(0.571 0.17 289.9);
+  --accent-paper-asked: oklch(0.571 0.17 289.9);
+}
+[data-accent="indigo"] {
+  --accent-paper: oklch(0.532 0.178 273.6);
+  --accent-paper-asked: oklch(0.532 0.178 273.6);
+}
+[data-accent="teal"] {
+  --accent-paper: oklch(0.561 0.09 193.9);
+  --accent-paper-asked: oklch(0.54 0.09 193.9);
+}
+[data-accent="sage"] {
+  --accent-paper: oklch(0.53 0.09 154.6);
+  --accent-paper-asked: oklch(0.53 0.09 154.6);
+}
+[data-accent="graphite"] {
+  --accent-paper: oklch(0.383 0.009 88.7);
+  --accent-paper-asked: oklch(0.383 0.009 88.7);
+}

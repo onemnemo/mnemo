@@ -7,14 +7,14 @@ import { useI18nStore } from "@/i18n/store"
 import { createTranslate } from "@/i18n/translate"
 import { toast } from "@/stores/toast"
 
-import { endSession, gradeCard, startSession, undoGrade } from "./api"
+import { dropCard, endSession, gradeCard, startSession, undoGrade } from "./api"
 
 /**
  * Drives one live study session. The server owns the queue and answers every call with the whole
  * session, so this holds that payload plus the handful of things the server has no opinion on:
  * whether the answer is showing, and the local overlays described below.
  */
-interface SessionState {
+export interface SessionState {
   status: "idle" | "loading" | "ready" | "gone"
   session: StudySessionDto | null
   /** True once the answer half is showing. Reset by every card change. */
@@ -32,16 +32,16 @@ interface SessionState {
   reveal: () => void
   grade: (grade: ReviewGrade) => Promise<void>
   undo: () => Promise<void>
+  /** Takes a card an edit removed out of the queue, so the session carries on where it was. False when that failed. */
+  drop: (cardId: string) => Promise<boolean>
   end: () => Promise<void>
   overlayCard: (card: CardDto) => void
   setFlagged: (flagged: boolean) => void
 }
 
 /**
- * Bumped by every start and end. StrictMode mounts effects twice, so two starts race on mount -
- * and the second one supersedes the first server-side, killing a session whose id we might
- * otherwise have kept and then graded into a 404. Whichever start no longer matches loses, and
- * ends the session it opened.
+ * Bumped by every start and end. StrictMode mounts effects twice, so two starts race on mount and
+ * the second supersedes the first server-side. A start that no longer matches ends its own session.
  */
 let generation = 0
 
@@ -118,6 +118,18 @@ export const useSession = create<SessionState>((set, get) => ({
     } catch (error) {
       set({ busy: false })
       failed(error, "StudyUndoErrorTitle", () => void get().undo(), set)
+    }
+  },
+
+  drop: async (cardId) => {
+    const { session } = get()
+    if (!session) return false
+    try {
+      const next = await dropCard(session.sessionId, cardId)
+      if (get().session?.sessionId === next.sessionId) set({ session: next, revealed: false })
+      return true
+    } catch {
+      return false
     }
   },
 

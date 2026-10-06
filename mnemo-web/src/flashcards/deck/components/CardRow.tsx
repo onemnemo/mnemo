@@ -14,7 +14,7 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import { StateTag, cardStateKind } from "../../bits"
-import { backPreview, dueLabel, frontPreview } from "../cards"
+import { backCell, dueLabel, frontPreview, typeMarker } from "../cards"
 import { BACK_CELL, ROW_GRID } from "./rowLayout"
 
 export interface CardRowActions {
@@ -55,6 +55,7 @@ export function CardRow({
   const suspended = card.state === "suspended"
   const due = dueLabel(view, now, fc)
   const front = frontPreview(card.front)
+  const marker = typeMarker(card.type)
   const leech = schedule.lapses >= LEECH_LAPSES
 
   return (
@@ -90,14 +91,21 @@ export function CardRow({
           <span className="flex min-w-0 items-center gap-1.5">
             {/* A type column read "Classic" on almost every row. A marker only where
                 the type differs says the same thing in no space at all. */}
-            {card.type === "cloze" ? <AppIcon name="braces" size={13} className="shrink-0 text-ink-icon" /> : null}
+            {marker ? (
+              <AppIcon
+                name={marker.icon}
+                size={13}
+                className="shrink-0 text-ink-icon"
+                title={marker.labelKey ? fc(marker.labelKey) : undefined}
+              />
+            ) : null}
             <span className={cn("truncate text-[13px]", suspended ? "text-ink-3" : "text-ink")} title={card.front}>
               {front}
             </span>
           </span>
 
           <span className={cn(BACK_CELL, "truncate text-[13px] text-ink-3")} title={card.back}>
-            {backPreview(card.back)}
+            {backCell(card.type, card.back, fc("OcclusionNoLabel"))}
           </span>
 
           <StateTag state={cardStateKind(card, schedule)} />

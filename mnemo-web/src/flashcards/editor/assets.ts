@@ -1,4 +1,4 @@
-import { useAssetObjectUrl } from "@/api/asset-blob"
+import { useAssetObject, useAssetObjectUrl, type AssetObject } from "@/api/asset-blob"
 import { apiFetch } from "@/api/client"
 import type { CardAssetDto } from "@/api/types"
 
@@ -16,5 +16,14 @@ export function uploadCardAsset(file: File): Promise<CardAssetDto> {
 
 /** A blob URL for a card attachment, or null while it loads, on failure, or when unservable. */
 export function useCardAssetUrl(assetId: string | null | undefined): string | null {
-  return useAssetObjectUrl(assetId ? `/api/flashcards/assets/${encodeURIComponent(assetId)}` : null)
+  return useAssetObjectUrl(assetPath(assetId))
+}
+
+/** {@link useCardAssetUrl}, plus whether the fetch failed. */
+export function useCardAsset(assetId: string | null | undefined): AssetObject {
+  return useAssetObject(assetPath(assetId))
+}
+
+function assetPath(assetId: string | null | undefined): string | null {
+  return assetId ? `/api/flashcards/assets/${encodeURIComponent(assetId)}` : null
 }

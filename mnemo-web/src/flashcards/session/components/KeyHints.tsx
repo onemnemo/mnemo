@@ -27,8 +27,11 @@ function HintLine({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap items-center justify-center gap-1.5">{children}</div>
 }
 
-/** Shown before the answer is up: what the keys do while you are still recalling. */
-export function PreRevealHint() {
+/**
+ * Shown before the answer is up: what the keys do while you are still recalling. `showMasks`
+ * adds the image occlusion key, which only hide-all cards answer to.
+ */
+export function PreRevealHint({ showMasks = false }: { showMasks?: boolean }) {
   const t = useT()
   const fc = (key: string) => t("Flashcards", key)
   return (
@@ -36,6 +39,13 @@ export function PreRevealHint() {
       <Kbd>E</Kbd>
       <Word>{fc("StudyHintEdit")}</Word>
       <Dot />
+      {showMasks && (
+        <>
+          <Kbd>M</Kbd>
+          <Word>{fc("StudyHintShowMasks")}</Word>
+          <Dot />
+        </>
+      )}
       <Kbd>{UNDO_KEY_LABEL}</Kbd>
       <Word>{fc("StudyHintUndo")}</Word>
       <Dot />

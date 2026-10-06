@@ -7,6 +7,9 @@ import { cn } from "@/lib/utils"
 import { useSettingValue } from "@/settings/store"
 
 import { CardText } from "../../CardText"
+import { occlusionOf } from "../../occlusion/card"
+import { OcclusionAnswer } from "../../occlusion/OcclusionAnswer"
+import { OcclusionPanel } from "../../occlusion/OcclusionPanel"
 import { AttachmentCarousel } from "../../session/components/AttachmentCarousel"
 import { answerText, promptText } from "../../study"
 
@@ -45,6 +48,7 @@ export function TestCard({
   // this variable, so overriding it here scopes the setting to the card without touching chat.
   const mdSize = useSettingValue("Markdown.FontSize", "16px")
   const proseSize = { "--font-size-body-medium": mdSize } as CSSProperties
+  const occlusion = occlusionOf(card)
 
   // Enter reveals, as it does on the desktop, so the reader never has to reach for the mouse.
   // Shift+Enter is left alone for a multi-line answer.
@@ -55,7 +59,7 @@ export function TestCard({
   }
 
   return (
-    <div className="group/card relative w-full rounded-2xl p-7 shadow-[0_0_0_1px_var(--line)]" style={proseSize}>
+    <div data-card-surface className="group/card relative w-full rounded-2xl p-7 shadow-[0_0_0_1px_var(--line)]" style={proseSize}>
       <div
         className={cn(
           "absolute top-3 right-3 flex items-center gap-0.5 transition-opacity",
@@ -86,7 +90,13 @@ export function TestCard({
         <div className="chat-prose min-w-0 flex-[1_1_17rem] whitespace-pre-wrap" data-selectable>
           <CardText>{promptText(card)}</CardText>
         </div>
-        <AttachmentCarousel key={`${card.id}-front`} attachments={card.attachments} side="front" />
+        {occlusion ? (
+          <div className="basis-full">
+            <OcclusionPanel key={card.id} card={card} occlusion={occlusion} revealed={revealed} />
+          </div>
+        ) : (
+          <AttachmentCarousel key={`${card.id}-front`} attachments={card.attachments} side="front" />
+        )}
       </div>
 
       <Rule label={fc("TestYourAnswerLabel")} />
@@ -118,20 +128,30 @@ export function TestCard({
         </p>
       )}
 
-      {revealed && (
-        <div className="animate-rise">
+      {/* An occlusion card keeps the answer block's room while it is hidden, so the image box
+          measured against the revealed card does not move when the answer appears. */}
+      {(revealed || occlusion) && (
+        <div aria-hidden={!revealed} className={cn(revealed ? "animate-rise" : "invisible")}>
           <Rule label={fc("TestCorrectAnswerLabel")} />
           <div className="flex items-start">
-            <div className="chat-prose mr-3.5 min-w-0 flex-1 whitespace-pre-wrap" data-selectable>
-              {/* Paragraphs, not one block: an answer can carry more than the answer itself,
-                  and the blank line between them is the only signal that survives typing. */}
-              {answerText(card)
-                .split(/\n{2,}/)
-                .map((para, i) => (
-                  <CardText key={i}>{para}</CardText>
-                ))}
-            </div>
-            <AttachmentCarousel key={`${card.id}-back`} attachments={card.attachments} side="back" />
+            {occlusion ? (
+              <div className="min-w-0 flex-1">
+                <OcclusionAnswer label={card.back} back={occlusion.back} />
+              </div>
+            ) : (
+              <>
+                <div className="chat-prose mr-3.5 min-w-0 flex-1 whitespace-pre-wrap" data-selectable>
+                  {/* Paragraphs, not one block: an answer can carry more than the answer itself,
+                      and the blank line between them is the only signal that survives typing. */}
+                  {answerText(card)
+                    .split(/\n{2,}/)
+                    .map((para, i) => (
+                      <CardText key={i}>{para}</CardText>
+                    ))}
+                </div>
+                <AttachmentCarousel key={`${card.id}-back`} attachments={card.attachments} side="back" />
+              </>
+            )}
           </div>
         </div>
       )}

@@ -13,6 +13,7 @@ import { useFlagCards } from "../deck/api"
 import { isModalOpen } from "@/lib/modal"
 
 import { useCardEditor } from "../editor/store"
+import { occlusionOf } from "../occlusion/card"
 import { fetchCard } from "../session/api"
 import { Kbd } from "../session/components/KeyHints"
 import { StudyAnnouncer, useStudyAnnouncer } from "../study-announcer"
@@ -194,6 +195,39 @@ export function TestPage({ deckId }: { deckId?: string }) {
   }, [actionFor])
 
   const missed = queue.filter((_, i) => grades[i] === "missed")
+  const occlusion = card !== null && occlusionOf(card) !== null
+
+  const testCard = card && (
+    <TestCard
+      card={card}
+      answer={answers[index] ?? ""}
+      revealed={revealed}
+      canUndo={index > 0}
+      onAnswerChange={(text) => useTest.getState().setAnswer(text)}
+      onReveal={() => useTest.getState().reveal()}
+      onEdit={editCurrent}
+      onFlag={toggleFlag}
+      onUndo={() => useTest.getState().undo()}
+    />
+  )
+
+  const controls = (
+    <>
+      {revealed ? (
+        <TestGradeRow onGrade={(grade) => useTest.getState().grade(grade)} />
+      ) : (
+        <div className="flex items-center justify-center gap-2">
+          <Button variant="outline" onClick={() => useTest.getState().reveal()}>
+            {fc("TestReveal")}
+          </Button>
+          <Kbd>{fc("StudyKeyEnter")}</Kbd>
+        </div>
+      )}
+      <div className="mt-3">
+        <HintRow />
+      </div>
+    </>
+  )
 
   // Fills the module canvas rather than taking over the whole window: an overlay pinned to the
   // window would sit its own bar on top of the OS titlebar's drag region, which swallows the
@@ -227,39 +261,26 @@ export function TestPage({ deckId }: { deckId?: string }) {
       )}
 
       {active && card && (
-        // Card and buttons are one block, centred together, so the grade row never floats far
-        // above the card the way pinning it to the window bottom would on a short prompt.
-        <div className="scroll-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-6">
-          <div className="m-auto w-full max-w-[780px] py-8">
-            <TestCard
-              card={card}
-              answer={answers[index] ?? ""}
-              revealed={revealed}
-              canUndo={index > 0}
-              onAnswerChange={(text) => useTest.getState().setAnswer(text)}
-              onReveal={() => useTest.getState().reveal()}
-              onEdit={editCurrent}
-              onFlag={toggleFlag}
-              onUndo={() => useTest.getState().undo()}
-            />
-
-            <div className="mt-6">
-              {revealed ? (
-                <TestGradeRow onGrade={(grade) => useTest.getState().grade(grade)} />
-              ) : (
-                <div className="flex items-center justify-center gap-2">
-                  <Button variant="outline" onClick={() => useTest.getState().reveal()}>
-                    {fc("TestReveal")}
-                  </Button>
-                  <Kbd>{fc("StudyKeyEnter")}</Kbd>
-                </div>
-              )}
-              <div className="mt-3">
-                <HintRow />
-              </div>
+        // Card and grade row centre together so the row stays near a short prompt. An occlusion card
+        // scrolls above a pinned grade row, so its image is sized to what the column leaves.
+        occlusion ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center px-6">
+            <div
+              data-card-column
+              className="scroll-thin flex min-h-0 w-full max-w-[780px] flex-1 flex-col overflow-y-auto pt-6 pb-3"
+            >
+              {testCard}
+            </div>
+            <div className="w-full max-w-[780px] shrink-0 pb-6">{controls}</div>
+          </div>
+        ) : (
+          <div className="scroll-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-6">
+            <div className="m-auto w-full max-w-[780px] py-8">
+              {testCard}
+              <div className="mt-6">{controls}</div>
             </div>
           </div>
-        </div>
+        )
       )}
 
       {status === "complete" && (

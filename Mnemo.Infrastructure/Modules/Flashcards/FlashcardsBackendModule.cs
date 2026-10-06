@@ -73,6 +73,7 @@ internal static class FlashcardsKeybindManifest
         Chords(SessionNamespace, "flashcards-session.undo", "Primary+Z"),
         Chords(SessionNamespace, "flashcards-session.reveal", "Space"),
         Chords(SessionNamespace, "flashcards-session.edit", "E"),
+        Chords(SessionNamespace, "flashcards-session.show-masks", "M"),
         Chords(SessionNamespace, "flashcards-session.grade-again", "D1"),
         Chords(SessionNamespace, "flashcards-session.grade-hard", "D2"),
         Chords(SessionNamespace, "flashcards-session.grade-good", "D3"),

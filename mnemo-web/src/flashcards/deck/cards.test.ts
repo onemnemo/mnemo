@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { backPreview, frontPreview, oneLine } from "./cards"
+import { backCell, backPreview, frontPreview, oneLine, typeMarker } from "./cards"
 
 describe("frontPreview", () => {
   it("masks a cloze deletion", () => {
@@ -49,3 +49,27 @@ describe("frontPreview with formatting", () => {
     expect(frontPreview("The **capital** of {{c1::Japan}}")).toBe("The capital of […]")
   })
 })
+
+describe("typeMarker", () => {
+  it("marks a cloze card with braces and an occlusion card with an image, named for assistive tech", () => {
+    expect(typeMarker("cloze")).toEqual({ icon: "braces", labelKey: null })
+    expect(typeMarker("occlusion")).toEqual({ icon: "image", labelKey: "CardTypeOcclusion" })
+  })
+
+  it("leaves a plain card unmarked", () => {
+    expect(typeMarker("classic")).toBeNull()
+  })
+})
+
+describe("backCell", () => {
+  it("shows the label of an occlusion card, or No label when the mask has none", () => {
+    expect(backCell("occlusion", "Rough ER", "No label")).toBe("Rough ER")
+    expect(backCell("occlusion", "  ", "No label")).toBe("No label")
+  })
+
+  it("leaves an empty back empty on every other kind of card", () => {
+    expect(backCell("classic", "", "No label")).toBe("")
+    expect(backCell("cloze", "", "No label")).toBe("")
+  })
+})
+

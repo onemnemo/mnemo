@@ -29,13 +29,22 @@ export async function fetchAssetBlobUrl(path: string, signal?: AbortSignal): Pro
  * a placeholder rather than a broken image.
  */
 export function useAssetObjectUrl(path: string | null | undefined): string | null {
-  const [url, setUrl] = useState<string | null>(null)
+  return useAssetObject(path).url
+}
+
+export interface AssetObject {
+  url: string | null
+  /** True once the fetch has failed, so a caller can tell a dead asset from one still loading. */
+  failed: boolean
+}
+
+/** {@link useAssetObjectUrl}, plus whether the fetch failed. */
+export function useAssetObject(path: string | null | undefined): AssetObject {
+  const [state, setState] = useState<AssetObject & { path: string | null | undefined }>({ path, url: null, failed: false })
+  if (state.path !== path) setState({ path, url: null, failed: false })
 
   useEffect(() => {
-    if (!path) {
-      setUrl(null)
-      return
-    }
+    if (!path) return
     let objectUrl: string | null = null
     let cancelled = false
     const controller = new AbortController()
@@ -47,9 +56,11 @@ export function useAssetObjectUrl(path: string | null | undefined): string | nul
           return
         }
         objectUrl = next
-        setUrl(next)
+        setState({ path, url: next, failed: false })
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setState({ path, url: null, failed: true })
+      })
 
     return () => {
       cancelled = true
@@ -58,5 +69,5 @@ export function useAssetObjectUrl(path: string | null | undefined): string | nul
     }
   }, [path])
 
-  return url
+  return state.path === path ? { url: state.url, failed: state.failed } : { url: null, failed: false }
 }

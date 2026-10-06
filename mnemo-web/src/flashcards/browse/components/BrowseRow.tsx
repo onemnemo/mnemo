@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
 import { usePeekStore } from "@/peek/store"
 
 import { StateTag, cardStateKind } from "../../bits"
-import { backPreview, dueLabel, frontPreview } from "../../deck/cards"
+import { backCell, dueLabel, frontPreview, typeMarker } from "../../deck/cards"
 import { ACTIONS_CELL, BACK_CELL, DECK_CELL, ROW_GRID } from "./rowLayout"
 
 export interface BrowseRowActions {
@@ -59,6 +59,7 @@ export function BrowseRow({
   const suspended = card.state === "suspended"
   const due = dueLabel(view, now, fc)
   const front = frontPreview(card.front)
+  const marker = typeMarker(card.type)
   const leech = schedule.lapses >= LEECH_LAPSES
   // Every row can name a different owning deck, so "move to" has to drop that row's own
   // deck from its own list rather than a page-wide exclusion.
@@ -93,14 +94,21 @@ export function BrowseRow({
           />
 
           <span className="flex min-w-0 items-center gap-1.5">
-            {card.type === "cloze" ? <AppIcon name="braces" size={13} className="shrink-0 text-ink-icon" /> : null}
+            {marker ? (
+              <AppIcon
+                name={marker.icon}
+                size={13}
+                className="shrink-0 text-ink-icon"
+                title={marker.labelKey ? fc(marker.labelKey) : undefined}
+              />
+            ) : null}
             <span className={cn("truncate text-[13px]", suspended ? "text-ink-3" : "text-ink")} title={card.front}>
               {front}
             </span>
           </span>
 
           <span className={cn(BACK_CELL, "truncate text-[13px] text-ink-3")} title={card.back}>
-            {backPreview(card.back)}
+            {backCell(card.type, card.back, fc("OcclusionNoLabel"))}
           </span>
 
           <span className={cn(DECK_CELL, "truncate text-[12.5px] text-ink-2")} title={deckName}>

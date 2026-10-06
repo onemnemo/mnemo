@@ -50,6 +50,11 @@ export function undoGrade(sessionId: string): Promise<StudySessionDto> {
   return apiFetch<StudySessionDto>(`${BASE}/${encodeURIComponent(sessionId)}/undo`, { method: "POST" })
 }
 
+/** Takes a card that left the deck out of the session, ungraded. */
+export function dropCard(sessionId: string, cardId: string): Promise<StudySessionDto> {
+  return apiFetch<StudySessionDto>(`${BASE}/${encodeURIComponent(sessionId)}/drop`, json({ cardId }))
+}
+
 /** Ends a session so its study is recorded. Idempotent server-side, so a duplicate is harmless. */
 export function endSession(sessionId: string): Promise<void> {
   return apiSend(`${BASE}/${encodeURIComponent(sessionId)}`, { method: "DELETE" })

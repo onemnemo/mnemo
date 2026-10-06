@@ -1,21 +1,24 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
+import { ApiError } from "@/api/client"
 import type { ReviewGrade, SessionMode, SessionScope } from "@/api/types"
 import { navigate } from "@/app/router"
 import { onShutdown } from "@/app/shutdown"
 import { useT } from "@/i18n/useT"
 import { isEditableTarget } from "@/keybinds/chord"
 import { useLocalActions } from "@/keybinds/local"
+import { cn } from "@/lib/utils"
 import { dialog } from "@/stores/dialog"
 
 import { useFlagCards } from "../deck/api"
+import { canShowMasks, occlusionOf } from "../occlusion/card"
 import { isModalOpen } from "@/lib/modal"
 
 import { useCardEditor } from "../editor/store"
 import { StudyAnnouncer, useStudyAnnouncer } from "../study-announcer"
 import { fetchCard } from "./api"
 import { isActive, isAllCaughtUp } from "./session"
-import { shownCard, useSession } from "./store"
+import { shownCard, useSession, type SessionState } from "./store"
 import { CardSurface } from "./components/CardSurface"
 import { EndPanel } from "./components/EndPanel"
 import { GradeRow } from "./components/GradeRow"
@@ -23,6 +26,15 @@ import { PostRevealHint, PreRevealHint } from "./components/KeyHints"
 import { SessionTopbar } from "./components/SessionTopbar"
 
 const AUTO_REVEAL_SECONDS: Record<string, number> = { "five-seconds": 5, "ten-seconds": 10 }
+
+/**
+ * Identifies one showing of a card: the card and how many grades the session has taken so far,
+ * which moves on every grade and undo even when the same card comes straight back.
+ */
+function cardViewKey(state: Pick<SessionState, "overlays" | "session">): string | null {
+  const card = shownCard(state)
+  return card ? `${card.id}:${state.session?.graded ?? 0}` : null
+}
 
 const GRADE_ACTIONS: Record<string, ReviewGrade> = {
   "flashcards-session.grade-again": "again",
@@ -42,16 +54,29 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
   const status = useSession((s) => s.status)
   const revealed = useSession((s) => s.revealed)
   const card = useSession(shownCard)
+  const overlays = useSession((s) => s.overlays)
   const busy = useSession((s) => s.busy)
 
   const editorTarget = useCardEditor((s) => s.target)
   const openEdit = useCardEditor((s) => s.openEdit)
   const flagCards = useFlagCards(deckId ?? "")
   const actionFor = useLocalActions("flashcards-session")
+  const occlusion = card ? occlusionOf(card) : null
+  const [masks, setMasks] = useState<{ key: string | null; on: boolean }>({ key: null, on: false })
+  // Bumped when the editor closes, so a card that was zoomed before an edit comes back fitted.
+  const [editCount, setEditCount] = useState(0)
+  const cardKey = cardViewKey({ session, overlays })
+  const viewKey = cardKey === null ? null : `${cardKey}:${String(editCount)}`
+  // A new card, or the same card coming round again, starts with its masks covered.
+  if (masks.key !== viewKey) setMasks({ key: viewKey, on: false })
+  const showMasks = masks.on && masks.key === viewKey
   const { message: announcement, announce } = useStudyAnnouncer()
 
   const active = isActive(session)
   const currentId = session?.current?.id
+
+  const sessionMode: SessionMode = mode === "cram" ? "cram" : "review"
+  const sessionScope: SessionScope = scope === "all" ? "all" : "due"
 
   const backToDeck = () => (deckId ? navigate("flashcard-deck", deckId) : navigate("flashcards"))
 
@@ -62,13 +87,13 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
       return
     }
     const start = useSession.getState().start
-    void start(deckId, mode === "cram" ? "cram" : ("review" as SessionMode), scope === "all" ? "all" : ("due" as SessionScope))
+    void start(deckId, sessionMode, sessionScope)
     const unregister = onShutdown(() => useSession.getState().end())
     return () => {
       unregister()
       void useSession.getState().end()
     }
-  }, [deckId, mode, scope])
+  }, [deckId, sessionMode, sessionScope])
 
   // A session the server has lost cannot be resumed, so the reader goes back to the deck - which
   // is also where the desktop lands when a session fails to start.
@@ -115,11 +140,20 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
     const open = editorTarget !== null
     const justClosed = editorWasOpen.current && !open
     editorWasOpen.current = open
-    if (!justClosed || !currentId) return
+    if (!justClosed) return
+    setEditCount((n) => n + 1)
+    if (!currentId) return
     void fetchCard(currentId)
       .then((fresh) => useSession.getState().overlayCard(fresh))
-      .catch(() => undefined)
-  }, [editorTarget, currentId])
+      .catch((error: unknown) => {
+        // A 404 means the edit trashed this card, which the server queue still holds until it is
+        // dropped. Should the drop fail, a fresh session leaves it out instead.
+        if (!(error instanceof ApiError) || error.status !== 404) return
+        void useSession.getState().drop(currentId).then((dropped) => {
+          if (!dropped && deckId) void useSession.getState().start(deckId, sessionMode, sessionScope)
+        })
+      })
+  }, [editorTarget, currentId, deckId, sessionMode, sessionScope])
 
   const close = async () => {
     const state = useSession.getState()
@@ -151,10 +185,16 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
     void flagCards.mutateAsync({ cardIds: [target.id], value }).catch(() => shown.setFlagged(!value))
   }
 
+  const toggleMasks = () => {
+    const target = shownCard(useSession.getState())
+    if (!canShowMasks(target)) return
+    setMasks((old) => ({ key: viewKey, on: old.key === viewKey ? !old.on : true }))
+  }
+
   // The listener wants whatever these are on the keypress, not on the render that bound it, so
   // they ride in a ref rather than making the window listener rebind on every render.
-  const actions = useRef({ close, editCurrent })
-  actions.current = { close, editCurrent }
+  const actions = useRef({ close, editCurrent, toggleMasks })
+  actions.current = { close, editCurrent, toggleMasks }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -196,6 +236,12 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
         return
       }
 
+      if (hit.actionId === "flashcards-session.show-masks") {
+        event.preventDefault()
+        actions.current.toggleMasks()
+        return
+      }
+
       const grade = GRADE_ACTIONS[hit.actionId]
       if (grade) {
         event.preventDefault()
@@ -223,13 +269,23 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
 
       {active && card && session && (
         <div className="flex min-h-0 flex-1 flex-col items-center px-6">
-          {/* The card centres while there is room and lets its own column scroll once a long
-              card runs past the window, so the grade row below it never leaves the screen. */}
-          <div className="scroll-thin flex min-h-0 w-full max-w-[720px] flex-1 flex-col justify-center overflow-y-auto py-6">
+          {/* The card centres while there is room and scrolls in its own column once it runs long, so
+              the grade row stays visible. An occlusion card pins to the top so its image never moves. */}
+          <div
+            data-card-column
+            className={cn(
+              "scroll-thin flex min-h-0 w-full max-w-[720px] flex-1 flex-col overflow-y-auto",
+              occlusion ? "justify-start pt-6 pb-3" : "justify-center py-6",
+            )}
+          >
             <CardSurface
+              // Only an occlusion card holds view state (zoom, masks) that must start fresh each showing.
+              key={occlusion ? (viewKey ?? undefined) : undefined}
               card={card}
               revealed={revealed}
               canUndo={session.canUndo && !busy}
+              showMasks={showMasks}
+              onToggleMasks={toggleMasks}
               onReveal={() => useSession.getState().reveal()}
               onEdit={editCurrent}
               onFlag={toggleFlag}
@@ -256,7 +312,7 @@ export function SessionPage({ deckId, mode, scope }: { deckId?: string; mode?: s
                 </span>
               </button>
             )}
-            {revealed ? <PostRevealHint /> : <PreRevealHint />}
+            {revealed ? <PostRevealHint /> : <PreRevealHint showMasks={canShowMasks(card)} />}
           </div>
         </div>
       )}

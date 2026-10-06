@@ -159,6 +159,24 @@ public sealed class StudySessionHttpTests
     }
 
     [Fact]
+    public async Task DroppingTheCardOnScreenMovesOnWithoutGradingIt()
+    {
+        await using var h = new StudySessionHttpHarness();
+        await h.StartAsync();
+        var (deckId, _) = await h.SeedDeckAsync("alpha", "beta");
+        var session = await StartAsync(h, deckId);
+        var droppedId = session.Current!.Id;
+
+        var response = await h.Client.PostAsync($"/api/study/sessions/{session.SessionId}/drop", JsonBody(new { cardId = droppedId }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var after = Parse<StudySessionDto>(await response.Content.ReadAsStringAsync());
+        Assert.NotEqual(droppedId, after.Current!.Id);
+        Assert.Equal(0, after.Graded);
+        Assert.Empty(await h.ReadReviewsAsync(deckId));
+    }
+
+    [Fact]
     public async Task UndoWithNothingGradedIsAnsweredWithTheLiveState()
     {
         await using var h = new StudySessionHttpHarness();

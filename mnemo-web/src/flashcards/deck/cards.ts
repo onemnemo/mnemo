@@ -1,4 +1,4 @@
-import type { CardViewDto } from "@/api/types"
+import type { CardType, CardViewDto } from "@/api/types"
 
 import { plainCardText } from "../card-format"
 
@@ -35,6 +35,28 @@ export function frontPreview(front: string): string {
 /** The back of a card as one line, the same way `frontPreview` flattens the front. */
 export function backPreview(back: string): string {
   return oneLine(plainCardText(back))
+}
+
+/**
+ * The back cell of a row. An occlusion card's back is the label of the mask it asks, so a mask
+ * without one reads as such rather than leaving the cell blank.
+ */
+export function backCell(type: CardType, back: string, noLabel: string): string {
+  const line = backPreview(back)
+  return type === "occlusion" && !line ? noLabel : line
+}
+
+export interface TypeMarker {
+  icon: string
+  /** Translation key naming the type for assistive tech, or null where the glyph is decoration. */
+  labelKey: string | null
+}
+
+/** The glyph a row carries where its type is not the plain kind, or null for a plain card. */
+export function typeMarker(type: CardType): TypeMarker | null {
+  if (type === "cloze") return { icon: "braces", labelKey: null }
+  if (type === "occlusion") return { icon: "image", labelKey: "CardTypeOcclusion" }
+  return null
 }
 
 export interface DueLabel {

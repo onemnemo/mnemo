@@ -129,6 +129,7 @@ import {
   WandSparkles,
   WrapText,
   X,
+  ZoomIn,
   type LucideIcon,
 } from "lucide-react"
 
@@ -169,6 +170,7 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   // not an icon.
   minus: Minus,
   x: X,
+  "zoom-in": ZoomIn,
   check: Check,
   "check-check": CheckCheck,
   copy: Copy,

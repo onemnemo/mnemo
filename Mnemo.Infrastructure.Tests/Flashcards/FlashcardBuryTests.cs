@@ -33,6 +33,25 @@ public sealed class FlashcardBuryTests
     }
 
     [Fact]
+    public async Task A_dropped_card_leaves_the_queue_ungraded_and_the_session_carries_on()
+    {
+        await using var h = new FlashcardStoreHarness(Now);
+        var deckId = await SeedAsync(h);
+        await AddPairAsync(h, deckId, "fact-1", "a1", "a2");
+        await AddPairAsync(h, deckId, "fact-2", "b1", "b2");
+        var session = await Study(h).StartSessionAsync(new FlashcardSessionRequest(deckId, FlashcardSessionMode.Cram, FlashcardSessionScope.All));
+        var total = session.Progress.Total;
+        var first = session.Current!.Card.Id;
+
+        Assert.True(session.Drop(first));
+
+        Assert.NotEqual(first, session.Current!.Card.Id);
+        Assert.Equal(total - 1, session.Progress.Total);
+        Assert.Equal(0, session.Progress.Completed);
+        Assert.False(session.Drop(first));
+    }
+
+    [Fact]
     public async Task A_card_off_other_material_is_left_alone()
     {
         await using var h = new FlashcardStoreHarness(Now);

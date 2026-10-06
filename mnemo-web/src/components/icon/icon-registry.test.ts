@@ -15,6 +15,7 @@ describe("lucide lookup", () => {
     expect(getLucideIcon("notebook-text")).not.toBeNull()
     expect(getLucideIcon("square-stack")).not.toBeNull()
     expect(getLucideIcon("chevrons-left")).not.toBeNull()
+    expect(getLucideIcon("zoom-in")).not.toBeNull()
   })
 
   it("does not resolve the PascalCase spelling", () => {

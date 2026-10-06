@@ -30,4 +30,7 @@ public interface IFlashcardSession
 
     /// <summary>Reverses the last grade (schedule + log + counters). Returns false if nothing to undo.</summary>
     Task<bool> UndoAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Takes a card that left the deck mid-session out of the queue, ungraded. False when it was not queued.</summary>
+    bool Drop(string cardId) => false;
 }

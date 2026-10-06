@@ -112,6 +112,19 @@
   --profile-iris-ink: oklch(0.36 0.09 300);
 }
 
+/* Image paper: an image is content, so these are the same in both themes. --accent-paper is the
+ * light-theme accent, since the dark accents fail contrast on white. */
+:root {
+  --paper: oklch(1 0 0);
+  --paper-fg: oklch(0.99 0 0);
+  --paper-ink: oklch(0.23 0.008 260);
+  --paper-line: oklch(0.615 0.006 260);
+  --mask: oklch(0.76 0.012 260);
+  --mask-edge: oklch(0.4 0.01 260 / 0.3);
+  --accent-paper: oklch(0.606 0.167 252.7);
+  --accent-paper-asked: oklch(0.555 0.167 252.7);
+}
+
 /* ---- Motion ----
  *
  * Durations are variables rather than literals so that reducing motion is a change to
