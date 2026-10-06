@@ -2,6 +2,10 @@ using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Logging;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Flashcards;
 using Mnemo.Host.Tests.Lifecycle;
@@ -32,6 +36,22 @@ public sealed class FlashcardAssetUploadHttpTests
         var response = await h.Client.PostAsync("/api/flashcards/assets", new StringContent("not a form"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("invalid_upload", await ErrorCode(response));
+    }
+
+    [Fact]
+    public async Task ABrokenMultipartBodyIsAnInvalidUploadNotAnOversizeOne()
+    {
+        using var root = new TemporaryDataRoot();
+        await using var h = new FlashcardHttpHarness();
+        await h.StartAsync();
+
+        var body = new StringContent("--b\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.png\"\r\n\r\nPNG", System.Text.Encoding.ASCII);
+        body.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("multipart/form-data; boundary=b");
+
+        var response = await h.Client.PostAsync("/api/flashcards/assets", body);
+
+        Assert.NotEqual(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
         Assert.Equal("invalid_upload", await ErrorCode(response));
     }
 
@@ -95,6 +115,43 @@ public sealed class FlashcardAssetUploadHttpTests
     }
 
     [Fact]
+    public async Task AFileOverTheLimitIsRefusedWithTheFriendlyError()
+    {
+        using var root = new TemporaryDataRoot();
+        await using var h = new FlashcardHttpHarness();
+        await h.StartAsync();
+        var oversize = new byte[(int)FlashcardAssetStore.MaxFileBytes + 1];
+
+        var response = await Upload(h, "scan.png", "image/png", oversize);
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        Assert.Equal("file_too_large", await ErrorCode(response));
+    }
+
+    [Fact]
+    public async Task TheRequestBodyCapSitsJustAboveTheFileLimitSoAnOversizeFileReachesTheHandler()
+    {
+        var feature = new RecordingBodySizeFeature();
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Logging.ClearProviders();
+        await using var app = builder.Build();
+        app.Use((context, next) =>
+        {
+            context.Features.Set<IHttpMaxRequestBodySizeFeature>(feature);
+            return next(context);
+        });
+        app.MapFlashcardAssets();
+        await app.StartAsync();
+
+        await app.GetTestClient().PostAsync("/api/flashcards/assets", new StringContent("not a form"));
+
+        Assert.True(feature.MaxRequestBodySize > FlashcardAssetStore.MaxFileBytes);
+        Assert.True(feature.MaxRequestBodySize < 30_000_000, "Kestrel's own default cap is 30 MB; the endpoint sets its own.");
+        await app.StopAsync();
+    }
+
+    [Fact]
     public async Task AGenuinePngRoundTripsAndIsServedBackByItsAssetId()
     {
         using var root = new TemporaryDataRoot();
@@ -124,6 +181,13 @@ public sealed class FlashcardAssetUploadHttpTests
         var response = await h.Client.GetAsync("/api/flashcards/assets/does-not-exist.png");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    private sealed class RecordingBodySizeFeature : IHttpMaxRequestBodySizeFeature
+    {
+        public bool IsReadOnly => false;
+
+        public long? MaxRequestBodySize { get; set; } = 30_000_000;
     }
 
     private static async Task<HttpResponseMessage> Upload(FlashcardHttpHarness h, string fileName, string contentType, byte[] bytes)

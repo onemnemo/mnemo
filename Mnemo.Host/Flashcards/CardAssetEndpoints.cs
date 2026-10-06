@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Host.Contracts;
 
@@ -21,21 +22,52 @@ namespace Mnemo.Host.Flashcards;
 /// </remarks>
 public static class CardAssetEndpoints
 {
+    /// <summary>The file limit plus room for the multipart framing around it.</summary>
+    internal const long MaxRequestBytes = FlashcardAssetStore.MaxFileBytes + (1L * 1024 * 1024);
+
     public static void MapFlashcardAssets(this IEndpointRouteBuilder endpoints)
     {
         // The multipart body is read directly rather than bound as IFormFile so no antiforgery
         // filter is attached - loopback binding plus the bearer token are the security boundary.
         endpoints.MapPost("/api/flashcards/assets", async (HttpRequest request, CancellationToken cancellationToken) =>
         {
+            // Just above the file limit, so an oversized file still arrives whole and is refused below
+            // with the limit named, rather than Kestrel resetting the connection mid-stream.
+            var sizeLimit = request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
+            if (sizeLimit is { IsReadOnly: false })
+                sizeLimit.MaxRequestBodySize = MaxRequestBytes;
+
             if (!request.HasFormContentType)
                 return Results.BadRequest(new ErrorDto("invalid_upload", "Expected a multipart form upload."));
 
-            var form = await request.ReadFormAsync(cancellationToken).ConfigureAwait(false);
+            IFormCollection form;
+            try
+            {
+                form = await request.ReadFormAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge)
+            {
+                return Results.Json(
+                    new ErrorDto("file_too_large", "The image exceeds the 20 MB limit."),
+                    statusCode: StatusCodes.Status413PayloadTooLarge);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException)
+            {
+                // A cut-off or malformed body, or a read timeout; only the 413 above means too big.
+                return Results.Json(
+                    new ErrorDto("invalid_upload", "The upload did not arrive in full. Try again."),
+                    statusCode: ex is BadHttpRequestException bad ? bad.StatusCode : StatusCodes.Status400BadRequest);
+            }
+
             var file = form.Files.GetFile("file") ?? form.Files.FirstOrDefault();
             if (file is null || file.Length == 0)
                 return Results.BadRequest(new ErrorDto("empty_upload", "No file was uploaded."));
             if (file.Length > FlashcardAssetStore.MaxFileBytes)
-                return Results.BadRequest(new ErrorDto("file_too_large", "The image exceeds the 20 MB limit."));
+            {
+                return Results.Json(
+                    new ErrorDto("file_too_large", "The image exceeds the 20 MB limit."),
+                    statusCode: StatusCodes.Status413PayloadTooLarge);
+            }
 
             var extension = Path.GetExtension(file.FileName);
             if (!FlashcardAssetStore.IsImageExtension(extension))
