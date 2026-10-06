@@ -57,13 +57,18 @@ export function DialogHost() {
                 />
               )}
 
-              <div className="mt-5 flex justify-end gap-2">
-                <Button variant="ghost" onClick={cancel}>
+              {/* Keyed so a queued request mounts fresh buttons and its initial focus applies. */}
+              <div key={request.id} className="mt-5 flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  autoFocus={request.kind === "confirm" && request.initialFocus === "cancel"}
+                  onClick={cancel}
+                >
                   {request.cancelLabel}
                 </Button>
                 <Button
                   variant={request.kind === "confirm" && request.destructive ? "danger" : "solid"}
-                  autoFocus={request.kind === "confirm"}
+                  autoFocus={request.kind === "confirm" && request.initialFocus !== "cancel"}
                   onClick={accept}
                 >
                   {request.confirmLabel}

@@ -3,7 +3,18 @@ import { describe, expect, it } from "vitest"
 import type { CardTypeDto, CardTypeFieldDto } from "@/api/types"
 
 import type { DraftAttachment } from "../editor/draft"
-import { canSaveFact, droppedCardCount, droppedCards, resolveDraftDeck, retypeDraft, type FactDraft } from "./fact-draft"
+import {
+  canSaveFact,
+  droppedCardCount,
+  droppedCards,
+  resolveDraftDeck,
+  restoreOcclusion,
+  retypeDraft,
+  snapshotFactDraft,
+  stashOcclusion,
+  type FactDraft,
+} from "./fact-draft"
+import { OCCLUSION_MAX_FIELD_LENGTH } from "./occlusion"
 
 function field(id: string, name: string): CardTypeFieldDto {
   return { id, name, hint: null }
@@ -188,6 +199,15 @@ describe("image occlusion saving", () => {
     expect(canSaveFact(occlusionType, { ...occlusionDraft(maskDoc({ id: "aa", order: 0 })), values: { masks: maskDoc({ id: "aa", order: 0 }) } })).toBe(true)
   })
 
+  it("cannot save when the masks would pass the length the server accepts", () => {
+    const fits = occlusionDraft(maskDoc({ id: "aa", order: 0 }))
+    const padded = (length: number) => ({ ...fits, values: { ...fits.values, masks: `${fits.values.masks}${" ".repeat(length)}` } })
+    const room = OCCLUSION_MAX_FIELD_LENGTH - (fits.values.masks as string).length
+
+    expect(canSaveFact(occlusionType, padded(room))).toBe(true)
+    expect(canSaveFact(occlusionType, padded(room + 1))).toBe(false)
+  })
+
   it("cannot save without an image or without a mask", () => {
     expect(canSaveFact(occlusionType, occlusionDraft(maskDoc({ id: "aa", order: 0 }), false))).toBe(false)
     expect(canSaveFact(occlusionType, occlusionDraft(maskDoc()))).toBe(false)
@@ -249,5 +269,25 @@ describe("retypeDraft and image occlusion", () => {
 
     expect(Object.keys(next.values).sort()).toEqual(["back", "front"])
     expect(next.values.masks).toBeUndefined()
+  })
+})
+
+describe("occlusion stash", () => {
+  it("hands the picture and masks back to a draft that has moved on and returned", () => {
+    const original = draft({ front: "Q", masks: '{"mode":"hideAll","masks":[]}' }, { image: [attachment("one")] })
+    const stash = stashOcclusion({ ...original, typeId: "occlusion" })
+    const away = retypeDraft(original, occlusionType, basic)
+
+    const back = restoreOcclusion(retypeDraft(away, basic, occlusionType), stash)
+
+    expect(back.values.masks).toBe(original.values.masks)
+    expect(back.media.image).toEqual([attachment("one")])
+  })
+})
+
+describe("snapshotFactDraft", () => {
+  it("counts a Masks field with no masks in it as empty", () => {
+    const empty = snapshotFactDraft(draft({ masks: '{"mode":"hideOne","masks":[]}' }))
+    expect(empty).toEqual(snapshotFactDraft(draft({})))
   })
 })

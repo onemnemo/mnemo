@@ -33,6 +33,7 @@ import {
   ChevronsDownUp,
   ChevronsLeft,
   ChevronsUpDown,
+  Circle,
   CircleAlert,
   CirclePlus,
   CircleUser,
@@ -96,6 +97,7 @@ import {
   Palette,
   PanelLeft,
   Pencil,
+  Pentagon,
   Pin,
   Play,
   Plus,
@@ -200,6 +202,9 @@ export const LUCIDE_SET: Readonly<Record<string, LucideIcon>> = {
   maximize: Maximize,
   map: MapGlyph,
   square: Square,
+  // The mask editor's ellipse and polygon tools, beside the square.
+  circle: Circle,
+  pentagon: Pentagon,
   frame: Frame,
   // The radial ring's sectors.
   shapes: Shapes,

@@ -16,6 +16,7 @@ interface BaseRequest {
 export interface ConfirmRequest extends BaseRequest {
   kind: "confirm"
   destructive: boolean
+  initialFocus?: "confirm" | "cancel"
   resolve: (value: boolean) => void
 }
 
@@ -34,6 +35,8 @@ export interface ConfirmOptions {
   confirmLabel?: string
   cancelLabel?: string
   destructive?: boolean
+  /** Which button takes the focus when the dialog opens. Defaults to the confirm button. */
+  initialFocus?: "confirm" | "cancel"
 }
 
 export interface InputOptions {
@@ -64,6 +67,7 @@ export const useDialogStore = create<DialogState>((set, get) => ({
         confirmLabel: options.confirmLabel ?? "Confirm",
         cancelLabel: options.cancelLabel ?? "Cancel",
         destructive: options.destructive ?? false,
+        initialFocus: options.initialFocus,
         resolve,
       }
       set((state) => ({ queue: [...state.queue, request] }))

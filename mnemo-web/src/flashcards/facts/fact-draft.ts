@@ -2,7 +2,7 @@ import type { CardTypeDto, FactDto, SaveFactDto } from "@/api/types"
 
 import { draftFromStored, type DraftAttachment } from "../editor/draft"
 import { OCCLUSION_GENERATOR, generate, type FactLike, type GeneratedCard } from "./generation"
-import { OCCLUSION_IMAGE_FIELD, OCCLUSION_MASKS_FIELD } from "./occlusion"
+import { OCCLUSION_IMAGE_FIELD, OCCLUSION_MASKS_FIELD, occlusionFieldTooLong, parseOcclusion } from "./occlusion"
 
 /**
  * Material as the editor holds it: a value and a set of attachments per field of the card type.
@@ -77,9 +77,8 @@ function isOcclusionOwned(type: CardTypeDto, fieldId: string): boolean {
  * order, which is what lands a Front and a Back in a Text and an Extra. Material the new type has
  * no field for is dropped, since there would be nowhere to show it or edit it back out.
  *
- * An image occlusion type is the exception on both sides. Its masks are never carried anywhere or
- * filled from elsewhere, its picture is dropped when the new type has no image field, and the first
- * picture of any other type lands on its image field rather than on a text field.
+ * An occlusion type is the exception: its masks never carry or fill, and the first picture of any
+ * other type lands on its image field. Its picture is dropped when the new type has no image field.
  */
 export function retypeDraft(draft: FactDraft, from: CardTypeDto | undefined, to: CardTypeDto): FactDraft {
   if (!from || from.id === to.id) return { ...draft, typeId: to.id }
@@ -126,10 +125,30 @@ export function retypeDraft(draft: FactDraft, from: CardTypeDto | undefined, to:
   return { ...draft, typeId: to.id, values, media }
 }
 
+/** What an occlusion draft holds that no other type can carry: its picture and its masks. */
+export interface OcclusionStash {
+  typeId: string
+  masks: string | undefined
+  image: DraftAttachment[] | undefined
+}
+
+/** Takes the picture and masks out of a draft before it moves to a type that would drop them. */
+export function stashOcclusion(draft: FactDraft): OcclusionStash {
+  return { typeId: draft.typeId, masks: draft.values[OCCLUSION_MASKS_FIELD], image: draft.media[OCCLUSION_IMAGE_FIELD] }
+}
+
+/** Puts a stash back on a draft that has just moved onto the type it came from. */
+export function restoreOcclusion(draft: FactDraft, stash: OcclusionStash): FactDraft {
+  const values = { ...draft.values }
+  if (stash.masks) values[OCCLUSION_MASKS_FIELD] = stash.masks
+  const media = { ...draft.media }
+  if (stash.image) media[OCCLUSION_IMAGE_FIELD] = stash.image
+  return { ...draft, values, media }
+}
+
 /**
- * The cards an edit would move to the trash: the ones on disk whose layout no longer produces
- * anything, with their review history. Worth saying out loud before a change of type rather than
- * after.
+ * The cards an edit would move to the trash: those on disk whose layout no longer produces anything,
+ * with their review history. Worth saying before a change of type rather than after.
  */
 export function droppedCards(
   before: { type: CardTypeDto; draft: FactDraft },
@@ -144,6 +163,28 @@ export function droppedCardCount(
   after: { type: CardTypeDto; draft: FactDraft },
 ): number {
   return droppedCards(before, after).length
+}
+
+/** What saving a draft over the stored material does to the cards that already exist. */
+export interface CardLoss {
+  /** The cards that would move to the trash. */
+  removed: GeneratedCard<DraftAttachment>[]
+  /** How many of the existing cards the save leaves alone. */
+  kept: number
+}
+
+/** Nothing is lost for new material, or when the stored type is no longer on the list. */
+export function cardLoss(
+  loaded: FactDto | undefined,
+  types: readonly CardTypeDto[],
+  type: CardTypeDto | undefined,
+  draft: FactDraft,
+): CardLoss {
+  const previous = loaded ? types.find((candidate) => candidate.id === loaded.typeId) : undefined
+  if (!loaded || !previous || !type) return { removed: [], kept: 0 }
+  const before = { type: previous, draft: draftFromFact(loaded) }
+  const removed = droppedCards(before, { type, draft })
+  return { removed, kept: generate(previous, asFactLike(before.draft)).length - removed.length }
 }
 
 function hasSomething(text: string, attachments: DraftAttachment[]): boolean {
@@ -161,7 +202,9 @@ function hasSomething(text: string, attachments: DraftAttachment[]): boolean {
 export function canSaveFact(type: CardTypeDto | undefined, draft: FactDraft): boolean {
   if (!type || !draft.deckId) return false
   // An image with at least one mask makes cards; the labels and the text around them are optional.
-  if (type.generator === OCCLUSION_GENERATOR) return generate(type, asFactLike(draft)).length > 0
+  if (type.generator === OCCLUSION_GENERATOR) {
+    return !occlusionFieldTooLong(draft.values[OCCLUSION_MASKS_FIELD]) && generate(type, asFactLike(draft)).length > 0
+  }
   return generate(type, asFactLike(draft)).some(
     (card) => hasSomething(card.front, card.frontMedia) && hasSomething(card.back, card.backMedia),
   )
@@ -201,7 +244,7 @@ export interface FactDraftSnapshot {
 
 export function snapshotFactDraft(draft: FactDraft): FactDraftSnapshot {
   const values = Object.entries(draft.values)
-    .filter(([, value]) => value.length > 0)
+    .filter(([fieldId, value]) => value.length > 0 && !(fieldId === OCCLUSION_MASKS_FIELD && parseOcclusion(value).masks.length === 0))
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
   const media = Object.entries(draft.media)
     .map(([fieldId, attachments]) => [fieldId, attachments.map((attachment) => attachment.key)] as const)

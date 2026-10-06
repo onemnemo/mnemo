@@ -3,9 +3,9 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 e66ea664f3668c1a037db4dbb59485dcf6703747bc0431ed35d4a149c36e8c5d
+sha256 18fa7a49260bc23e34e336626cb9c26ee004f97343c15846a16829d7ab99b03f
 namespaces 39
-keys 2662
+keys 2749
   App 41
   Chat 132
   Common 109
@@ -14,10 +14,10 @@ keys 2662
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 492
+  Flashcards 546
   GlobalSearch 18
   Hardware 2
-  Keybinds 110
+  Keybinds 143
   Mindmap 407
   Notes 226
   NotesEditor 225
@@ -47,9 +47,9 @@ keys 2662
   WidgetToday 9
 
 culture de
-sha256 fada047fe150f461611e043d4321532d2363bf709d6b7cfe0451b3325dc870c3
+sha256 12512871f9424b4bac69ca69d4896c805722d4c87e5326f29e45c8df9aa0e723
 namespaces 39
-keys 2662
+keys 2749
   App 41
   Chat 132
   Common 109
@@ -58,10 +58,10 @@ keys 2662
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 492
+  Flashcards 546
   GlobalSearch 18
   Hardware 2
-  Keybinds 110
+  Keybinds 143
   Mindmap 407
   Notes 226
   NotesEditor 225
@@ -91,9 +91,9 @@ keys 2662
   WidgetToday 9
 
 culture es
-sha256 643ab01f08d09bbc933047980e8791bf88089850ce697a32ca7fcea9f8a467b6
+sha256 6eb3045336b9a3bffb1a7bbb65f4c1a6747c7f2c7520603e4518d7a743ab2844
 namespaces 39
-keys 2662
+keys 2749
   App 41
   Chat 132
   Common 109
@@ -102,10 +102,10 @@ keys 2662
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 492
+  Flashcards 546
   GlobalSearch 18
   Hardware 2
-  Keybinds 110
+  Keybinds 143
   Mindmap 407
   Notes 226
   NotesEditor 225
@@ -135,9 +135,9 @@ keys 2662
   WidgetToday 9
 
 culture ja
-sha256 3173943bcc00fa75cbbc3ccc97a87da57d4517a961006a7ac1ec1f7827a4914f
+sha256 ae4c0fde842ab556a4f1af5b63701cf0c7f6fe8c0cc3126a29bccca3bd2f537e
 namespaces 39
-keys 2662
+keys 2749
   App 41
   Chat 132
   Common 109
@@ -146,10 +146,10 @@ keys 2662
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 492
+  Flashcards 546
   GlobalSearch 18
   Hardware 2
-  Keybinds 110
+  Keybinds 143
   Mindmap 407
   Notes 226
   NotesEditor 225
@@ -179,9 +179,9 @@ keys 2662
   WidgetToday 9
 
 culture nb
-sha256 5e662db176cb1e7efb59cff6764815920e4c35bb3f7bbc1296d422ad58e607d2
+sha256 388c020b85012a0ea842408e9a185060a121d984836797d40a1336b91432916a
 namespaces 39
-keys 2662
+keys 2749
   App 41
   Chat 132
   Common 109
@@ -190,10 +190,10 @@ keys 2662
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 492
+  Flashcards 546
   GlobalSearch 18
   Hardware 2
-  Keybinds 110
+  Keybinds 143
   Mindmap 407
   Notes 226
   NotesEditor 225

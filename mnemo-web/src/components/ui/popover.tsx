@@ -19,12 +19,18 @@ export function PopoverContent({
   align = "start",
   side = "bottom",
   className,
+  onOpenAutoFocus,
+  onEscapeKeyDown,
 }: {
   children: ReactNode
   align?: "start" | "center" | "end"
   /** Which way the panel opens. Set it when the trigger sits at the edge it would open into. */
   side?: "top" | "right" | "bottom" | "left"
   className?: string
+  /** Preventing the default keeps the focus where the content already put it, such as a field. */
+  onOpenAutoFocus?: (event: Event) => void
+  /** Preventing the default keeps the panel open, for a field inside it that uses Escape itself. */
+  onEscapeKeyDown?: (event: KeyboardEvent) => void
 }) {
   return (
     <RadixPopover.Portal>
@@ -36,6 +42,8 @@ export function PopoverContent({
         // a control near the window edge has to flip and shift, and hand-rolling that is how every
         // other app ends up with a menu half off the screen.
         collisionPadding={8}
+        onOpenAutoFocus={onOpenAutoFocus}
+        onEscapeKeyDown={onEscapeKeyDown}
         className={cn(
           // Z_LAYERS.menu, spelled out because Tailwind reads class names from the source.
           "z-[95] rounded-lg border border-line bg-popover p-1 shadow-elevation-2 outline-none",

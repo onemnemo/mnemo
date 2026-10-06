@@ -44,3 +44,31 @@ describe("DialogHost layering", () => {
     expect(getTopLayer().contains(content)).toBe(true)
   })
 })
+
+describe("DialogHost initial focus", () => {
+  const focused = () => document.activeElement?.textContent
+
+  it("focuses the confirm button by default", () => {
+    act(() => root.render(<DialogHost />))
+    act(() => {
+      void useDialogStore.getState().confirm({ title: "Quit?", confirmLabel: "Quit", cancelLabel: "Stay" })
+    })
+
+    expect(focused()).toBe("Quit")
+  })
+
+  it("focuses Cancel when the request asks for it", () => {
+    act(() => root.render(<DialogHost />))
+    act(() => {
+      void useDialogStore.getState().confirm({
+        title: "Move cards to the trash?",
+        confirmLabel: "Save anyway",
+        cancelLabel: "Cancel",
+        destructive: true,
+        initialFocus: "cancel",
+      })
+    })
+
+    expect(focused()).toBe("Cancel")
+  })
+})

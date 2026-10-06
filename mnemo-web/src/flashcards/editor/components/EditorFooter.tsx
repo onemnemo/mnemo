@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+
 import { Button } from "@/components/ui/button"
 import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
@@ -17,6 +19,7 @@ export function EditorFooter({
   saving,
   onClose,
   onSave,
+  leading,
 }: {
   isEditMode: boolean
   sessionAdded: number
@@ -24,14 +27,21 @@ export function EditorFooter({
   saving: boolean
   onClose: () => void
   onSave: () => void
+  /** Sits at the left edge ahead of the session count, such as the card count chip. */
+  leading?: ReactNode
 }) {
   const t = useT()
   const fc = (key: string, params?: Record<string, string | number>) => t("Flashcards", key, params)
 
   return (
     <div className="flex items-center justify-between border-t border-line-soft px-5 py-3">
-      {!isEditMode ? (
-        <span className="text-[12px] text-ink-3">{tPlural(t, "Flashcards", { one: "CardEditorSessionAddedOne", many: "CardEditorSessionAddedMany" }, sessionAdded)}</span>
+      {leading ? (
+        <div className="flex items-center gap-3">
+          {leading}
+          {!isEditMode ? <SessionAdded count={sessionAdded} /> : null}
+        </div>
+      ) : !isEditMode ? (
+        <SessionAdded count={sessionAdded} />
       ) : (
         <span />
       )}
@@ -48,5 +58,14 @@ export function EditorFooter({
         </Button>
       </div>
     </div>
+  )
+}
+
+function SessionAdded({ count }: { count: number }) {
+  const t = useT()
+  return (
+    <span className="text-[12px] text-ink-3">
+      {tPlural(t, "Flashcards", { one: "CardEditorSessionAddedOne", many: "CardEditorSessionAddedMany" }, count)}
+    </span>
   )
 }

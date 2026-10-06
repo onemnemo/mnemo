@@ -28,7 +28,7 @@ import {
   type Size,
 } from "./placement"
 import { ToolbarDropZones } from "./ToolbarDropZones"
-import { Divider, Grip, ToolButtonWithTray } from "./ToolbarParts"
+import { Divider, Grip, ToolButtonWithTray, ToolChip } from "./ToolbarParts"
 import { ToolbarShelf } from "./ToolbarShelf"
 import { useGroupKeys } from "./useGroupKeys"
 import { useToolbarDock } from "./useToolbarDock"
@@ -304,17 +304,11 @@ export function MindmapToolbar(props: MindmapToolbarProps) {
           }
         }}
       >
-        <span
-          aria-hidden
-          className="pointer-events-none absolute size-9 rounded-[10px] bg-solid shadow-chip"
-          style={{
-            left: vertical ? BAR_PADDING : chipAt,
-            top: vertical ? chipAt : BAR_PADDING,
-            opacity: chipIndex >= 0 ? 1 : 0,
-            transition: dock.settling
-              ? "left var(--duration-chip) var(--ease-spring), top var(--duration-chip) var(--ease-spring), opacity var(--duration-normal) ease"
-              : "none",
-          }}
+        <ToolChip
+          at={chipAt}
+          vertical={vertical}
+          shown={chipIndex >= 0}
+          eased={dock.settling}
         />
 
         <Grip

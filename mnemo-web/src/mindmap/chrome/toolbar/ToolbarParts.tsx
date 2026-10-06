@@ -10,7 +10,7 @@ import type { EdgeRouting, ShapeType } from "../../model/document"
 import { RouteGlyph, ShapeGlyph } from "../glyphs"
 import type { GroupBinding } from "./binding"
 import { GROUPS, type ToolEntry } from "./groups"
-import { placementOf } from "./placement"
+import { BAR_PADDING, placementOf } from "./placement"
 import { ToolbarInlineTray } from "./ToolbarInlineTray"
 import { ToolbarSlot } from "./ToolbarSlot"
 
@@ -124,5 +124,34 @@ export function Divider({ vertical }: { vertical: boolean }) {
     <span aria-hidden className={cn("grid shrink-0 place-items-center", vertical ? "h-[13px] w-9" : "h-9 w-[13px]")}>
       <span className={cn("bg-line", vertical ? "h-px w-5" : "h-5 w-px")} />
     </span>
+  )
+}
+
+/** The solid square that slides under the armed tool; `at` is its offset along the bar's axis. */
+export function ToolChip({
+  at,
+  vertical,
+  shown,
+  eased,
+}: {
+  at: number
+  vertical: boolean
+  shown: boolean
+  /** False while the bar has not been placed yet, so the chip does not slide in from its default. */
+  eased: boolean
+}) {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute size-9 rounded-[10px] bg-solid shadow-chip"
+      style={{
+        left: vertical ? BAR_PADDING : at,
+        top: vertical ? at : BAR_PADDING,
+        opacity: shown ? 1 : 0,
+        transition: eased
+          ? "left var(--duration-chip) var(--ease-spring), top var(--duration-chip) var(--ease-spring), opacity var(--duration-normal) ease"
+          : "none",
+      }}
+    />
   )
 }
