@@ -133,26 +133,151 @@ def cloze(work: str) -> None:
     col.close()
 
 
-def image_occlusion(work: str) -> None:
+def shape(ordinal: str, kind: str, *props: tuple[str, str]) -> str:
+    # Written the way ts/routes/image-occlusion/shapes/to-cloze.ts does: escaped values, a <br> after each cloze.
+    body = "".join(":" + key + "=" + value.replace("\\", "\\\\").replace(":", "\\:") for key, value in props)
+    return "{{c" + ordinal + "::image-occlusion:" + kind + body + "}}<br>"
+
+
+def rect(ordinal: str, left: str, top: str, width: str, height: str, *extra: tuple[str, str]) -> str:
+    return shape(ordinal, "rect", ("left", left), ("top", top), ("width", width), ("height", height), *extra)
+
+
+def ellipse(ordinal: str, left: str, top: str, rx: str, ry: str, *extra: tuple[str, str]) -> str:
+    return shape(ordinal, "ellipse", ("left", left), ("top", top), ("rx", rx), ("ry", ry), *extra)
+
+
+def polygon(ordinal: str, left: str, top: str, points: str, *extra: tuple[str, str]) -> str:
+    return shape(ordinal, "polygon", ("left", left), ("top", top), ("points", points), *extra)
+
+
+def label(left: str, top: str, text: str, *extra: tuple[str, str]) -> str:
+    # The editor always gives text shapes ordinal 0, so they make no card.
+    return shape("0", "text", ("left", left), ("top", top), ("text", text), ("scale", "1"), ("fs", ".04"), *extra)
+
+
+OI = ("oi", "1")
+
+
+def io_collection(work: str, deck_name: str) -> tuple[Collection, DeckId, dict]:
     col = new_collection(work)
     col.add_image_occlusion_notetype()
-    notetype = col.models.by_name("Image Occlusion")
-    image = os.path.join(work, "map.png")
-    with open(image, "wb") as handle:
-        handle.write(tiny_png(40, 20))
-    d = deck(col, "Anatomy")
+    d = deck(col, deck_name)
     col.decks.select(d)
     col.set_config("curDeck", d)
-    occlusions = (
-        "{{c1::image-occlusion:rect:left=.1:top=.1:width=.3:height=.3:oi=1}}"
-        "{{c2::image-occlusion:ellipse:left=.5:top=.5:width=.2:height=.2:oi=1}}"
-    )
-    col.add_image_occlusion_note(notetype["id"], image, occlusions, "Label the map", "Extra text", [])
+    return col, d, col.models.by_name("Image Occlusion")
+
+
+def io_note(col: Collection, notetype: dict, work: str, image: str, size: tuple[int, int], occlusions: str,
+            header: str = "", back_extra: str = "", comments: str | None = None):
+    path = os.path.join(work, image)
+    with open(path, "wb") as handle:
+        handle.write(tiny_png(*size))
+    col.add_image_occlusion_note(notetype["id"], path, occlusions, header, back_extra, [])
+    note = col.get_note(max(col.find_notes("")))
+    if comments is not None:
+        note.fields[col.models.field_map(notetype)["Comments"][0]] = comments
+        col.update_note(note)
+    return note
+
+
+def io_export(col: Collection, d: DeckId, name: str, legacy: bool = False) -> None:
     # The note lands in the current deck; move every card into the exported one to be sure.
-    col.set_deck([c for c in col.find_cards("")], d)
-    export(col, d, "anki21b-image-occlusion.apkg")
+    col.set_deck(col.find_cards(""), d)
+    export(col, d, name, legacy=legacy)
     col.close()
 
+
+def answer_ord(col: Collection, d: DeckId, ordinal: int) -> None:
+    col.decks.select(d)
+    for _ in range(10):
+        card = col.sched.getCard()
+        if card.ord == ordinal:
+            col.sched.answerCard(card, 3)
+            return
+        col.sched.bury_cards([card.id])
+    raise RuntimeError("card ord not reached")
+
+
+def image_occlusion(work: str) -> None:
+    col, d, notetype = io_collection(work, "Anatomy")
+    occlusions = rect("1", ".1", ".1", ".3", ".3", OI) + ellipse("2", ".5", ".5", ".1", ".1", OI)
+    io_note(col, notetype, work, "map.png", (40, 20), occlusions, "Label the map", "Extra text")
+    io_export(col, d, "anki21b-image-occlusion.apkg")
+
+
+def image_occlusion_shapes(work: str) -> None:
+    col, d, notetype = io_collection(work, "Anatomy")
+    occlusions = (
+        rect("1", ".1", ".1", ".3", ".3", OI)
+        + ellipse("2", ".5", ".5", ".1", ".1", OI)
+        + polygon("3", ".6", ".1", ".6,.1 .8,.1 .7,.3", OI)
+        # Moved: left/top sit at (.2,.6) while the points still start at (.6,.1), so the drawn outline is shifted by (-.4,+.5).
+        + polygon("4", ".2", ".6", ".6,.1 .8,.1 .7,.3", OI)
+        + label(".05", ".9", "Label: one", OI)
+        + label(".05", ".02", "Top\\note", OI)
+        + rect("5", ".7", ".5", ".2", ".1", ("angle", "2500"), OI)
+    )
+    io_note(col, notetype, work, "shapes.png", (80, 40), occlusions, "Shapes", "Shape notes")
+    io_export(col, d, "anki21b-image-occlusion-shapes.apkg")
+
+
+def image_occlusion_grouped(work: str) -> None:
+    col, d, notetype = io_collection(work, "Anatomy")
+    group = rect("1", ".1", ".1", ".2", ".2", OI) + rect("1", ".6", ".1", ".2", ".2", OI) + ellipse("2", ".3", ".5", ".15", ".1", OI)
+    io_note(col, notetype, work, "tall.png", (30, 60), group, "Group", "Two shapes share c1")
+    # A hand edit can name several ordinals; Anki's editor never writes this.
+    multi = rect("1,2", ".1", ".1", ".3", ".2", OI) + rect("3", ".5", ".6", ".3", ".2", OI)
+    io_note(col, notetype, work, "square.png", (50, 50), multi, "Multi", "c1,2 shape")
+    io_export(col, d, "anki21b-image-occlusion-grouped.apkg")
+
+
+def image_occlusion_hide_one(work: str) -> None:
+    col, d, notetype = io_collection(work, "Anatomy")
+    plain = rect("1", ".1", ".1", ".3", ".3") + ellipse("2", ".5", ".5", ".1", ".1")
+    io_note(col, notetype, work, "hide-one.png", (60, 40), plain, "Hide one", "No oi anywhere")
+    # Anki's own editor reduces a mixed note to occlude-inactive when any shape has oi=1.
+    mixed = rect("1", ".1", ".1", ".3", ".3", OI) + ellipse("2", ".5", ".5", ".1", ".1")
+    io_note(col, notetype, work, "mixed.png", (40, 60), mixed, "Mixed", "oi on one shape only")
+    io_export(col, d, "anki21b-image-occlusion-hide-one.apkg")
+
+
+def image_occlusion_history(work: str) -> None:
+    col, d, notetype = io_collection(work, "Anatomy")
+    occlusions = rect("1", ".1", ".1", ".2", ".2", OI) + rect("1", ".6", ".1", ".2", ".2", OI) + ellipse("2", ".3", ".5", ".15", ".1", OI)
+    io_note(col, notetype, work, "history.png", (64, 48), occlusions, "History", "Card 1 is the group")
+    # Answering card 1 (the group) writes a revlog row and moves it out of new.
+    answer_ord(col, d, 0)
+    io_export(col, d, "anki21b-image-occlusion-history.apkg")
+
+
+def image_occlusion_edge(work: str) -> None:
+    col, d, notetype = io_collection(work, "Anatomy")
+    occlusions = rect("1", ".1", ".1", ".3", ".3", OI) + ellipse("2", ".5", ".5", ".1", ".1", OI)
+    io_note(col, notetype, work, "kept.png", (48, 32), occlusions, "Kept", "Fine note")
+    io_note(col, notetype, work, "commented.png", (36, 36), occlusions, "Commented", "Has comments", "Private study note")
+    missing = io_note(col, notetype, work, "gone-source.png", (36, 24), occlusions, "Missing", "Image absent")
+    # Point the note at a file that is not in the media, so the export has nothing to bundle for it.
+    image_index = col.models.field_map(notetype)["Image"][0]
+    missing.fields[image_index] = '<img src="gone.png">'
+    col.update_note(missing)
+    io_export(col, d, "anki21b-image-occlusion-edge.apkg")
+
+
+def image_occlusion_fields(work: str, legacy: bool) -> None:
+    col, d, notetype = io_collection(work, "Anatomy")
+    models = col.models
+    by_name = {f["name"]: f for f in notetype["flds"]}
+    # Image first, Occlusion second, Comments before Header; Anki finds fields by tag so the stock kind still works.
+    models.reposition_field(notetype, by_name["Image"], 0)
+    models.rename_field(notetype, by_name["Occlusion"], "Masks")
+    models.rename_field(notetype, by_name["Header"], "Title")
+    models.reposition_field(notetype, by_name["Comments"], 2)
+    models.update_dict(notetype)
+    notetype = models.get(notetype["id"])
+    occlusions = rect("1", ".1", ".1", ".3", ".3", OI) + ellipse("2", ".5", ".5", ".1", ".1", OI)
+    io_note(col, notetype, work, "fields.png", (44, 28), occlusions, "Reordered", "Fields moved", "Comment kept")
+    io_export(col, d, "anki-legacy-image-occlusion-fields.apkg" if legacy else "anki21b-image-occlusion-fields.apkg", legacy=legacy)
 
 BUILDERS = {
     "basic": basic,
@@ -163,6 +288,13 @@ BUILDERS = {
     "hint": hint,
     "cloze": cloze,
     "image-occlusion": image_occlusion,
+    "image-occlusion-shapes": image_occlusion_shapes,
+    "image-occlusion-grouped": image_occlusion_grouped,
+    "image-occlusion-hide-one": image_occlusion_hide_one,
+    "image-occlusion-history": image_occlusion_history,
+    "image-occlusion-edge": image_occlusion_edge,
+    "image-occlusion-fields": lambda w: image_occlusion_fields(w, False),
+    "legacy-image-occlusion-fields": lambda w: image_occlusion_fields(w, True),
 }
 
 
