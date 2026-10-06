@@ -64,9 +64,9 @@ interface in the operating system's native web view.
 callouts, columns, page links, tabs, find and replace, and a draggable note tree. Notes export
 to Markdown, portable `.mnemo` packages, or PDF through a bundled Typst compiler.
 
-**Flashcards** support classic and cloze cards, decks and folders, and review scheduling
-through FSRS. A separate self-graded test mode lets you test yourself without changing the
-review schedule. Decks can move through Anki packages, CSV and `.mnemo` packages.
+**Flashcards** support classic, cloze and image occlusion cards, decks and folders, and
+review scheduling through FSRS. A separate self-graded test mode lets you test yourself without
+changing the review schedule. Decks can move through Anki packages, CSV and `.mnemo` packages.
 
 **Mind maps** run on an infinite canvas built for Mnemo. Maps support nodes, shapes, text,
 images, frames, several layout algorithms, custom edges, reusable styles and a minimap. You can
