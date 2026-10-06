@@ -22,7 +22,7 @@ namespace Mnemo.Infrastructure.Services.ImportExport.Adapters;
 /// <summary>
 /// Imports and exports flashcards in Anki package format (.apkg).
 /// </summary>
-public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
+public sealed partial class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 {
     private const char UnitSeparator = '\u001f';
     private const int CardPageSize = 200;
@@ -67,7 +67,10 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
     private static readonly Regex ClozeRegex = new(@"\{\{c\d+::", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ImageTagRegex = new(@"<img\s+[^>]*src\s*=\s*['""](?<src>[^'""]+)['""][^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    // Linear-time engine, since a field of unclosed tags would make a backtracking match quadratic.
+    internal static readonly Regex ImageTagRegex = new(
+        @"<img\s+[^>]*src\s*=\s*(?:['""](?<src>[^'""]+)['""]|(?<src>[^\s>'""/]+(?:/[^\s>'""/]+)*))[^>]*>",
+        RegexOptions.NonBacktracking | RegexOptions.IgnoreCase);
     private static readonly Regex BreakRegex = new(@"<\s*br\s*/?\s*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     /// <summary>Closing tags that end a line of text. Without them a list or a table reads as one run-on line.</summary>
     private static readonly Regex BlockCloseRegex = new(
@@ -177,7 +180,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                     note.ModelName = modelName;
             }
 
-            var plan = PlanDecks(cards, notes, collectionInfo.NoteTypes);
+            var enhanced = PlanEnhancedOcclusion(notes, collectionInfo.NoteTypes, opened);
+            var plan = PlanDecks(cards, notes, collectionInfo.NoteTypes, enhanced);
             var flaggedRows = cards.Where(c => c.IsFlagged).Select(c => c.Id).ToHashSet();
             var revlog = await ReadRevlogAsync(opened.Connection, cancellationToken).ConfigureAwait(false);
 
@@ -185,7 +189,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
             var weights = FsrsWeightRules.Resolve(preset);
             var folders = await DeckFolderResolver.CreateAsync(_library, cancellationToken).ConfigureAwait(false);
-            var tally = new ImportTally();
+            var tally = new ImportTally { OcclusionRepeatsSkipped = enhanced.Repeats.Count };
             var failedDecks = 0;
             var importSessionId = FlashcardImportedReviews.NewSessionId();
             var importedReviews = 0;
@@ -222,6 +226,21 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
                     foreach (var clozeNote in deckPlan.MaterialNotes)
                     {
+                        // A note whose picture is missing is dropped whole: its masks mean nothing
+                        // without it, and a plain card over no image would only mislead.
+                        if (clozeNote.Occlusion is not null)
+                        {
+                            if (await OcclusionMaterialAsync(
+                                    clozeNote, opened, collectionInfo, revlog, weights, now, warnings, tally, cancellationToken)
+                                .ConfigureAwait(false) is { } occlusionFact)
+                            {
+                                material.Add(occlusionFact);
+                                materialNotes.Add(clozeNote);
+                            }
+
+                            continue;
+                        }
+
                         var sides = await ReadSidesAsync(
                             clozeNote.Note, ord: 0, clozeNote.Rows.Count, collectionInfo, opened, warnings, tally, cancellationToken)
                             .ConfigureAwait(false);
@@ -270,7 +289,16 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                             [.. material.Select(m => m with { DeckId = deck.Id })], cancellationToken).ConfigureAwait(false);
                         importedCards += saved.Sum(s => s.Cards.Count);
                         for (var i = 0; i < saved.Count && i < materialNotes.Count; i++)
-                            landed.AddRange(PairDeletions(saved[i], materialNotes[i]));
+                        {
+                            if (materialNotes[i].Occlusion is null)
+                            {
+                                landed.AddRange(PairDeletions(saved[i], materialNotes[i]));
+                                continue;
+                            }
+
+                            tally.OcclusionCards += saved[i].Cards.Count;
+                            landed.AddRange(PairOcclusion(saved[i], materialNotes[i]));
+                        }
                     }
 
                     await ApplyFlagsAsync(landed, flaggedRows, cancellationToken).ConfigureAwait(false);
@@ -324,6 +352,8 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 warnings.Add(TransferWarning.Counted(
                     "AnkiClozeSiblingsFiledTogetherOne", "AnkiClozeSiblingsFiledTogetherMany", plan.NotesFiledTogether));
             }
+
+            AddOcclusionWarnings(warnings, tally);
 
             if (importedCards > 0 && tally.CardsWithMemory > 0)
                 warnings.Add(TransferWarning.Of("AnkiMemoryCarriedOver").AsInfo());
@@ -679,7 +709,7 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// deletion in it, since that is the field the other app would have made cards from. A note
     /// whose type the package does not define says nothing, so there the deletions in its own
     /// fields are the only signal left. Anki's image occlusion type is cloze over mask shapes, not
-    /// text, so its notes keep landing as plain cards.
+    /// text, so notes with readable masks are planned apart from this and the rest land as plain cards.
     /// </remarks>
     private static int? ClozeFieldFor(string[] fields, AnkiNoteType? noteType)
     {
@@ -716,19 +746,39 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     private static AnkiImportPlan PlanDecks(
         IReadOnlyList<CardRow> cards,
         IReadOnlyDictionary<long, NoteRow> notes,
-        IReadOnlyDictionary<long, AnkiNoteType> noteTypes)
+        IReadOnlyDictionary<long, AnkiNoteType> noteTypes,
+        EnhancedOcclusionPlan enhanced)
     {
         var rowsByDeck = new Dictionary<long, List<CardRow>>();
         var materialRowsByNote = new Dictionary<long, List<CardRow>>();
         var reverseNotes = new HashSet<long>();
+        var occlusionByNote = new Dictionary<long, AnkiOcclusionNote?>();
+        var enhancedOrdinalByRow = new Dictionary<long, int>();
 
         foreach (var row in cards)
         {
-            if (!notes.TryGetValue(row.NoteId, out var note))
+            if (!notes.TryGetValue(row.NoteId, out var note) || enhanced.Repeats.Contains(row.NoteId))
                 continue;
 
+            // The add-on keeps one card per note, so a set's notes gather under its lead note.
+            if (enhanced.MemberOf.TryGetValue(row.NoteId, out var member))
+            {
+                if (!materialRowsByNote.TryGetValue(member.LeadNoteId, out var set))
+                    materialRowsByNote[member.LeadNoteId] = set = [];
+                set.Add(row);
+                occlusionByNote[member.LeadNoteId] = enhanced.NoteByLead[member.LeadNoteId];
+                enhancedOrdinalByRow[row.Id] = member.Ordinal;
+                continue;
+            }
+
+            if (!occlusionByNote.TryGetValue(row.NoteId, out var occlusion))
+            {
+                noteTypes.TryGetValue(note.ModelId, out var noteType);
+                occlusionByNote[row.NoteId] = occlusion = AnkiOcclusionNote.From(note.Id, note.Fields, noteType);
+            }
+
             var isReverse = IsBasicAndReversed(note, noteTypes);
-            if (isReverse || MakesOneCardPerDeletion(note, noteTypes))
+            if (isReverse || occlusion is not null || MakesOneCardPerDeletion(note, noteTypes))
             {
                 if (!materialRowsByNote.TryGetValue(row.NoteId, out var sibling))
                     materialRowsByNote[row.NoteId] = sibling = [];
@@ -771,11 +821,13 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             var deckId = homes.OrderByDescending(g => g.Count()).ThenBy(g => g.Key).First().Key;
             var byOrdinal = new SortedDictionary<int, CardRow>();
             foreach (var row in rows)
-                byOrdinal.TryAdd(isReverse ? row.Ord : ClozeOrdinalFor(row), row);
+                byOrdinal.TryAdd(
+                    isReverse ? row.Ord : enhancedOrdinalByRow.TryGetValue(row.Id, out var ordinal) ? ordinal : ClozeOrdinalFor(row),
+                    row);
 
             if (!materialByDeck.TryGetValue(deckId, out var forDeck))
                 materialByDeck[deckId] = forDeck = [];
-            forDeck.Add(new AnkiMaterialNote(notes[noteId], byOrdinal, isReverse));
+            forDeck.Add(new AnkiMaterialNote(notes[noteId], byOrdinal, isReverse, occlusionByNote.GetValueOrDefault(noteId)));
         }
 
         var deckIds = rowsByDeck.Keys.Concat(materialByDeck.Keys).Distinct().OrderBy(id => id);
@@ -2688,6 +2740,22 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
 
         public int CardsWithMemory { get; set; }
 
+        public int OcclusionCards { get; set; }
+
+        public int OcclusionSkippedNoImage { get; set; }
+
+        public int OcclusionTextLabels { get; set; }
+
+        public int OcclusionRotatedShapes { get; set; }
+
+        public int OcclusionCardsWithoutShape { get; set; }
+
+        public int OcclusionCommentsLeftBehind { get; set; }
+
+        public int OcclusionPicturesSkipped { get; set; }
+
+        public int OcclusionRepeatsSkipped { get; set; }
+
         public int CardsWithoutMemory { get; set; }
     }
 
@@ -2709,7 +2777,11 @@ public sealed class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
     /// A note that lands as one piece of material. Its rows are keyed by deletion number for cloze,
     /// and by template ordinal for a basic and reversed note.
     /// </summary>
-    private sealed record AnkiMaterialNote(NoteRow Note, IReadOnlyDictionary<int, CardRow> Rows, bool IsReverse = false);
+    private sealed record AnkiMaterialNote(
+        NoteRow Note,
+        IReadOnlyDictionary<int, CardRow> Rows,
+        bool IsReverse = false,
+        AnkiOcclusionNote? Occlusion = null);
 
     /// <summary>
     /// The package's media table: which file inside the package backs each referenced filename.

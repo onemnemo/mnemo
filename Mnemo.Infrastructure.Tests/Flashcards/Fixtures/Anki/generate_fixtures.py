@@ -264,6 +264,59 @@ def image_occlusion_edge(work: str) -> None:
     io_export(col, d, "anki21b-image-occlusion-edge.apkg")
 
 
+def card_of(col: Collection, note, ordinal: int):
+    return next(c for c in (col.get_card(i) for i in col.card_ids_of_note(note.id)) if c.ord == ordinal)
+
+
+def image_occlusion_extras(work: str) -> None:
+    col, d, notetype = io_collection(work, "Anatomy")
+    fields = col.models.field_map(notetype)
+    two = rect("1", ".1", ".1", ".3", ".3", OI) + ellipse("2", ".5", ".5", ".1", ".1", OI)
+
+    # Header and Back Extra with formatting and a picture of their own.
+    rich = rect("1", ".1", ".1", ".3", ".3", OI) + label(".1", ".8", "Fish &amp; chips", OI)
+    io_note(col, notetype, work, "rich.png", (40, 40), rich, "<i>Heart</i>",
+            "<b>Mitral</b> valve<br><img src=\"extra.png\">")
+    with open(os.path.join(work, "extra.png"), "wb") as handle:
+        handle.write(tiny_png(8, 8))
+    col.media.add_file(os.path.join(work, "extra.png"))
+
+    # Shape 2 is removed after its card exists, so the package keeps a card with no shape behind it.
+    gap = io_note(col, notetype, work, "gap.png", (40, 40),
+                  rect("1", ".1", ".1", ".2", ".2", OI) + ellipse("2", ".5", ".5", ".1", ".1", OI)
+                  + rect("3", ".6", ".1", ".2", ".2", OI), "Gap", "Middle shape removed")
+    gap.fields[fields["Occlusion"][0]] = rect("1", ".1", ".1", ".2", ".2", OI) + rect("3", ".6", ".1", ".2", ".2", OI)
+    col.update_note(gap)
+
+    suspended = io_note(col, notetype, work, "suspended.png", (40, 40), two, "Suspended", "Card 1 suspended")
+    col.sched.suspend_cards([card_of(col, suspended, 0).id])
+
+    io_note(col, notetype, work, "clamped.png", (40, 40), rect("1", ".8", ".8", ".5", ".5", OI), "Clamped", "Past the edge")
+
+    # Two notes over one picture share one media file.
+    io_note(col, notetype, work, "shared.png", (40, 40), two, "SharedA", "First")
+    io_note(col, notetype, work, "shared.png", (40, 40), two, "SharedB", "Second")
+
+    # A cloze that is not a shape: nothing to mask, so the cards stay plain.
+    io_note(col, notetype, work, "bare.png", (40, 40), "{{c1::not a shape}}", "Bare", "No shapes")
+
+    unquoted = io_note(col, notetype, work, "unquoted.png", (40, 40), two, "Unquoted", "Hand edited image")
+    unquoted.fields[fields["Image"][0]] = "<img src=unquoted.png>"
+    col.update_note(unquoted)
+
+    io_export(col, d, "anki21b-image-occlusion-extras.apkg")
+
+
+def image_occlusion_multi_history(work: str) -> None:
+    col, d, notetype = io_collection(work, "Anatomy")
+    # One shape on two cards, both answered, so each card has its own history.
+    io_note(col, notetype, work, "multi.png", (40, 40), rect("1,2", ".1", ".1", ".3", ".2", OI),
+            "MultiHistory", "Both cards answered")
+    answer_ord(col, d, 0)
+    answer_ord(col, d, 1)
+    io_export(col, d, "anki21b-image-occlusion-multi-history.apkg")
+
+
 def image_occlusion_fields(work: str, legacy: bool) -> None:
     col, d, notetype = io_collection(work, "Anatomy")
     models = col.models
@@ -293,6 +346,8 @@ BUILDERS = {
     "image-occlusion-hide-one": image_occlusion_hide_one,
     "image-occlusion-history": image_occlusion_history,
     "image-occlusion-edge": image_occlusion_edge,
+    "image-occlusion-extras": image_occlusion_extras,
+    "image-occlusion-multi-history": image_occlusion_multi_history,
     "image-occlusion-fields": lambda w: image_occlusion_fields(w, False),
     "legacy-image-occlusion-fields": lambda w: image_occlusion_fields(w, True),
 }

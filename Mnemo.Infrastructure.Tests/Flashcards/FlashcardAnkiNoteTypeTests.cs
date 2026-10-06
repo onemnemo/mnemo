@@ -177,28 +177,40 @@ public sealed class FlashcardAnkiNoteTypeTests
     }
 
     [Fact]
-    public async Task Import_BuiltInImageOcclusion_StaysPlainCardsRatherThanCloze()
+    public async Task Import_BuiltInImageOcclusion_MakesAnOcclusionFact()
     {
         await using var h = new FlashcardStoreHarness();
-        var (_, cards) = await ImportAsync(h, Fixture("anki21b-image-occlusion.apkg"), "Anatomy");
+        var (result, cards) = await ImportAsync(h, Fixture("anki21b-image-occlusion.apkg"), "Anatomy");
 
-        // One plain card per mask, as before; reading the masks as cloze text would put the shape
-        // strings on the front of every card.
         Assert.Equal(2, cards.Length);
-        foreach (var card in cards)
-        {
-            var fact = await h.FactService.GetFactAsync(card.FactId!);
-            Assert.NotEqual(FlashcardCardType.ClozeId, fact!.TypeId);
-        }
+        var factId = Assert.Single(cards.Select(c => c.FactId).Distinct(StringComparer.Ordinal));
+        var fact = await h.FactService.GetFactAsync(factId!);
+        Assert.Equal(FlashcardCardType.OcclusionId, fact!.TypeId);
+        Assert.Equal("Label the map", fact.Value(FlashcardCardType.OcclusionFrontFieldId));
+        Assert.Equal("Extra text", fact.Value(FlashcardCardType.OcclusionBackFieldId));
+        Assert.Single(fact.MediaOn(FlashcardCardType.OcclusionImageFieldId));
 
+        var document = FlashcardOcclusion.Parse(fact.Value(FlashcardCardType.OcclusionMasksFieldId));
+        Assert.Equal(FlashcardOcclusion.HideAll, document.Mode);
+        var rect = document.Masks[0];
+        Assert.Equal(FlashcardOcclusion.Rect, rect.Shape);
+        Assert.Equal(new[] { 0.1, 0.1, 0.3, 0.3 }, new[] { rect.X, rect.Y, rect.W, rect.H });
+        var ellipse = document.Masks[1];
+        Assert.Equal(FlashcardOcclusion.Ellipse, ellipse.Shape);
+        Assert.Equal(new[] { 0.5, 0.5, 0.2, 0.2 }, new[] { ellipse.X, ellipse.Y, ellipse.W, ellipse.H });
+
+        Assert.Equal(
+            document.Masks.Select(m => "m" + m.Id).Order(StringComparer.Ordinal),
+            cards.Select(c => c.LayoutKey!).Order(StringComparer.Ordinal));
         Assert.All(cards, c =>
         {
-            Assert.Equal(FlashcardType.Classic, c.Type);
+            Assert.Equal(FlashcardType.Occlusion, c.Type);
             Assert.DoesNotContain("image-occlusion", c.Front, StringComparison.Ordinal);
             Assert.Contains("Label the map", c.Front, StringComparison.Ordinal);
-            Assert.Contains("Extra text", c.Back, StringComparison.Ordinal);
-            Assert.Contains(c.Attachments, a => a.Side == FlashcardAttachment.FrontSide);
         });
+        Assert.DoesNotContain(
+            fact.Values.Values, v => v.Contains("image-occlusion", StringComparison.Ordinal));
+        Assert.Equal(2, result.Warnings.Single(w => w.Key == "AnkiOcclusionImportedMany").Count);
     }
 
     [Fact]

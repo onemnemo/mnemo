@@ -47,9 +47,29 @@ internal sealed record AnkiNoteType(
     bool IsCloze,
     AnkiStockKind StockKind,
     IReadOnlyList<string> FieldNames,
-    IReadOnlyList<AnkiTemplate> Templates)
+    IReadOnlyList<AnkiTemplate> Templates,
+    IReadOnlyList<int?>? FieldTags = null)
 {
     public AnkiTemplate? TemplateFor(int ord) => Templates.FirstOrDefault(t => t.Ord == ord);
+
+    /// <summary>
+    /// Where a stock field sits, found by its Anki tag so a renamed or reordered field is still found. Null when deleted.
+    /// </summary>
+    public int? FieldIndexByTag(int tag)
+    {
+        if (FieldTags is not null && FieldTags.Any(t => t is not null))
+        {
+            for (var i = 0; i < FieldTags.Count; i++)
+            {
+                if (FieldTags[i] == tag)
+                    return i;
+            }
+
+            return null;
+        }
+
+        return tag < FieldNames.Count ? tag : null;
+    }
 
     /// <summary>The field the deletions live in, as the first template that names one says.</summary>
     public int? ClozeField => Templates.Select(t => t.ClozeField).FirstOrDefault(f => f is not null);
@@ -70,6 +90,7 @@ internal static class AnkiNoteTypeReader
 
     private const int NotetypeConfigKindField = 1;
     private const int NotetypeConfigOriginalStockKindField = 9;
+    private const int FieldConfigTagField = 10;
     private const int TemplateConfigQuestionField = 1;
     private const int TemplateConfigAnswerField = 2;
 
@@ -131,6 +152,7 @@ internal static class AnkiNoteTypeReader
                 var fieldNames = ReadOrderedNames(prop.Value, "flds");
                 if (fieldNames.Count == 0)
                     continue;
+                var fieldTags = ReadFieldTags(prop.Value);
 
                 var isCloze = ReadInt(prop.Value, "type") == AnkiClozeModelType;
                 var stockKind = ToStockKind(ReadInt(prop.Value, "originalStockKind"));
@@ -151,7 +173,7 @@ internal static class AnkiNoteTypeReader
                     }
                 }
 
-                map[id] = new AnkiNoteType(id, ReadString(prop.Value, "name"), isCloze, stockKind, fieldNames, templates);
+                map[id] = new AnkiNoteType(id, ReadString(prop.Value, "name"), isCloze, stockKind, fieldNames, templates, fieldTags);
             }
         }
 
@@ -186,9 +208,10 @@ internal static class AnkiNoteTypeReader
         // An exported package keeps the field and template rows of note types it left out, so rows
         // are only ever read for a note type the package still defines.
         var fieldsByType = new Dictionary<long, SortedDictionary<int, string>>();
+        var tagsByType = new Dictionary<long, SortedDictionary<int, int?>>();
         await using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT ntid, ord, name FROM fields";
+            command.CommandText = "SELECT ntid, ord, name, config FROM fields";
             await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -198,6 +221,9 @@ internal static class AnkiNoteTypeReader
                 if (!fieldsByType.TryGetValue(ntid, out var fields))
                     fieldsByType[ntid] = fields = new SortedDictionary<int, string>();
                 fields[reader.GetInt32(1)] = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
+                if (!tagsByType.TryGetValue(ntid, out var tags))
+                    tagsByType[ntid] = tags = new SortedDictionary<int, int?>();
+                tags[reader.GetInt32(1)] = ReadFieldTag(reader.IsDBNull(3) ? [] : reader.GetValue(3) is byte[] bytes ? bytes : Encoding.UTF8.GetBytes(reader.GetString(3)));
             }
         }
 
@@ -228,7 +254,8 @@ internal static class AnkiNoteTypeReader
             var templates = templatesByType.TryGetValue(head.Id, out var raw)
                 ? raw.Select(t => BuildTemplate(t.Key, t.Value.Name, t.Value.Question, t.Value.Answer, fieldNames)).ToArray()
                 : [];
-            map[head.Id] = new AnkiNoteType(head.Id, head.Name, head.IsCloze, head.StockKind, fieldNames, templates);
+            var fieldTags = tagsByType.TryGetValue(head.Id, out var tagged) ? tagged.Values.ToArray() : null;
+            map[head.Id] = new AnkiNoteType(head.Id, head.Name, head.IsCloze, head.StockKind, fieldNames, templates, fieldTags);
         }
 
         return map;
@@ -258,6 +285,20 @@ internal static class AnkiNoteTypeReader
         }
 
         return (kind, stockKind);
+    }
+
+    private static int? ReadFieldTag(ReadOnlySpan<byte> config)
+    {
+        var reader = new AnkiProtobufReader(config);
+        while (reader.TryReadFieldHeader(out var field, out var wireType))
+        {
+            if (wireType == AnkiProtobufReader.WireTypeVarint && field == FieldConfigTagField)
+                return reader.TryReadVarint(out var value) && value <= int.MaxValue ? (int)value : null;
+            if (!reader.TrySkip(wireType))
+                break;
+        }
+
+        return null;
     }
 
     private static (string Question, string Answer) ReadTemplateConfig(ReadOnlySpan<byte> config)
@@ -389,6 +430,11 @@ internal static class AnkiNoteTypeReader
 
         return names;
     }
+
+    private static int?[] ReadFieldTags(JsonElement model) =>
+        model.TryGetProperty("flds", out var list) && list.ValueKind == JsonValueKind.Array
+            ? [.. list.EnumerateArray().Select(entry => entry.ValueKind == JsonValueKind.Object ? ReadInt(entry, "tag") : null)]
+            : [];
 
     private static int? ReadInt(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number)
