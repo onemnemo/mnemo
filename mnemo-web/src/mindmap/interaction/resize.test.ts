@@ -71,3 +71,10 @@ describe("a committed box", () => {
     expect(boxChanged(ORIGIN, { ...ORIGIN, x: 99 })).toBe(true)
   })
 })
+
+describe("a resize with a smaller floor", () => {
+  it("uses the given minimum instead of the default", () => {
+    expect(resizeBox({ x: 0, y: 0, width: 20, height: 20 }, "se", -100, -100, false, 6)).toMatchObject({ width: 6, height: 6 })
+    expect(resizeBox({ x: 0, y: 0, width: 50, height: 50 }, "se", -100, -100)).toMatchObject({ width: MIN_ELEMENT_SIZE })
+  })
+})

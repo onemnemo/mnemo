@@ -64,16 +64,17 @@ export function fitSize(natural: Size, room: Size): Size {
   return { w: Math.round(natural.w * ratio), h: Math.round(natural.h * ratio) }
 }
 
-export function clampScale(scale: number): number {
-  return clamp(scale, 1, MAX_SCALE)
+/** Review stops at fit; the editor passes a lower `minScale` to zoom out past it. */
+export function clampScale(scale: number, maxScale = MAX_SCALE, minScale = 1): number {
+  return clamp(scale, minScale, maxScale)
 }
 
 /**
  * The view with its centre pulled back so the image still covers the box on every axis where it
  * is bigger than the box. On an axis where it is smaller the centre is irrelevant and is reset.
  */
-export function clampView(view: View, box: Size, fitted: Size): View {
-  const scale = clampScale(view.scale)
+export function clampView(view: View, box: Size, fitted: Size, maxScale = MAX_SCALE, minScale = 1): View {
+  const scale = clampScale(view.scale, maxScale, minScale)
   const iw = fitted.w * scale
   const ih = fitted.h * scale
   const axis = (center: number, image: number, room: number) =>
@@ -82,8 +83,8 @@ export function clampView(view: View, box: Size, fitted: Size): View {
 }
 
 /** Where the zoomed image sits inside the box, in pixels. The image is centred on any axis it fits. */
-export function viewFrame(view: View, box: Size, fitted: Size): Box {
-  const { scale, cx, cy } = clampView(view, box, fitted)
+export function viewFrame(view: View, box: Size, fitted: Size, maxScale = MAX_SCALE, minScale = 1): Box {
+  const { scale, cx, cy } = clampView(view, box, fitted, maxScale, minScale)
   const w = fitted.w * scale
   const h = fitted.h * scale
   const place = (center: number, image: number, room: number) =>
@@ -102,32 +103,41 @@ export function centerOfMasks(masks: readonly Pick<OcclusionMask, "x" | "y" | "w
 }
 
 /** A view at `scale` centred on a point of the image. */
-export function zoomOnto(scale: number, center: { cx: number; cy: number }, box: Size, fitted: Size): View {
-  return clampView({ scale, ...center }, box, fitted)
+export function zoomOnto(scale: number, center: { cx: number; cy: number }, box: Size, fitted: Size, maxScale = MAX_SCALE, minScale = 1): View {
+  return clampView({ scale, ...center }, box, fitted, maxScale, minScale)
 }
 
 /**
  * The view after scaling by `factor` with the image point under `anchor` (a pixel inside the box)
  * staying where it is, so a wheel or pinch zooms toward the pointer.
  */
-export function zoomAt(view: View, factor: number, anchor: { x: number; y: number }, box: Size, fitted: Size): View {
-  const before = viewFrame(view, box, fitted)
-  const scale = clampScale(view.scale * factor)
-  if (before.w <= 0 || before.h <= 0) return clampView({ ...view, scale }, box, fitted)
+export function zoomAt(
+  view: View,
+  factor: number,
+  anchor: { x: number; y: number },
+  box: Size,
+  fitted: Size,
+  maxScale = MAX_SCALE,
+  minScale = 1,
+): View {
+  const before = viewFrame(view, box, fitted, maxScale, minScale)
+  const scale = clampScale(view.scale * factor, maxScale, minScale)
+  if (before.w <= 0 || before.h <= 0) return clampView({ ...view, scale }, box, fitted, maxScale, minScale)
 
   const u = (anchor.x - before.x) / before.w
   const v = (anchor.y - before.y) / before.h
   const w = fitted.w * scale
   const h = fitted.h * scale
-  return clampView({ scale, cx: (box.w / 2 - (anchor.x - u * w)) / w, cy: (box.h / 2 - (anchor.y - v * h)) / h }, box, fitted)
+  const next = { scale, cx: (box.w / 2 - (anchor.x - u * w)) / w, cy: (box.h / 2 - (anchor.y - v * h)) / h }
+  return clampView(next, box, fitted, maxScale, minScale)
 }
 
 /** The view after dragging the image by a pixel delta. */
-export function panBy(view: View, dx: number, dy: number, box: Size, fitted: Size): View {
+export function panBy(view: View, dx: number, dy: number, box: Size, fitted: Size, maxScale = MAX_SCALE, minScale = 1): View {
   const w = fitted.w * view.scale
   const h = fitted.h * view.scale
   if (w <= 0 || h <= 0) return view
-  return clampView({ scale: view.scale, cx: view.cx - dx / w, cy: view.cy - dy / h }, box, fitted)
+  return clampView({ scale: view.scale, cx: view.cx - dx / w, cy: view.cy - dy / h }, box, fitted, maxScale, minScale)
 }
 
 /** Size of the "?" on the asked mask: 0.6 of the mask height, kept between 9 and 19 pixels. */

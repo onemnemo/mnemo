@@ -114,6 +114,14 @@ describe("zoomAt and panBy", () => {
     expect(clampView({ scale: 9, cx: 0.5, cy: 0.5 }, box, fitted).scale).toBe(4)
     expect(clampView({ scale: 0.2, cx: 0.5, cy: 0.5 }, box, fitted).scale).toBe(1)
   })
+
+  it("lets a lower minimum scale through and keeps the image centred below fit", () => {
+    expect(clampView({ scale: 0.2, cx: 0.9, cy: 0.1 }, box, fitted, 16, 0.5)).toEqual({ scale: 0.5, cx: 0.5, cy: 0.5 })
+    const frame = viewFrame({ scale: 0.5, cx: 0.9, cy: 0.1 }, box, fitted, 16, 0.5)
+    expect(Math.abs(frame.x * 2 + frame.w - box.w)).toBeLessThanOrEqual(1)
+    expect(Math.abs(frame.y * 2 + frame.h - box.h)).toBeLessThanOrEqual(1)
+    expect(panBy({ scale: 0.5, cx: 0.5, cy: 0.5 }, 90, 90, box, fitted, 16, 0.5)).toEqual({ scale: 0.5, cx: 0.5, cy: 0.5 })
+  })
 })
 
 describe("polygonPoints", () => {
@@ -164,5 +172,19 @@ describe("badgeVisible", () => {
 
   it("treats fifteen masks as sparse", () => {
     expect(badgeVisible({ ...base, maskCount: 15 })).toBe(true)
+  })
+})
+
+describe("a raised maximum scale", () => {
+  const box = { w: 800, h: 600 }
+  const fitted = { w: 800, h: 400 }
+
+  it("lets zoom and pan go past the review limit only when asked", () => {
+    const view = { scale: 1, cx: 0.5, cy: 0.5 }
+    expect(zoomAt(view, 100, { x: 400, y: 300 }, box, fitted).scale).toBe(4)
+    expect(zoomAt(view, 100, { x: 400, y: 300 }, box, fitted, 16).scale).toBe(16)
+    expect(panBy({ scale: 12, cx: 0.5, cy: 0.5 }, 10, 0, box, fitted, 16).scale).toBe(12)
+    expect(panBy({ scale: 12, cx: 0.5, cy: 0.5 }, 10, 0, box, fitted).scale).toBe(4)
+    expect(viewFrame({ scale: 12, cx: 0.5, cy: 0.5 }, box, fitted, 16).w).toBe(9600)
   })
 })

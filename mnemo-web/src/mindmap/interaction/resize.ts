@@ -34,6 +34,7 @@ export function resizeBox(
   dx: number,
   dy: number,
   lockAspect = false,
+  minSize = MIN_ELEMENT_SIZE,
 ): ResizeBox {
   const west = dir.endsWith("w")
   const east = dir.endsWith("e")
@@ -52,14 +53,14 @@ export function resizeBox(
       Math.abs(width / origin.width - 1) >= Math.abs(height / origin.height - 1)
         ? width / origin.width
         : height / origin.height,
-      MIN_ELEMENT_SIZE / origin.width,
-      MIN_ELEMENT_SIZE / origin.height,
+      minSize / origin.width,
+      minSize / origin.height,
     )
     width = origin.width * scale
     height = origin.height * scale
   } else {
-    width = Math.max(width, MIN_ELEMENT_SIZE)
-    height = Math.max(height, MIN_ELEMENT_SIZE)
+    width = Math.max(width, minSize)
+    height = Math.max(height, minSize)
   }
 
   return {
