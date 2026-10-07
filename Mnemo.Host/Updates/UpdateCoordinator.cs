@@ -73,6 +73,13 @@ public sealed record UpdateStatus(
 /// because download progress arrives faster than a React render.
 /// </para>
 /// </remarks>
+/// <summary>
+/// <see cref="AutomaticChecks"/> is off for a dev run. Its version comes from the build props
+/// and trails every release, so each launch would otherwise offer an update. A manual check
+/// still runs.
+/// </summary>
+public sealed record UpdateCheckOptions(bool AutomaticChecks);
+
 public sealed class UpdateCoordinator
 {
     /// <summary>How long an automatic check waits after the last one. Matches the desktop's gate.</summary>
@@ -115,16 +122,20 @@ public sealed class UpdateCoordinator
     // and eat the post-update toast before anyone saw it.
     private int _launchHandled;
 
+    private readonly UpdateCheckOptions _options;
+
     public UpdateCoordinator(
         IUpdateService updates,
         ISettingsService settings,
         IAppEventPublisher events,
-        ILoggerService logger)
+        ILoggerService logger,
+        UpdateCheckOptions options)
     {
         _updates = updates;
         _settings = settings;
         _events = events;
         _logger = logger;
+        _options = options;
     }
 
     public async Task<UpdateStatus> GetStatusAsync(CancellationToken cancellationToken = default)
@@ -299,7 +310,8 @@ public sealed class UpdateCoordinator
 
     /// <summary>
     /// Runs a check, or declines to when <paramref name="automatic"/> and the user has
-    /// either turned automatic checks off or had one recently.
+    /// either turned automatic checks off or had one recently. A dev run declines every
+    /// automatic check (see <see cref="UpdateCheckOptions"/>).
     /// </summary>
     /// <remarks>
     /// The gate lives here rather than in the caller so both the startup check and any
@@ -313,6 +325,9 @@ public sealed class UpdateCoordinator
 
         if (automatic)
         {
+            if (!_options.AutomaticChecks)
+                return BuildStatus(channel, lastChecked);
+
             if (!await _settings.GetAsync(UpdateSettingsKeys.AutoCheck, true).ConfigureAwait(false))
                 return BuildStatus(channel, lastChecked);
 

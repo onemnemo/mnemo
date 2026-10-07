@@ -113,7 +113,8 @@ public static class HostComposition
         IServiceCollection services,
         IReadOnlyList<IModule> modules,
         ILoggerService? startupLogger = null,
-        HostInstanceLock? instanceLock = null)
+        HostInstanceLock? instanceLock = null,
+        bool devRun = false)
     {
         // 1. Core/Infrastructure services
         services.AddSingleton<IHistoryManager, HistoryManager>();
@@ -337,6 +338,7 @@ public static class HostComposition
         // The update state machine. A singleton because the update a check resolves is what
         // a later download and apply act on, and that lives in the instance rather than the
         // database.
+        services.AddSingleton(new Updates.UpdateCheckOptions(AutomaticChecks: !devRun));
         services.AddSingleton<Updates.UpdateCoordinator>();
 
         services.AddSingleton<IThemeService, HeadlessThemeService>();

@@ -6,9 +6,11 @@ using System.Threading.Tasks;
 using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
+using Mnemo.Host.Composition;
 using Mnemo.Host.Events;
 using Mnemo.Host.Updates;
 using Mnemo.Infrastructure.Services.Updates;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Mnemo.Host.Tests.Updates;
@@ -144,6 +146,31 @@ public sealed class UpdateCoordinatorTests
 
         await world.Coordinator.CheckAsync(automatic: false);
         Assert.Equal(1, world.Updates.Checks);
+    }
+
+    [Fact]
+    public async Task ADevRunSkipsAutomaticChecksAndKeepsManualOnes()
+    {
+        var world = new World(automaticChecks: false);
+
+        var status = await world.Coordinator.CheckAsync(automatic: true);
+        Assert.Equal(0, world.Updates.Checks);
+        Assert.NotEqual(UpdateStage.Available, status.Stage);
+
+        await world.Coordinator.CheckAsync(automatic: false);
+        Assert.Equal(1, world.Updates.Checks);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void TheHostTurnsAutomaticChecksOffForADevRun(bool devRun, bool automaticChecks)
+    {
+        var services = new ServiceCollection();
+        HostComposition.AddMnemoBackend(services, [], devRun: devRun);
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Equal(automaticChecks, provider.GetRequiredService<UpdateCheckOptions>().AutomaticChecks);
     }
 
     [Fact]
@@ -854,7 +881,8 @@ public sealed class UpdateCoordinatorTests
         public RecordingEvents Events { get; } = new();
         public UpdateCoordinator Coordinator { get; }
 
-        public World() => Coordinator = new UpdateCoordinator(Updates, Settings, Events, new SilentLogger());
+        public World(bool automaticChecks = true) =>
+            Coordinator = new UpdateCoordinator(Updates, Settings, Events, new SilentLogger(), new UpdateCheckOptions(automaticChecks));
 
         /// <summary>
         /// A second coordinator over the same settings, standing in for the next run of the
@@ -865,7 +893,7 @@ public sealed class UpdateCoordinatorTests
         {
             // A new service instance has no resolved download object.
             Updates.ForgetPendingUpdate();
-            return new(Updates, Settings, Events, new SilentLogger());
+            return new(Updates, Settings, Events, new SilentLogger(), new UpdateCheckOptions(AutomaticChecks: true));
         }
 
         /// <summary>Finds an update, downloads it and waits for the staged state.</summary>

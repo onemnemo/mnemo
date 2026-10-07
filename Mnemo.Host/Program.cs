@@ -315,7 +315,7 @@ public static class Program
         WindowHostLifetime.Install(builder.Services);
 
         var modules = HostComposition.DiscoverModules(out var discoveryFailures);
-        HostComposition.AddMnemoBackend(builder.Services, modules, startupLogger, instanceLock);
+        HostComposition.AddMnemoBackend(builder.Services, modules, startupLogger, instanceLock, devRun: options.DevMode);
 
         var app = builder.Build();
         var logger = app.Services.GetRequiredService<ILoggerService>();
