@@ -245,6 +245,48 @@ describe('the table chrome', () => {
     });
     expect(strips().map((strip) => strip.hasAttribute('data-live'))).toEqual([false, false]);
   });
+
+  /**
+   * The menu is not modal, so the table under it still sees the pointer on its way
+   * to an item. The handle carries the menu, and a handle that went on following
+   * the pointer took the menu with it and pointed its items at the wrong column.
+   */
+  it('holds the handle on its column while the handle menu is open', () => {
+    movePointer(40, -11);
+    const handle = slots()[0].querySelector<HTMLElement>('.notes-table-handle')!;
+    act(() => {
+      handle.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, pointerId: 1, isPrimary: true }),
+      );
+      window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, isPrimary: true }));
+    });
+    expect(document.querySelector('[role="menu"]')).not.toBeNull();
+
+    movePointer(CELL_W + 40, 20);
+    expect(slots()[0].style.left).toBe('0px');
+
+    act(() => {
+      document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    movePointer(CELL_W + 40, 20);
+    expect(slots()[0].style.left).toBe(`${CELL_W}px`);
+  });
+
+  it('holds the handle on its row while the handle menu is open', () => {
+    movePointer(-11, 20);
+    const handle = slots()[1].querySelector<HTMLElement>('.notes-table-handle')!;
+    act(() => {
+      handle.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, pointerId: 1, isPrimary: true }),
+      );
+      window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, isPrimary: true }));
+    });
+    expect(document.querySelector('[role="menu"]')).not.toBeNull();
+
+    movePointer(40, CELL_H + 20);
+    expect(slots()[1].style.top).toBe('0px');
+  });
 });
 
 /**

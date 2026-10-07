@@ -178,6 +178,21 @@ export function TableChrome({
   const [resizing, setResizing] = useState<number | null>(null)
   /** Where a right-click landed, in frame coordinates, so the menu opens there. */
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  /**
+   * The row or column whose handle menu is open. The handle carries its menu, so
+   * a handle still following the pointer dragged the menu across the table and
+   * pointed its items at whichever run the pointer crossed on the way to them.
+   */
+  const [pinned, setPinned] = useState<{ kind: 'row' | 'col'; at: number } | null>(null)
+  const menuOpen = pinned !== null || menuAt !== null
+
+  // A read-only table unmounts the handles, so a menu open at that moment never
+  // reports its close and would leave hover frozen.
+  useEffect(() => {
+    if (editable) return
+    setPinned(null)
+    setMenuAt(null)
+  }, [editable])
 
   /** True while a grip drag runs, so the click it ends with cannot also open the menu. */
   const dragged = useRef(false)
@@ -203,6 +218,9 @@ export function TableChrome({
 
   useEffect(() => {
     if (!editable) return
+    // A menu is not modal, so the table under it still sees the pointer. The
+    // chrome holds still until the menu closes.
+    if (menuOpen) return
     const onMove = (event: PointerEvent): void => {
       if (growing) return
       const box = frame.getBoundingClientRect()
@@ -239,7 +257,7 @@ export function TableChrome({
       scroll.removeEventListener('pointermove', onMove)
       scroll.removeEventListener('pointerleave', onLeave)
     }
-  }, [frame, scroll, editable, growing, grid, width, height])
+  }, [frame, scroll, editable, growing, menuOpen, grid, width, height])
 
   /* -- cells: a range is a drag, not a modifier -------------------------- */
 
@@ -622,6 +640,13 @@ export function TableChrome({
     trackDrag({ move: onPointerMove, end: onUp, abort: () => setMove(null) })
   }
 
+  // Hover was frozen while the menu was up, so it is stale by the time the menu
+  // closes. The next pointer move puts back whatever is really under it.
+  const onAxisMenu = (open: boolean, kind: 'row' | 'col', at: number): void => {
+    setPinned(open ? { kind, at } : null)
+    if (!open) setNear(null)
+  }
+
   /* -- rails: one gesture, and a click is n = 1 -------------------------- */
 
   const onRailDown = (event: ReactPointerEvent, kind: 'row' | 'col'): void => {
@@ -781,10 +806,15 @@ export function TableChrome({
    * are, and the band already says what is selected. Once the pointer leaves, the
    * handle fades out where it stands rather than snapping home.
    */
-  const colAt =
-    move?.kind === 'col' ? move.from : (near?.col ?? -1) >= 0 ? near!.col : sel?.kind === 'col' ? sel.at : -1
-  const rowAt =
-    move?.kind === 'row' ? move.from : (near?.row ?? -1) >= 0 ? near!.row : sel?.kind === 'row' ? sel.at : -1
+  const axisAt = (kind: 'row' | 'col'): number => {
+    if (pinned?.kind === kind) return pinned.at
+    if (move?.kind === kind) return move.from
+    const hovered = (kind === 'col' ? near?.col : near?.row) ?? -1
+    if (hovered >= 0) return hovered
+    return sel?.kind === kind ? sel.at : -1
+  }
+  const colAt = axisAt('col')
+  const rowAt = axisAt('row')
   if (colAt >= 0) restCol.current = colAt
   if (rowAt >= 0) restRow.current = rowAt
   const colIdx = Math.min(restCol.current, Math.max(0, cols - 1))
@@ -832,6 +862,7 @@ export function TableChrome({
               label={t('NotesEditor', 'TableColumnActions', { 0: colIdx + 1 })}
               dragged={dragged}
               onDown={onHandleDown}
+              onOpenChange={onAxisMenu}
             >
               <AxisMenuItems
                 node={node}
@@ -860,6 +891,7 @@ export function TableChrome({
               label={t('NotesEditor', 'TableRowActions', { 0: rowIdx + 1 })}
               dragged={dragged}
               onDown={onHandleDown}
+              onOpenChange={onAxisMenu}
             >
               <AxisMenuItems
                 node={node}
@@ -909,7 +941,14 @@ export function TableChrome({
 
           {/* A zero-size anchor where the press landed, so the styled menu can be
               raised at the pointer without a second menu implementation. */}
-          <Menu open={menuAt !== null} onOpenChange={(open) => !open && setMenuAt(null)}>
+          <Menu
+            open={menuAt !== null}
+            onOpenChange={(open) => {
+              if (open) return
+              setMenuAt(null)
+              setNear(null)
+            }}
+          >
             <MenuTrigger asChild>
               <span
                 aria-hidden
@@ -959,6 +998,7 @@ function AxisHandle({
   label,
   dragged,
   onDown,
+  onOpenChange,
   children,
 }: {
   kind: 'row' | 'col'
@@ -967,6 +1007,7 @@ function AxisHandle({
   label: string
   dragged: React.RefObject<boolean>
   onDown: (event: ReactPointerEvent, kind: 'row' | 'col', at: number) => void
+  onOpenChange: (open: boolean, kind: 'row' | 'col', at: number) => void
   children: React.ReactNode
 }) {
   return (
@@ -983,7 +1024,7 @@ function AxisHandle({
       }}
       className="size-full"
     >
-      <Menu>
+      <Menu onOpenChange={(open) => onOpenChange(open, kind, at)}>
         <MenuTrigger asChild>
           <button type="button" tabIndex={-1} aria-label={label} className="notes-table-handle">
             <span data-on={on ? 'true' : undefined} data-axis={kind}>
