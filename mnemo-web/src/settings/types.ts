@@ -254,4 +254,6 @@ export interface SettingsValues {
 /** Build identity, shown by the updates row and the onboarding footer. */
 export interface AppInfo {
   version: string
+  /** A `--dev` run, whose version is the build props rather than a release. */
+  dev: boolean
 }

@@ -478,6 +478,7 @@
     "About": "About",
     "AboutSubtitle": "Built in the open, by learners, for learners.",
     "AboutVersionFormat": "Version {0}",
+    "AboutDevBuild": "Dev build",
     "Project": "Project",
     "Repository": "Repository",
     "RepositoryDescription": "Issues, discussions and the roadmap.",

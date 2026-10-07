@@ -478,6 +478,7 @@
     "About": "Über",
     "AboutSubtitle": "Offen entwickelt, von Lernenden für Lernende.",
     "AboutVersionFormat": "Version {0}",
+    "AboutDevBuild": "Entwicklungsversion",
     "Project": "Projekt",
     "Repository": "Repository",
     "RepositoryDescription": "Issues, Diskussionen und die Roadmap.",

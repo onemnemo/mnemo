@@ -478,6 +478,7 @@
     "About": "Acerca de",
     "AboutSubtitle": "Hecho a la vista de todos, por estudiantes y para estudiantes.",
     "AboutVersionFormat": "Versión {0}",
+    "AboutDevBuild": "Versión de desarrollo",
     "Project": "Proyecto",
     "Repository": "Repositorio",
     "RepositoryDescription": "Incidencias, debates y la hoja de ruta.",

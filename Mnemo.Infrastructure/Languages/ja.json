@@ -478,6 +478,7 @@
     "About": "Mnemoについて",
     "AboutSubtitle": "学ぶ人の手で、学ぶ人のために、公開の場で作られています。",
     "AboutVersionFormat": "バージョン {0}",
+    "AboutDevBuild": "開発版",
     "Project": "プロジェクト",
     "Repository": "リポジトリ",
     "RepositoryDescription": "Issue、ディスカッション、ロードマップ。",

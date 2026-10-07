@@ -10,6 +10,7 @@ public sealed record AppSettingsDto(string Theme, string Language);
 /// <summary>
 /// Build identity for the surfaces that display it (the Updates settings row, the
 /// onboarding footer). Checking for and applying updates is a separate concern that
-/// stays with the update orchestration phase.
+/// stays with the update orchestration phase. <see cref="Dev"/> marks a <c>--dev</c> run,
+/// whose version is the build props and not a release.
 /// </summary>
-public sealed record AppInfoDto(string Version);
+public sealed record AppInfoDto(string Version, bool Dev);

@@ -478,6 +478,7 @@
     "About": "Om",
     "AboutSubtitle": "Bygget i åpenhet, av folk som lærer, for folk som lærer.",
     "AboutVersionFormat": "Versjon {0}",
+    "AboutDevBuild": "Utviklerversjon",
     "Project": "Prosjekt",
     "Repository": "Kodelager",
     "RepositoryDescription": "Saker, diskusjoner og veikartet.",

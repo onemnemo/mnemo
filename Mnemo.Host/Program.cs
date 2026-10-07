@@ -342,7 +342,7 @@ public static class Program
         app.UseApiBearerToken(bearerToken, "/api/health");
 
         app.MapGet("/api/health", () => new HealthDto("ok"));
-        app.MapGet("/api/app/info", (IUpdateService updates) => new AppInfoDto(updates.CurrentDisplayVersion));
+        app.MapGet("/api/app/info", (IUpdateService updates) => new AppInfoDto(updates.CurrentDisplayVersion, options.DevMode));
 
         app.MapGet("/api/i18n/languages", (TranslationBundleService i18n) => i18n.GetLanguagesAsync());
         app.MapGet("/api/i18n/{culture}", (string culture, TranslationBundleService i18n, CancellationToken cancellationToken) =>

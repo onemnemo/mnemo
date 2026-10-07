@@ -19,7 +19,11 @@ export function AboutIdentityRow() {
 
   // The platform is dropped rather than guessed at when it is not recognised, so the
   // line never trails a separator with nothing after it.
-  const build = [t("Settings", "AboutVersionFormat", { 0: formatVersion(data?.version) }), platformName()]
+  const build = [
+    t("Settings", "AboutVersionFormat", { 0: formatVersion(data?.version) }),
+    data?.dev ? t("Settings", "AboutDevBuild") : "",
+    platformName(),
+  ]
     .filter(Boolean)
     .join(" · ")
 
