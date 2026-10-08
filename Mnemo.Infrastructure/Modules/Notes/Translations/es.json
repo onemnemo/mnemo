@@ -162,7 +162,7 @@
     "TransferNounSingular": "nota",
     "TransferNounPlural": "notas",
     "ImportHere": "Importar notas aquí",
-    "TransferImportDestinationFormat": "Los archivos Markdown se guardan en {0}. Un paquete conserva sus propias carpetas.",
+    "TransferImportDestinationFormat": "Las notas se guardan en {0}.",
     "ExportNoNotesMessage": "No hay notas seleccionadas para exportar.",
     "ExportFormatUnavailableMessage": "No hay ningún formato de exportación disponible.",
     "editor.slashHint": "Escribe ‘/’ para ver comandos"

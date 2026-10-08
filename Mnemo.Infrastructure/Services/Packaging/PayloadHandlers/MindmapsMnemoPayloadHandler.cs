@@ -156,8 +156,10 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
         // Assets and templates come first so a restored map's asset/template references resolve immediately.
         RestoreImageAssets(context.Files);
         await RestoreTemplatesAsync(snapshot.Templates, cancellationToken).ConfigureAwait(false);
+        var target = await LiveTargetAsync(context.Options.PayloadOptions, cancellationToken).ConfigureAwait(false);
         var folderIdMap = await RestoreFoldersAsync(
-            snapshot.Folders, policy, MnemoPackageKinds.IsBackup(context.Manifest.Kind), result, cancellationToken).ConfigureAwait(false);
+            snapshot.Folders, policy, target, MnemoPackageKinds.IsBackup(context.Manifest.Kind), result, cancellationToken).ConfigureAwait(false);
+        var packageFolderIds = new HashSet<string>(snapshot.Folders.Select(f => f.Id), StringComparer.Ordinal);
 
         var noteIds = MnemoIdKinds.Of(context.RemappedIds, MnemoIdKinds.Notes);
         var deckIds = MnemoIdKinds.Of(context.RemappedIds, MnemoIdKinds.FlashcardDecks);
@@ -186,6 +188,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
 
             document = PackageReferenceRewriter.RewriteMap(document, noteIds, deckIds, cardIds);
 
+            var keepsPlace = false;
             if (heldMapIds.Contains(document.Id))
             {
                 document = document with { Id = Guid.NewGuid().ToString() };
@@ -208,13 +211,20 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
                     result.DuplicatedCount++;
                 }
                 // Replace keeps the id; the service stores it as the next revision of what is there.
+                // Into a folder, it also keeps the map where it is, since nothing existing moves.
+                keepsPlace = policy == ImportConflictPolicy.Replace && target is not null;
             }
 
             existingMapIds.Add(document.Id);
             usedTitles.Add(document.Title);
 
             var folderId = map.FolderId;
-            if (!string.IsNullOrWhiteSpace(folderId) && folderIdMap.TryGetValue(folderId, out var remapped))
+            var loose = string.IsNullOrWhiteSpace(folderId) || !packageFolderIds.Contains(folderId);
+            if (keepsPlace)
+                folderId = null;
+            else if (loose && target is not null)
+                folderId = target;
+            else if (!string.IsNullOrWhiteSpace(folderId) && folderIdMap.TryGetValue(folderId, out var remapped))
                 folderId = remapped;
 
             // Through the service, not the store. An import is a write like any other: it has to take the
@@ -241,7 +251,9 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             }
 
             if (!string.IsNullOrWhiteSpace(folderId))
+            {
                 await _mindmaps.MoveToFolderAsync(document.Id, folderId, cancellationToken).ConfigureAwait(false);
+            }
 
             result.ImportedCount++;
         }
@@ -401,6 +413,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
     private async Task<Dictionary<string, string>> RestoreFoldersAsync(
         IReadOnlyList<FolderSnapshotDto> folders,
         ImportConflictPolicy policy,
+        string? target,
         bool isBackup,
         MnemoPayloadImportResult result,
         CancellationToken cancellationToken)
@@ -418,7 +431,11 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
         // it, so the package's folder takes a fresh id instead.
         var heldIds = await _trash.HeldFolderIdsAsync(cancellationToken).ConfigureAwait(false);
 
-        foreach (var folder in InAncestorOrder(folders))
+        // Parents first, so each row can point at its parent and a nested copy can find the copy of
+        // its parent in the map. A package lists folders in no such order, and can loop if edited.
+        var named = folders.Where(f => !string.IsNullOrWhiteSpace(f.Id)).ToList();
+        var packageIds = new HashSet<string>(named.Select(f => f.Id), StringComparer.Ordinal);
+        foreach (var (folder, isRoot) in PackageFolderTree.ParentFirst(named, f => f.Id, f => f.ParentId))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var id = folder.Id;
@@ -428,7 +445,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             }
             else if (existingIds.Contains(id))
             {
-                if (policy == ImportConflictPolicy.Skip)
+                if (policy == ImportConflictPolicy.Skip || (policy == ImportConflictPolicy.Replace && target is not null))
                 {
                     folderIdMap[folder.Id] = id;
                     continue;
@@ -442,17 +459,23 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             }
 
             var parentId = folder.ParentId;
-            if (!string.IsNullOrWhiteSpace(parentId) && folderIdMap.TryGetValue(parentId, out var remappedParent))
-                parentId = remappedParent;
-
-            // A parent that is in neither the package nor the library lands the folder at the library
-            // root, since the folder table refuses a row pointing at nothing. In an export that is just
-            // the top of the folder that was exported; in a backup it is a hole worth reporting.
-            if (!string.IsNullOrWhiteSpace(parentId) && !existingIds.Contains(parentId))
+            if (isRoot && target is not null)
             {
-                if (isBackup)
-                    result.Warnings.Add(TransferWarning.Of("MindmapFolderRestoredAtRoot", ("folderName", folder.Name)));
-                parentId = null;
+                parentId = target;
+            }
+            else if (isRoot)
+            {
+                // A missing parent or a broken loop puts the folder at the root. Only a backup warns.
+                if (!string.IsNullOrWhiteSpace(parentId) && (packageIds.Contains(parentId) || !existingIds.Contains(parentId)))
+                {
+                    if (isBackup)
+                        result.Warnings.Add(TransferWarning.Of("MindmapFolderRestoredAtRoot", ("folderName", folder.Name)));
+                    parentId = null;
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(parentId) && folderIdMap.TryGetValue(parentId, out var remappedParent))
+            {
+                parentId = remappedParent;
             }
 
             folderIdMap[folder.Id] = id;
@@ -463,61 +486,13 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
         return folderIdMap;
     }
 
-    /// <summary>
-    /// The same folders, reordered so a folder never comes before the folder it sits in.
-    /// </summary>
-    /// <remarks>
-    /// Restoring a folder does two things that need the parent already done: it points the new row at the
-    /// parent's row, which the folder table requires to exist, and it looks the parent up in the id map so
-    /// a nested copy lands under the copy of its parent rather than under the user's original. Neither
-    /// order the packages actually carry gives that. A selective export walks each map's folder upward, so
-    /// it stores children first, and a full export stores whatever order the user sorted the library into.
-    /// A parent chain that loops stops where it started, since a package can be edited by hand.
-    /// </remarks>
-    private static List<FolderSnapshotDto> InAncestorOrder(IReadOnlyList<FolderSnapshotDto> folders)
+    /// <summary>The import's target folder when it is still a live folder, otherwise null.</summary>
+    private async Task<string?> LiveTargetAsync(IReadOnlyDictionary<string, object?> options, CancellationToken cancellationToken)
     {
-        var byId = new Dictionary<string, FolderSnapshotDto>(StringComparer.Ordinal);
-        foreach (var folder in folders)
-        {
-            if (!string.IsNullOrWhiteSpace(folder.Id))
-                byId.TryAdd(folder.Id, folder);
-        }
-
-        var ordered = new List<FolderSnapshotDto>(byId.Count);
-        var emitted = new HashSet<string>(StringComparer.Ordinal);
-        var chain = new List<FolderSnapshotDto>();
-        var onChain = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var folder in folders)
-        {
-            if (string.IsNullOrWhiteSpace(folder.Id) || emitted.Contains(folder.Id))
-                continue;
-
-            chain.Clear();
-            onChain.Clear();
-            var current = folder;
-            while (onChain.Add(current.Id))
-            {
-                chain.Add(current);
-                var parentId = current.ParentId;
-                if (string.IsNullOrWhiteSpace(parentId)
-                    || emitted.Contains(parentId)
-                    || !byId.TryGetValue(parentId, out var parent))
-                {
-                    break;
-                }
-
-                current = parent;
-            }
-
-            for (var i = chain.Count - 1; i >= 0; i--)
-            {
-                if (emitted.Add(chain[i].Id))
-                    ordered.Add(chain[i]);
-            }
-        }
-
-        return ordered;
+        if (ImportExportOptionKeys.GetStringOption(options, MnemoPayloadOptionKeys.MapTargetFolderId) is not { } target)
+            return null;
+        var folders = await _mindmaps.GetFoldersAsync(cancellationToken).ConfigureAwait(false);
+        return folders.Value?.Any(f => f.Id == target) == true ? target : null;
     }
 
     private void RestoreImageAssets(IReadOnlyDictionary<string, byte[]> files)

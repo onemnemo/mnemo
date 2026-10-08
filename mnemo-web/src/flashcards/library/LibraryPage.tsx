@@ -132,6 +132,13 @@ export function LibraryPage() {
   // Export from here covers what the search leaves in scope, the way the desktop scopes it -
   // deliberately NOT the visible rows, because a collapsed folder hides its decks from the table
   // while they are still very much part of "All decks".
+  const importIntoFolder = (row: FolderRowModel) =>
+    useTransfer.getState().open({
+      direction: "import",
+      scope: null,
+      destination: { folderId: row.id, label: row.folder.name },
+    })
+
   const exportFolder = (row: FolderRowModel) =>
     useTransfer.getState().open({
       direction: "export",
@@ -251,6 +258,7 @@ export function LibraryPage() {
               rows={model.rows}
               onOpenDeck={(id) => navigate("flashcard-deck", id)}
               onToggleFolder={toggleFolder}
+              onImportFolder={importIntoFolder}
               onExportFolder={exportFolder}
               drag={drag}
               surfaceRef={surfaceRef}

@@ -10,10 +10,19 @@ export interface MindmapTransferScope {
   folderIds?: string[]
 }
 
+/** The map folder an import lands in. */
+export interface MindmapImportDestination {
+  folderId: string
+  /** The folder's name, so the dialog can say where the maps are going. */
+  label: string
+}
+
 export interface MindmapTransferTarget {
   /** Directions on offer. A single one hides the toggle and fixes the dialog to that side. */
   direction: "import" | "export" | "both"
   scope: MindmapTransferScope | null
+  /** The folder an import lands in. Absent means the top level. */
+  destination?: MindmapImportDestination | null
 }
 
 interface MindmapTransferState {

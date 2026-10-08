@@ -36,6 +36,7 @@ export interface MapMenuHandlers {
 
 export interface FolderMenuHandlers {
   readonly rename: () => void
+  readonly import: () => void
   readonly export: () => void
   readonly remove: () => void
 }
@@ -68,6 +69,7 @@ export function folderMenuItems({
 
   return [
     { kind: "item", id: "rename", label: mm("Rename"), icon: "flyout/rename", run: on.rename },
+    { kind: "item", id: "import", label: mm("ImportHere"), icon: "common/download", run: on.import },
     { kind: "item", id: "export", label: mm("Export"), icon: "common/upload", disabled: mapCount === 0, run: on.export },
     { kind: "separator", id: "sep.delete" },
     { kind: "item", id: "delete", label: mm("Delete"), icon: "common/trash", danger: true, run: on.remove },

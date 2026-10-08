@@ -54,11 +54,15 @@ public sealed class FlashcardsMnemoFormatAdapter : IContentFormatAdapter
 
     public async Task<ImportExportResult> ImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
-        var import = await _packageService.ImportAsync(request.FilePath, new MnemoPackageImportOptions
+        var options = new MnemoPackageImportOptions
         {
             ConflictPolicy = ImportExportOptionKeys.GetConflictPolicy(request.Options),
             PayloadTypes = ["flashcards"]
-        }, cancellationToken).ConfigureAwait(false);
+        };
+        if (ImportExportOptionKeys.GetStringOption(request.Options, ImportExportOptionKeys.TargetFolderId) is { } targetFolderId)
+            options.PayloadOptions[MnemoPayloadOptionKeys.DeckTargetFolderId] = targetFolderId;
+
+        var import = await _packageService.ImportAsync(request.FilePath, options, cancellationToken).ConfigureAwait(false);
 
         return new ImportExportResult
         {

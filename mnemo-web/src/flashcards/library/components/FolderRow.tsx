@@ -21,11 +21,13 @@ import { DEPTH_INDENT, RETENTION_CELL } from "./rowLayout"
 export function FolderRow({
   row,
   onToggle,
+  onImport,
   onExport,
   drag,
 }: {
   row: FolderRowModel
   onToggle: (id: string) => void
+  onImport: (row: FolderRowModel) => void
   onExport: (row: FolderRowModel) => void
   drag: LibraryDrag
 }) {
@@ -62,6 +64,7 @@ export function FolderRow({
     on: {
       toggle: () => onToggle(folder.id),
       rename: rename.openFromMenu,
+      import: () => onImport(row),
       export: () => onExport(row),
       remove: () => void remove(),
     },

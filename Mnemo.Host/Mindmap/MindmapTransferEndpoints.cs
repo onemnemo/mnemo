@@ -156,6 +156,7 @@ public static class MindmapTransferEndpoints
         endpoints.MapPost("/api/mindmaps/transfer/import", async (
             MindmapTransferImportDto body,
             IImportExportCoordinator transfer,
+            IMindmapService mindmaps,
             ILoggerService logger,
             CancellationToken cancellationToken) =>
         {
@@ -176,6 +177,17 @@ public static class MindmapTransferEndpoints
             {
                 return Results.BadRequest(new ErrorDto("invalid_conflict_policy",
                     $"'{body.ConflictPolicy}' is not a conflict policy."));
+            }
+
+            // Refused before any staged file is consumed. A map filed under a missing folder never shows.
+            var targetFolderId = string.IsNullOrWhiteSpace(body.TargetFolderId) ? null : body.TargetFolderId.Trim();
+            if (targetFolderId is not null)
+            {
+                var known = await mindmaps.GetFoldersAsync(cancellationToken).ConfigureAwait(false);
+                if (!known.IsSuccess || known.Value is null)
+                    return Results.Problem(known.ErrorMessage ?? "The mindmap folders could not be read.");
+                if (!known.Value.Any(f => f.Id == targetFolderId))
+                    return Results.BadRequest(new ErrorDto("unknown_folder", $"No mindmap folder '{targetFolderId}'."));
             }
 
             var succeeded = 0;
@@ -218,6 +230,8 @@ public static class MindmapTransferEndpoints
                             FilePath = path,
                         };
                         request.Options[ImportExportOptionKeys.ConflictPolicy] = policy;
+                        if (targetFolderId is not null)
+                            request.Options[ImportExportOptionKeys.TargetFolderId] = targetFolderId;
 
                         // Deliberately not the request's token. An import writes maps, folders and
                         // image assets as it goes, so cancelling one part-way leaves the library

@@ -28,6 +28,7 @@ export function ImportPanel({
   queue,
   formats,
   rejected,
+  destination,
   conflict,
   busy,
   ready,
@@ -41,6 +42,8 @@ export function ImportPanel({
   formats: TransferFormatDto[]
   /** Names turned away before upload, for the notice under the list. */
   rejected: string[]
+  /** The folder the decks land in, when the dialog was opened on one. */
+  destination?: string
   conflict: ConflictPolicy
   busy: boolean
   /** False until the format list lands; picking before then would refuse every file. */
@@ -154,6 +157,13 @@ export function ImportPanel({
       {rejected.length > 0 ? (
         <p className="text-caption text-[var(--toast-accent-warning)]">
           {rejected.map((name) => common("TransferUnsupportedFile", { 0: name })).join(" ")}
+        </p>
+      ) : null}
+
+      {destination ? (
+        <p className="flex items-start gap-2 text-caption text-text-tertiary">
+          <AppIcon name="common/folder" size={13} className="mt-px shrink-0" />
+          <span>{fc("TransferImportDestinationFormat", { 0: destination })}</span>
         </p>
       ) : null}
 

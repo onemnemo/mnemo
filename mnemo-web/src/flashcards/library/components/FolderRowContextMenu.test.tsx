@@ -61,7 +61,7 @@ function rightClick(target: Element): void {
 }
 
 function handlers(): FolderMenuHandlers {
-  return { toggle: vi.fn(), rename: vi.fn(), export: vi.fn(), remove: vi.fn() }
+  return { toggle: vi.fn(), rename: vi.fn(), import: vi.fn(), export: vi.fn(), remove: vi.fn() }
 }
 
 /** Every menu row currently on screen, by its label. */

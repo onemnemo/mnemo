@@ -1231,6 +1231,7 @@
     "LibraryLoadFailedHint": "Mnemoが起動しているか確認して、もう一度お試しください。",
     "Retry": "再試行",
     "TransferImportTitle": "マインドマップをインポート",
+    "TransferImportDestinationFormat": "マインドマップは{0}に保存されます。",
     "TransferExportTitle": "マインドマップをエクスポート",
     "TransferExportSingleTitle": "マインドマップをエクスポート",
     "TransferConflictQuestion": "マインドマップが既に存在する場合",

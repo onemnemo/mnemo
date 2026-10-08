@@ -130,7 +130,8 @@ public sealed class FlashcardsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemo
         var restore = new FlashcardCollectionRestore(
             _store, _presetService, _folders, _decks, _cardRows, _facts, _cardTypes,
             _presets, _schedules, _reviews, _dailyStats, _logger, imagesDirectory);
-        return await restore.RestoreAsync(snapshot, context.Options.ConflictPolicy, cancellationToken).ConfigureAwait(false);
+        var targetFolderId = ImportExportOptionKeys.GetStringOption(context.Options.PayloadOptions, MnemoPayloadOptionKeys.DeckTargetFolderId);
+        return await restore.RestoreAsync(snapshot, context.Options.ConflictPolicy, cancellationToken, targetFolderId).ConfigureAwait(false);
     }
 
     public async Task<MnemoPayloadEvidence> InspectAsync(MnemoPayloadImportContext context, CancellationToken cancellationToken = default)

@@ -681,6 +681,8 @@ export interface PayloadEvidenceDto {
 export interface TransferImportDto {
   uploadIds: string[]
   conflictPolicy: ConflictPolicy
+  /** The deck folder the import lands in. Null or absent means the top level. */
+  targetFolderId?: string | null
 }
 
 /** Mirrors Mnemo.Host/Contracts/TransferDto.cs TransferImportResultDto. */
@@ -756,13 +758,12 @@ export interface MindmapTransferUploadDto {
   warnings: TransferWarningDto[]
 }
 
-/**
- * Mirrors Mnemo.Host/Contracts/MindmapTransferDto.cs MindmapTransferImportDto. No target folder,
- * unlike the note side: a package carries the folders its maps were filed in and restores them.
- */
+/** Mirrors Mnemo.Host/Contracts/MindmapTransferDto.cs MindmapTransferImportDto. */
 export interface MindmapTransferImportDto {
   uploadIds: string[]
   conflictPolicy: ConflictPolicy
+  /** The map folder the import lands in. Null or absent means the top level. */
+  targetFolderId?: string | null
 }
 
 /** Mirrors Mnemo.Host/Contracts/MindmapTransferDto.cs MindmapTransferImportResultDto. */

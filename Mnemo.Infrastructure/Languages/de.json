@@ -1231,6 +1231,7 @@
     "LibraryLoadFailedHint": "Prüfe, ob Mnemo läuft, und versuche es erneut.",
     "Retry": "Erneut versuchen",
     "TransferImportTitle": "Mindmaps importieren",
+    "TransferImportDestinationFormat": "Mindmaps landen in {0}.",
     "TransferExportTitle": "Mindmaps exportieren",
     "TransferExportSingleTitle": "Mindmap exportieren",
     "TransferConflictQuestion": "Wenn eine Mindmap bereits existiert",

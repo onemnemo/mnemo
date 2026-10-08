@@ -188,7 +188,8 @@ public sealed partial class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
             var now = DateTimeOffset.UtcNow;
             var preset = await _presets.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
             var weights = FsrsWeightRules.Resolve(preset);
-            var folders = await DeckFolderResolver.CreateAsync(_library, cancellationToken).ConfigureAwait(false);
+            var folders = await DeckFolderResolver.CreateAsync(
+                _library, cancellationToken, ImportExportOptionKeys.GetStringOption(request.Options, ImportExportOptionKeys.TargetFolderId)).ConfigureAwait(false);
             var tally = new ImportTally { OcclusionRepeatsSkipped = enhanced.Repeats.Count };
             var failedDecks = 0;
             var importSessionId = FlashcardImportedReviews.NewSessionId();

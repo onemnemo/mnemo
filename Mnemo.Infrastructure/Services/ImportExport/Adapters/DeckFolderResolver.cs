@@ -20,19 +20,39 @@ internal sealed class DeckFolderResolver
     private readonly Dictionary<string, string> _folderIdByChain = new(StringComparer.OrdinalIgnoreCase);
     private int _nextOrder;
 
-    private DeckFolderResolver(IFlashcardLibraryService library) => _library = library;
+    private readonly string? _baseFolderId;
 
-    public static async Task<DeckFolderResolver> CreateAsync(IFlashcardLibraryService library, CancellationToken cancellationToken)
+    private DeckFolderResolver(IFlashcardLibraryService library, string? baseFolderId)
     {
-        var resolver = new DeckFolderResolver(library);
+        _library = library;
+        _baseFolderId = baseFolderId;
+    }
+
+    /// <summary>
+    /// A resolver over the library's folders. A live <paramref name="baseFolderId"/> roots every path
+    /// below it, so "Biology::Cells" imported into Biology lands in Biology/Biology/Cells.
+    /// </summary>
+    public static async Task<DeckFolderResolver> CreateAsync(
+        IFlashcardLibraryService library,
+        CancellationToken cancellationToken,
+        string? baseFolderId = null)
+    {
         var folders = await library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
         var byId = folders.ToDictionary(f => f.Id, StringComparer.Ordinal);
+        if (baseFolderId is not null && !byId.ContainsKey(baseFolderId))
+            baseFolderId = null;
+
+        var resolver = new DeckFolderResolver(library, baseFolderId);
         foreach (var folder in folders)
         {
-            var chain = ChainOf(folder, byId);
-            if (chain.Count > 0)
-                resolver._folderIdByChain.TryAdd(string.Join(KeySeparator, chain), folder.Id);
             resolver._nextOrder = Math.Max(resolver._nextOrder, folder.Order + 1);
+            var chain = FoldersOf(folder, byId);
+            var start = baseFolderId is null ? 0 : chain.FindIndex(f => f.Id == baseFolderId) + 1;
+            if (start == 0 && baseFolderId is not null)
+                continue;
+            var names = chain.Skip(start).Select(f => f.Name).ToList();
+            if (names.Count > 0)
+                resolver._folderIdByChain.TryAdd(string.Join(KeySeparator, names), folder.Id);
         }
 
         return resolver;
@@ -51,7 +71,7 @@ internal sealed class DeckFolderResolver
             .ToArray();
 
         if (segments.Length == 0)
-            return (null, path);
+            return (_baseFolderId, path);
 
         var folderId = await ResolveAsync(segments[..^1], cancellationToken).ConfigureAwait(false);
         return (folderId, segments[^1]);
@@ -64,7 +84,7 @@ internal sealed class DeckFolderResolver
     /// <summary>The folder a chain of names ends in, outermost first. Null for an empty chain.</summary>
     private async Task<string?> ResolveAsync(IReadOnlyList<string> chain, CancellationToken cancellationToken)
     {
-        string? parentId = null;
+        var parentId = _baseFolderId;
         for (var i = 0; i < chain.Count; i++)
         {
             var key = string.Join(KeySeparator, chain.Take(i + 1));
@@ -92,19 +112,23 @@ internal sealed class DeckFolderResolver
         return folders.ToDictionary(f => f.Id, f => ChainOf(f, byId), StringComparer.Ordinal);
     }
 
-    private static IReadOnlyList<string> ChainOf(FlashcardFolder folder, IReadOnlyDictionary<string, FlashcardFolder> byId)
+    private static IReadOnlyList<string> ChainOf(FlashcardFolder folder, IReadOnlyDictionary<string, FlashcardFolder> byId) =>
+        FoldersOf(folder, byId).Select(f => f.Name).ToList();
+
+    /// <summary>The folder and its ancestors, outermost first.</summary>
+    private static List<FlashcardFolder> FoldersOf(FlashcardFolder folder, IReadOnlyDictionary<string, FlashcardFolder> byId)
     {
-        var names = new List<string>();
+        var chain = new List<FlashcardFolder>();
         var current = folder;
         // Saved data can carry a parent cycle; the depth cap keeps a bad row from hanging a walk.
         for (var depth = 0; current is not null && depth < 64; depth++)
         {
-            names.Add(current.Name);
+            chain.Add(current);
             if (string.IsNullOrEmpty(current.ParentId) || !byId.TryGetValue(current.ParentId, out current))
                 break;
         }
 
-        names.Reverse();
-        return names;
+        chain.Reverse();
+        return chain;
     }
 }

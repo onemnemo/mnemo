@@ -212,7 +212,7 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
 
     setBusy(true)
     try {
-      const result = await runImport({ uploadIds, conflictPolicy: conflict })
+      const result = await runImport({ uploadIds, conflictPolicy: conflict, targetFolderId: target.destination?.folderId ?? null })
       // The server consumed the staged files, so the queue is emptied before closing to keep the
       // unmount cleanup from asking it to discard ids that no longer exist. The ref is cleared
       // by hand because closing unmounts this component in the same batch - there is no further
@@ -371,6 +371,7 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
                 queue={queue}
                 formats={formatList}
                 rejected={rejected}
+                destination={target.destination?.label}
                 conflict={conflict}
                 busy={busy}
                 ready={formatsReady}

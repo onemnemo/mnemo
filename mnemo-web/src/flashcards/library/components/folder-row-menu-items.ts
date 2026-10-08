@@ -36,6 +36,7 @@ export type FolderMenuEntry = FolderMenuItem | FolderMenuSeparator
 export interface FolderMenuHandlers {
   readonly toggle: () => void
   readonly rename: () => void
+  readonly import: () => void
   readonly export: () => void
   readonly remove: () => void
 }
@@ -68,6 +69,7 @@ export function folderMenuItems({
     },
     { kind: "separator", id: "sep.rename" },
     { kind: "item", id: "rename", label: fc("RenameFolder"), icon: "flyout/rename", run: on.rename },
+    { kind: "item", id: "import", label: fc("ImportHere"), icon: "common/download", run: on.import },
     {
       kind: "item",
       id: "export",

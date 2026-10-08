@@ -76,7 +76,7 @@ function mount(node: ReactNode): void {
 }
 
 function mountRow(expanded = true): void {
-  mount(<FolderRow row={row(expanded)} onToggle={() => {}} onExport={() => {}} drag={drag} />)
+  mount(<FolderRow row={row(expanded)} onToggle={() => {}} onImport={() => {}} onExport={() => {}} drag={drag} />)
 }
 
 /**
@@ -110,7 +110,7 @@ function openEditor(): HTMLInputElement {
 
 /** Every menu row currently on screen, by its label. */
 function rowLabels(): string[] {
-  return [...document.querySelectorAll("[role='menuitem']")].map((el) => el.textContent ?? "")
+  return [...document.querySelectorAll("[role='menuitem']")].map((el) => el.textContent?.trim() ?? "")
 }
 
 function openContextMenu(): void {
@@ -258,7 +258,7 @@ describe("FolderRow menus", () => {
     openOverflowMenu()
     const fromOverflow = rowLabels()
 
-    expect(fromRightClick).toEqual(["ExpandFolder", "RenameFolder", "Export", "DeleteFolder"])
+    expect(fromRightClick).toEqual(["ExpandFolder", "RenameFolder", "ImportHere", "Export", "DeleteFolder"])
     expect(fromOverflow).toEqual(fromRightClick)
   })
 

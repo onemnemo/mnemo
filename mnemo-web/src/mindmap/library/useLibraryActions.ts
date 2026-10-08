@@ -120,6 +120,14 @@ export function useLibraryActions() {
       undo(await remove.mutateAsync(id))
     },
 
+    importIntoFolder(folder: MindmapFolder) {
+      useMindmapTransfer.getState().open({
+        direction: "import",
+        scope: null,
+        destination: { folderId: folder.id, label: folder.name },
+      })
+    },
+
     /** Reads the library the gallery already loaded, so the menu never waits on a fetch. */
     exportFolder(folder: MindmapFolder) {
       const entries = queryClient.getQueryData<MindmapLibraryEntry[]>(mindmapLibraryKey) ?? []

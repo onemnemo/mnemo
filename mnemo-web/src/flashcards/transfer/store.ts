@@ -16,10 +16,19 @@ export interface TransferScope {
   wholeCollection?: boolean
 }
 
+/** The deck folder an import lands in. */
+export interface ImportDestination {
+  folderId: string
+  /** The folder's name, so the dialog can say where the decks are going. */
+  label: string
+}
+
 export interface TransferTarget {
   /** Directions on offer. A single one hides the toggle and fixes the dialog to that side. */
   direction: "import" | "export" | "both"
   scope: TransferScope | null
+  /** The folder an import lands in. Absent means the top level. */
+  destination?: ImportDestination | null
 }
 
 interface TransferState {

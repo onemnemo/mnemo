@@ -1231,6 +1231,7 @@
     "LibraryLoadFailedHint": "Sjekk at Mnemo kjører, og prøv igjen.",
     "Retry": "Prøv igjen",
     "TransferImportTitle": "Importer tankekart",
+    "TransferImportDestinationFormat": "Tankekart havner i {0}.",
     "TransferExportTitle": "Eksporter tankekart",
     "TransferExportSingleTitle": "Eksporter tankekart",
     "TransferConflictQuestion": "Hvis et tankekart allerede finnes",

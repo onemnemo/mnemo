@@ -1231,6 +1231,7 @@
     "LibraryLoadFailedHint": "Comprueba que Mnemo se esté ejecutando y vuelve a intentarlo.",
     "Retry": "Reintentar",
     "TransferImportTitle": "Importar mapas mentales",
+    "TransferImportDestinationFormat": "Los mapas mentales se guardan en {0}.",
     "TransferExportTitle": "Exportar mapas mentales",
     "TransferExportSingleTitle": "Exportar mapa mental",
     "TransferConflictQuestion": "Si un mapa mental ya existe",

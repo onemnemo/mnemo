@@ -192,6 +192,15 @@ public static class TransferEndpoints
                     $"'{body.ConflictPolicy}' is not a conflict policy."));
             }
 
+            // Refused before any staged file is consumed. A deck filed under a missing folder never shows.
+            var targetFolderId = string.IsNullOrWhiteSpace(body.TargetFolderId) ? null : body.TargetFolderId.Trim();
+            if (targetFolderId is not null)
+            {
+                var known = await library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
+                if (!known.Any(f => f.Id == targetFolderId))
+                    return Results.BadRequest(new ErrorDto("unknown_folder", $"No deck folder '{targetFolderId}'."));
+            }
+
             var succeeded = 0;
             var importedCards = 0;
             var measure = false;
@@ -244,6 +253,8 @@ public static class TransferEndpoints
                             FilePath = path,
                         };
                         request.Options[ImportExportOptionKeys.ConflictPolicy] = policy;
+                        if (targetFolderId is not null)
+                            request.Options[ImportExportOptionKeys.TargetFolderId] = targetFolderId;
 
                         // Deliberately not the request's token. An import writes decks and cards
                         // as it goes, so cancelling one part-way leaves the library holding half a

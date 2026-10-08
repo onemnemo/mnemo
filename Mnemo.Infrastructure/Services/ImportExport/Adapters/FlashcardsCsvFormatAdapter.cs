@@ -122,7 +122,8 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
                 Attachments: Array.Empty<FlashcardAttachment>()));
         }
 
-        var folders = await DeckFolderResolver.CreateAsync(_library, cancellationToken).ConfigureAwait(false);
+        var folders = await DeckFolderResolver.CreateAsync(
+            _library, cancellationToken, ImportExportOptionKeys.GetStringOption(request.Options, ImportExportOptionKeys.TargetFolderId)).ConfigureAwait(false);
         var createdCards = 0;
         foreach (var deckName in deckNames)
         {

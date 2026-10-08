@@ -117,7 +117,12 @@ public sealed record PayloadEvidenceDto(
 /// <c>KeepBoth</c> (default), <c>Skip</c> or <c>Replace</c>. Only the <c>.mnemo</c> format reads
 /// it - CSV and Anki packages carry no ids to collide on, so every import of those is new content.
 /// </param>
-public sealed record TransferImportDto(IReadOnlyList<string> UploadIds, string? ConflictPolicy);
+/// <param name="TargetFolderId">
+/// Deck folder the import lands in. A package's top-level folders and loose decks go under it and
+/// nothing already in the library moves; CSV and Anki deck paths resolve below it. Refused as
+/// <c>unknown_folder</c> when no folder carries the id.
+/// </param>
+public sealed record TransferImportDto(IReadOnlyList<string> UploadIds, string? ConflictPolicy, string? TargetFolderId = null);
 
 /// <summary>
 /// What a batch import did. Per-file errors are collected rather than thrown so one unreadable

@@ -75,10 +75,15 @@ internal sealed class FlashcardCollectionRestore
         _imagesDirectory = imagesDirectory;
     }
 
+    /// <summary>
+    /// Writes the snapshot into the library. A live <paramref name="targetFolderId"/> takes the
+    /// package's top-level folders and loose decks, and nothing already in the library moves.
+    /// </summary>
     public async Task<MnemoPayloadImportResult> RestoreAsync(
         FlashcardPayloadSnapshot snapshot,
         ImportConflictPolicy policy,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? targetFolderId = null)
     {
         // The fallback profile has to exist before any deck row names one, because the deck table
         // enforces the reference. Minted outside the restore's own transaction, since it has one.
@@ -94,8 +99,11 @@ internal sealed class FlashcardCollectionRestore
         {
             await RestorePresetsAsync(conn, tx, snapshot, policy, ct).ConfigureAwait(false);
             await RestoreCardTypesAsync(conn, tx, snapshot, policy, ct).ConfigureAwait(false);
-            var folderMap = await RestoreFoldersAsync(conn, tx, snapshot, policy, result, now, ct).ConfigureAwait(false);
-            var deckMap = await RestoreDecksAsync(conn, tx, snapshot, policy, folderMap, result, now, ct).ConfigureAwait(false);
+            var target = targetFolderId is not null && await IsLiveFolderAsync(conn, targetFolderId, ct).ConfigureAwait(false)
+                ? targetFolderId
+                : null;
+            var folderMap = await RestoreFoldersAsync(conn, tx, snapshot, policy, target, result, now, ct).ConfigureAwait(false);
+            var deckMap = await RestoreDecksAsync(conn, tx, snapshot, policy, target, folderMap, result, now, ct).ConfigureAwait(false);
             var factMap = await RestoreFactsAsync(conn, tx, snapshot, policy, deckMap, imagesDirectory, ct).ConfigureAwait(false);
             var cardMap = await RestoreCardsAsync(conn, tx, snapshot, policy, deckMap, factMap, imagesDirectory, now, ct).ConfigureAwait(false);
             await RestoreHistoryAsync(conn, tx, snapshot, deckMap, cardMap, ct).ConfigureAwait(false);
@@ -181,6 +189,7 @@ internal sealed class FlashcardCollectionRestore
         Microsoft.Data.Sqlite.SqliteTransaction tx,
         FlashcardPayloadSnapshot snapshot,
         ImportConflictPolicy policy,
+        string? target,
         MnemoPayloadImportResult result,
         DateTimeOffset now,
         CancellationToken cancellationToken)
@@ -199,7 +208,7 @@ internal sealed class FlashcardCollectionRestore
             var id = folder.Id;
             if (existingIds.Contains(id))
             {
-                if (policy == ImportConflictPolicy.Skip)
+                if (policy == ImportConflictPolicy.Skip || (policy == ImportConflictPolicy.Replace && target is not null))
                 {
                     map[folder.Id] = id;
                     continue;
@@ -219,7 +228,9 @@ internal sealed class FlashcardCollectionRestore
             var parentId = folder.ParentId;
             if (isRoot)
             {
-                if (string.IsNullOrWhiteSpace(parentId) || packageIds.Contains(parentId) || !existingIds.Contains(parentId))
+                if (target is not null)
+                    parentId = target;
+                else if (string.IsNullOrWhiteSpace(parentId) || packageIds.Contains(parentId) || !existingIds.Contains(parentId))
                     parentId = null;
             }
             else if (!string.IsNullOrWhiteSpace(parentId) && map.TryGetValue(parentId, out var remappedParent))
@@ -260,6 +271,7 @@ internal sealed class FlashcardCollectionRestore
         Microsoft.Data.Sqlite.SqliteTransaction tx,
         FlashcardPayloadSnapshot snapshot,
         ImportConflictPolicy policy,
+        string? target,
         IReadOnlyDictionary<string, string> folderMap,
         MnemoPayloadImportResult result,
         DateTimeOffset now,
@@ -268,6 +280,10 @@ internal sealed class FlashcardCollectionRestore
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
         var existing = await _decks.ListHeadersAsync(conn, cancellationToken).ConfigureAwait(false);
         var existingIds = new HashSet<string>(existing.Select(d => d.Id), StringComparer.Ordinal);
+        var existingFolderOf = existing.ToDictionary(d => d.Id, d => d.FolderId, StringComparer.Ordinal);
+        var packageFolderIds = new HashSet<string>(snapshot.Folders.Select(f => f.Id), StringComparer.Ordinal);
+        var liveFolderIds = new HashSet<string>(
+            (await _folders.ListAsync(conn, cancellationToken).ConfigureAwait(false)).Select(f => f.Id), StringComparer.Ordinal);
         var usedNames = new HashSet<string>(existing.Select(d => d.Name), StringComparer.OrdinalIgnoreCase);
 
         foreach (var deck in snapshot.Decks)
@@ -275,6 +291,7 @@ internal sealed class FlashcardCollectionRestore
             cancellationToken.ThrowIfCancellationRequested();
             var deckId = deck.Id;
             var name = deck.Name;
+            var keepsPlace = false;
 
             if (existingIds.Contains(deckId))
             {
@@ -293,13 +310,23 @@ internal sealed class FlashcardCollectionRestore
                 else
                 {
                     await ClearDeckAsync(conn, tx, deckId, now, cancellationToken).ConfigureAwait(false);
+                    keepsPlace = target is not null;
                 }
             }
 
             usedNames.Add(name);
             var folderId = deck.FolderId;
-            if (!string.IsNullOrWhiteSpace(folderId) && folderMap.TryGetValue(folderId, out var remappedFolder))
+            var loose = string.IsNullOrWhiteSpace(folderId) || !packageFolderIds.Contains(folderId);
+            if (keepsPlace)
+                folderId = existingFolderOf.GetValueOrDefault(deckId);
+            else if (loose && target is not null)
+                folderId = target;
+            else if (!string.IsNullOrWhiteSpace(folderId) && folderMap.TryGetValue(folderId, out var remappedFolder))
                 folderId = remappedFolder;
+
+            // The deck table refuses a missing folder. One such deck goes to the top level.
+            if (folderId is not null && !liveFolderIds.Contains(folderId))
+                folderId = null;
 
             var presetId = await ResolvePresetIdAsync(conn, deck.PresetId, cancellationToken).ConfigureAwait(false);
             var header = new FlashcardDeckHeader(

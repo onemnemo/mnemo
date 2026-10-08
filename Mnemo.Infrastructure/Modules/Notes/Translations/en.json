@@ -162,7 +162,7 @@
     "TransferNounSingular": "note",
     "TransferNounPlural": "notes",
     "ImportHere": "Import notes here",
-    "TransferImportDestinationFormat": "Markdown files land in {0}. A package keeps its own folders.",
+    "TransferImportDestinationFormat": "Notes land in {0}.",
     "ExportNoNotesMessage": "No notes selected to export.",
     "ExportFormatUnavailableMessage": "No export format is available.",
     "editor.slashHint": "Type ‘/’ for commands"

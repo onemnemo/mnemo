@@ -77,6 +77,7 @@ function actions(): LibraryActions {
     duplicateMap: vi.fn(),
     deleteMap: vi.fn(),
     renameFolder: vi.fn(),
+    importIntoFolder: vi.fn(),
     exportFolder: vi.fn(),
     deleteFolder: vi.fn(),
     fileMap: vi.fn(),
@@ -85,12 +86,12 @@ function actions(): LibraryActions {
 
 /** Every menu row currently on screen, by its label. */
 function rowLabels(): string[] {
-  return [...document.querySelectorAll("[role='menuitem']")].map((el) => el.textContent ?? "")
+  return [...document.querySelectorAll("[role='menuitem']")].map((el) => el.textContent?.trim() ?? "")
 }
 
 function choose(label: string): void {
   const row = [...document.querySelectorAll<HTMLElement>("[role='menuitem']")].find(
-    (el) => el.textContent === label,
+    (el) => el.textContent?.trim() === label,
   )
   expect(row, `no menu row ${label}`).toBeDefined()
   act(() => {
@@ -128,15 +129,19 @@ describe("a map card", () => {
 })
 
 describe("a folder card", () => {
-  it("offers rename, export and delete on a right click", () => {
+  it("offers rename, import, export and delete on a right click", () => {
     const on = actions()
     mount(
       <FolderCard folder={folder} templates={[]} defaultTemplateId="" actions={on} onOpen={() => {}} />,
     )
 
     rightClick(container.querySelector("button")!)
-    expect(rowLabels()).toEqual(["Rename", "Export", "Delete"])
+    expect(rowLabels()).toEqual(["Rename", "ImportHere", "Export", "Delete"])
 
+    choose("ImportHere")
+    expect(on.importIntoFolder).toHaveBeenCalledWith(folder.folder)
+
+    rightClick(container.querySelector("button")!)
     choose("Delete")
     // Not the open folder, so the delete has nowhere to walk out of.
     expect(on.deleteFolder).toHaveBeenCalledWith(folder.folder, false)

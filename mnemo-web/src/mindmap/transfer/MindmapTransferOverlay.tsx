@@ -226,7 +226,11 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
 
     setBusy(true)
     try {
-      const result = await runMindmapImport({ uploadIds, conflictPolicy: conflict })
+      const result = await runMindmapImport({
+        uploadIds,
+        conflictPolicy: conflict,
+        targetFolderId: target.destination?.folderId ?? null,
+      })
       queueRef.current = []
       setQueue([])
       // An import can restore maps, folders and style templates at once; everything under the
@@ -414,6 +418,7 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
             queue={queue}
             formats={formatList}
             rejected={rejected}
+            destination={target.destination?.label}
             conflict={conflict}
             busy={busy}
             ready={formatsReady}

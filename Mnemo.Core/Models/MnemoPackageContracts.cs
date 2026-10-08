@@ -39,6 +39,12 @@ public static class MnemoPayloadOptionKeys
 
     /// <summary>Mind map folders exported whole, empty subfolders included. Ignored when <see cref="MapIds"/> is absent.</summary>
     public const string MapFolderIds = "mindmaps.folderIds";
+
+    /// <summary>On import, the deck folder a package's top-level folders and loose decks land in.</summary>
+    public const string DeckTargetFolderId = "flashcards.targetFolderId";
+
+    /// <summary>On import, the mind map folder a package's top-level folders and loose maps land in.</summary>
+    public const string MapTargetFolderId = "mindmaps.targetFolderId";
 }
 
 /// <summary>

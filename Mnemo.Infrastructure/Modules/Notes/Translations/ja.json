@@ -94,7 +94,7 @@
     "TransferNounSingular": "ノート",
     "TransferNounPlural": "ノート",
     "ImportHere": "ここにノートをインポート",
-    "TransferImportDestinationFormat": "Markdownファイルは{0}に保存されます。パッケージは元のフォルダー構成を保ちます。",
+    "TransferImportDestinationFormat": "ノートは{0}に保存されます。",
     "ExportNoNotesMessage": "エクスポートするノートが選択されていません。",
     "ExportFormatUnavailableMessage": "利用できるエクスポート形式がありません。",
     "editor.slashHint": "「/」でコマンド",

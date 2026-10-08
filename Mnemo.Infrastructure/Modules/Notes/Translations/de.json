@@ -94,7 +94,7 @@
     "TransferNounSingular": "Notiz",
     "TransferNounPlural": "Notizen",
     "ImportHere": "Notizen hierher importieren",
-    "TransferImportDestinationFormat": "Markdown-Dateien landen in {0}. Ein Paket behält seine eigenen Ordner.",
+    "TransferImportDestinationFormat": "Notizen landen in {0}.",
     "ExportNoNotesMessage": "Keine Notizen zum Exportieren ausgewählt.",
     "ExportFormatUnavailableMessage": "Kein Exportformat verfügbar.",
     "editor.slashHint": "Tippe ‚/‘ für Befehle",

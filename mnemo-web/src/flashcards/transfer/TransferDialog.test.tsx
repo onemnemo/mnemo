@@ -190,6 +190,28 @@ describe("TransferDialog replace consent", () => {
     expect(api.runImport).toHaveBeenCalledWith({
       uploadIds: ["upload-collection.mnemo"],
       conflictPolicy: "Replace",
+      targetFolderId: null,
+    })
+  })
+
+  it("imports into the folder it was opened on and says where the decks go", async () => {
+    mount(
+      <TransferDialog
+        target={{ ...importTarget(), destination: { folderId: "f-bio", label: "Biology" } }}
+        onClose={vi.fn()}
+      />,
+    )
+
+    await chooseFile("collection.mnemo")
+    expect(document.body.textContent).toContain("TransferImportDestinationFormat")
+
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(api.runImport).toHaveBeenCalledWith({
+      uploadIds: ["upload-collection.mnemo"],
+      conflictPolicy: "KeepBoth",
+      targetFolderId: "f-bio",
     })
   })
 

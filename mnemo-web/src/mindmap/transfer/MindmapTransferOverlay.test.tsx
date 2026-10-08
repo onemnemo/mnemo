@@ -173,6 +173,30 @@ describe("the mindmap transfer overlay's replace consent", () => {
     expect(api.runMindmapImport).toHaveBeenCalledWith({
       uploadIds: ["upload-Study.mnemo"],
       conflictPolicy: "Replace",
+      targetFolderId: null,
+    })
+  })
+
+  it("imports into the folder it was opened on and says where the maps go", async () => {
+    act(() =>
+      useMindmapTransfer.getState().open({
+        direction: "import",
+        scope: null,
+        destination: { folderId: "f-bio", label: "Biology" },
+      }),
+    )
+    mount(<MindmapTransferOverlay />)
+
+    await chooseFile("Study.mnemo")
+    expect(document.body.textContent).toContain("TransferImportDestinationFormat")
+
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(api.runMindmapImport).toHaveBeenCalledWith({
+      uploadIds: ["upload-Study.mnemo"],
+      conflictPolicy: "KeepBoth",
+      targetFolderId: "f-bio",
     })
   })
 

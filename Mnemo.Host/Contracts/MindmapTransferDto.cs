@@ -27,12 +27,14 @@ public sealed record MindmapTransferUploadDto(
 /// <c>KeepBoth</c> (default), <c>Skip</c> or <c>Replace</c>. Maps collide by id.
 /// </param>
 /// <remarks>
-/// There is no target folder here, unlike notes: a mindmap package carries the folders its maps were
-/// filed in and restores them, so there is nothing for a caller to choose.
+/// <c>TargetFolderId</c> is the folder the import lands in: the package's top-level folders and loose
+/// maps go under it, and nothing already in the library moves. Refused as <c>unknown_folder</c> when no
+/// folder carries the id.
 /// </remarks>
 public sealed record MindmapTransferImportDto(
     IReadOnlyList<string> UploadIds,
-    string? ConflictPolicy);
+    string? ConflictPolicy,
+    string? TargetFolderId = null);
 
 /// <summary>
 /// What a batch import did. Per-file errors are collected rather than thrown so one unreadable file

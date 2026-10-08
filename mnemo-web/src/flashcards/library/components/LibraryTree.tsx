@@ -13,6 +13,7 @@ export function LibraryTree({
   rows,
   onOpenDeck,
   onToggleFolder,
+  onImportFolder,
   onExportFolder,
   drag,
   surfaceRef,
@@ -20,6 +21,7 @@ export function LibraryTree({
   rows: LibraryRow[]
   onOpenDeck: (id: string) => void
   onToggleFolder: (id: string) => void
+  onImportFolder: (row: FolderRowModel) => void
   onExportFolder: (row: FolderRowModel) => void
   drag: LibraryDrag
   /** The whole surface is a drop target: anywhere on it that is not a row means the root. */
@@ -46,7 +48,7 @@ export function LibraryTree({
       <div role="rowgroup">
         {rows.map((row) =>
           row.kind === "folder" ? (
-            <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} onExport={onExportFolder} drag={drag} />
+            <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} onImport={onImportFolder} onExport={onExportFolder} drag={drag} />
           ) : (
             <DeckRow key={`deck:${row.id}`} row={row} onOpen={onOpenDeck} drag={drag} />
           ),
