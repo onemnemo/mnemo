@@ -14,7 +14,26 @@ public static class MnemoPayloadOptionKeys
     /// The notes an export is limited to, as a collection of note ids. Absent means every note.
     /// </summary>
     public const string NoteIds = "notes.noteIds";
+
+    /// <summary>
+    /// Note folders whose whole subtree an export carries, empty subfolders included, as a collection
+    /// of folder ids. Only shapes the folder rows: the notes inside must also be listed in
+    /// <see cref="NoteIds"/>, which every payload narrows by. Ignored when <see cref="NoteIds"/> is absent.
+    /// </summary>
+    public const string FolderIds = "notes.folderIds";
+
+    /// <summary>
+    /// On import, the note folder a package's top-level folders and loose notes land in. Absent
+    /// means each keeps the parent it was exported with.
+    /// </summary>
+    public const string TargetFolderId = "notes.targetFolderId";
 }
+
+/// <summary>
+/// A notes package export narrowed to a selection. <see cref="NoteIds"/> is never empty: an empty
+/// selection would read as "every note".
+/// </summary>
+public sealed record NoteExportSelection(IReadOnlyCollection<string> NoteIds, IReadOnlyCollection<string> FolderIds);
 
 /// <summary>
 /// The kinds of id an import can rename, as keys of <see cref="MnemoPayloadImportResult.RemappedIds"/>

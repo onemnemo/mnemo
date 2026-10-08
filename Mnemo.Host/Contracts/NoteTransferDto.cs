@@ -29,9 +29,10 @@ public sealed record NoteTransferUploadDto(
 /// markdown file, carrying no id, collides by title.
 /// </param>
 /// <param name="TargetFolderId">
-/// Folder a markdown import lands in, so importing while a folder is open files the note there
-/// rather than at the root. Refused as <c>unknown_folder</c> when no folder carries the id. A
-/// package restores its own folder structure and ignores this.
+/// Folder the import lands in, so importing while a folder is open files the notes there rather
+/// than at the root. A package keeps its own folder structure and hangs it under this folder;
+/// anything that already exists stays where it is. Refused as <c>unknown_folder</c> when no folder
+/// carries the id.
 /// </param>
 public sealed record NoteTransferImportDto(
     IReadOnlyList<string> UploadIds,
@@ -50,12 +51,20 @@ public sealed record NoteTransferImportResultDto(
     IReadOnlyList<string> Errors);
 
 /// <summary>
-/// Export body. <paramref name="NoteIds"/> is always explicit: the package adapter reads an empty
-/// selection as "export every note", which is not a thing any caller here means. Markdown exports a
-/// single note only, so a markdown request with anything other than one id is rejected.
+/// Export body. The selection is always explicit: the package adapter reads an empty one as "export
+/// every note", which is not a thing any caller here means. Markdown exports a single note only, so a
+/// markdown request with anything other than one note id and no folders is rejected.
 /// </summary>
 /// <param name="Grant">
 /// The token a save chooser minted for the destination this file is going to. Omitted when there
 /// is nowhere to choose, and then the file comes back in the response instead.
 /// </param>
-public sealed record NoteTransferExportDto(string FormatId, IReadOnlyList<string> NoteIds, string? Grant = null);
+/// <param name="FolderIds">
+/// Folders exported whole: every note under them and their subfolder structure, empty subfolders
+/// included. Refused as <c>unknown_folder</c> when an id names no folder.
+/// </param>
+public sealed record NoteTransferExportDto(
+    string FormatId,
+    IReadOnlyList<string> NoteIds,
+    string? Grant = null,
+    IReadOnlyList<string>? FolderIds = null);

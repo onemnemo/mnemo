@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
-import { buildNoteTree, compareNotes, effectiveFolderId } from './tree-model';
+import { buildNoteTree, compareNotes, effectiveFolderId, notesInFolderSubtree } from './tree-model';
 
 function folder(over: Partial<NoteFolderDto> & { id: string }): NoteFolderDto {
   return { name: over.id, parentId: null, order: 0, ...over };
@@ -145,5 +145,35 @@ describe('effectiveFolderId', () => {
   it('is null when the note’s folder no longer exists', () => {
     expect(effectiveFolderId(note({ id: 'n', folderId: 'gone' }), new Set(['real']))).toBeNull();
     expect(effectiveFolderId(note({ id: 'n', folderId: 'real' }), new Set(['real']))).toBe('real');
+  });
+});
+
+describe('notesInFolderSubtree', () => {
+  const folders = [
+    folder({ id: 'top' }),
+    folder({ id: 'mid', parentId: 'top' }),
+    folder({ id: 'deep', parentId: 'mid' }),
+    folder({ id: 'other' }),
+  ];
+
+  it('collects notes at every depth and nothing outside the folder', () => {
+    const notes = [
+      note({ id: 'a', folderId: 'top' }),
+      note({ id: 'b', folderId: 'deep' }),
+      note({ id: 'c', folderId: 'other' }),
+      note({ id: 'd' }),
+    ];
+    expect(notesInFolderSubtree('top', folders, notes).map((n) => n.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('leaves out child pages, matching the folder count', () => {
+    const notes = [note({ id: 'a', folderId: 'mid' }), note({ id: 'child', folderId: 'mid', parentNoteId: 'a' })];
+    expect(notesInFolderSubtree('top', folders, notes).map((n) => n.id)).toEqual(['a']);
+  });
+
+  it('survives folders that name each other as parent', () => {
+    const looped = [folder({ id: 'x', parentId: 'y' }), folder({ id: 'y', parentId: 'x' })];
+    const notes = [note({ id: 'a', folderId: 'y' })];
+    expect(notesInFolderSubtree('x', looped, notes).map((n) => n.id)).toEqual(['a']);
   });
 });

@@ -126,6 +126,29 @@ function applyCounts(nodes: FolderNode[]): void {
   }
 }
 
+/** The listed notes under a folder, subfolders included: the same set its row count reads. */
+export function notesInFolderSubtree(
+  folderId: string,
+  folders: NoteFolderDto[],
+  notes: NoteSummaryDto[],
+): NoteSummaryDto[] {
+  const known = new Set(folders.map((f) => f.id));
+  const subtree = new Set<string>();
+  const pending = [folderId];
+  while (pending.length > 0) {
+    const id = pending.pop()!;
+    if (subtree.has(id)) continue;
+    subtree.add(id);
+    for (const folder of folders) {
+      if (effectiveParentId(folder, known) === id) pending.push(folder.id);
+    }
+  }
+  return notes.filter((note) => {
+    const folder = isSidebarNote(note) ? effectiveFolderId(note, known) : null;
+    return folder !== null && subtree.has(folder);
+  });
+}
+
 /** Notes a search leaves in scope, by title, collapsed folders included. */
 export function notesInScope(notes: NoteSummaryDto[], search: string): NoteSummaryDto[] {
   const term = search.trim().toLowerCase();

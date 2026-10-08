@@ -33,12 +33,12 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
     {
         var notes = (await _noteService.GetAllNotesAsync().ConfigureAwait(false)).ToList();
         var folders = (await _folderService.GetAllFoldersAsync().ConfigureAwait(false)).ToList();
-        var selectedNoteIds = ResolveSelectedNoteIds(context.Options);
+        var selectedNoteIds = ResolveIds(context.Options.PayloadOptions, MnemoPayloadOptionKeys.NoteIds);
         if (selectedNoteIds.Count > 0)
         {
             notes = notes.Where(n => selectedNoteIds.Contains(n.NoteId)).ToList();
-            var usedFolderIds = new HashSet<string>(notes.Where(n => !string.IsNullOrWhiteSpace(n.FolderId)).Select(n => n.FolderId!), StringComparer.Ordinal);
-            folders = folders.Where(f => usedFolderIds.Contains(f.FolderId)).ToList();
+            var subtreeRoots = ResolveIds(context.Options.PayloadOptions, MnemoPayloadOptionKeys.FolderIds);
+            folders = NotePackageFolders.ForExport(folders, notes, subtreeRoots);
         }
         var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         files["notes.db"] = BuildNotesSqlite(notes, folders);
@@ -72,7 +72,14 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         var heldNoteIds = await HeldIdsAsync(t => t.HeldNoteIdsAsync(cancellationToken)).ConfigureAwait(false);
         var heldFolderIds = await HeldIdsAsync(t => t.HeldFolderIdsAsync(cancellationToken)).ConfigureAwait(false);
 
-        foreach (var folder in snapshot.Folders)
+        // An import into a folder never moves what is already there. Under KeepBoth a folder that
+        // collides comes in as a copy; under Replace it is reused where it stands, and a replaced note
+        // keeps its place.
+        var targetFolderId = ImportExportOptionKeys.GetStringOption(context.Options.PayloadOptions, MnemoPayloadOptionKeys.TargetFolderId);
+        var packageFolderIds = new HashSet<string>(snapshot.Folders.Select(f => f.FolderId), StringComparer.Ordinal);
+        var packageNoteIds = new HashSet<string>(snapshot.Notes.Select(n => n.NoteId), StringComparer.Ordinal);
+
+        foreach (var (folder, isRoot) in NotePackageFolders.ParentFirst(snapshot.Folders))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var imported = CloneFolder(folder);
@@ -82,7 +89,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
             }
             else if (existingFolders.ContainsKey(imported.FolderId))
             {
-                if (policy == ImportConflictPolicy.Skip)
+                if (policy == ImportConflictPolicy.Skip || (policy == ImportConflictPolicy.Replace && targetFolderId is not null))
                 {
                     folderIdMap[folder.FolderId] = imported.FolderId;
                     continue;
@@ -96,8 +103,17 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
             }
 
             folderIdMap[folder.FolderId] = imported.FolderId;
-            if (!string.IsNullOrWhiteSpace(imported.ParentId) && folderIdMap.TryGetValue(imported.ParentId, out var remappedParent))
+            if (isRoot)
+            {
+                if (targetFolderId is not null)
+                    imported.ParentId = targetFolderId;
+                else if (imported.ParentId is { } parent && packageFolderIds.Contains(parent))
+                    imported.ParentId = null;
+            }
+            else if (!string.IsNullOrWhiteSpace(imported.ParentId) && folderIdMap.TryGetValue(imported.ParentId, out var remappedParent))
+            {
                 imported.ParentId = remappedParent;
+            }
 
             var save = await _folderService.SaveFolderAsync(imported).ConfigureAwait(false);
             if (!save.IsSuccess)
@@ -112,11 +128,12 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         {
             cancellationToken.ThrowIfCancellationRequested();
             var imported = CloneNote(note);
+            var keepsPlace = false;
             if (heldNoteIds.ContainsKey(imported.NoteId))
             {
                 imported.NoteId = Guid.NewGuid().ToString();
             }
-            else if (existingNotes.ContainsKey(imported.NoteId))
+            else if (existingNotes.TryGetValue(imported.NoteId, out var existing))
             {
                 if (policy == ImportConflictPolicy.Skip)
                 {
@@ -130,11 +147,23 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
                     imported.Title = ImportNaming.NextAvailableName(imported.Title, usedTitles);
                     result.DuplicatedCount++;
                 }
+                else if (targetFolderId is not null)
+                {
+                    imported.FolderId = existing.FolderId;
+                    keepsPlace = true;
+                }
             }
 
             usedTitles.Add(imported.Title);
-            if (!string.IsNullOrWhiteSpace(imported.FolderId) && folderIdMap.TryGetValue(imported.FolderId, out var remappedFolder))
-                imported.FolderId = remappedFolder;
+            var loose = (string.IsNullOrWhiteSpace(note.FolderId) || !packageFolderIds.Contains(note.FolderId))
+                        && (string.IsNullOrWhiteSpace(note.ParentNoteId) || !packageNoteIds.Contains(note.ParentNoteId));
+            if (!keepsPlace)
+            {
+                if (loose && targetFolderId is not null)
+                    imported.FolderId = targetFolderId;
+                else if (!string.IsNullOrWhiteSpace(imported.FolderId) && folderIdMap.TryGetValue(imported.FolderId, out var remappedFolder))
+                    imported.FolderId = remappedFolder;
+            }
 
             if (!string.Equals(imported.NoteId, note.NoteId, StringComparison.Ordinal))
                 noteIdMap[note.NoteId] = imported.NoteId;
@@ -169,13 +198,13 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
             ? new Dictionary<string, string>(StringComparer.Ordinal)
             : await read(_trash).ConfigureAwait(false);
 
-    private static HashSet<string> ResolveSelectedNoteIds(MnemoPackageExportOptions options)
+    private static HashSet<string> ResolveIds(IReadOnlyDictionary<string, object?> options, string key)
     {
-        if (!options.PayloadOptions.TryGetValue(MnemoPayloadOptionKeys.NoteIds, out var value))
+        if (!options.TryGetValue(key, out var value) || value is null)
             return new HashSet<string>(StringComparer.Ordinal);
         if (value is IEnumerable<string> ids)
             return new HashSet<string>(ids.Where(v => !string.IsNullOrWhiteSpace(v)), StringComparer.Ordinal);
-        return new HashSet<string>(StringComparer.Ordinal);
+        throw new ArgumentException($"Payload option '{key}' must be a collection of ids.", nameof(options));
     }
 
     private static Note CloneNote(Note note)

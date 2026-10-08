@@ -69,11 +69,15 @@ public sealed class NotesMnemoFormatAdapter : IContentFormatAdapter
 
     public async Task<ImportExportResult> ImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
-        var import = await _packageService.ImportAsync(request.FilePath, new MnemoPackageImportOptions
+        var options = new MnemoPackageImportOptions
         {
             ConflictPolicy = ImportExportOptionKeys.GetConflictPolicy(request.Options),
             PayloadTypes = PayloadTypes
-        }, cancellationToken).ConfigureAwait(false);
+        };
+        if (ImportExportOptionKeys.GetStringOption(request.Options, ImportExportOptionKeys.TargetFolderId) is { } targetFolderId)
+            options.PayloadOptions[MnemoPayloadOptionKeys.TargetFolderId] = targetFolderId;
+
+        var import = await _packageService.ImportAsync(request.FilePath, options, cancellationToken).ConfigureAwait(false);
 
         return new ImportExportResult
         {
@@ -91,6 +95,13 @@ public sealed class NotesMnemoFormatAdapter : IContentFormatAdapter
         var payloadOptions = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         if (request.Payload is Note note)
             payloadOptions[MnemoPayloadOptionKeys.NoteIds] = new[] { note.NoteId };
+        else if (request.Payload is NoteExportSelection selection)
+        {
+            if (selection.NoteIds.Count == 0)
+                throw new ArgumentException("A note export selection needs at least one note.", nameof(request));
+            payloadOptions[MnemoPayloadOptionKeys.NoteIds] = selection.NoteIds.ToArray();
+            payloadOptions[MnemoPayloadOptionKeys.FolderIds] = selection.FolderIds.ToArray();
+        }
         else if (request.Payload is IEnumerable<string> noteIds)
         {
             var selected = noteIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();

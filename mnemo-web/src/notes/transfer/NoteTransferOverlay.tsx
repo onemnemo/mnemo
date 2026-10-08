@@ -76,8 +76,10 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
 
   const scope = target.scope
   const noteCount = scope?.noteIds.length ?? 0
+  const folderIds = scope?.folderIds ?? []
+  const hasFolders = folderIds.length > 0
   const destination = target.destination ?? null
-  const available = useMemo(() => exportFormats(formatList, noteCount), [formatList, noteCount])
+  const available = useMemo(() => exportFormats(formatList, noteCount, hasFolders), [formatList, noteCount, hasFolders])
 
   // Default to the first offered format once the list arrives, and correct a selection the format
   // list no longer contains rather than leaving Confirm pointing at nothing.
@@ -271,9 +273,10 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
 
     setBusy(true)
     try {
-      const outcome = await runNoteExport({ formatId: exportFormat, noteIds: scope.noteIds }, {
+      const named = hasFolders ? folderIds.length === 1 : scope.noteIds.length === 1
+      const outcome = await runNoteExport({ formatId: exportFormat, noteIds: scope.noteIds, folderIds }, {
         ...exportSaveOptions(common),
-        fileName: exportFileName(scope.noteIds.length === 1 ? scope.label : null, "notes", selectedExtension),
+        fileName: exportFileName(named ? (scope.fileName ?? scope.label) : null, "notes", selectedExtension),
       })
       const told = announceExport(outcome, {
         title: common("ExportCompleteTitle"),
@@ -316,7 +319,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
 
   const title = importing
     ? nt("TransferImportTitle")
-    : scope && scope.noteIds.length === 1
+    : scope && scope.noteIds.length === 1 && !hasFolders
       ? nt("TransferExportNoteTitle")
       : nt("TransferExportTitle")
 

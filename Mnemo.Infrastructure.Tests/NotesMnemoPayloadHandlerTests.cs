@@ -167,7 +167,7 @@ public sealed class NotesMnemoPayloadHandlerTests
         Files = new Dictionary<string, byte[]> { ["notes.db"] = bytes }
     };
 
-    private static byte[] BuildNotesDb(IReadOnlyList<Note> notes, IReadOnlyList<NoteFolder> folders)
+    internal static byte[] BuildNotesDb(IReadOnlyList<Note> notes, IReadOnlyList<NoteFolder> folders)
     {
         var tempPath = Path.Combine(Path.GetTempPath(), $"test-notes-{Guid.NewGuid():N}.db");
         try
@@ -215,7 +215,7 @@ public sealed class NotesMnemoPayloadHandlerTests
         }
     }
 
-    private sealed class InMemoryNoteService : INoteService
+    internal sealed class InMemoryNoteService : INoteService
     {
         private readonly Dictionary<string, Note> _notes = new(StringComparer.Ordinal);
 
@@ -240,7 +240,7 @@ public sealed class NotesMnemoPayloadHandlerTests
         }
     }
 
-    private sealed class InMemoryFolderService : INoteFolderService
+    internal sealed class InMemoryFolderService : INoteFolderService
     {
         private readonly Dictionary<string, NoteFolder> _folders = new(StringComparer.Ordinal);
 

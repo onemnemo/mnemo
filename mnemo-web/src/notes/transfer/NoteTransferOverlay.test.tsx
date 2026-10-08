@@ -32,6 +32,7 @@ const api = vi.hoisted(() => {
   }
 
   return {
+    runNoteExport: vi.fn(),
     runNoteImport: vi.fn(),
     uploadNoteTransferFile: vi.fn((file: File) => Promise.resolve(markdownUpload(file.name))),
   }
@@ -47,6 +48,13 @@ vi.mock("./api", () => ({
   useNoteTransferFormatsQuery: () => ({
     data: [
       {
+        formatId: "notes.mnemo",
+        displayName: "Mnemo Package (.mnemo)",
+        extensions: [".mnemo"],
+        supportsImport: true,
+        supportsExport: true,
+      },
+      {
         formatId: "notes.markdown",
         displayName: "Markdown (.md)",
         extensions: [".md"],
@@ -58,7 +66,7 @@ vi.mock("./api", () => ({
     isError: false,
   }),
   discardNoteUpload: vi.fn(),
-  runNoteExport: vi.fn(),
+  runNoteExport: api.runNoteExport,
   runNoteImport: api.runNoteImport,
   uploadNoteTransferFile: api.uploadNoteTransferFile,
 }))
@@ -239,6 +247,28 @@ describe("the note transfer overlay's import destination", () => {
     await flush()
 
     expect(api.runNoteImport).toHaveBeenCalledWith(expect.objectContaining({ targetFolderId: null }))
+  })
+})
+
+describe("the note transfer overlay's folder export", () => {
+  it("sends the folder whole and names the file after the folder, not its path", async () => {
+    api.runNoteExport.mockResolvedValue({ status: "downloaded" })
+    act(() =>
+      useNoteTransfer.getState().open({
+        direction: "export",
+        scope: { label: "Medicine / Anatomy", fileName: "Anatomy", noteIds: ["n1"], folderIds: ["f1"] },
+      }),
+    )
+    mount(<NoteTransferOverlay />)
+    await flush()
+
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(api.runNoteExport).toHaveBeenCalledWith(
+      { formatId: "notes.mnemo", noteIds: ["n1"], folderIds: ["f1"] },
+      expect.objectContaining({ fileName: "Anatomy.mnemo" }),
+    )
   })
 })
 

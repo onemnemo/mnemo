@@ -75,15 +75,18 @@ export function isImportable(fileName: string, formats: readonly TransferFormatD
 
 /**
  * Export formats for a selection of a given size. A single note can go out as any of them; a wider
- * selection is offered only as a package, because markdown is one note with no id and has no way to
- * carry a folder of them.
+ * selection, or any folder even with one note in it, is offered only as a package, because markdown
+ * is one note with no id and has no way to carry a folder.
  */
 export function exportFormats(
   formats: readonly TransferFormatDto[],
   noteCount: number,
+  hasFolders = false,
 ): TransferFormatDto[] {
   const exportable = formats.filter((format) => format.supportsExport)
-  return noteCount === 1 ? exportable : exportable.filter((format) => format.formatId === PACKAGE_FORMAT)
+  return noteCount === 1 && !hasFolders
+    ? exportable
+    : exportable.filter((format) => format.formatId === PACKAGE_FORMAT)
 }
 
 /** Uploads to send when the user confirms: the ones that read cleanly, in queue order. */

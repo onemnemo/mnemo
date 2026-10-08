@@ -42,6 +42,10 @@ describe("exportFormats", () => {
   it("offers only the package for a multi-note selection, since markdown carries one note", () => {
     expect(exportFormats([PACKAGE, MARKDOWN], 3).map((f) => f.formatId)).toEqual(["notes.mnemo"])
   })
+
+  it("offers only the package for a folder, even one holding a single note", () => {
+    expect(exportFormats([PACKAGE, MARKDOWN], 1, true).map((f) => f.formatId)).toEqual(["notes.mnemo"])
+  })
 })
 
 describe("readyNoteCount", () => {

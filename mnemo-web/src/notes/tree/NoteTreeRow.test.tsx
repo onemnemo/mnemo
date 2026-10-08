@@ -157,7 +157,7 @@ function pressKey(target: EventTarget, key: string): void {
 
 describe('notes sidebar folder row', () => {
   it('imports into the selected folder and names its full path', () => {
-    mount(<FolderRow row={folderRow} onToggle={() => {}} drag={drag} />);
+    mount(<FolderRow row={folderRow} onToggle={() => {}} onExport={() => {}} drag={drag} />);
 
     openContextMenu();
     chooseMenuItem('ImportHere');
@@ -169,8 +169,28 @@ describe('notes sidebar folder row', () => {
     });
   });
 
+  it('exports the folder it was opened on', () => {
+    const onExport = vi.fn();
+    mount(<FolderRow row={folderRow} onToggle={() => {}} onExport={onExport} drag={drag} />);
+
+    openContextMenu();
+    chooseMenuItem('Export');
+
+    expect(onExport).toHaveBeenCalledWith(folderRow);
+  });
+
+  it('offers no export for a folder with no notes under it', () => {
+    const onExport = vi.fn();
+    mount(<FolderRow row={{ ...folderRow, noteCount: 0 }} onToggle={() => {}} onExport={onExport} drag={drag} />);
+
+    openContextMenu();
+    chooseMenuItem('Export');
+
+    expect(onExport).not.toHaveBeenCalled();
+  });
+
   it('leaves the editor on screen when rename comes from the right-click menu', async () => {
-    mount(<FolderRow row={folderRow} onToggle={() => {}} drag={drag} />);
+    mount(<FolderRow row={folderRow} onToggle={() => {}} onExport={() => {}} drag={drag} />);
 
     openContextMenu();
     chooseMenuItem('Rename');
@@ -181,7 +201,7 @@ describe('notes sidebar folder row', () => {
   });
 
   it('saves the typed name on Enter', async () => {
-    mount(<FolderRow row={folderRow} onToggle={() => {}} drag={drag} />);
+    mount(<FolderRow row={folderRow} onToggle={() => {}} onExport={() => {}} drag={drag} />);
 
     openContextMenu();
     chooseMenuItem('Rename');
@@ -199,7 +219,7 @@ describe('notes sidebar folder row', () => {
   // keyboard user on the body after any other close, with the next Tab back at the top of
   // the sidebar.
   it('hands the row back its focus when the menu closes on anything else', async () => {
-    mount(<FolderRow row={folderRow} onToggle={() => {}} drag={drag} />);
+    mount(<FolderRow row={folderRow} onToggle={() => {}} onExport={() => {}} drag={drag} />);
 
     openContextMenu();
     chooseMenuItem('NewNote');

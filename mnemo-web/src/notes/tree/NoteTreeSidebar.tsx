@@ -14,7 +14,7 @@ import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
 
 import { useApplyNoteReorder, useCreateNote, useCreateNoteFolder } from '../api';
 import { useNoteTransfer } from '../transfer/store';
-import { buildNoteTree } from './tree-model';
+import { buildNoteTree, notesInFolderSubtree, type NoteFolderRowModel } from './tree-model';
 import { planReorder, type ReorderPlan, type TreeDragHandle, type TreeDropTarget } from './reorder';
 import { FolderRow, NoteRow } from './NoteTreeRow';
 import { TreeDragLayer } from './TreeDragLayer';
@@ -131,6 +131,17 @@ export function NoteTreeSidebar({
     () => buildNoteTree({ notes, folders, search, collapsed }),
     [notes, folders, search, collapsed],
   );
+
+  const exportFolder = (row: NoteFolderRowModel) =>
+    openTransfer({
+      direction: 'export',
+      scope: {
+        label: row.path,
+        fileName: row.folder.name,
+        noteIds: notesInFolderSubtree(row.id, folders, notes).map((note) => note.id),
+        folderIds: [row.id],
+      },
+    });
 
   const shownFavs = showAllFavs ? tree.favourites : tree.favourites.slice(0, FAVOURITES_SHOWN);
   const hiddenFavs = tree.favourites.length - shownFavs.length;
@@ -254,7 +265,7 @@ export function NoteTreeSidebar({
             ) : (
               tree.rows.map((row) =>
                 row.kind === 'folder' ? (
-                  <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} drag={drag} />
+                  <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} onExport={exportFolder} drag={drag} />
                 ) : (
                   <NoteRow key={`note:${row.id}`} row={row} selected={row.id === selectedNoteId} drag={drag} />
                 ),
@@ -295,7 +306,7 @@ export function NoteTreeSidebar({
                 ) : (
                   tree.rows.map((row) =>
                     row.kind === 'folder' ? (
-                      <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} drag={drag} />
+                      <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} onExport={exportFolder} drag={drag} />
                     ) : (
                       <NoteRow key={`note:${row.id}`} row={row} selected={row.id === selectedNoteId} drag={drag} />
                     ),

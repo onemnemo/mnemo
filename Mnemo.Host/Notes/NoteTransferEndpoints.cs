@@ -305,13 +305,15 @@ public static class NoteTransferEndpoints
                 NoteTransferExportDto body,
                 IImportExportCoordinator transfer,
                 INoteService notes,
+                INoteFolderService folders,
                 ExportGrants grants,
                 ISettingsService settings,
                 ILoggerService logger,
                 CancellationToken cancellationToken) =>
             {
                 var noteIds = (body.NoteIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
-                if (noteIds.Length == 0)
+                var folderIds = (body.FolderIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+                if (noteIds.Length == 0 && folderIds.Length == 0)
                     return Results.BadRequest(new ErrorDto("no_notes", "No notes were selected to export."));
 
                 var format = transfer.GetCapabilities(NotesContentType)
@@ -320,27 +322,38 @@ public static class NoteTransferEndpoints
                     return Results.BadRequest(new ErrorDto("unsupported_format", $"'{body.FormatId}' is not an export format."));
 
                 var isMarkdown = string.Equals(format.FormatId, MarkdownFormatId, StringComparison.OrdinalIgnoreCase);
-                if (isMarkdown && noteIds.Length != 1)
+                if (isMarkdown && (noteIds.Length != 1 || folderIds.Length > 0))
                     return Results.BadRequest(new ErrorDto("markdown_single_note",
                         "Markdown exports one note at a time. Use the package format for a selection."));
 
                 // Markdown needs the note itself (it has no id to resolve later); the package takes
                 // the ids and reads them itself. The single load also names the download.
                 object payload;
-                string? singleTitle = null;
+                string? downloadTitle = null;
                 if (isMarkdown)
                 {
                     var note = await notes.GetNoteAsync(noteIds[0]).ConfigureAwait(false);
                     if (note is null)
                         return Results.NotFound(new ErrorDto("unknown_note", $"No note '{noteIds[0]}'."));
                     payload = note;
-                    singleTitle = note.Title;
+                    downloadTitle = note.Title;
                 }
                 else
                 {
-                    payload = noteIds;
-                    if (noteIds.Length == 1)
-                        singleTitle = (await notes.GetNoteAsync(noteIds[0]).ConfigureAwait(false))?.Title;
+                    var allFolders = (await folders.GetAllFoldersAsync().ConfigureAwait(false)).ToList();
+                    if (folderIds.FirstOrDefault(id => allFolders.All(f => f.FolderId != id)) is { } unknown)
+                        return Results.BadRequest(new ErrorDto("unknown_folder", $"No note folder '{unknown}'."));
+
+                    var summaries = await notes.GetAllNoteSummariesAsync().ConfigureAwait(false);
+                    var expanded = NoteExportScope.Expand(summaries, allFolders, noteIds, folderIds);
+                    if (expanded.Count == 0)
+                        return Results.BadRequest(new ErrorDto("no_notes", "No notes were selected to export."));
+
+                    payload = new NoteExportSelection(expanded, folderIds);
+                    if (folderIds.Length == 1 && noteIds.Length == 0)
+                        downloadTitle = allFolders.First(f => f.FolderId == folderIds[0]).Name;
+                    else if (folderIds.Length == 0 && noteIds.Length == 1)
+                        downloadTitle = summaries.FirstOrDefault(n => n.NoteId == noteIds[0])?.Title;
                 }
 
                 if (ExportDestination.Claim(body.Grant, grants, out var target) is { } refusal)
@@ -371,7 +384,7 @@ public static class NoteTransferEndpoints
                     if (target is not null)
                         return await ExportDestination.CommitAsync(target, path, settings).ConfigureAwait(false);
 
-                    var downloadName = BuildDownloadName(singleTitle, noteIds.Length, extension);
+                    var downloadName = BuildDownloadName(downloadTitle, extension);
 
                     // DeleteOnClose hands cleanup to the response pipeline: the staged copy lives
                     // exactly as long as it takes to write it to the client, including when the
@@ -421,9 +434,9 @@ public static class NoteTransferEndpoints
     /// What the browser saves the download as: one note exports under its own title, a selection
     /// under a generic name, matching the names the desktop's save dialog suggests.
     /// </summary>
-    private static string BuildDownloadName(string? singleTitle, int noteCount, string extension)
+    private static string BuildDownloadName(string? title, string extension)
     {
-        var name = noteCount == 1 && !string.IsNullOrWhiteSpace(singleTitle) ? singleTitle! : "notes";
+        var name = string.IsNullOrWhiteSpace(title) ? "notes" : title;
 
         foreach (var invalid in Path.GetInvalidFileNameChars())
             name = name.Replace(invalid, '_');

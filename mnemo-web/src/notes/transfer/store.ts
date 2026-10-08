@@ -4,10 +4,15 @@ import { create } from "zustand"
 export interface NoteTransferScope {
   /** How the scope reads in the dialog, e.g. the note's own title. */
   label: string
+  /** For a folder, the notes in its subtree; the host adds child pages to either. */
   noteIds: string[]
+  /** Folders exported whole, structure included. */
+  folderIds?: string[]
+  /** The file's name when the label is not it, e.g. a folder labelled by its full path. */
+  fileName?: string
 }
 
-/** Where a markdown import files its notes. A package restores its own folders and ignores it. */
+/** Where an import files its notes. A package hangs its own folders under it. */
 export interface NoteImportDestination {
   folderId: string
   /** The folder's name, so the dialog can say where the notes are going. */

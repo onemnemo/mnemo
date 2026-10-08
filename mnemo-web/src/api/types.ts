@@ -738,6 +738,7 @@ export interface NoteTransferImportResultDto {
 export interface NoteTransferExportDto {
   formatId: string
   noteIds: string[]
+  folderIds?: string[]
 }
 
 /** Mirrors Mnemo.Host/Contracts/MindmapTransferDto.cs MindmapTransferUploadDto. */

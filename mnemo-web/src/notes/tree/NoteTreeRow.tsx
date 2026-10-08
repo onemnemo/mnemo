@@ -93,10 +93,12 @@ function FavouriteStar({ on, onToggle, label }: { on: boolean; onToggle: () => v
 export function FolderRow({
   row,
   onToggle,
+  onExport,
   drag,
 }: {
   row: NoteFolderRowModel;
   onToggle: (id: string) => void;
+  onExport: (row: NoteFolderRowModel) => void;
   drag: TreeDrag;
 }) {
   const nt = useNotesT();
@@ -197,6 +199,9 @@ export function FolderRow({
           }
         >
           {nt('ImportHere')}
+        </ContextMenuItem>
+        <ContextMenuItem icon="common/upload" disabled={row.noteCount === 0} onSelect={() => onExport(row)}>
+          {nt('Export')}
         </ContextMenuItem>
         <ContextMenuItem icon="flyout/rename" onSelect={rename.openFromMenu}>
           {nt('Rename')}
