@@ -10,7 +10,7 @@ import type { FolderRowModel } from "../tree"
  * cannot share components, so they share this instead: one list, rendered twice.
  * Every handler is injected, which keeps the list free of React.
  *
- * A folder holds three verbs and no submenu, so the entry kinds stop at an item
+ * A folder holds a handful of verbs and no submenu, so the entry kinds stop at an item
  * and a rule.
  */
 
@@ -22,6 +22,7 @@ export interface FolderMenuItem {
   /** Draws the item as the suggested action. */
   readonly emphasis?: boolean
   readonly danger?: boolean
+  readonly disabled?: boolean
   readonly run?: () => void
 }
 
@@ -35,6 +36,7 @@ export type FolderMenuEntry = FolderMenuItem | FolderMenuSeparator
 export interface FolderMenuHandlers {
   readonly toggle: () => void
   readonly rename: () => void
+  readonly export: () => void
   readonly remove: () => void
 }
 
@@ -66,6 +68,14 @@ export function folderMenuItems({
     },
     { kind: "separator", id: "sep.rename" },
     { kind: "item", id: "rename", label: fc("RenameFolder"), icon: "flyout/rename", run: on.rename },
+    {
+      kind: "item",
+      id: "export",
+      label: fc("Export"),
+      icon: "common/upload",
+      disabled: row.counts.deckCount === 0,
+      run: on.export,
+    },
     { kind: "separator", id: "sep.delete" },
     { kind: "item", id: "delete", label: fc("DeleteFolder"), icon: "common/trash", danger: true, run: on.remove },
   ]

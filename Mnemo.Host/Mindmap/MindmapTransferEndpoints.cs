@@ -285,7 +285,8 @@ public static class MindmapTransferEndpoints
             CancellationToken cancellationToken) =>
         {
             var mapIds = (body.MapIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
-            if (mapIds.Length == 0)
+            var folderIds = (body.FolderIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+            if (mapIds.Length == 0 && folderIds.Length == 0)
                 return Results.BadRequest(new ErrorDto("no_maps", "No mindmaps were selected to export."));
 
             var format = transfer.GetCapabilities(MindmapsContentType)
@@ -293,11 +294,31 @@ public static class MindmapTransferEndpoints
             if (format is null)
                 return Results.BadRequest(new ErrorDto("unsupported_format", $"'{body.FormatId}' is not an export format."));
 
-            // Headers, not documents: the only thing wanted here is a title for the download name,
-            // and a map big enough to be worth exporting is one worth not deserializing twice.
+            object payload = mapIds;
             string? singleTitle = null;
-            if (mapIds.Length == 1)
+            if (folderIds.Length > 0)
             {
+                var folders = (await maps.GetFoldersAsync(cancellationToken).ConfigureAwait(false)).Value ?? [];
+                if (folderIds.FirstOrDefault(id => folders.All(f => f.Id != id)) is { } unknown)
+                    return Results.BadRequest(new ErrorDto("unknown_folder", $"No mindmap folder '{unknown}'."));
+
+                var subtree = FolderSubtree.Of(folders, f => f.Id, f => f.ParentId, folderIds);
+                var library = (await maps.GetLibraryAsync(cancellationToken).ConfigureAwait(false)).Value ?? [];
+                mapIds = mapIds
+                    .Concat(library.Where(e => e.FolderId is { } folder && subtree.Contains(folder)).Select(e => e.Document.Id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+                if (mapIds.Length == 0)
+                    return Results.BadRequest(new ErrorDto("no_maps", "No mindmaps were selected to export."));
+
+                payload = new PackageSelection(mapIds, folderIds);
+                if (folderIds.Length == 1)
+                    singleTitle = folders.First(f => f.Id == folderIds[0]).Name;
+            }
+            else if (mapIds.Length == 1)
+            {
+                // Headers, not documents: the only thing wanted here is a title for the download name,
+                // and a map big enough to be worth exporting is one worth not deserializing twice.
                 var summaries = await maps.ListAsync(cancellationToken).ConfigureAwait(false);
                 singleTitle = summaries.Value?.FirstOrDefault(summary => summary.Id == mapIds[0])?.Title;
             }
@@ -315,7 +336,7 @@ public static class MindmapTransferEndpoints
                             ContentType = MindmapsContentType,
                             FormatId = format.FormatId,
                             FilePath = path,
-                            Payload = mapIds,
+                            Payload = payload,
                         },
                         cancellationToken)
                     .ConfigureAwait(false);

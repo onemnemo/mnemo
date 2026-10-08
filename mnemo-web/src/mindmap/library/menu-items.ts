@@ -16,6 +16,7 @@ export interface LibraryMenuItem {
   readonly label: string
   readonly icon?: IconName
   readonly danger?: boolean
+  readonly disabled?: boolean
   readonly run: () => void
 }
 
@@ -35,6 +36,7 @@ export interface MapMenuHandlers {
 
 export interface FolderMenuHandlers {
   readonly rename: () => void
+  readonly export: () => void
   readonly remove: () => void
 }
 
@@ -51,18 +53,22 @@ export function mapMenuItems({ t, on }: { t: TranslateFn; on: MapMenuHandlers })
   ]
 }
 
-/** A folder has two verbs; filing happens by drag, not from a menu. */
+/** Filing happens by drag, not from a menu. Export is offered only when there are maps under the folder. */
 export function folderMenuItems({
   t,
+  mapCount,
   on,
 }: {
   t: TranslateFn
+  /** Maps anywhere beneath the folder. */
+  mapCount: number
   on: FolderMenuHandlers
 }): readonly LibraryMenuEntry[] {
   const mm = (key: string) => t("Mindmap", key)
 
   return [
     { kind: "item", id: "rename", label: mm("Rename"), icon: "flyout/rename", run: on.rename },
+    { kind: "item", id: "export", label: mm("Export"), icon: "common/upload", disabled: mapCount === 0, run: on.export },
     { kind: "separator", id: "sep.delete" },
     { kind: "item", id: "delete", label: mm("Delete"), icon: "common/trash", danger: true, run: on.remove },
   ]

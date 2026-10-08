@@ -30,7 +30,7 @@ import { planDeckMove, planFolderMove } from "./dnd/plan"
 import { useLibraryDrag } from "./dnd/useLibraryDrag"
 import { useTransfer } from "../transfer/store"
 import { useLibraryView } from "./store"
-import { buildLibrary, decksInScope, sortDecks } from "./tree"
+import { buildLibrary, decksInFolderSubtree, decksInScope, sortDecks, type FolderRowModel } from "./tree"
 
 export function LibraryPage() {
   const t = useT()
@@ -132,6 +132,16 @@ export function LibraryPage() {
   // Export from here covers what the search leaves in scope, the way the desktop scopes it -
   // deliberately NOT the visible rows, because a collapsed folder hides its decks from the table
   // while they are still very much part of "All decks".
+  const exportFolder = (row: FolderRowModel) =>
+    useTransfer.getState().open({
+      direction: "export",
+      scope: {
+        label: row.folder.name,
+        deckIds: decksInFolderSubtree(row.id, folders.data ?? [], decks.data ?? []).map((deck) => deck.id),
+        folderIds: [row.id],
+      },
+    })
+
   const openTransfer = () =>
     useTransfer.getState().open({
       direction: "both",
@@ -241,6 +251,7 @@ export function LibraryPage() {
               rows={model.rows}
               onOpenDeck={(id) => navigate("flashcard-deck", id)}
               onToggleFolder={toggleFolder}
+              onExportFolder={exportFolder}
               drag={drag}
               surfaceRef={surfaceRef}
             />

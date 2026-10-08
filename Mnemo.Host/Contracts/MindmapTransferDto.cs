@@ -53,4 +53,12 @@ public sealed record MindmapTransferImportResultDto(
 /// The token a save chooser minted for the destination this file is going to. Omitted when there
 /// is nowhere to choose, and then the file comes back in the response instead.
 /// </param>
-public sealed record MindmapTransferExportDto(string FormatId, IReadOnlyList<string> MapIds, string? Grant = null);
+/// <param name="FolderIds">
+/// Folders exported whole: every map under them and their subfolder structure, empty subfolders
+/// included. Refused as <c>unknown_folder</c> when an id names no folder.
+/// </param>
+public sealed record MindmapTransferExportDto(
+    string FormatId,
+    IReadOnlyList<string> MapIds,
+    string? Grant = null,
+    IReadOnlyList<string>? FolderIds = null);

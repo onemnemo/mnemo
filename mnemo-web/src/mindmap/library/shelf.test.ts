@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { MindmapFolder, MindmapLibraryEntry } from "../model/document"
-import { buildShelf, folderNames, recentMaps, resolveFolderId } from "./shelf"
+import { buildShelf, folderNames, mapsInFolderSubtree, recentMaps, resolveFolderId } from "./shelf"
 
 function map(
   id: string,
@@ -138,5 +138,20 @@ describe("folderNames", () => {
 
     expect(names.get("brief")).toBe("Work")
     expect(names.has("loose")).toBe(false)
+  })
+})
+
+describe("mapsInFolderSubtree", () => {
+  it("collects maps at every depth and nothing outside the folder", () => {
+    const entries = [map("brief", { folderId: "work" }), map("spec", { folderId: "deep" }), map("old", { folderId: "archive" }), map("loose")]
+    expect(mapsInFolderSubtree("work", folders, entries).map((e) => e.document.id)).toEqual(["brief", "spec"])
+  })
+
+  it("survives folders that name each other as parent", () => {
+    const looped: MindmapFolder[] = [
+      { id: "x", name: "X", parentId: "y" },
+      { id: "y", name: "Y", parentId: "x" },
+    ]
+    expect(mapsInFolderSubtree("x", looped, [map("a", { folderId: "y" })]).map((e) => e.document.id)).toEqual(["a"])
   })
 })

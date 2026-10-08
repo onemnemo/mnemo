@@ -37,8 +37,10 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         if (selectedNoteIds.Count > 0)
         {
             notes = notes.Where(n => selectedNoteIds.Contains(n.NoteId)).ToList();
-            var subtreeRoots = ResolveIds(context.Options.PayloadOptions, MnemoPayloadOptionKeys.FolderIds);
-            folders = NotePackageFolders.ForExport(folders, notes, subtreeRoots);
+            var keep = PackageFolderTree.Subtree(folders, f => f.FolderId, f => f.ParentId,
+                ResolveIds(context.Options.PayloadOptions, MnemoPayloadOptionKeys.FolderIds));
+            keep.UnionWith(notes.Where(n => !string.IsNullOrWhiteSpace(n.FolderId)).Select(n => n.FolderId!));
+            folders = folders.Where(f => keep.Contains(f.FolderId)).ToList();
         }
         var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         files["notes.db"] = BuildNotesSqlite(notes, folders);
@@ -79,7 +81,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         var packageFolderIds = new HashSet<string>(snapshot.Folders.Select(f => f.FolderId), StringComparer.Ordinal);
         var packageNoteIds = new HashSet<string>(snapshot.Notes.Select(n => n.NoteId), StringComparer.Ordinal);
 
-        foreach (var (folder, isRoot) in NotePackageFolders.ParentFirst(snapshot.Folders))
+        foreach (var (folder, isRoot) in PackageFolderTree.ParentFirst(snapshot.Folders, f => f.FolderId, f => f.ParentId))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var imported = CloneFolder(folder);

@@ -77,6 +77,7 @@ function actions(): LibraryActions {
     duplicateMap: vi.fn(),
     deleteMap: vi.fn(),
     renameFolder: vi.fn(),
+    exportFolder: vi.fn(),
     deleteFolder: vi.fn(),
     fileMap: vi.fn(),
   } as unknown as LibraryActions
@@ -127,14 +128,14 @@ describe("a map card", () => {
 })
 
 describe("a folder card", () => {
-  it("offers rename and delete on a right click", () => {
+  it("offers rename, export and delete on a right click", () => {
     const on = actions()
     mount(
       <FolderCard folder={folder} templates={[]} defaultTemplateId="" actions={on} onOpen={() => {}} />,
     )
 
     rightClick(container.querySelector("button")!)
-    expect(rowLabels()).toEqual(["Rename", "Delete"])
+    expect(rowLabels()).toEqual(["Rename", "Export", "Delete"])
 
     choose("Delete")
     // Not the open folder, so the delete has nowhere to walk out of.

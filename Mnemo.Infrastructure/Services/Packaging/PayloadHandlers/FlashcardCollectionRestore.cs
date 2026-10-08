@@ -192,7 +192,8 @@ internal sealed class FlashcardCollectionRestore
         var existing = await _folders.ListAsync(conn, cancellationToken).ConfigureAwait(false);
         var existingIds = new HashSet<string>(existing.Select(f => f.Id), StringComparer.Ordinal);
 
-        foreach (var folder in snapshot.Folders)
+        var packageIds = new HashSet<string>(snapshot.Folders.Select(f => f.Id), StringComparer.Ordinal);
+        foreach (var (folder, isRoot) in PackageFolderTree.ParentFirst(snapshot.Folders, f => f.Id, f => f.ParentId))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var id = folder.Id;
@@ -211,9 +212,20 @@ internal sealed class FlashcardCollectionRestore
                 }
             }
 
+            // A top-level folder of the package keeps its parent only where the library has that
+            // parent. An export of a nested folder names a parent the package does not carry, and the
+            // folder table refuses a row pointing at nothing. A root whose parent is in the package
+            // closes a loop in a damaged package, so it goes to the top level as well.
             var parentId = folder.ParentId;
-            if (!string.IsNullOrWhiteSpace(parentId) && map.TryGetValue(parentId, out var remappedParent))
+            if (isRoot)
+            {
+                if (string.IsNullOrWhiteSpace(parentId) || packageIds.Contains(parentId) || !existingIds.Contains(parentId))
+                    parentId = null;
+            }
+            else if (!string.IsNullOrWhiteSpace(parentId) && map.TryGetValue(parentId, out var remappedParent))
+            {
                 parentId = remappedParent;
+            }
 
             await _folders.UpsertAsync(conn, tx, new FlashcardFolder(id, folder.Name, parentId, folder.Order), now, cancellationToken)
                 .ConfigureAwait(false);

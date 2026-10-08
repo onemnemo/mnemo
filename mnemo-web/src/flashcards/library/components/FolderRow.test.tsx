@@ -76,7 +76,7 @@ function mount(node: ReactNode): void {
 }
 
 function mountRow(expanded = true): void {
-  mount(<FolderRow row={row(expanded)} onToggle={() => {}} drag={drag} />)
+  mount(<FolderRow row={row(expanded)} onToggle={() => {}} onExport={() => {}} drag={drag} />)
 }
 
 /**
@@ -258,7 +258,7 @@ describe("FolderRow menus", () => {
     openOverflowMenu()
     const fromOverflow = rowLabels()
 
-    expect(fromRightClick).toEqual(["ExpandFolder", "RenameFolder", "DeleteFolder"])
+    expect(fromRightClick).toEqual(["ExpandFolder", "RenameFolder", "Export", "DeleteFolder"])
     expect(fromOverflow).toEqual(fromRightClick)
   })
 

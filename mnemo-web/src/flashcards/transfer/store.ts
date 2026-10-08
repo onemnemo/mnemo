@@ -4,7 +4,10 @@ import { create } from "zustand"
 export interface TransferScope {
   /** How the scope reads in the dialog, e.g. "All decks" or the deck's own name. */
   label: string
+  /** For a folder, the decks in its subtree. */
   deckIds: string[]
+  /** Folders exported whole, structure included. */
+  folderIds?: string[]
   /**
    * True when the scope is the whole collection rather than a chosen part of it. The two go out
    * as the same list of ids, so the entry point that opened the dialog is the only thing that

@@ -11,6 +11,7 @@ import {
   conflictPolicyApplies,
   evidenceHeadline,
   evidenceLines,
+  exportFormats,
   exportKind,
   importResultNotice,
   packageCaptionKey,
@@ -250,5 +251,17 @@ describe("importResultNotice", () => {
     expect(notice.titleKey).toBe("ImportFailedTitle")
     expect(notice.description).toContain("unreadable")
     expect(notice.description).toContain("TransferWarnings.FlashcardsPayloadUnreadable")
+  })
+})
+
+describe("exportFormats", () => {
+  const CSV: TransferFormatDto = { ...PACKAGE, formatId: "flashcards.csv", extensions: [".csv"] }
+
+  it("offers every format for one deck", () => {
+    expect(exportFormats([PACKAGE, CSV], 1).map((f) => f.formatId)).toEqual(["flashcards.mnemo", "flashcards.csv"])
+  })
+
+  it("offers only the package for a folder, even one holding a single deck", () => {
+    expect(exportFormats([PACKAGE, CSV], 1, true).map((f) => f.formatId)).toEqual(["flashcards.mnemo"])
   })
 })

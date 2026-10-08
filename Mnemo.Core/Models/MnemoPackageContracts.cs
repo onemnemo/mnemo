@@ -27,13 +27,26 @@ public static class MnemoPayloadOptionKeys
     /// means each keeps the parent it was exported with.
     /// </summary>
     public const string TargetFolderId = "notes.targetFolderId";
+
+    /// <summary>The decks an export is limited to. Absent means every deck.</summary>
+    public const string DeckIds = "flashcards.deckIds";
+
+    /// <summary>Deck folders exported whole, empty subfolders included. Ignored when <see cref="DeckIds"/> is absent.</summary>
+    public const string DeckFolderIds = "flashcards.folderIds";
+
+    /// <summary>The mind maps an export is limited to. Absent means every map.</summary>
+    public const string MapIds = "mindmaps.mapIds";
+
+    /// <summary>Mind map folders exported whole, empty subfolders included. Ignored when <see cref="MapIds"/> is absent.</summary>
+    public const string MapFolderIds = "mindmaps.folderIds";
 }
 
 /// <summary>
-/// A notes package export narrowed to a selection. <see cref="NoteIds"/> is never empty: an empty
-/// selection would read as "every note".
+/// A package export narrowed to chosen items (notes, decks or maps) and the folders exported whole.
+/// <see cref="ItemIds"/> already holds every item inside <see cref="FolderIds"/>, and is never empty:
+/// an empty selection would read as the whole library.
 /// </summary>
-public sealed record NoteExportSelection(IReadOnlyCollection<string> NoteIds, IReadOnlyCollection<string> FolderIds);
+public sealed record PackageSelection(IReadOnlyCollection<string> ItemIds, IReadOnlyCollection<string> FolderIds);
 
 /// <summary>
 /// The kinds of id an import can rename, as keys of <see cref="MnemoPayloadImportResult.RemappedIds"/>

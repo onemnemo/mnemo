@@ -95,11 +95,11 @@ public sealed class NotesMnemoFormatAdapter : IContentFormatAdapter
         var payloadOptions = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         if (request.Payload is Note note)
             payloadOptions[MnemoPayloadOptionKeys.NoteIds] = new[] { note.NoteId };
-        else if (request.Payload is NoteExportSelection selection)
+        else if (request.Payload is PackageSelection selection)
         {
-            if (selection.NoteIds.Count == 0)
+            if (selection.ItemIds.Count == 0)
                 throw new ArgumentException("A note export selection needs at least one note.", nameof(request));
-            payloadOptions[MnemoPayloadOptionKeys.NoteIds] = selection.NoteIds.ToArray();
+            payloadOptions[MnemoPayloadOptionKeys.NoteIds] = selection.ItemIds.ToArray();
             payloadOptions[MnemoPayloadOptionKeys.FolderIds] = selection.FolderIds.ToArray();
         }
         else if (request.Payload is IEnumerable<string> noteIds)

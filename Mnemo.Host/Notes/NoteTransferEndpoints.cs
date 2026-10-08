@@ -349,8 +349,8 @@ public static class NoteTransferEndpoints
                     if (expanded.Count == 0)
                         return Results.BadRequest(new ErrorDto("no_notes", "No notes were selected to export."));
 
-                    payload = new NoteExportSelection(expanded, folderIds);
-                    if (folderIds.Length == 1 && noteIds.Length == 0)
+                    payload = new PackageSelection(expanded, folderIds);
+                    if (folderIds.Length == 1)
                         downloadTitle = allFolders.First(f => f.FolderId == folderIds[0]).Name;
                     else if (folderIds.Length == 0 && noteIds.Length == 1)
                         downloadTitle = summaries.FirstOrDefault(n => n.NoteId == noteIds[0])?.Title;

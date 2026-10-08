@@ -78,6 +78,13 @@ public sealed class MindmapsMnemoFormatAdapter : IContentFormatAdapter
             payloadOptions["mindmaps.mapIds"] = new[] { entry.Document.Id };
         else if (request.Payload is string mapId && !string.IsNullOrWhiteSpace(mapId))
             payloadOptions["mindmaps.mapIds"] = new[] { mapId };
+        else if (request.Payload is PackageSelection selection)
+        {
+            if (selection.ItemIds.Count == 0)
+                throw new ArgumentException("A map export selection needs at least one map.", nameof(request));
+            payloadOptions[MnemoPayloadOptionKeys.MapIds] = selection.ItemIds.ToArray();
+            payloadOptions[MnemoPayloadOptionKeys.MapFolderIds] = selection.FolderIds.ToArray();
+        }
         else if (request.Payload is IEnumerable<string> mapIds)
         {
             var selected = mapIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();

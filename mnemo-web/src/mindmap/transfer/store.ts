@@ -4,7 +4,10 @@ import { create } from "zustand"
 export interface MindmapTransferScope {
   /** How the scope reads in the dialog, e.g. the map's own title. */
   label: string
+  /** For a folder, the maps in its subtree. */
   mapIds: string[]
+  /** Folders exported whole, structure included. */
+  folderIds?: string[]
 }
 
 export interface MindmapTransferTarget {

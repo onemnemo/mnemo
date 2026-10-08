@@ -21,10 +21,12 @@ import { DEPTH_INDENT, RETENTION_CELL } from "./rowLayout"
 export function FolderRow({
   row,
   onToggle,
+  onExport,
   drag,
 }: {
   row: FolderRowModel
   onToggle: (id: string) => void
+  onExport: (row: FolderRowModel) => void
   drag: LibraryDrag
 }) {
   const t = useT()
@@ -60,6 +62,7 @@ export function FolderRow({
     on: {
       toggle: () => onToggle(folder.id),
       rename: rename.openFromMenu,
+      export: () => onExport(row),
       remove: () => void remove(),
     },
   })

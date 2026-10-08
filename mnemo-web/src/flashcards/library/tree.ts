@@ -164,6 +164,26 @@ export interface BuildLibraryOptions {
   collapsed: ReadonlySet<string>
 }
 
+/** Every deck under a folder, subfolders included: the set its deck count reads. */
+export function decksInFolderSubtree(
+  folderId: string,
+  folders: FolderDto[],
+  decks: DeckSummaryDto[],
+): DeckSummaryDto[] {
+  const known = new Set(folders.map((f) => f.id))
+  const subtree = new Set<string>()
+  const pending = [folderId]
+  while (pending.length > 0) {
+    const id = pending.pop()!
+    if (subtree.has(id)) continue
+    subtree.add(id)
+    for (const folder of folders) {
+      if (folder.parentId === id) pending.push(folder.id)
+    }
+  }
+  return decks.filter((deck) => deck.folderId !== null && known.has(deck.folderId) && subtree.has(deck.folderId))
+}
+
 /**
  * The decks a search leaves in scope, collapsed folders included. Separate from the row list
  * because a collapsed folder hides its decks from the table without taking them out of scope -

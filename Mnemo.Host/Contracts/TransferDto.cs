@@ -149,8 +149,13 @@ public sealed record TransferImportResultDto(
 /// The token a save chooser minted for the destination this file is going to. Omitted when there
 /// is nowhere to choose, and then the file comes back in the response instead.
 /// </param>
+/// <param name="FolderIds">
+/// Folders exported whole: every deck under them, and in a package their subfolder structure,
+/// empty subfolders included. Refused as <c>unknown_folder</c> when an id names no folder.
+/// </param>
 public sealed record TransferExportDto(
     string FormatId,
     IReadOnlyList<string> DeckIds,
     string? Kind = null,
-    string? Grant = null);
+    string? Grant = null,
+    IReadOnlyList<string>? FolderIds = null);

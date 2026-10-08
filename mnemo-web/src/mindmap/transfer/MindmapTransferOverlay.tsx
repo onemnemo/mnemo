@@ -288,9 +288,11 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
 
     setBusy(true)
     try {
-      const outcome = await runMindmapExport({ formatId: exportFormat, mapIds: scope.mapIds }, {
+      const folderIds = scope.folderIds ?? []
+      const named = folderIds.length > 0 ? folderIds.length === 1 : scope.mapIds.length === 1
+      const outcome = await runMindmapExport({ formatId: exportFormat, mapIds: scope.mapIds, folderIds }, {
         ...exportSaveOptions(common),
-        fileName: exportFileName(scope.mapIds.length === 1 ? scope.label : null, "mindmaps", selectedExtension),
+        fileName: exportFileName(named ? scope.label : null, "mindmaps", selectedExtension),
       })
       const told = announceExport(outcome, {
         title: common("ExportCompleteTitle"),
@@ -352,7 +354,7 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
 
   const title = importing
     ? mm("TransferImportTitle")
-    : scope && scope.mapIds.length === 1
+    : scope && scope.mapIds.length === 1 && !scope.folderIds?.length
       ? mm("TransferExportSingleTitle")
       : mm("TransferExportTitle")
 

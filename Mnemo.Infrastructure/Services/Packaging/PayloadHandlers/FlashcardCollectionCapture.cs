@@ -56,17 +56,17 @@ internal sealed class FlashcardCollectionCapture
         CancellationToken cancellationToken)
     {
         var isBackup = MnemoPackageKinds.IsBackup(options.Kind);
-        var selectedDeckIds = ResolveSelectedDeckIds(options);
+        var selectedDeckIds = ResolveIds(options, MnemoPayloadOptionKeys.DeckIds);
 
         var folders = await _library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
         var summaries = await _library.ListDecksAsync(cancellationToken).ConfigureAwait(false);
         if (selectedDeckIds.Count > 0)
         {
             summaries = summaries.Where(d => selectedDeckIds.Contains(d.Id)).ToArray();
-            var usedFolderIds = new HashSet<string>(
-                summaries.Where(d => !string.IsNullOrWhiteSpace(d.Header.FolderId)).Select(d => d.Header.FolderId!),
-                StringComparer.Ordinal);
-            folders = folders.Where(f => usedFolderIds.Contains(f.Id)).ToArray();
+            var keep = PackageFolderTree.Subtree(folders, f => f.Id, f => f.ParentId,
+                ResolveIds(options, MnemoPayloadOptionKeys.DeckFolderIds));
+            keep.UnionWith(summaries.Where(d => !string.IsNullOrWhiteSpace(d.Header.FolderId)).Select(d => d.Header.FolderId!));
+            folders = folders.Where(f => keep.Contains(f.Id)).ToArray();
         }
 
         var snapshot = new FlashcardPayloadSnapshot();
@@ -410,12 +410,12 @@ internal sealed class FlashcardCollectionCapture
         return string.IsNullOrEmpty(text) ? suffix : $"{text}\n\n{suffix}";
     }
 
-    private static HashSet<string> ResolveSelectedDeckIds(MnemoPackageExportOptions options)
+    private static HashSet<string> ResolveIds(MnemoPackageExportOptions options, string key)
     {
-        if (!options.PayloadOptions.TryGetValue("flashcards.deckIds", out var value))
+        if (!options.PayloadOptions.TryGetValue(key, out var value) || value is null)
             return new HashSet<string>(StringComparer.Ordinal);
         if (value is IEnumerable<string> ids)
             return new HashSet<string>(ids.Where(v => !string.IsNullOrWhiteSpace(v)), StringComparer.Ordinal);
-        return new HashSet<string>(StringComparer.Ordinal);
+        throw new ArgumentException($"Payload option '{key}' must be a collection of ids.", nameof(options));
     }
 }

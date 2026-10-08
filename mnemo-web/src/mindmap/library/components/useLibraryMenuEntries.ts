@@ -38,8 +38,10 @@ export function useFolderMenuEntries(
 
   return folderMenuItems({
     t,
+    mapCount: folder.mapCount,
     on: {
       rename: () => void actions.renameFolder(folder.folder),
+      export: () => actions.exportFolder(folder.folder),
       remove: () => void actions.deleteFolder(folder.folder, leaving),
     },
   })

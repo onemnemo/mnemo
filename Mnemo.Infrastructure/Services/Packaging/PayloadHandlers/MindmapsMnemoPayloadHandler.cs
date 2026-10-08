@@ -78,7 +78,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             });
         }
 
-        var folders = (selected.Count > 0 ? CollectReferencedFolders(chosen, allFolders) : allFolders)
+        var folders = (selected.Count > 0 ? SelectedFolders(context.Options, chosen, allFolders) : allFolders)
             .Select(f => new FolderSnapshotDto { Id = f.Id, Name = f.Name, ParentId = f.ParentId, Order = f.Order })
             .ToList();
 
@@ -156,7 +156,8 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
         // Assets and templates come first so a restored map's asset/template references resolve immediately.
         RestoreImageAssets(context.Files);
         await RestoreTemplatesAsync(snapshot.Templates, cancellationToken).ConfigureAwait(false);
-        var folderIdMap = await RestoreFoldersAsync(snapshot.Folders, policy, result, cancellationToken).ConfigureAwait(false);
+        var folderIdMap = await RestoreFoldersAsync(
+            snapshot.Folders, policy, MnemoPackageKinds.IsBackup(context.Manifest.Kind), result, cancellationToken).ConfigureAwait(false);
 
         var noteIds = MnemoIdKinds.Of(context.RemappedIds, MnemoIdKinds.Notes);
         var deckIds = MnemoIdKinds.Of(context.RemappedIds, MnemoIdKinds.FlashcardDecks);
@@ -250,11 +251,28 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
 
     // ---- Export helpers -------------------------------------------------------------------------
 
-    private static HashSet<string> ResolveSelectedMapIds(MnemoPackageExportOptions options)
+    private static HashSet<string> ResolveSelectedMapIds(MnemoPackageExportOptions options) =>
+        ResolveIds(options, MnemoPayloadOptionKeys.MapIds);
+
+    private static HashSet<string> ResolveIds(MnemoPackageExportOptions options, string key)
     {
-        if (options.PayloadOptions.TryGetValue("mindmaps.mapIds", out var value) && value is IEnumerable<string> ids)
+        if (!options.PayloadOptions.TryGetValue(key, out var value) || value is null)
+            return new HashSet<string>(StringComparer.Ordinal);
+        if (value is IEnumerable<string> ids)
             return new HashSet<string>(ids.Where(v => !string.IsNullOrWhiteSpace(v)), StringComparer.Ordinal);
-        return new HashSet<string>(StringComparer.Ordinal);
+        throw new ArgumentException($"Payload option '{key}' must be a collection of ids.", nameof(options));
+    }
+
+    // A folder exported whole goes out with everything under it, empty folders included, and without
+    // its own parents. A map picked on its own brings its full folder chain, as it always has.
+    private static IReadOnlyList<MindmapFolder> SelectedFolders(
+        MnemoPackageExportOptions options, IReadOnlyList<MindmapLibraryEntry> chosen, IReadOnlyList<MindmapFolder> allFolders)
+    {
+        var subtree = PackageFolderTree.Subtree(allFolders, f => f.Id, f => f.ParentId, ResolveIds(options, MnemoPayloadOptionKeys.MapFolderIds));
+        var outside = chosen.Where(e => e.FolderId is not { } folder || !subtree.Contains(folder)).ToList();
+        var keep = new HashSet<string>(CollectReferencedFolders(outside, allFolders).Select(f => f.Id), StringComparer.Ordinal);
+        keep.UnionWith(subtree);
+        return allFolders.Where(f => keep.Contains(f.Id)).ToList();
     }
 
     // Every folder that a chosen map lives in, plus its ancestor chain, so the restored folder tree resolves.
@@ -383,6 +401,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
     private async Task<Dictionary<string, string>> RestoreFoldersAsync(
         IReadOnlyList<FolderSnapshotDto> folders,
         ImportConflictPolicy policy,
+        bool isBackup,
         MnemoPayloadImportResult result,
         CancellationToken cancellationToken)
     {
@@ -426,12 +445,13 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
             if (!string.IsNullOrWhiteSpace(parentId) && folderIdMap.TryGetValue(parentId, out var remappedParent))
                 parentId = remappedParent;
 
-            // A parent that is in neither the package nor the library is a hole in the tree the package
-            // describes, and the folder table refuses a row pointing at one. Landing the folder at the
-            // library root keeps the rest of the import, and its maps, rather than failing all of it.
+            // A parent that is in neither the package nor the library lands the folder at the library
+            // root, since the folder table refuses a row pointing at nothing. In an export that is just
+            // the top of the folder that was exported; in a backup it is a hole worth reporting.
             if (!string.IsNullOrWhiteSpace(parentId) && !existingIds.Contains(parentId))
             {
-                result.Warnings.Add(TransferWarning.Of("MindmapFolderRestoredAtRoot", ("folderName", folder.Name)));
+                if (isBackup)
+                    result.Warnings.Add(TransferWarning.Of("MindmapFolderRestoredAtRoot", ("folderName", folder.Name)));
                 parentId = null;
             }
 

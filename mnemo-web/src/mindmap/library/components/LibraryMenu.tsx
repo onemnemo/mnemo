@@ -24,7 +24,7 @@ export function LibraryMenuItems({ entries }: { entries: readonly LibraryMenuEnt
     entry.kind === "separator" ? (
       <MenuSeparator key={entry.id} />
     ) : (
-      <MenuItem key={entry.id} icon={entry.icon} danger={entry.danger} onSelect={entry.run}>
+      <MenuItem key={entry.id} icon={entry.icon} danger={entry.danger} disabled={entry.disabled} onSelect={entry.run}>
         {entry.label}
       </MenuItem>
     ),
@@ -37,7 +37,7 @@ function renderContextMenu(entries: readonly LibraryMenuEntry[]): ReactNode {
     entry.kind === "separator" ? (
       <ContextMenuSeparator key={entry.id} />
     ) : (
-      <ContextMenuItem key={entry.id} icon={entry.icon} danger={entry.danger} onSelect={entry.run}>
+      <ContextMenuItem key={entry.id} icon={entry.icon} danger={entry.danger} disabled={entry.disabled} onSelect={entry.run}>
         {entry.label}
       </ContextMenuItem>
     ),

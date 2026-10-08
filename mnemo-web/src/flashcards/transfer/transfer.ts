@@ -201,14 +201,18 @@ export function isImportable(fileName: string, formats: readonly TransferFormatD
 /**
  * Export formats for a selection of a given size. A selection of one deck can go out as any of
  * them; anything wider is offered only as a Mnemo package, which is the desktop's rule. CSV and
- * Anki both can hold several decks, so this is caution rather than a limit of the formats.
+ * Anki both can hold several decks, so this is caution rather than a limit of the formats. A folder
+ * goes out only as a package, the one format that keeps its subfolders.
  */
 export function exportFormats(
   formats: readonly TransferFormatDto[],
   deckCount: number,
+  hasFolders = false,
 ): TransferFormatDto[] {
   const exportable = formats.filter((format) => format.supportsExport)
-  return deckCount === 1 ? exportable : exportable.filter((format) => format.formatId === PACKAGE_FORMAT)
+  return deckCount === 1 && !hasFolders
+    ? exportable
+    : exportable.filter((format) => format.formatId === PACKAGE_FORMAT)
 }
 
 /** Uploads to send when the user confirms: the ones that read cleanly, in queue order. */

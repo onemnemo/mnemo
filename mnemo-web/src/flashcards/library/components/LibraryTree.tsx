@@ -3,7 +3,7 @@ import type { RefObject } from "react"
 import { useT } from "@/i18n/useT"
 
 import type { LibraryDrag } from "../dnd/useLibraryDrag"
-import type { LibraryRow } from "../tree"
+import type { FolderRowModel, LibraryRow } from "../tree"
 import { DeckRow } from "./DeckRow"
 import { FolderRow } from "./FolderRow"
 import { RETENTION_CELL } from "./rowLayout"
@@ -13,12 +13,14 @@ export function LibraryTree({
   rows,
   onOpenDeck,
   onToggleFolder,
+  onExportFolder,
   drag,
   surfaceRef,
 }: {
   rows: LibraryRow[]
   onOpenDeck: (id: string) => void
   onToggleFolder: (id: string) => void
+  onExportFolder: (row: FolderRowModel) => void
   drag: LibraryDrag
   /** The whole surface is a drop target: anywhere on it that is not a row means the root. */
   surfaceRef: RefObject<HTMLDivElement | null>
@@ -44,7 +46,7 @@ export function LibraryTree({
       <div role="rowgroup">
         {rows.map((row) =>
           row.kind === "folder" ? (
-            <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} drag={drag} />
+            <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} onExport={onExportFolder} drag={drag} />
           ) : (
             <DeckRow key={`deck:${row.id}`} row={row} onOpen={onOpenDeck} drag={drag} />
           ),

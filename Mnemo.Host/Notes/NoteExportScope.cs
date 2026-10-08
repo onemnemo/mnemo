@@ -1,4 +1,5 @@
 using Mnemo.Core.Models;
+using Mnemo.Host.Transfer;
 
 namespace Mnemo.Host.Notes;
 
@@ -16,20 +17,7 @@ public static class NoteExportScope
         IEnumerable<string> noteIds,
         IEnumerable<string> folderIds)
     {
-        var subtree = new HashSet<string>(StringComparer.Ordinal);
-        var childFolders = folders
-            .Where(f => !string.IsNullOrWhiteSpace(f.ParentId))
-            .ToLookup(f => f.ParentId!, StringComparer.Ordinal);
-        var pendingFolders = new Stack<string>(folderIds);
-        while (pendingFolders.Count > 0)
-        {
-            var id = pendingFolders.Pop();
-            if (!subtree.Add(id))
-                continue;
-            foreach (var child in childFolders[id])
-                pendingFolders.Push(child.FolderId);
-        }
-
+        var subtree = FolderSubtree.Of(folders, f => f.FolderId, f => f.ParentId, folderIds);
         var known = notes.Select(n => n.NoteId).ToHashSet(StringComparer.Ordinal);
         var picked = noteIds.Where(known.Contains)
             .Concat(notes.Where(n => n.FolderId is { } folder && subtree.Contains(folder)).Select(n => n.NoteId));

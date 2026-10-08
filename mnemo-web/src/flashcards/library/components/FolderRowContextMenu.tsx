@@ -23,6 +23,7 @@ function renderFolderContextMenu(entries: readonly FolderMenuEntry[]) {
             icon={entry.icon}
             emphasis={entry.emphasis}
             danger={entry.danger}
+            disabled={entry.disabled}
             onSelect={entry.run}
           >
             {entry.label}

@@ -322,13 +322,39 @@ public static class TransferEndpoints
             CancellationToken cancellationToken) =>
         {
             var deckIds = (body.DeckIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
-            if (deckIds.Length == 0)
+            var folderIds = (body.FolderIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+            if (deckIds.Length == 0 && folderIds.Length == 0)
                 return Results.BadRequest(new ErrorDto("no_decks", "No decks were selected to export."));
 
             var format = transfer.GetCapabilities(FlashcardsContentType)
                 .FirstOrDefault(c => c.SupportsExport && string.Equals(c.FormatId, body.FormatId, StringComparison.OrdinalIgnoreCase));
             if (format is null)
                 return Results.BadRequest(new ErrorDto("unsupported_format", $"'{body.FormatId}' is not an export format."));
+
+            string? folderName = null;
+            if (folderIds.Length > 0)
+            {
+                var folders = await library.ListFoldersAsync(cancellationToken).ConfigureAwait(false);
+                if (folderIds.FirstOrDefault(id => folders.All(f => f.Id != id)) is { } unknown)
+                    return Results.BadRequest(new ErrorDto("unknown_folder", $"No deck folder '{unknown}'."));
+
+                var subtree = FolderSubtree.Of(folders, f => f.Id, f => f.ParentId, folderIds);
+                var decks = await library.ListDecksAsync(cancellationToken).ConfigureAwait(false);
+                deckIds = deckIds
+                    .Concat(decks.Where(d => d.Header.FolderId is { } folder && subtree.Contains(folder)).Select(d => d.Id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+                if (deckIds.Length == 0)
+                    return Results.BadRequest(new ErrorDto("no_decks", "No decks were selected to export."));
+                if (folderIds.Length == 1)
+                    folderName = folders.First(f => f.Id == folderIds[0]).Name;
+            }
+
+            // Only the package keeps folders. CSV and Anki read a plain list of deck ids, and would
+            // take anything else as "every deck".
+            object payload = folderIds.Length > 0 && string.Equals(format.FormatId, PackageFormatId, StringComparison.OrdinalIgnoreCase)
+                ? new PackageSelection(deckIds, folderIds)
+                : deckIds;
 
             if (ExportDestination.Claim(body.Grant, grants, out var target) is { } refusal)
                 return refusal;
@@ -342,7 +368,7 @@ public static class TransferEndpoints
                     ContentType = FlashcardsContentType,
                     FormatId = format.FormatId,
                     FilePath = path,
-                    Payload = deckIds,
+                    Payload = payload,
                 };
                 if (!string.IsNullOrWhiteSpace(body.Kind))
                     request.Options[ImportExportOptionKeys.PackageKind] = body.Kind;
@@ -359,7 +385,7 @@ public static class TransferEndpoints
                 if (target is not null)
                     return await ExportDestination.CommitAsync(target, path, settings).ConfigureAwait(false);
 
-                var downloadName = await BuildDownloadNameAsync(library, deckIds, extension, cancellationToken).ConfigureAwait(false);
+                var downloadName = await BuildDownloadNameAsync(library, folderName, deckIds, extension, cancellationToken).ConfigureAwait(false);
 
                 // DeleteOnClose hands the cleanup to the response pipeline: the staged copy lives
                 // exactly as long as it takes to write it to the client, including when the client
@@ -412,17 +438,18 @@ public static class TransferEndpoints
     }
 
     /// <summary>
-    /// What the browser saves the download as: one deck exports under its own name, a selection
-    /// under a generic one, matching the names the desktop's save dialog suggests.
+    /// What the browser saves the download as: a folder or a single deck exports under its own name,
+    /// any other selection under a generic one, matching the names the desktop's save dialog suggests.
     /// </summary>
     private static async Task<string> BuildDownloadNameAsync(
         IFlashcardLibraryService library,
+        string? folderName,
         IReadOnlyList<string> deckIds,
         string extension,
         CancellationToken cancellationToken)
     {
-        var name = "flashcards";
-        if (deckIds.Count == 1)
+        var name = string.IsNullOrWhiteSpace(folderName) ? "flashcards" : folderName;
+        if (folderName is null && deckIds.Count == 1)
         {
             var deck = await library.GetDeckAsync(deckIds[0], cancellationToken).ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(deck?.Name))

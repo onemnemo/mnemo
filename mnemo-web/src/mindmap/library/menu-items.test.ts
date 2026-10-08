@@ -51,26 +51,33 @@ describe("mapMenuItems", () => {
 })
 
 describe("folderMenuItems", () => {
-  const on = { rename: vi.fn(), remove: vi.fn() }
-  const entries = folderMenuItems({ t, on })
+  const on = { rename: vi.fn(), export: vi.fn(), remove: vi.fn() }
+  const entries = folderMenuItems({ t, mapCount: 2, on })
 
-  it("offers rename, then delete below a rule", () => {
-    expect(ids(entries)).toEqual(["rename", "sep.delete", "delete"])
+  it("offers rename and export, then delete below a rule", () => {
+    expect(ids(entries)).toEqual(["rename", "export", "sep.delete", "delete"])
     expect(item(entries, "delete").danger).toBe(true)
   })
 
   it("runs the handler each row was given", () => {
     item(entries, "rename").run()
+    item(entries, "export").run()
     item(entries, "delete").run()
     expect(on.rename).toHaveBeenCalledOnce()
+    expect(on.export).toHaveBeenCalledOnce()
     expect(on.remove).toHaveBeenCalledOnce()
+  })
+
+  it("disables export for a folder with no maps under it", () => {
+    expect(item(entries, "export").disabled).toBe(false)
+    expect(item(folderMenuItems({ t, mapCount: 0, on }), "export").disabled).toBe(true)
   })
 })
 
 describe("the labels", () => {
   const bundle = mergedEnglishBundle()
   const handlers = { rename: () => {}, duplicate: () => {}, export: () => {}, remove: () => {} }
-  const labels = [...mapMenuItems({ t, on: handlers }), ...folderMenuItems({ t, on: handlers })]
+  const labels = [...mapMenuItems({ t, on: handlers }), ...folderMenuItems({ t, mapCount: 1, on: handlers })]
     .filter((entry): entry is Extract<LibraryMenuEntry, { kind: "item" }> => entry.kind === "item")
     .map((entry) => entry.label)
 

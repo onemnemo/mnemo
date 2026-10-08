@@ -80,6 +80,13 @@ public sealed class FlashcardsMnemoFormatAdapter : IContentFormatAdapter
             payloadOptions["flashcards.deckIds"] = new[] { header.Id };
         else if (request.Payload is string deckId && !string.IsNullOrWhiteSpace(deckId))
             payloadOptions["flashcards.deckIds"] = new[] { deckId };
+        else if (request.Payload is PackageSelection selection)
+        {
+            if (selection.ItemIds.Count == 0)
+                throw new ArgumentException("A deck export selection needs at least one deck.", nameof(request));
+            payloadOptions[MnemoPayloadOptionKeys.DeckIds] = selection.ItemIds.ToArray();
+            payloadOptions[MnemoPayloadOptionKeys.DeckFolderIds] = selection.FolderIds.ToArray();
+        }
         else if (request.Payload is IEnumerable<string> deckIds)
         {
             var filteredDeckIds = deckIds

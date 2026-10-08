@@ -61,7 +61,7 @@ function rightClick(target: Element): void {
 }
 
 function handlers(): FolderMenuHandlers {
-  return { toggle: vi.fn(), rename: vi.fn(), remove: vi.fn() }
+  return { toggle: vi.fn(), rename: vi.fn(), export: vi.fn(), remove: vi.fn() }
 }
 
 /** Every menu row currently on screen, by its label. */
@@ -70,6 +70,22 @@ function rowLabels(): string[] {
 }
 
 describe("FolderRowContextMenu", () => {
+  it("exports the folder, and offers nothing to export from an empty one", () => {
+    const on = handlers()
+    mount(
+      <FolderRowContextMenu entries={folderMenuItems({ row: row(true), t, on })} opensEditor={neverEditor}>
+        <div data-testid="row">Anatomy</div>
+      </FolderRowContextMenu>,
+    )
+    rightClick(container.querySelector("[data-testid='row']")!)
+    const exportItem = [...document.querySelectorAll("[role='menuitem']")].find((el) => el.textContent === "Export")
+    act(() => (exportItem as HTMLElement).click())
+    expect(on.export).toHaveBeenCalledTimes(1)
+
+    const empty = folderMenuItems({ row: { ...row(true), counts: { ...row(true).counts, deckCount: 0 } }, t, on })
+    expect(empty.find((entry) => entry.id === "export")).toMatchObject({ disabled: true })
+  })
+
   it("opens the folder's verbs on a right click and runs the one chosen", () => {
     const on = handlers()
     mount(

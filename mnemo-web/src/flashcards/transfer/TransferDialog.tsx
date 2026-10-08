@@ -66,9 +66,11 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
 
   const scope = target.scope
   const deckCount = scope?.deckIds.length ?? 0
+  const folderIds = scope?.folderIds ?? []
+  const hasFolders = folderIds.length > 0
   // Memoized because it is an effect dependency: rebuilding the array every render would re-run
   // the default-format effect on every keystroke elsewhere in the dialog.
-  const available = useMemo(() => exportFormats(formatList, deckCount), [formatList, deckCount])
+  const available = useMemo(() => exportFormats(formatList, deckCount, hasFolders), [formatList, deckCount, hasFolders])
 
   // Default to the first offered format once the list arrives, and correct a selection the format
   // list no longer contains rather than leaving Confirm pointing at nothing.
@@ -256,11 +258,16 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
         {
           formatId: exportFormat,
           deckIds: scope.deckIds,
+          folderIds,
           kind: exportKind(scope.wholeCollection),
         },
         {
           ...exportSaveOptions(common),
-          fileName: exportFileName(scope.deckIds.length === 1 ? scope.label : null, "flashcards", selectedExtension),
+          fileName: exportFileName(
+            (hasFolders ? folderIds.length === 1 : scope.deckIds.length === 1) ? scope.label : null,
+            "flashcards",
+            selectedExtension,
+          ),
         },
       )
       const told = announceExport(outcome, {
@@ -306,7 +313,7 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
 
   const title = importing
     ? fc("TransferImportTitle")
-    : scope && scope.deckIds.length === 1
+    : scope && scope.deckIds.length === 1 && !hasFolders
       ? fc("TransferExportDeckTitle")
       : fc("TransferExportTitle")
 

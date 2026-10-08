@@ -696,6 +696,7 @@ export interface TransferImportResultDto {
 export interface TransferExportDto {
   formatId: string
   deckIds: string[]
+  folderIds?: string[]
   /**
    * "backup" when the request covers the whole collection, "export" when it covers a chosen part.
    * Both go out as a list of deck ids, so only the caller knows which one was asked for.
@@ -777,6 +778,7 @@ export interface MindmapTransferImportResultDto {
 export interface MindmapTransferExportDto {
   formatId: string
   mapIds: string[]
+  folderIds?: string[]
 }
 
 // --- Notes -----------------------------------------------------------------

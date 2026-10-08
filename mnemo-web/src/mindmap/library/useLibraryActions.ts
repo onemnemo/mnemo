@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 
 import { navigate } from "@/app/router"
@@ -6,6 +7,8 @@ import { dialog } from "@/stores/dialog"
 import { useUndoDelete } from "@/trash/undo"
 
 import {
+  mindmapFoldersKey,
+  mindmapLibraryKey,
   useCreateMindmap,
   useDeleteMindmap,
   useDeleteMindmapFolder,
@@ -14,7 +17,9 @@ import {
   useRenameMindmap,
   useSaveMindmapFolder,
 } from "../api"
-import type { MindmapFolder } from "../model/document"
+import type { MindmapFolder, MindmapLibraryEntry } from "../model/document"
+import { useMindmapTransfer } from "../transfer/store"
+import { mapsInFolderSubtree } from "./shelf"
 import { useLibraryView } from "./store"
 
 /**
@@ -30,6 +35,7 @@ export function useLibraryActions() {
   const mm = (key: string) => t("Mindmap", key)
 
   const undo = useUndoDelete()
+  const queryClient = useQueryClient()
   const create = useCreateMindmap()
   const rename = useRenameMindmap()
   const duplicate = useDuplicateMindmap()
@@ -112,6 +118,20 @@ export function useLibraryActions() {
 
     async deleteMap(id: string) {
       undo(await remove.mutateAsync(id))
+    },
+
+    /** Reads the library the gallery already loaded, so the menu never waits on a fetch. */
+    exportFolder(folder: MindmapFolder) {
+      const entries = queryClient.getQueryData<MindmapLibraryEntry[]>(mindmapLibraryKey) ?? []
+      const folders = queryClient.getQueryData<MindmapFolder[]>(mindmapFoldersKey) ?? []
+      useMindmapTransfer.getState().open({
+        direction: "export",
+        scope: {
+          label: folder.name,
+          mapIds: mapsInFolderSubtree(folder.id, folders, entries).map((entry) => entry.document.id),
+          folderIds: [folder.id],
+        },
+      })
     },
 
     async renameFolder(folder: MindmapFolder) {
