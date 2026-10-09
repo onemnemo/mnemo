@@ -223,8 +223,8 @@ Linux desktop's autostart settings.
 
 ## Roadmap
 
-More ways to practise, optional sync and extensions are planned. A full roadmap will be
-published soon.
+Optional sync and a mobile app are next. See [ROADMAP.md](ROADMAP.md) for what we're working
+on and what comes after.
 
 ## Architecture
 
