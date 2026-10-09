@@ -90,6 +90,7 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 - **App and platform.** The first launch of a beta build shows a short notice saying so, with a button that makes the same one-file backup as Settings and a link to the issue form. It appears once per beta version.
 - **App and platform.** Deleting a note, mindmap, flashcard deck, or card now moves it to a trash for thirty days instead of erasing it immediately, and restoring a deck or folder brings back everything that was inside it.
 - **App and platform.** Exporting now lets you choose where to save the file, and confirms where it ended up afterward.
+- **App and platform.** Whole folders of notes, decks and mind maps can be exported from the folder menu with all their subfolders. Choosing Import here on a folder puts a package inside that folder without moving anything already in your library.
 - **App and platform.** Importing from Anki now carries over review history, math notation, and cloze deletion cards, instead of just the plain card text.
 - **App and platform.** The app now asks for confirmation before closing the window.
 - **App and platform.** Added a side peek panel that shows a note or flashcard beside the current page without navigating away.
@@ -107,6 +108,7 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 - **Mind maps.** Existing math nodes become text nodes containing an inline equation. The tool dock and shape picker have been redesigned.
 - **Notes.** Long notes open and respond to typing much faster. On a note with 10,000 blocks, slow keystrokes are about six times faster and opening takes 1.5 seconds instead of 4. Scrolling a note with many headings is also faster.
 - **Notes.** Pasted text is split into blocks closer to how it looked. Blank lines separate blocks, line breaks in addresses and poems are kept, and text is only read as Markdown when it has a heading, a code block or a table.
+- **Notes.** Exporting a note also exports its child pages.
 
 
 - **Flashcards.** The spaced-repetition scheduler has been upgraded from FSRS-5 to FSRS-6, which more accurately predicts how likely you are to remember a card at review time.
@@ -139,6 +141,7 @@ The update feed identity changed with the rebuild, so an existing 0.6.x installa
 - **Notes.** The slash menu keeps the row chosen with the arrow keys when the spell checker updates, block handles hide after a block is dragged, and resizing columns no longer stops when text above them changes.
 - **Flashcards.** Packages from current Anki versions keep every field of their note types, and basic and reversed notes no longer make duplicate cards. Imported new cards keep their original order, decks imported with review history show when they were last studied, and a clean import shows as a success.
 - **Flashcards.** The retention trend skips days without reviews instead of dropping to 0%, and the card tables show maths as readable symbols instead of LaTeX source. A card moved to the trash because its cloze or field was removed comes back when that content is added again.
+- **Flashcards.** A deck exported from inside a folder now imports into another library instead of failing.
 - **Mind maps.** Copying a selection that holds items which cannot be copied, such as shapes or lines, shows a message instead of doing nothing.
 - **Overview and settings.** The result of a restore is shown on whichever page the app reopens on, not only on the Storage page, and a failed restore stays on screen until dismissed.
 - **App and platform.** A count of one uses the singular form across the app, relative times read naturally in German, Japanese, Norwegian and Spanish, and card type and preset load errors are translated.
