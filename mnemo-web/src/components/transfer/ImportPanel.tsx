@@ -16,11 +16,14 @@ export function ImportPanel<Q extends QueuedImport>({
   warning,
   refused,
   overflow,
+  empty = false,
   destination,
   locked,
   dropping = false,
+  reading = false,
   onAdd,
   onRemove,
+  onPickFolder,
 }: {
   queue: readonly Q[]
   extensions: string[]
@@ -28,15 +31,20 @@ export function ImportPanel<Q extends QueuedImport>({
   warning?: (file: Q) => string | null
   refused: readonly string[]
   overflow: boolean
+  /** A picked or dropped folder held nothing to import. */
+  empty?: boolean
   destination?: string
   locked: boolean
   dropping?: boolean
+  reading?: boolean
   onAdd: (files: PickedFile[]) => void
   onRemove: (key: string) => void
+  onPickFolder?: (files: File[]) => void
 }) {
   const t = useT()
   const common = (key: string, params?: Record<string, string | number>) => t("Common", key, params)
   const input = useRef<HTMLInputElement>(null)
+  const folderInput = useRef<HTMLInputElement>(null)
   const browse = () => input.current?.click()
 
   return (
@@ -53,6 +61,21 @@ export function ImportPanel<Q extends QueuedImport>({
           event.target.value = ""
         }}
       />
+      {onPickFolder ? (
+        <input
+          // React has no typed prop for the folder picker attribute.
+          ref={(element) => {
+            folderInput.current = element
+            element?.setAttribute("webkitdirectory", "")
+          }}
+          type="file"
+          hidden
+          onChange={(event) => {
+            onPickFolder(Array.from(event.target.files ?? []))
+            event.target.value = ""
+          }}
+        />
+      ) : null}
 
       {queue.length === 0 ? (
         <div
@@ -68,10 +91,31 @@ export function ImportPanel<Q extends QueuedImport>({
             <p className="text-[12.5px] font-medium text-ink">{common("TransferDropToImport")}</p>
           ) : (
             <p className="text-[12.5px] text-ink-2">
-              {common("TransferDropFileHere")} {common("TransferDropOr")}{" "}
-              <LinkButton disabled={locked} onClick={browse}>
-                {common("TransferBrowse")}
-              </LinkButton>
+              {onPickFolder ? (
+                // The sentence is translated whole and the two links go where {0} and {1} sit.
+                common("TransferDropBrowseFolderFormat")
+                  .split(/(\{[01]\})/)
+                  .map((part, index) =>
+                    part === "{0}" ? (
+                      <LinkButton key={index} disabled={locked} onClick={browse}>
+                        {common("TransferBrowse")}
+                      </LinkButton>
+                    ) : part === "{1}" ? (
+                      <LinkButton key={index} disabled={locked} onClick={() => folderInput.current?.click()}>
+                        {common("TransferChooseFolder")}
+                      </LinkButton>
+                    ) : (
+                      part
+                    ),
+                  )
+              ) : (
+                <>
+                  {common("TransferDropFileHere")} {common("TransferDropOr")}{" "}
+                  <LinkButton disabled={locked} onClick={browse}>
+                    {common("TransferBrowse")}
+                  </LinkButton>
+                </>
+              )}
             </p>
           )}
           <div className="flex flex-wrap justify-center gap-1">
@@ -101,13 +145,25 @@ export function ImportPanel<Q extends QueuedImport>({
               />
             ))}
           </ul>
-          <div>
+          <p className="text-[12.5px] text-ink-2">
             <LinkButton disabled={locked} onClick={browse}>
               {common("TransferAddAnotherFile")}
             </LinkButton>
-          </div>
+            {onPickFolder ? (
+              <>
+                {" "}
+                {common("TransferDropOr")}{" "}
+                <LinkButton disabled={locked} onClick={() => folderInput.current?.click()}>
+                  {common("TransferChooseFolder")}
+                </LinkButton>
+              </>
+            ) : null}
+          </p>
         </div>
       )}
+
+      {reading ? <p className="text-[11.5px] text-ink-3">{common("TransferReadingFolder")}</p> : null}
+      {empty ? <p className="text-[11.5px] text-danger">{common("TransferFolderEmpty")}</p> : null}
 
       {refused.length > 0 || overflow ? (
         <p className="text-[11.5px] text-danger">

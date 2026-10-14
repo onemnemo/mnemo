@@ -31,6 +31,7 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
     private readonly WebApplication _app;
     private readonly RecordingCoordinator _transfer = new();
     private readonly RecordingLogger _logger = new();
+    private readonly OneFolder _folders = new(KnownFolder);
     private readonly TrashDatabase _trashDatabase;
     private HttpClient? _client;
     private bool _started;
@@ -46,7 +47,7 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
 
         builder.Services.AddSingleton<ILoggerService>(logger);
         builder.Services.AddSingleton<IImportExportCoordinator>(_transfer);
-        builder.Services.AddSingleton<INoteFolderService>(new OneFolder(KnownFolder));
+        builder.Services.AddSingleton<INoteFolderService>(_folders);
         builder.Services.AddSingleton<INoteSidMigrator>(new MigratedNotes());
 
         // The export route is mapped by the same call and its delegate is built with the rest, so
@@ -126,6 +127,31 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
 
         var request = Assert.Single(_transfer.Imports);
         Assert.Equal(KnownFolder, request.Options[ImportExportOptionKeys.TargetFolderId]);
+    }
+
+    [Fact]
+    public async Task AFolderPathFilesTheUploadInFoldersUnderTheDestination()
+    {
+        var client = await ClientAsync();
+        var cells = Stage("Cells.md");
+        var tissue = Stage("Tissue.md");
+        var loose = Stage("Loose.md");
+
+        var response = await client.PostAsJsonAsync("/api/notes/transfer/import", new
+        {
+            uploadIds = new[] { cells, tissue, loose },
+            targetFolderId = KnownFolder,
+            folderPaths = new Dictionary<string, string> { [cells] = "Vault/Cells ", [tissue] = "vault//cells" },
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var targets = _transfer.Imports.Select(r => (string)r.Options[ImportExportOptionKeys.TargetFolderId]!).ToList();
+        Assert.Equal(3, targets.Count);
+        Assert.Equal(targets[0], targets[1]);
+        Assert.Equal(KnownFolder, targets[2]);
+        var vault = Assert.Single(_folders.Folders, f => f.Name == "Vault");
+        Assert.Equal(KnownFolder, vault.ParentId);
+        Assert.Contains(_folders.Folders, f => f.FolderId == targets[0] && f.Name == "Cells" && f.ParentId == vault.FolderId);
     }
 
     [Fact]
@@ -258,14 +284,18 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
 
     private sealed class OneFolder(string folderId) : INoteFolderService
     {
-        private readonly NoteFolder _folder = new() { FolderId = folderId, Name = "Biology" };
+        public List<NoteFolder> Folders { get; } = [new NoteFolder { FolderId = folderId, Name = "Biology" }];
 
-        public Task<IEnumerable<NoteFolder>> GetAllFoldersAsync() => Task.FromResult<IEnumerable<NoteFolder>>([_folder]);
+        public Task<IEnumerable<NoteFolder>> GetAllFoldersAsync() => Task.FromResult<IEnumerable<NoteFolder>>([.. Folders]);
 
         public Task<NoteFolder?> GetFolderAsync(string id) =>
-            Task.FromResult(id == _folder.FolderId ? _folder : null);
+            Task.FromResult(Folders.FirstOrDefault(folder => folder.FolderId == id));
 
-        public Task<Result> SaveFolderAsync(NoteFolder folder) => Task.FromResult(Result.Success());
+        public Task<Result> SaveFolderAsync(NoteFolder folder)
+        {
+            Folders.Add(folder);
+            return Task.FromResult(Result.Success());
+        }
 
         public Task<Result> DeleteFolderAsync(string id) => Task.FromResult(Result.Success());
     }

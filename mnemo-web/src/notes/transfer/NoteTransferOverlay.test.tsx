@@ -50,6 +50,7 @@ const library = vi.hoisted(() => ({ notes: [] as { title: string; folderId: null
 vi.mock("@/notes/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/notes/api")>()),
   useNotesQuery: () => ({ data: library.notes as NoteSummaryDto[] }),
+  useNoteFoldersQuery: () => ({ data: [] }),
 }))
 
 vi.mock("./api", () => ({
@@ -182,6 +183,30 @@ describe("the note transfer overlay's replace reset", () => {
     mount(<NoteTransferOverlay />)
 
     expect(confirmButton().textContent).not.toContain("TransferReplaceCount")
+  })
+})
+
+describe("the note transfer overlay's folder import", () => {
+  it("sends each file's folder path beside its upload", async () => {
+    openImportDialog()
+    const input = document.querySelector<HTMLInputElement>("input[webkitdirectory]")
+    expect(input).not.toBeNull()
+    const file = new File(["x"], "Cells.md")
+    Object.defineProperty(file, "webkitRelativePath", { value: "Vault/Biology/Cells.md" })
+    Object.defineProperty(input, "files", { value: [file], configurable: true })
+    input!.dispatchEvent(new Event("change", { bubbles: true }))
+    await flush()
+    await flush()
+
+    act(() => confirmButton().click())
+    await flush()
+
+    expect(api.runNoteImport).toHaveBeenCalledWith({
+      uploadIds: ["upload-Cells.md"],
+      conflictPolicy: "KeepBoth",
+      targetFolderId: null,
+      folderPaths: { "upload-Cells.md": "Vault/Biology" },
+    })
   })
 })
 

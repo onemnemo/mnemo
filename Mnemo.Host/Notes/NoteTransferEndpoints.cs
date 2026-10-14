@@ -196,6 +196,7 @@ public static class NoteTransferEndpoints
                         return Results.BadRequest(new ErrorDto("unknown_folder", $"No note folder '{targetFolderId}'."));
                 }
 
+                var paths = new NoteFolderPathResolver(folders, targetFolderId);
                 var succeeded = 0;
                 var importedNotes = 0;
                 var warnings = new List<TransferWarningDto>();
@@ -229,6 +230,18 @@ public static class NoteTransferEndpoints
 
                         try
                         {
+                            var fileFolderId = targetFolderId;
+                            if (body.FolderPaths?.TryGetValue(uploadId, out var folderPath) == true)
+                            {
+                                var (resolved, folderError) = await paths.ResolveAsync(folderPath).ConfigureAwait(false);
+                                if (folderError is not null)
+                                {
+                                    errors.Add($"\"{name}\": {folderError}");
+                                    continue;
+                                }
+                                fileFolderId = resolved;
+                            }
+
                             var request = new ImportExportRequest
                             {
                                 ContentType = NotesContentType,
@@ -236,8 +249,8 @@ public static class NoteTransferEndpoints
                                 FilePath = path,
                             };
                             request.Options[ImportExportOptionKeys.ConflictPolicy] = policy;
-                            if (targetFolderId is not null)
-                                request.Options[ImportExportOptionKeys.TargetFolderId] = targetFolderId;
+                            if (fileFolderId is not null)
+                                request.Options[ImportExportOptionKeys.TargetFolderId] = fileFolderId;
 
                             // Deliberately not the request's token. An import writes notes and
                             // folders as it goes, so cancelling one part-way leaves the corpus

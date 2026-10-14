@@ -22,6 +22,8 @@ import {
 import { ImportPanel } from "@/components/transfer/ImportPanel"
 import { ImportStatus, ReplaceNote } from "@/components/transfer/ImportStatus"
 import { announceImport, useImportQueue } from "@/components/transfer/useImportQueue"
+import { dropRoots, pickedFolder, walkDrop } from "@/components/transfer/folder-walk"
+import type { PickedFile } from "@/components/transfer/import-queue"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
 import { Segmented } from "@/flashcards/transfer/components/Segmented"
@@ -29,7 +31,7 @@ import { useT } from "@/i18n/useT"
 import { isMac } from "@/keybinds/chord"
 import { useFileDrop } from "@/lib/useFileDrop"
 import { cn } from "@/lib/utils"
-import { notesKey, useNotesQuery } from "@/notes/api"
+import { notesKey, useNoteFoldersQuery, useNotesQuery } from "@/notes/api"
 import { toast } from "@/stores/toast"
 
 import {
@@ -69,6 +71,8 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
   const [conflict, setConflict] = useState<ConflictPolicy>("KeepBoth")
   const [exportFormat, setExportFormat] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [walking, setWalking] = useState(false)
+  const [reading, setReading] = useState(false)
 
   const scope = target.scope
   const noteCount = scope?.noteIds.length ?? 0
@@ -105,8 +109,9 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
   })
   const queue = imports.queue
   const notes = useNotesQuery()
+  const folders = useNoteFoldersQuery()
   const inLibrary = packageCollidingKeys(queue, "notes")
-  const titleTaken = markdownCollisions(queue, notes.data ?? [], destination?.folderId ?? null)
+  const titleTaken = markdownCollisions(queue, notes.data ?? [], folders.data ?? [], destination?.folderId ?? null)
   const collisions = packageCollisions(queue, "notes") + titleTaken.size
   const colliding = new Set([...inLibrary, ...titleTaken])
   const policy = collisions > 0 ? conflict : "KeepBoth"
@@ -115,10 +120,20 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
     if (collisions === 0) setConflict("KeepBoth")
   }, [collisions])
   const replacing = policy === "Replace"
-  const locked = busy || !formatsReady
-  const over = useFileDrop(direction === "import", locked, (data) =>
-    imports.add(Array.from(data.files, (file) => ({ file, path: "" }))),
-  )
+  const locked = busy || walking || !formatsReady
+  const accepts = (name: string) => isImportable(name, formatList)
+
+  // Confirm waits for the walk. The hint only shows when it takes long enough to notice.
+  const addWalked = (walk: Promise<PickedFile[]>) => {
+    setWalking(true)
+    const hint = window.setTimeout(() => setReading(true), 300)
+    void walk.then(imports.add).finally(() => {
+      window.clearTimeout(hint)
+      setWalking(false)
+      setReading(false)
+    })
+  }
+  const over = useFileDrop(direction === "import", locked, (data) => addWalked(walkDrop(dropRoots(data), accepts)))
 
   const count = readyNoteCount(queue)
   const itemPhrase = (n: number) => {
@@ -141,9 +156,15 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
     if (busy) return
     setBusy(true)
     const targetFolderId = destination?.folderId ?? null
-    const outcome = await imports.importReady((rows) =>
-      runNoteImport({ uploadIds: rows.map((row) => row.uploadId!), conflictPolicy: policy, targetFolderId }),
-    )
+    const outcome = await imports.importReady((rows) => {
+      const paths = rows.flatMap((row) => (row.path ? [[row.uploadId!, row.path] as const] : []))
+      return runNoteImport({
+        uploadIds: rows.map((row) => row.uploadId!),
+        conflictPolicy: policy,
+        targetFolderId,
+        folderPaths: paths.length > 0 ? Object.fromEntries(paths) : undefined,
+      })
+    })
     // An import can create folders and notes, so the whole key is stale.
     await client.invalidateQueries({ queryKey: notesKey })
     setBusy(false)
@@ -186,7 +207,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
     replacing && !imports.progress
       ? replaceWarning(t, replaceDiscards(queue, "notes") > 0, titleTaken.size > 0)
       : null
-  const confirmEnabled = importing ? canImport(queue) && !busy : !emptyScope && exportFormat !== null && !busy
+  const confirmEnabled = importing ? canImport(queue) && !busy && !walking : !emptyScope && exportFormat !== null && !busy
 
   const confirm = () => void (importing ? doImport() : doExport())
 
@@ -266,11 +287,14 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
                 warning={(file) => (packageTooNew(file, "notes") ? common("TransferEvidenceTooNew") : null)}
                 refused={imports.refused}
                 overflow={imports.overflow}
+                empty={imports.empty}
                 destination={nt("TransferImportDestinationFormat", { 0: destination?.label ?? nt("MyNotes") })}
                 locked={locked}
                 dropping={over}
+                reading={reading}
                 onAdd={imports.add}
                 onRemove={(key) => !busy && imports.remove(key)}
+                onPickFolder={(files) => addWalked(Promise.resolve(pickedFolder(files, accepts)))}
               />
             ) : emptyScope ? (
               <p className="py-6 text-center text-body-extra-small text-text-tertiary">

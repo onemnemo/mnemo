@@ -727,6 +727,8 @@ export interface NoteTransferImportDto {
   conflictPolicy: ConflictPolicy
   /** Folder a markdown import lands in; a package restores its own structure and ignores it. */
   targetFolderId?: string | null
+  /** By upload id, as "Vault/Biology". */
+  folderPaths?: Record<string, string>
 }
 
 /** Mirrors Mnemo.Host/Contracts/NoteTransferDto.cs NoteTransferImportResultDto. */

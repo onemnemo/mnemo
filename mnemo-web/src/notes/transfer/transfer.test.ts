@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import type { NoteSummaryDto, TransferFormatDto } from "@/api/types"
+import type { NoteFolderDto, NoteSummaryDto, TransferFormatDto } from "@/api/types"
 import { exportFormats, markdownCollisions, readyNoteCount, type QueuedFile } from "./transfer"
 
 const PACKAGE: TransferFormatDto = {
@@ -60,12 +60,20 @@ describe("markdownCollisions", () => {
   it("matches titles case-insensitively among the folder's top-level notes", () => {
     const notes = [note("Cells", "bio"), note("Tissue", null), note("Organs", "bio", "parent")]
     const files = [md("cells.md"), md("Tissue.md"), md("Organs.md")]
-    expect([...markdownCollisions(files, notes, "bio")]).toEqual([files[0].key])
+    expect([...markdownCollisions(files, notes, [], "bio")]).toEqual([files[0].key])
   })
 
   it("counts a repeat inside the batch and skips packages", () => {
     const pkg: QueuedFile = { ...ready(3), name: "Cells.mnemo", formatId: "notes.mnemo" }
     const files = [md("Cells.md"), md("CELLS.md"), pkg]
-    expect([...markdownCollisions(files, [], null)]).toEqual([files[1].key])
+    expect([...markdownCollisions(files, [], [], null)]).toEqual([files[1].key])
   })
+
+      it("follows a picked folder's path to an existing folder, and a new one holds nothing", () => {
+        const folders = [{ id: "vault", name: "Vault", parentId: null, order: 0 } as NoteFolderDto]
+        const notes = [note("Cells", "vault"), note("Cells", null)]
+        const inVault = { ...md("Cells.md"), path: "vault" }
+        const inNew = { ...md("Cells.md"), path: "Vault/Biology" }
+        expect([...markdownCollisions([inVault, inNew], notes, folders, null)]).toEqual([inVault.key])
+      })
 })

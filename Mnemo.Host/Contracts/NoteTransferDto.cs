@@ -35,10 +35,14 @@ public sealed record NoteTransferUploadDto(
 /// anything that already exists stays where it is. Refused as <c>unknown_folder</c> when no folder
 /// carries the id.
 /// </param>
+/// <param name="FolderPaths">
+/// Path of each upload inside a picked folder, by upload id. Created under the target.
+/// </param>
 public sealed record NoteTransferImportDto(
     IReadOnlyList<string> UploadIds,
     string? ConflictPolicy,
-    string? TargetFolderId);
+    string? TargetFolderId,
+    IReadOnlyDictionary<string, string>? FolderPaths = null);
 
 /// <summary>
 /// What a batch import did. Per-file errors are collected rather than thrown so one unreadable file

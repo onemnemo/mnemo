@@ -1,4 +1,4 @@
-import type { NoteSummaryDto, NoteTransferUploadDto, TransferFormatDto } from "@/api/types"
+import type { NoteFolderDto, NoteSummaryDto, NoteTransferUploadDto, TransferFormatDto } from "@/api/types"
 import type { QueuedImport } from "@/components/transfer/import-queue"
 
 // Pure rules behind the note transfer dialog: what a file is allowed to be, which formats an export
@@ -65,22 +65,33 @@ function markdownTitle(fileName: string): string {
 }
 
 /**
- * Keys of markdown files whose title is already taken where they land, earlier files in the batch
- * included.
- * The host compares titles case-insensitively among the folder's top-level notes.
+ * Markdown files whose title is taken where they land, earlier files included.
+ * The host compares ignoring case, so both sides are upper-cased.
  */
 export function markdownCollisions(
   queue: readonly QueuedFile[],
   notes: readonly NoteSummaryDto[],
-  folderId: string | null,
+  folders: readonly NoteFolderDto[],
+  targetFolderId: string | null,
 ): Set<string> {
-  const taken = new Set(
-    notes.filter((note) => !note.parentNoteId && note.folderId === folderId).map((note) => note.title.toLowerCase()),
-  )
+  const titlesByFolder = new Map<string, Set<string>>()
   const colliding = new Set<string>()
   for (const file of queue) {
     if (file.status !== "ready" || file.formatId !== MARKDOWN_FORMAT) continue
-    const title = markdownTitle(file.name).toLowerCase()
+    const names = (file.path ?? "").split("/").map((name) => name.trim().toUpperCase()).filter(Boolean)
+    let folderId: string | null | undefined = targetFolderId
+    for (const name of names) {
+      folderId = folders.find((folder) => folder.parentId === folderId && folder.name.toUpperCase() === name)?.id
+      if (folderId === undefined) break
+    }
+    const key = folderId === undefined ? `new:${names.join("/")}` : `id:${folderId ?? ""}`
+    let taken = titlesByFolder.get(key)
+    if (!taken) {
+      const here = folderId === undefined ? [] : notes.filter((note) => !note.parentNoteId && note.folderId === folderId)
+      taken = new Set(here.map((note) => note.title.toUpperCase()))
+      titlesByFolder.set(key, taken)
+    }
+    const title = markdownTitle(file.name).toUpperCase()
     if (taken.has(title)) colliding.add(file.key)
     else taken.add(title)
   }

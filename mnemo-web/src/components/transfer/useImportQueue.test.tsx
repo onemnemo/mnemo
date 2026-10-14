@@ -80,6 +80,14 @@ describe("useImportQueue", () => {
     expect(queue.queue.every((row) => row.status === "ready")).toBe(true)
   })
 
+  it("says a folder held nothing without clearing the other notices", () => {
+    act(() => queue.add(picked("x.png")))
+    act(() => queue.add([]))
+
+    expect(queue.empty).toBe(true)
+    expect(queue.refused).toEqual(["x.png"])
+  })
+
   it("stops at the queue limit and says so", () => {
     const many = Array.from({ length: MAX_QUEUED + 1 }, (_, i) => `n${String(i)}.md`)
     act(() => queue.add(picked(...many)))

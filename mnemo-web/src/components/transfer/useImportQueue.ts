@@ -33,6 +33,7 @@ export function useImportQueue<U, Q extends QueuedImport>(options: ImportQueueOp
   const [queue, setQueueState] = useState<Q[]>([])
   const [refused, setRefused] = useState<string[]>([])
   const [overflow, setOverflow] = useState(false)
+  const [empty, setEmpty] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
 
   // The ref is the source of truth: upload callbacks and the unmount cleanup outlive any render.
@@ -89,6 +90,9 @@ export function useImportQueue<U, Q extends QueuedImport>(options: ImportQueueOp
 
   const add = (picked: readonly PickedFile[]) => {
     if (!alive.current) return
+    // Only a folder walk can hand over nothing, and its notice stands alone.
+    setEmpty(picked.length === 0)
+    if (picked.length === 0) return
     const seen = new Set(queueRef.current.map((row) => dedupeKey(row.path ?? "", row.name, row.sizeBytes)))
     const turnedAway: string[] = []
     const fresh: Q[] = []
@@ -153,7 +157,7 @@ export function useImportQueue<U, Q extends QueuedImport>(options: ImportQueueOp
     }
   }
 
-  return { queue, refused, overflow, progress, add, remove, importReady }
+  return { queue, refused, overflow, empty, progress, add, remove, importReady }
 }
 
 // Returns true when anything imported. Says nothing once the dialog has closed.
