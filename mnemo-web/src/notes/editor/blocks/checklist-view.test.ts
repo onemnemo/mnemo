@@ -20,7 +20,8 @@ function item(checked: boolean, text = 'task'): PMNode {
 const host: BlockShellHost = { mode: 'realized', requestMode() {}, destroy() {} };
 const services: EditorServices = {
   resolveNoteTitle: () => undefined,
-  loadAssetUrl: () => Promise.reject(new Error('none')),
+  assetUrl: () => null,
+  assetFault: () => Promise.resolve('missing'),
   uploadAsset: () => Promise.reject(new Error('none')),
 };
 

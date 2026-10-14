@@ -1009,6 +1009,7 @@
     "ImageImporting": "Importando imagen...",
     "ImageMissing": "Imagen no encontrada",
     "ImageMissingRelink": "Imagen no encontrada. Haga clic para volver a vincularla.",
+    "ImageUnavailable": "No se pudo cargar la imagen",
     "ImageEditorTitle": "Editar imagen",
     "ImageEditorChoose": "Elegir una imagen",
     "ImageEditorDropHint": "o arrástrela aquí, o péguela",

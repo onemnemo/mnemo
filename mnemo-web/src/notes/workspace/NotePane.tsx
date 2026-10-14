@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -40,7 +40,7 @@ export function NotePane({ noteId }: { noteId: string }) {
     const current = latest.current;
     if (!current) return null;
     const blocks = parseBlocks(current.blocks ?? []);
-    const assets = createNoteAssetServices(current.id);
+    const services = createNoteAssetServices(current.id);
     // A note with no blocks but plain legacy content is shown read-only. Anything
     // else, a brand-new note included, opens the editor: `buildNoteEditState`
     // seeds a single empty block, so the never-fully-empty invariant holds and the
@@ -48,17 +48,12 @@ export function NotePane({ noteId }: { noteId: string }) {
     const legacyOnly = blocks.length === 0 && current.content.trim().length > 0;
     return {
       blocks,
-      assets,
+      services,
       legacyOnly,
-      edit: legacyOnly ? null : buildNoteEditState(blocks, assets.services),
+      edit: legacyOnly ? null : buildNoteEditState(blocks, services),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note?.id, reloadNonce]);
-
-  useEffect(() => {
-    const assets = loaded?.assets;
-    return () => assets?.release();
-  }, [loaded]);
 
   if (query.isPending) {
     return (
@@ -141,7 +136,7 @@ export function NotePane({ noteId }: { noteId: string }) {
       state={loaded.edit.state}
       registry={loaded.edit.registry}
       mapper={loaded.edit.mapper}
-      services={loaded.assets.services}
+      services={loaded.services}
       onReload={reload}
       note={note}
     />

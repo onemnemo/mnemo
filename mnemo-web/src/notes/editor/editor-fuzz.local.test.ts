@@ -219,7 +219,7 @@ const PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAA
 
 const services: Partial<EditorServices> = {
   resolveNoteTitle: () => 'A referenced note',
-  loadAssetUrl: () => Promise.resolve(PIXEL),
+  assetUrl: () => PIXEL,
   uploadAsset: () => Promise.resolve('attachment:fuzz-upload'),
 };
 

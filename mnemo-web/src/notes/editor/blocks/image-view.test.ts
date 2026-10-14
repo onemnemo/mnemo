@@ -26,7 +26,8 @@ function mountImage(
   attrs: Record<string, unknown>,
   options: {
     editable?: boolean;
-    load?: EditorServices['loadAssetUrl'];
+    url?: EditorServices['assetUrl'];
+    fault?: EditorServices['assetFault'];
     /** Present in the app, absent in a harness with no React tree to portal into. */
     portals?: PortalRegistry;
     caption?: string;
@@ -51,14 +52,15 @@ function mountImage(
     },
   } as unknown as EditorView;
 
-  const load = options.load ?? ((path: string) => Promise.resolve(`blob:fake/${path}`));
+  const url = options.url ?? ((path: string) => `/api/notes/assets/${path}`);
   const loadCalls: string[] = [];
   const services: EditorServices = {
     resolveNoteTitle: () => undefined,
-    loadAssetUrl: (path) => {
+    assetUrl: (path) => {
       loadCalls.push(path);
-      return load(path);
+      return url(path);
     },
+    assetFault: options.fault ?? (() => Promise.resolve('missing')),
     uploadAsset: options.upload ?? (() => Promise.reject(new Error('unused'))),
     registry,
     portals: options.portals,
@@ -143,7 +145,7 @@ describe('image NodeView', () => {
     const { realized } = mountImage({ path: 'aaaa.png' });
     // Bytes in flight: the skeleton is a fraction of the row, so the figure has to be the row.
     expect(realized.dom.classList.contains('is-column')).toBe(true);
-    await flush();
+    realized.dom.querySelector('img')!.dispatchEvent(new Event('load'));
     expect(realized.dom.classList.contains('is-column')).toBe(false);
     // And back to the column when the media loses its frame.
     expect(realized.update!(image({ path: '' }))).toBe(true);
@@ -154,7 +156,7 @@ describe('image NodeView', () => {
   it('keeps the column for a cropped image that was never resized', async () => {
     const crop = { x: 0, y: 0, w: 0.5, h: 0.5, aspect: 1 };
     const { realized } = mountImage({ path: 'aaaa.png', crop });
-    await flush();
+    realized.dom.querySelector('img')!.dispatchEvent(new Event('load'));
     // The frame is drawn at 100% here, which needs a column to be a fraction of.
     expect(realized.dom.classList.contains('is-column')).toBe(true);
     // A stored width makes the frame a definite size, so the figure hugs it again.
@@ -162,29 +164,45 @@ describe('image NodeView', () => {
     expect(realized.dom.classList.contains('is-column')).toBe(false);
   });
 
-  it('loads the bytes and shows the image with its stored width and alignment', async () => {
+  it('shows the image lazily with its stored width and alignment', () => {
     const { realized } = mountImage({ path: 'aaaa.png', width: 320, align: 'center' });
-    await flush();
     const img = realized.dom.querySelector('img')!;
-    expect(img.src).toContain('blob:fake/aaaa.png');
+    expect(img.src).toContain('/api/notes/assets/aaaa.png');
+    expect(img.getAttribute('loading')).toBe('lazy');
+    expect(img.getAttribute('decoding')).toBe('async');
+    expect(realized.dom.querySelector('.notes-image-frame')!.classList.contains('is-loading')).toBe(true);
     expect(img.style.width).toBe('320px');
     expect(realized.dom.getAttribute('data-align')).toBe('center');
     // The editable chrome hangs off the frame once the bytes are up.
     expect(realized.dom.querySelector('.notes-image-resize')).not.toBeNull();
   });
 
-  it('shows a labeled missing card when the reference does not resolve', async () => {
-    const { realized } = mountImage(
-      { path: 'attachment:cafe01:diagram.png' },
-      { load: () => Promise.reject(new Error('404')) },
-    );
-    await flush();
+  it('shows a labeled missing card when the reference does not resolve', () => {
+    const { realized } = mountImage({ path: 'attachment:cafe01:diagram.png' }, { url: () => null });
     const card = realized.dom.querySelector('.notes-image-card-missing')!;
     expect(card).not.toBeNull();
     // The human-recognizable filename out of the legacy reference, and the stored
     // reference itself stays untouched in the document.
     expect(card.querySelector('.notes-image-card-detail')!.textContent).toBe('diagram.png');
     expect(realized.dom.getAttribute('data-image')).toBe('attachment:cafe01:diagram.png');
+  });
+
+  it('offers a relink when the host says the file is gone', async () => {
+    const { realized } = mountImage({ path: 'gone.png' }, { fault: () => Promise.resolve('missing') });
+    realized.dom.querySelector('img')!.dispatchEvent(new Event('error'));
+    await flush();
+    const card = realized.dom.querySelector('.notes-image-card-missing')!;
+    expect(card.getAttribute('role')).toBe('button');
+  });
+
+  it('never offers a relink for a load that failed for another reason', async () => {
+    const { realized } = mountImage({ path: 'aaaa.png' }, { fault: () => Promise.resolve('unavailable') });
+    realized.dom.querySelector('img')!.dispatchEvent(new Event('error'));
+    await flush();
+    expect(realized.dom.querySelector('.notes-image-card-missing')).toBeNull();
+    const card = realized.dom.querySelector('.notes-image-card-unavailable')!;
+    expect(card.getAttribute('role')).toBeNull();
+    expect(card.querySelector('.notes-image-card-label')!.textContent).toBe('ImageUnavailable');
   });
 
   it('hides the editing chrome in a read-only view', async () => {
@@ -337,7 +355,7 @@ describe('image NodeView', () => {
     const uploads = recordingUploads();
     const { realized, currentState } = mountImage(
       { path: 'gone.png' },
-      { load: () => Promise.reject(new Error('missing')), upload: uploads.upload },
+      { url: () => null, upload: uploads.upload },
     );
     await flush();
     const card = realized.dom.querySelector('.notes-image-card-missing')!;
@@ -559,22 +577,22 @@ describe('image NodeView', () => {
     expect(loadCalls).toEqual(['aaaa.png']);
   });
 
-  it('drops a stale fetch that resolves after the path moved on', async () => {
-    const loads: Array<(url: string) => void> = [];
+  it('drops a stale fault answer that arrives after the path moved on', async () => {
+    const answers: Array<(fault: 'missing') => void> = [];
     const { realized } = mountImage(
       { path: 'aaaa.png' },
       {
-        load: () =>
-          new Promise<string>((resolve) => {
-            loads.push(resolve);
+        fault: () =>
+          new Promise((resolve) => {
+            answers.push(resolve);
           }),
       },
     );
+    realized.dom.querySelector('img')!.dispatchEvent(new Event('error'));
     realized.update!(image({ path: 'bbbb.png' }));
-    loads[1]('blob:fake/second');
-    // The first fetch answers late; its result must not clobber the newer path's.
-    loads[0]('blob:fake/first');
+    answers[0]('missing');
     await flush();
-    expect(realized.dom.querySelector('img')!.src).toContain('blob:fake/second');
+    expect(realized.dom.querySelector('.notes-image-card-missing')).toBeNull();
+    expect(realized.dom.querySelector('img')!.src).toContain('/api/notes/assets/bbbb.png');
   });
 });

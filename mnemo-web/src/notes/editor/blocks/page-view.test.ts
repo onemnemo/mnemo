@@ -69,7 +69,8 @@ function mount(
     resolveNoteTitle: (id) => lib.resolve(id),
     resolveNoteEmoji: (id) => lib.resolveEmoji(id),
     notes: lib.notes,
-    loadAssetUrl: () => Promise.reject(new Error('none')),
+    assetUrl: () => null,
+    assetFault: () => Promise.resolve('missing'),
     uploadAsset: () => Promise.reject(new Error('none')),
   };
 

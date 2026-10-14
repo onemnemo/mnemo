@@ -49,7 +49,8 @@ function harness(uploads: Record<string, string | Error>) {
 
   const services: EditorServices = {
     resolveNoteTitle: () => undefined,
-    loadAssetUrl: () => Promise.reject(new Error('unused')),
+    assetUrl: () => null,
+    assetFault: () => Promise.resolve('missing'),
     uploadAsset: (file) => {
       const outcome = uploads[file.name];
       return outcome instanceof Error ? Promise.reject(outcome) : Promise.resolve(outcome);
@@ -182,7 +183,8 @@ describe('the file drop indicator', () => {
 
     const services: EditorServices = {
       resolveNoteTitle: () => undefined,
-      loadAssetUrl: () => Promise.reject(new Error('unused')),
+      assetUrl: () => null,
+      assetFault: () => Promise.resolve('missing'),
       uploadAsset: () => Promise.reject(new Error('unused')),
     };
 

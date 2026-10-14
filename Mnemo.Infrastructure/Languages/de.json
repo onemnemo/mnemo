@@ -1009,6 +1009,7 @@
     "ImageImporting": "Bild wird importiert...",
     "ImageMissing": "Bild nicht gefunden",
     "ImageMissingRelink": "Bild nicht gefunden. Klicken, um es neu zu verknüpfen.",
+    "ImageUnavailable": "Bild konnte nicht geladen werden",
     "ImageEditorTitle": "Bild bearbeiten",
     "ImageEditorChoose": "Bild auswählen",
     "ImageEditorDropHint": "oder hierher ziehen oder einfügen",

@@ -180,7 +180,7 @@ describe("a note in the peek is read only", () => {
 
     expect(mocks.mounts.length).toBeGreaterThan(0)
     for (const services of mocks.mounts) {
-      expect(services.loadAssetUrl).toBeTypeOf("function")
+      expect(services.assetUrl).toBeTypeOf("function")
       expect(services.resolveNoteTitle).toBeTypeOf("function")
       expect(services.uploadAsset).toBeUndefined()
       expect(services.notes).toBeUndefined()

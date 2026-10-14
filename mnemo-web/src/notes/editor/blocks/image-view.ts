@@ -26,13 +26,12 @@
  * is also handed the block it landed on, because the coordinate under an opaque picture is not
  * one the editor can resolve a position from.
  *
- * ## The `path` attr is a reference, the bytes come from the services
+ * ## The `path` attr is a reference, the URL comes from the services
  *
- * `loadAssetUrl` resolves managed uploads, desktop-era absolute paths and legacy
- * `attachment:` references alike; anything unresolvable renders as a labeled missing-image
- * card that keeps the stored reference in the document untouched, and offers a relink. A
- * failed reference is never silently rewritten, the file might reappear (a restored backup,
- * a synced profile) and the reference must still name it.
+ * `assetUrl` maps managed uploads, desktop-era absolute paths and legacy `attachment:`
+ * references alike to a URL the img loads lazily. No URL, or a 404, gives a missing-image
+ * card with a relink. Any other failure gets a card without one. A failed reference is
+ * never rewritten: the file might reappear.
  *
  * ## One undo step per gesture
  *
@@ -43,7 +42,7 @@
 import { createElement } from 'react';
 import type { Node as PMNode } from 'prosemirror-model';
 import { TextSelection } from 'prosemirror-state';
-import type { RealizedBlockView, RealizedBlockViewArgs } from '../registry/types';
+import type { AssetFault, RealizedBlockView, RealizedBlockViewArgs } from '../registry/types';
 import type { ImageCrop } from '../../../components/ui/image-editor/geometry';
 import { readCrop } from '../../model/image-crop';
 import { getBlockSelection, setBlockSelection } from '../../selection/block-selection-plugin';
@@ -172,12 +171,12 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
   /** The elements a width write and a resize drag address, while an image is up. */
   let frameEl: HTMLElement | null = null;
   let imgEl: HTMLImageElement | null = null;
-  let objectUrl: string | null = null;
+  let url: string | null = null;
   let uploading = false;
   let uploadFailed = false;
-  let loadFailed = false;
+  let fault: AssetFault | null = null;
   let destroyed = false;
-  /** Guards a resolved fetch against a path that changed while it was in flight. */
+  /** Drops a fault answer for a path that has since changed. */
   let loadToken = 0;
   /** The React pill, mounted once and moved onto whichever frame is live. */
   let chrome: PortalNodeView | null = null;
@@ -307,10 +306,9 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     );
   }
 
-  function card(kind: 'placeholder' | 'missing', label: string, detail?: string): HTMLElement {
+  function card(kind: 'placeholder' | 'missing' | 'unavailable', label: string, detail?: string): HTMLElement {
     const el = document.createElement('div');
     el.className = `${ROOT}-card ${ROOT}-card-${kind}`;
-    el.setAttribute('role', 'button');
     el.appendChild(imageIcon());
     const text = document.createElement('span');
     text.className = `${ROOT}-card-label`;
@@ -322,8 +320,11 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
       hint.textContent = detail;
       el.appendChild(hint);
     }
-    el.addEventListener('click', openPicker);
-    attachDropTarget(el);
+    if (kind !== 'unavailable') {
+      el.setAttribute('role', 'button');
+      el.addEventListener('click', openPicker);
+      attachDropTarget(el);
+    }
     return el;
   }
 
@@ -542,7 +543,10 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
    * so those take the column instead. Nothing to align there either: the media fills the row.
    */
   function syncColumnSpan(node: PMNode): void {
-    const columnWide = frameEl === null || (cropOf(node) !== null && imageWidthOf(node) <= 0);
+    const columnWide =
+      frameEl === null ||
+      frameEl.classList.contains('is-loading') ||
+      (cropOf(node) !== null && imageWidthOf(node) <= 0);
     dom.classList.toggle('is-column', columnWide);
   }
 
@@ -575,7 +579,11 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
       );
       return;
     }
-    if (loadFailed) {
+    if (fault === 'unavailable') {
+      media.appendChild(card('unavailable', translate('ImageUnavailable'), displayNameOf(path)));
+      return;
+    }
+    if (fault === 'missing' || url === null) {
       media.appendChild(
         card(
           'missing',
@@ -583,14 +591,6 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
           displayNameOf(path),
         ),
       );
-      return;
-    }
-    if (objectUrl === null) {
-      // Bytes still in flight; hold the estimated box so the note does not jump when
-      // they arrive.
-      const skeleton = document.createElement('div');
-      skeleton.className = `${ROOT}-loading`;
-      media.appendChild(skeleton);
       return;
     }
 
@@ -602,8 +602,20 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     // shrink-to-fit wrapper it has always been and the image draws exactly as before.
     if (cropOf(currentNode) !== null) frame.classList.add('is-cropped');
     const img = document.createElement('img');
-    img.src = objectUrl;
+    img.setAttribute('loading', 'lazy');
+    img.setAttribute('decoding', 'async');
     img.draggable = false;
+    // A replaced img can still settle later, so only the live one reports.
+    const token = loadToken;
+    img.addEventListener('load', () => {
+      if (img !== imgEl) return;
+      frame.classList.remove('is-loading');
+      syncColumnSpan(currentNode);
+    });
+    img.addEventListener('error', () => {
+      if (img === imgEl) reportFault(path, token);
+    });
+    img.src = url;
     if (view.editable) {
       img.addEventListener('pointerdown', onMediaPointerDown);
       // ProseMirror places a caret from mousedown and the browser starts a native image drag from
@@ -614,6 +626,7 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
       });
     }
     frame.appendChild(img);
+    if (!img.complete || img.naturalWidth === 0) frame.classList.add('is-loading');
     media.appendChild(frame);
     frameEl = frame;
     imgEl = img;
@@ -621,27 +634,19 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
     buildChrome(frame);
   }
 
-  function loadBytes(path: string): void {
-    const token = ++loadToken;
-    objectUrl = null;
-    loadFailed = false;
-    if (path.length === 0) {
-      renderMedia();
-      return;
-    }
+  function showPath(path: string): void {
+    loadToken += 1;
+    fault = null;
+    url = path.length === 0 ? null : services.assetUrl(path);
     renderMedia();
-    services.loadAssetUrl(path).then(
-      (url) => {
-        if (destroyed || token !== loadToken) return;
-        objectUrl = url;
-        renderMedia();
-      },
-      () => {
-        if (destroyed || token !== loadToken) return;
-        loadFailed = true;
-        renderMedia();
-      },
-    );
+  }
+
+  function reportFault(path: string, token: number): void {
+    void services.assetFault(path).then((answer) => {
+      if (destroyed || token !== loadToken) return;
+      fault = answer;
+      renderMedia();
+    });
   }
 
   // `currentNode` tracks the latest node update() saw, so chrome handlers built once keep
@@ -677,7 +682,7 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
   }
 
   sync(args.node);
-  loadBytes(shownPath);
+  showPath(shownPath);
 
   return {
     dom,
@@ -691,10 +696,10 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
         shownPath = path;
         shownCrop = crop;
         uploadFailed = false;
-        loadBytes(path);
+        showPath(path);
       } else if (!sameCrop(crop, shownCrop)) {
-        // The crop decides the media's shape, so it is rebuilt. The bytes are
-        // already in hand, so nothing is refetched and the rebuild is local.
+        // The crop decides the media's shape, so it is rebuilt.
+        // The URL is unchanged, so nothing is refetched.
         shownCrop = crop;
         renderMedia();
       } else {
@@ -716,7 +721,6 @@ export function imageView(args: RealizedBlockViewArgs<Record<string, unknown>>):
       releaseCaption?.();
       chrome?.destroy();
       chrome = null;
-      // Object URLs belong to the session cache, which revokes them together on close.
     },
   };
 }

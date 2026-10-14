@@ -8,7 +8,7 @@
 // serves its bytes; anything unmappable (an http URL from a pasted page, a data URI) gets
 // null and renders as a placeholder rather than a hole the editor trusts.
 
-import { fetchAssetBlob, fetchAssetBlobUrl } from "@/api/asset-blob"
+import { fetchAssetBlob, probeAssetFault } from "@/api/asset-blob"
 import { apiFetch, apiSend } from "@/api/client"
 import type { NoteAssetDto, NoteAssetSessionDto } from "@/api/types"
 
@@ -48,17 +48,15 @@ export function noteAssetRequestPath(path: string): string | null {
   return `/api/notes/assets/${encodeURIComponent(path)}`
 }
 
-/** Fetches a stored reference as an object URL. Rejects for missing files and foreign shapes. */
-export function loadNoteAssetUrl(path: string): Promise<string> {
+/** A shape nothing serves is missing. */
+export function noteAssetFault(path: string): Promise<"missing" | "unavailable"> {
   const requestPath = noteAssetRequestPath(path)
-  if (requestPath === null) return Promise.reject(new Error(`Unresolvable image reference '${path}'`))
-  return fetchAssetBlobUrl(requestPath)
+  return requestPath === null ? Promise.resolve("missing") : probeAssetFault(requestPath)
 }
 
 /**
- * Fetches a stored reference's raw bytes. Rejects for foreign shapes and missing files, the same
- * "cannot resolve" answer as the URL loader, so a paste can restage an image it can actually read
- * and leave one it cannot exactly as written.
+ * Fetches a stored reference's raw bytes. Rejects for foreign shapes and missing files, so a
+ * paste leaves an unreadable image as written.
  */
 export function loadNoteAssetBlob(path: string, signal?: AbortSignal): Promise<Blob> {
   const requestPath = noteAssetRequestPath(path)

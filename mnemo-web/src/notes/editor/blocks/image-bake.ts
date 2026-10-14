@@ -35,7 +35,7 @@ function load(url: string): Promise<HTMLImageElement> {
 /**
  * The window of `url` named by `crop`, as a PNG blob. A null crop bakes the whole picture.
  *
- * `url` has to be same origin (the asset service hands out blob URLs), or the canvas is tainted
+ * `url` has to be same origin (the asset service hands out API URLs), or the canvas is tainted
  * and `toBlob` throws rather than returning bytes.
  */
 export async function bakeImage(url: string, crop: ImageCrop | null): Promise<Blob> {

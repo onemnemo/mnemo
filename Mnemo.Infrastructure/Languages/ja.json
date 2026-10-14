@@ -1009,6 +1009,7 @@
     "ImageImporting": "画像をインポート中…",
     "ImageMissing": "画像が見つかりません",
     "ImageMissingRelink": "画像が見つかりません。クリックしてリンクし直してください。",
+    "ImageUnavailable": "画像を読み込めませんでした",
     "ImageEditorTitle": "画像を編集",
     "ImageEditorChoose": "画像を選択",
     "ImageEditorDropHint": "ここにドロップ、または貼り付け",

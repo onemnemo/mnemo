@@ -184,12 +184,15 @@ export interface EstimateContext {
   estimateChild(node: PMNode): number;
 }
 
+/** Only `missing` invites a relink. */
+export type AssetFault = 'missing' | 'unavailable';
+
 /**
  * Handles the editor was constructed with, passed to realized views.
  *
  * `Page` has to resolve the referenced note's title (deliberately never copied
- * into the payload) and `Image` has to resolve an asset path behind the
- * bearer-guarded API. Without a handle here the only way to reach either is a
+ * into the payload) and `Image` has to resolve an asset path to a URL.
+ * Without a handle here the only way to reach either is a
  * module-level singleton import, which is the coupling the registry exists to
  * prevent. The atom and image views widen this as they need more.
  */
@@ -205,11 +208,12 @@ export interface EditorServices {
   /** Absent wherever no note library is mounted, which is what a test and a preview get. */
   readonly notes?: NoteReferenceServices;
   /**
-   * Loads a stored asset reference as an object URL usable in `src`. Async because the
-   * bytes sit behind the bearer-guarded API, and rejecting is the "cannot resolve" answer,
-   * a view renders its placeholder rather than a broken image.
+   * The URL an `img` loads the reference from, or null when nothing serves that shape.
+   * Same origin, so a canvas may read it.
    */
-  loadAssetUrl(path: string): Promise<string>;
+  assetUrl(path: string): string | null;
+  /** Why a reference failed to load. Never rejects. */
+  assetFault(path: string): Promise<AssetFault>;
   /**
    * Uploads a picked or pasted image and resolves to the reference the block stores in its
    * `path` attr. The bytes land on disk before any save, the way the desktop copies a

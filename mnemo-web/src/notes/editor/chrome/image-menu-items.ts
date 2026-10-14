@@ -150,9 +150,9 @@ export function imageMenuItems({
   const leaves = location ? sidsWithin(view.state.doc, registry, location.pos, location.node) : [];
   const inSelection = selected.size > 0 && leaves.some((sid) => selected.has(sid));
 
-  /** Loads the bytes behind the bearer token, as a URL a canvas may read. */
   const bytesOf = async (loc: BlockLocation): Promise<Blob> => {
-    const url = await services.loadAssetUrl(imagePathOf(loc.node));
+    const url = services.assetUrl(imagePathOf(loc.node));
+    if (url === null) throw new Error('Unresolvable image reference');
     return await bakeImage(url, readCrop(loc.node.attrs.crop));
   };
 
@@ -193,10 +193,8 @@ export function imageMenuItems({
       // The stored window rather than the drawn one, which is what makes a second pass reframe the
       // original instead of cropping the crop. The aspect is left unlocked so the shape presets
       // are on offer; a figure is not held to any one shape.
-      let url: string;
-      try {
-        url = await services.loadAssetUrl(source);
-      } catch {
+      const url = services.assetUrl(source);
+      if (url === null) {
         toast.warning(ne('ImageEditorLoadFailed'));
         return;
       }

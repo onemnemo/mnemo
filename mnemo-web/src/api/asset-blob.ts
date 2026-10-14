@@ -5,17 +5,32 @@ import { apiToken } from "./client"
 // Asset bytes live behind the /api bearer token, which a bare <img src> cannot carry. So we
 // fetch them with the auth header and hand the element a blob URL instead. Chat attachments and
 // card attachments are different routes over the same problem, so the mechanics live here.
+// Note images skip this and load with the launch cookie.
 
-/** Fetches an asset's bytes with the bearer header. Rejects on a non-OK status. */
-export async function fetchAssetBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+function authHeaders(): Headers {
   const headers = new Headers()
   const token = apiToken()
   if (token) headers.set("Authorization", `Bearer ${token}`)
+  return headers
+}
 
-  const response = await fetch(path, { headers, signal })
+/** Fetches an asset's bytes with the bearer header. Rejects on a non-OK status. */
+export async function fetchAssetBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+  const response = await fetch(path, { headers: authHeaders(), signal })
   if (!response.ok) throw new Error(`Asset ${path} failed (${response.status})`)
 
   return response.blob()
+}
+
+/** Only a 404 is `missing`, so an auth fault never offers a relink. */
+export async function probeAssetFault(path: string): Promise<"missing" | "unavailable"> {
+  try {
+    const response = await fetch(path, { headers: authHeaders(), cache: "no-store" })
+    void response.body?.cancel()
+    return response.status === 404 ? "missing" : "unavailable"
+  } catch {
+    return "unavailable"
+  }
 }
 
 /** Fetches an asset's bytes with the bearer header and returns an object URL for them. */

@@ -27,7 +27,8 @@ describe('resolveServices', () => {
   it('defaults every resolver to "cannot resolve"', async () => {
     const services = resolveServices();
     expect(services.resolveNoteTitle('anything')).toBeUndefined();
-    await expect(services.loadAssetUrl('anything')).rejects.toThrow();
+    expect(services.assetUrl('anything')).toBeNull();
+    await expect(services.assetFault('anything')).resolves.toBe('missing');
     await expect(services.uploadAsset(new File(['x'], 'x.png'))).rejects.toThrow();
   });
 
@@ -35,7 +36,7 @@ describe('resolveServices', () => {
     const services = resolveServices({ resolveNoteTitle: () => 'Title' });
     expect(services.resolveNoteTitle('id')).toBe('Title');
     // The unsupplied one still falls back rather than being dropped.
-    await expect(services.loadAssetUrl('p')).rejects.toThrow();
+    expect(services.assetUrl('p')).toBeNull();
   });
 });
 

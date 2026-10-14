@@ -905,7 +905,7 @@
 .notes-doc figure[data-image][data-align="right"] {
   margin-inline-start: auto;
 }
-/* The states with no picture to hug (the cards, the load skeleton) and a cropped frame that was
+/* The states with no picture to hug (the cards, the loading frame) and a cropped frame that was
  * never resized size themselves as a fraction of the row, and a fraction of a shrink-to-fit box
  * is nothing. The view marks those, and the figure takes the column for them. */
 .notes-doc figure[data-image].is-column {
@@ -966,10 +966,10 @@
     color var(--duration-fast) ease;
 }
 /* The card opens a file picker, which a read-only mount has nothing to do with. */
-.notes-doc :where(.ProseMirror[contenteditable="true"]) .notes-image-card {
+.notes-doc :where(.ProseMirror[contenteditable="true"]) .notes-image-card[role="button"] {
   cursor: pointer;
 }
-.notes-doc :where(.ProseMirror[contenteditable="true"]) .notes-image-card:hover {
+.notes-doc :where(.ProseMirror[contenteditable="true"]) .notes-image-card[role="button"]:hover {
   border-color: var(--text-tertiary);
 }
 /* A picture being dragged over the card: the card is what takes it, so it says so, in the
@@ -999,12 +999,15 @@
   font-size: var(--font-size-body-small);
   color: var(--text-faded);
 }
-.notes-doc .notes-image-loading {
+.notes-doc .notes-image-frame.is-loading {
   width: 100%;
   min-height: 120px;
   background: var(--surface-subtle);
   border-radius: var(--radius-md, 8px);
   animation: notes-image-busy 1.2s ease-in-out infinite;
+}
+.notes-doc .notes-image-frame.is-loading > :not(img) {
+  display: none;
 }
 /* A firmer hairline than the elevation carries on its own: this pill has to stay visible
  * against whatever the picture happens to be underneath it. */

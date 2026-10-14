@@ -327,7 +327,7 @@ function applySlash(ctx: FuzzContext, nodeName: string, label: string): void {
   const row = ctx.registry.slash.find((r) => r.nodeName === nodeName && r.label === label);
   if (!row) return;
   void row.insert(ctx.view.state, ctx.view.dispatch.bind(ctx.view), {
-    services: { resolveNoteTitle: () => undefined, loadAssetUrl: () => Promise.resolve(''), uploadAsset: () => Promise.resolve('') },
+    services: { resolveNoteTitle: () => undefined, assetUrl: () => '', assetFault: () => Promise.resolve('missing'), uploadAsset: () => Promise.resolve('') },
     currentState: () => ctx.view.state,
   });
 }

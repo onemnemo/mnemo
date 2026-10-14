@@ -1009,6 +1009,7 @@
     "ImageImporting": "Importerer bilde...",
     "ImageMissing": "Fant ikke bildet",
     "ImageMissingRelink": "Fant ikke bildet. Klikk for å koble det til på nytt.",
+    "ImageUnavailable": "Kunne ikke laste inn bildet",
     "ImageEditorTitle": "Rediger bilde",
     "ImageEditorChoose": "Velg et bilde",
     "ImageEditorDropHint": "eller slipp ett her, eller lim inn",

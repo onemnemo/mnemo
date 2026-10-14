@@ -30,7 +30,8 @@ const t: TranslateFn = (_ns, key, params) =>
 
 const services: EditorServices = {
   resolveNoteTitle: () => undefined,
-  loadAssetUrl: (path) => Promise.resolve(`blob:fake/${path}`),
+  assetUrl: (path) => `/api/notes/assets/${path}`,
+  assetFault: () => Promise.resolve('missing'),
   uploadAsset: () => Promise.resolve('asset-1'),
 };
 
@@ -454,14 +455,14 @@ describe('imageMenuItems replace and reframe failure paths', () => {
     vi.resetModules();
   });
 
-  it('toasts and leaves the block alone when the source behind a reframe cannot be loaded', async () => {
+  it('toasts and leaves the block alone when the source behind a reframe cannot be resolved', async () => {
     const editImage = vi.fn();
     vi.doMock('@/components/ui/image-editor/store', () => ({ editImage }));
     vi.resetModules();
     const { imageMenuItems: build } = await import('./image-menu-items');
     const { toast: freshToast } = await import('@/stores/toast');
 
-    const failingServices: EditorServices = { ...services, loadAssetUrl: () => Promise.reject(new Error('gone')) };
+    const failingServices: EditorServices = { ...services, assetUrl: () => null };
 
     const mounted = mount();
     const at = imageAt(mounted);

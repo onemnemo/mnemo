@@ -1009,6 +1009,7 @@
     "ImageImporting": "Importing image...",
     "ImageMissing": "Image not found",
     "ImageMissingRelink": "Image not found. Click to relink.",
+    "ImageUnavailable": "Image could not be loaded",
     "ImageEditorTitle": "Edit image",
     "ImageEditorChoose": "Choose an image",
     "ImageEditorDropHint": "or drop one here, or paste",

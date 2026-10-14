@@ -12,7 +12,7 @@ import { installPeekLinkGuard } from "../read-only-links"
 import { closePeekForItem } from "../store"
 import { openFullFromPeek } from "../usePeekSubject"
 import { usePeekNoteQuery } from "./note-query"
-import { createPeekNoteServices } from "./note-services"
+import { peekNoteServices } from "./note-services"
 
 /**
  * Past this many top-level blocks the peek shows a notice instead of the document.
@@ -60,9 +60,6 @@ export function NotePeek({ noteId, refresh }: { noteId: string; refresh: number 
   useEffect(() => {
     if (gone) closePeekForItem("note", noteId)
   }, [gone, noteId])
-
-  const assets = useMemo(() => createPeekNoteServices(), [])
-  useEffect(() => () => assets.release(), [assets])
 
   const latest = useRef(note)
   latest.current = note
@@ -154,7 +151,7 @@ export function NotePeek({ noteId, refresh }: { noteId: string; refresh: number 
         noteId={noteId}
         state={loaded.read.state}
         registry={loaded.read.registry}
-        services={assets.services}
+        services={peekNoteServices}
       />
     </div>
   )

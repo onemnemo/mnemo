@@ -18,7 +18,8 @@ function services(createChild: () => Promise<string>): EditorServices {
   return {
     resolveNoteTitle: () => undefined,
     notes: { isLoaded: () => true, subscribe: () => () => {}, createChild },
-    loadAssetUrl: () => Promise.reject(new Error('none')),
+    assetUrl: () => null,
+    assetFault: () => Promise.resolve('missing'),
     uploadAsset: () => Promise.reject(new Error('none')),
   };
 }
