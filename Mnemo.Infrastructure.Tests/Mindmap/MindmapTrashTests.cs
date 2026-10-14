@@ -131,7 +131,7 @@ public sealed class MindmapTrashTests
     }
 
     [Fact]
-    public async Task Purging_a_map_destroys_it_and_queues_the_files_it_named()
+    public async Task Purging_a_map_destroys_it_and_leaves_its_files_to_the_sweep()
     {
         await using var h = new MindmapTestHarness();
         var document = Doc("m1", "M", 1, Node("n1", "granite"), Image("n2", "picture.png"));
@@ -142,7 +142,7 @@ public sealed class MindmapTrashTests
 
         Assert.Null(await h.Store.LoadAllOwnedAsync("m1"));
         Assert.Empty(await h.Store.ListAllOwnedIdsAsync());
-        Assert.Equal(["picture.png"], await QueuedFilesAsync(h));
+        Assert.Equal(0, await QueuedFileCountAsync(h));
     }
 
     [Fact]
@@ -260,7 +260,7 @@ public sealed class MindmapTrashTests
     }
 
     [Fact]
-    public async Task Purging_a_folder_destroys_the_subtree_and_queues_its_files()
+    public async Task Purging_a_folder_destroys_the_subtree_and_leaves_its_files_to_the_sweep()
     {
         await using var h = new MindmapTestHarness();
         await h.Store.SaveFolderAsync(new MindmapFolder("f1", "Geology", null, 0));
@@ -274,7 +274,7 @@ public sealed class MindmapTrashTests
         Assert.True(purge.Completed);
         Assert.Empty(await h.Store.ListAllOwnedIdsAsync());
         Assert.Empty(await h.Store.GetFoldersAsync());
-        Assert.Equal(["granite.png"], await QueuedFilesAsync(h));
+        Assert.Equal(0, await QueuedFileCountAsync(h));
     }
 
     [Fact]
@@ -435,20 +435,16 @@ public sealed class MindmapTrashTests
         await command.ExecuteNonQueryAsync();
     }
 
-    /// <summary>The files a purge asked the cleanup worker to remove, in insertion order.</summary>
-    private static async Task<IReadOnlyList<string>> QueuedFilesAsync(MindmapTestHarness h)
+    private static async Task<long> QueuedFileCountAsync(MindmapTestHarness h)
     {
         await using var connection = new SqliteConnection($"Data Source={h.DatabasePath}");
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT Path FROM AssetCleanupJobs WHERE Owner = $owner ORDER BY Path;";
-        command.Parameters.AddWithValue("$owner", MindmapAssetReferences.AssetOwner);
-
-        var paths = new List<string>();
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-            paths.Add(reader.GetString(0));
-        return paths;
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'AssetCleanupJobs';";
+        if ((long)(await command.ExecuteScalarAsync())! == 0)
+            return 0;
+        command.CommandText = "SELECT COUNT(*) FROM AssetCleanupJobs;";
+        return (long)(await command.ExecuteScalarAsync())!;
     }
 
     private static Task SaveAsync(MindmapTestHarness h, MindmapDocument document) =>

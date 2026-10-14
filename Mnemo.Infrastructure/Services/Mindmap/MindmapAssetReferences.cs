@@ -8,15 +8,9 @@ namespace Mnemo.Infrastructure.Services.Mindmap;
 /// <summary>
 /// The one list of places a mindmap can name a stored file, and how a stored reference reads.
 /// </summary>
-/// <remarks>
-/// Two readers ask this: the sweep, which needs every file the library still points at, and a purge,
-/// which needs the files one destroyed map used to point at. They must agree, or a purge queues a
-/// file the sweep thinks is referenced, or worse the other way round. A content kind added later
-/// that carries a file belongs in <see cref="Collect"/> and nowhere else.
-/// </remarks>
+/// <remarks>A content kind that carries a file belongs in <see cref="Collect"/> and nowhere else.</remarks>
 public static class MindmapAssetReferences
 {
-    /// <summary>The owner key mindmap purges write into their cleanup jobs.</summary>
     public const string AssetOwner = "mindmap-assets";
 
     /// <summary>Adds every asset id the document names to <paramref name="into"/>.</summary>

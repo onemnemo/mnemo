@@ -4,6 +4,7 @@ using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
 using Mnemo.Host.Assets;
 using Mnemo.Host.Mindmap;
+using Mnemo.Host.Trash;
 using Mnemo.Infrastructure.Common;
 using Mnemo.Infrastructure.Services;
 using Xunit;
@@ -132,6 +133,15 @@ public sealed class MindmapAssetReclamationTests : IDisposable
         var assets = new MindmapAssets(h.Store, images);
 
         Assert.Equal(shared, assets.Locate("both.png"));
+    }
+
+    [Fact]
+    public async Task AnOldPurgeJobIsRetiredWithoutTouchingItsFile()
+    {
+        var path = WriteOldFile("purged.png");
+
+        Assert.Equal(AssetCleanupOutcome.Missing, await new MindmapAssetCleanupOwner().DeleteIfUnreferencedAsync(path));
+        Assert.True(File.Exists(path));
     }
 
     // ---- Plumbing ----------------------------------------------------------------------------

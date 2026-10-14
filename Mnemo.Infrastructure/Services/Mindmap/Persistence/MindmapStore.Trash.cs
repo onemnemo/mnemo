@@ -551,10 +551,6 @@ public sealed partial class MindmapStore : IMindmapTrashStore
         }
     }
 
-    /// <summary>
-    /// Destroys every map the entry holds, its search rows with it, and queues the files those maps
-    /// were the reason to keep.
-    /// </summary>
     private async Task DestroyHeldMapsAsync(
         SqliteConnection writer,
         SqliteTransaction tx,
@@ -562,27 +558,16 @@ public sealed partial class MindmapStore : IMindmapTrashStore
         CancellationToken cancellationToken)
     {
         var mapIds = new List<string>();
-        var assets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         await using (var read = writer.CreateCommand())
         {
             read.Transaction = tx;
-            read.CommandText = "SELECT Id, Doc FROM Mindmaps WHERE TrashId = $entry;";
+            read.CommandText = "SELECT Id FROM Mindmaps WHERE TrashId = $entry;";
             read.Parameters.AddWithValue("$entry", entryId);
 
             await using var reader = await read.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            {
-                var mapId = reader.GetString(0);
-                mapIds.Add(mapId);
-
-                // A map whose document will not read still has to go. Its files stay, which costs
-                // disk space; guessing at references from a document this cannot parse would cost
-                // an image another map still shows.
-                var document = TryReadStoredDocument(mapId, reader.IsDBNull(1) ? null : reader.GetString(1));
-                if (document is not null)
-                    MindmapAssetReferences.Collect(document, assets);
-            }
+                mapIds.Add(reader.GetString(0));
         }
 
         if (mapIds.Count == 0)
@@ -613,14 +598,6 @@ public sealed partial class MindmapStore : IMindmapTrashStore
             delete.Parameters.AddWithValue("$entry", entryId);
             await delete.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
-
-        await AssetCleanupQueue.EnqueueAsync(
-            writer,
-            tx,
-            MindmapAssetReferences.AssetOwner,
-            assets,
-            DateTimeOffset.UtcNow,
-            cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task ClearMarksAsync(
@@ -650,23 +627,6 @@ public sealed partial class MindmapStore : IMindmapTrashStore
 
             cmd.CommandText = $"UPDATE {table} SET TrashId = NULL WHERE TrashId IN ({string.Join(", ", names)});";
             await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    /// <summary>The stored document, or null when it cannot be read, logged so the map is findable.</summary>
-    private MindmapDocument? TryReadStoredDocument(string id, string? json)
-    {
-        if (json is null)
-            return null;
-
-        try
-        {
-            return MindmapDocumentSerializer.Deserialize(json);
-        }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException or NotSupportedException)
-        {
-            _logger.Warning("Mindmap", $"Mindmap '{id}' could not be read, so the files it named were left in place: {ex.Message}");
-            return null;
         }
     }
 
