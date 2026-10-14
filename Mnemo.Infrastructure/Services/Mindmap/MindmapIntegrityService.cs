@@ -45,8 +45,12 @@ public sealed class MindmapIntegrityService : IMindmapIntegrityService
                 return Result<MindmapIntegrityReport>.Failure(loaded.ErrorMessage ?? $"Mindmap '{mapId}' was not found.");
 
             var document = loaded.Value;
-            var mindmapAssetsDirectory = MnemoAppPaths.GetMindmapAssetsDirectory();
-            var imagesDirectory = MnemoAppPaths.GetImagesDirectory();
+            string[] imageDirectories =
+            [
+                MnemoAppPaths.GetImageAssetsDirectory(),
+                MnemoAppPaths.GetMindmapAssetsDirectory(),
+                MnemoAppPaths.GetImagesDirectory(),
+            ];
             var issues = new List<MindmapIntegrityIssue>();
 
             foreach (var element in document.Elements)
@@ -65,12 +69,12 @@ public sealed class MindmapIntegrityService : IMindmapIntegrityService
                         break;
 
                     case ImageContent image when !string.IsNullOrWhiteSpace(image.AssetId):
-                        if (!AssetExists(mindmapAssetsDirectory, imagesDirectory, image.AssetId))
+                        if (!AssetExists(imageDirectories, image.AssetId))
                             issues.Add(Issue(element, MindmapIntegrityIssueKind.MissingImageAsset, image.AssetId));
                         break;
 
                     case CanvasImageContent canvas when !string.IsNullOrWhiteSpace(canvas.AssetId):
-                        if (!AssetExists(mindmapAssetsDirectory, imagesDirectory, canvas.AssetId))
+                        if (!AssetExists(imageDirectories, canvas.AssetId))
                             issues.Add(Issue(element, MindmapIntegrityIssueKind.MissingImageAsset, canvas.AssetId));
                         break;
                 }
@@ -102,12 +106,11 @@ public sealed class MindmapIntegrityService : IMindmapIntegrityService
         ElementText = MindmapSearchText.Extract(element),
     };
 
-    private static bool AssetExists(string mindmapAssetsDirectory, string imagesDirectory, string assetId)
+    private static bool AssetExists(string[] directories, string assetId)
     {
         if (Path.IsPathRooted(assetId))
             return File.Exists(assetId);
 
-        return File.Exists(Path.Combine(mindmapAssetsDirectory, assetId))
-            || File.Exists(Path.Combine(imagesDirectory, assetId));
+        return directories.Any(directory => File.Exists(Path.Combine(directory, assetId)));
     }
 }

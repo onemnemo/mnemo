@@ -4,6 +4,8 @@ using Mnemo.Core.Models.Mindmap;
 using Mnemo.Core.Services;
 using Mnemo.Host.Assets;
 using Mnemo.Host.Mindmap;
+using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services;
 using Xunit;
 
 namespace Mnemo.Host.Tests.Mindmap;
@@ -117,6 +119,21 @@ public sealed class MindmapAssetReclamationTests : IDisposable
         Assert.True(File.Exists(orphan));
     }
 
+    [Fact]
+    public async Task LocateFindsASharedImageBeforeALegacyOne()
+    {
+        await using var h = new MindmapHostHarness();
+        var images = TestImages.Store(_directory);
+        var shared = WriteFreshFile("both.png");
+        var legacyDirectory = MnemoAppPaths.GetImagesDirectory();
+        Directory.CreateDirectory(legacyDirectory);
+        File.WriteAllBytes(Path.Combine(legacyDirectory, "both.png"), [9]);
+
+        var assets = new MindmapAssets(h.Store, images);
+
+        Assert.Equal(shared, assets.Locate("both.png"));
+    }
+
     // ---- Plumbing ----------------------------------------------------------------------------
 
     private AssetSweeper Sweeper(MindmapHostHarness h) =>
@@ -124,6 +141,7 @@ public sealed class MindmapAssetReclamationTests : IDisposable
             new ManagedAssetStore(() => _directory, ManagedAssetStore.ImageExtensions),
             [new MindmapAssetReferenceSource(h.Store)],
             new AssetSessionRegistry(),
+            new ImageFileLocks(),
             new NullLogger(),
             TimeSpan.FromMinutes(30));
 

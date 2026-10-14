@@ -12,7 +12,7 @@ public static class MnemoAppPaths
     /// Adding a managed asset root starts here so storage, backup, and restore share one inventory.
     /// </summary>
     public static IReadOnlyList<string> ManagedProfileDirectoryNames { get; } =
-        ["avatar", "images", "note-assets", "mindmap-assets", "chat-attachments"];
+        ["avatar", "images", "image-assets", "note-assets", "mindmap-assets", "chat-attachments"];
 
     /// <summary>
     /// Environment variable that overrides the data root wholesale, so a second app
@@ -76,6 +76,9 @@ public static class MnemoAppPaths
     /// </summary>
     public static string GetImagesDirectory()
         => Path.Combine(GetLocalUserDataRoot(), "images");
+
+    public static string GetImageAssetsDirectory()
+        => Path.Combine(GetLocalUserDataRoot(), "image-assets");
 
     /// <summary>Returns the directory containing the optional profile picture.</summary>
     public static string GetAvatarDirectory()

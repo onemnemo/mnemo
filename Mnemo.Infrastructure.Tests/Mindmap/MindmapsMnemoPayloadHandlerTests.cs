@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Mindmap;
+using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 using Mnemo.Infrastructure.Tests.Widgets;
 using Xunit;
@@ -256,6 +257,32 @@ public sealed class MindmapsMnemoPayloadHandlerTests
     }
 
     [Fact]
+    public async Task RoundTrip_SharedImage_TravelsWhereOlderBuildsLookAndRestoresIntoTheSharedDirectory()
+    {
+        await using var source = new MindmapTestHarness();
+        await using var target = new MindmapTestHarness();
+        var from = TestImages.Store(Path.Combine(Path.GetTempPath(), $"mnemo-mm-shared-{Guid.NewGuid():N}"));
+        var to = TestImages.Store(Path.Combine(Path.GetTempPath(), $"mnemo-mm-shared-{Guid.NewGuid():N}"));
+        var assetId = await from.SaveAsync(new MemoryStream([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 4]));
+        var map = (await source.Service.CreateAsync("Alpha")).Value!;
+        await source.Service.ApplyAsync(map.Id, map.Revision, new MindmapEditOp[]
+        {
+            new AddElementOp { Kind = ElementKind.Image, X = 0, Y = 0, Content = new CanvasImageContent { AssetId = assetId } },
+        });
+
+        var files = (await new MindmapsMnemoPayloadHandler(source.Service, source.Store, source.Store, new TestLogger(), from).ExportAsync(Context())).Files;
+        await new MindmapsMnemoPayloadHandler(target.Service, target.Store, target.Store, new TestLogger(), to).ImportAsync(new MnemoPayloadImportContext
+        {
+            Entry = new MnemoPackageEntry { PayloadType = "mindmaps", Path = "payloads/mindmaps", SchemaVersion = 2 },
+            Options = new MnemoPackageImportOptions { ConflictPolicy = ImportConflictPolicy.KeepBoth },
+            Files = files,
+        });
+
+        Assert.Equal(["assets/images/" + assetId], files.Keys.Where(k => k.StartsWith("assets/", StringComparison.Ordinal)));
+        Assert.True(File.Exists(Path.Combine(to.Directory, assetId)));
+    }
+
+    [Fact]
     public async Task Export_SelectedMapIds_ExportsOnlySelected()
     {
         await using var source = new MindmapTestHarness();
@@ -350,7 +377,7 @@ public sealed class MindmapsMnemoPayloadHandlerTests
         await ImportAsync(target, export.Files, schemaVersion: export.SchemaVersion);
         await target.Service.CreateAsync("Local");
 
-        var evidence = await new MindmapsMnemoPayloadHandler(target.Service, target.Store, target.Store, new TestLogger())
+        var evidence = await new MindmapsMnemoPayloadHandler(target.Service, target.Store, target.Store, new TestLogger(), TestImages.Store())
             .InspectAsync(new MnemoPayloadImportContext
             {
                 Entry = new MnemoPackageEntry { PayloadType = "mindmaps", Path = "payloads/mindmaps", SchemaVersion = export.SchemaVersion },
@@ -409,7 +436,7 @@ public sealed class MindmapsMnemoPayloadHandlerTests
     }
 
     private static MindmapsMnemoPayloadHandler ExportHandler(MindmapTestHarness h) =>
-        new(h.Service, h.Store, h.Store, new TestLogger());
+        new(h.Service, h.Store, h.Store, new TestLogger(), TestImages.Store());
 
     private static MnemoPayloadExportContext Context() =>
         new() { Options = new MnemoPackageExportOptions() };
@@ -419,7 +446,7 @@ public sealed class MindmapsMnemoPayloadHandlerTests
         IReadOnlyDictionary<string, byte[]> files,
         ImportConflictPolicy policy = ImportConflictPolicy.KeepBoth,
         int schemaVersion = 1) =>
-        new MindmapsMnemoPayloadHandler(target.Service, target.Store, target.Store, new TestLogger()).ImportAsync(new MnemoPayloadImportContext
+        new MindmapsMnemoPayloadHandler(target.Service, target.Store, target.Store, new TestLogger(), TestImages.Store()).ImportAsync(new MnemoPayloadImportContext
         {
             Entry = new MnemoPackageEntry { PayloadType = "mindmaps", Path = "payloads/mindmaps", SchemaVersion = schemaVersion },
             Options = new MnemoPackageImportOptions { ConflictPolicy = policy },

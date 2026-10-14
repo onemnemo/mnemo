@@ -1,4 +1,5 @@
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Services;
 
 namespace Mnemo.Host.Assets;
 
@@ -25,19 +26,12 @@ public sealed record AssetSweepResult(bool Swept, string? SkipReason, int Scanne
 /// </remarks>
 public sealed class AssetSweeper
 {
-    /// <summary>
-    /// How long an unreferenced file is presumed to be an upload still in flight. Autosave's
-    /// ceiling is seconds, so an hour covers every save race with two orders of magnitude to
-    /// spare; a true orphan just waits for a later sweep.
-    /// </summary>
-    public static readonly TimeSpan DefaultGrace = TimeSpan.FromHours(1);
-
     private readonly ManagedAssetStore _store;
     private readonly IReadOnlyList<IAssetReferenceSource> _sources;
     private readonly AssetSessionRegistry _sessions;
+    private readonly ImageFileLocks _locks;
     private readonly ILoggerService _logger;
     private readonly TimeSpan _grace;
-    private readonly Func<DateTime> _utcNow;
     private readonly Func<string?> _standDown;
     private readonly SemaphoreSlim _running = new(1, 1);
 
@@ -50,17 +44,17 @@ public sealed class AssetSweeper
         ManagedAssetStore store,
         IReadOnlyList<IAssetReferenceSource> sources,
         AssetSessionRegistry sessions,
+        ImageFileLocks locks,
         ILoggerService logger,
         TimeSpan? grace = null,
-        Func<DateTime>? utcNow = null,
         Func<string?>? standDown = null)
     {
         _store = store;
         _sources = sources;
         _sessions = sessions;
+        _locks = locks;
         _logger = logger;
-        _grace = grace ?? DefaultGrace;
-        _utcNow = utcNow ?? (() => DateTime.UtcNow);
+        _grace = grace ?? ImageFileLocks.DefaultGrace;
         _standDown = standDown ?? (() => null);
     }
 
@@ -112,10 +106,10 @@ public sealed class AssetSweeper
     private async Task<AssetSweepResult> SweepLockedAsync(CancellationToken cancellationToken)
     {
         var directory = _store.Directory;
-        if (!Directory.Exists(directory))
+        var files = Directory.Exists(directory) ? Directory.GetFiles(directory) : [];
+        if (files.Length == 0)
             return new AssetSweepResult(true, null, 0, 0);
 
-        var files = Directory.GetFiles(directory);
         var referenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var source in _sources)
         {
@@ -123,7 +117,6 @@ public sealed class AssetSweeper
                 referenced.Add(id);
         }
 
-        var cutoff = _utcNow() - _grace;
         var deleted = 0;
 
         foreach (var path in files)
@@ -131,15 +124,13 @@ public sealed class AssetSweeper
             cancellationToken.ThrowIfCancellationRequested();
             var name = Path.GetFileName(path);
 
-            var pendingUpload = name.EndsWith(ManagedAssetStore.PendingUploadSuffix, StringComparison.OrdinalIgnoreCase);
+            var pendingUpload = name.EndsWith(SharedImageStore.PendingSuffix, StringComparison.OrdinalIgnoreCase);
             // Only shapes this store mints are ours to delete; anything else (an OS metadata
             // file, a hand-placed file) is left alone.
             if (!pendingUpload && !_store.IsValidAssetId(name))
                 continue;
             if (!pendingUpload
                 && (referenced.Contains(name) || referenced.Contains(Path.GetFileNameWithoutExtension(name))))
-                continue;
-            if (LastTouchedUtc(path) > cutoff)
                 continue;
             // An editor opened mid-sweep: its history can reference files the saved corpus no
             // longer does, and the corpus was read before it opened. Stop deleting; the
@@ -150,7 +141,7 @@ public sealed class AssetSweeper
             if (_standDown() is { } heldMidSweep)
                 return new AssetSweepResult(true, $"aborted: {heldMidSweep}", files.Length, deleted);
 
-            if (TryDelete(path))
+            if (await TryDeleteAsync(path, cancellationToken).ConfigureAwait(false))
                 deleted++;
         }
 
@@ -159,23 +150,11 @@ public sealed class AssetSweeper
         return new AssetSweepResult(true, null, files.Length, deleted);
     }
 
-    /// <summary>
-    /// The later of creation and last write. A copy can carry an old write time into a young
-    /// file, and some tools preserve creation time; taking the maximum errs toward keeping.
-    /// </summary>
-    private static DateTime LastTouchedUtc(string path)
-    {
-        var created = File.GetCreationTimeUtc(path);
-        var written = File.GetLastWriteTimeUtc(path);
-        return created > written ? created : written;
-    }
-
-    private bool TryDelete(string path)
+    private async Task<bool> TryDeleteAsync(string path, CancellationToken cancellationToken)
     {
         try
         {
-            File.Delete(path);
-            return true;
+            return await _locks.DeleteIfStaleAsync(path, _grace, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

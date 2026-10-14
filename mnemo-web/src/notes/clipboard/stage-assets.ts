@@ -1,12 +1,5 @@
 /**
- * Restaging pasted images: each pasted image gets its own fresh copy of the bytes
- * it references, so the paste owns its assets rather than borrowing the source's.
- *
- * A copied image block carries a reference to a stored asset, not the pixels. Pasting
- * it as-is would leave two blocks pointing at one file, so deleting or replacing one
- * image, or the note it came from, could pull the bytes out from under the other. The
- * desktop copies each pasted image into a new file; here each is re-uploaded to a
- * fresh managed id and its `path` is rewritten before the block is inserted.
+ * Restaging pasted images. The re-upload refreshes grace time so a sweep cannot take the file.
  *
  * Only references this app can actually fetch are staged. A pasted `![](http://…)`,
  * a data URI or a broken path is left exactly as written, to resolve or degrade to a
@@ -96,8 +89,6 @@ function aborted(): DOMException {
 }
 
 /**
- * Re-uploads each reference to a fresh managed id, returning old-path to new-id.
- *
  * Sequential, so progress advances one image at a time and a cancel is seen between
  * uploads rather than only at the end. A single image failing to load or upload is
  * swallowed, its path simply absent from the map so the caller keeps the original;

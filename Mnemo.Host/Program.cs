@@ -340,6 +340,7 @@ public static class Program
         }));
         app.UseLoopbackHostGuard();
         app.UseApiBearerToken(bearerToken, "/api/health");
+        app.Use((context, next) => context.RequestServices.GetRequiredService<Assets.StartupAssetSweep>().GateAsync(context, next));
 
         app.MapGet("/api/health", () => new HealthDto("ok"));
         app.MapGet("/api/app/info", (IUpdateService updates) => new AppInfoDto(updates.CurrentDisplayVersion, options.DevMode));
@@ -438,9 +439,7 @@ public static class Program
         // behind. Backgrounded so startup never waits on it; the sweeper defers itself the
         // moment an editing session opens.
         app.Services.GetRequiredService<Notes.NoteAssets>().Sweeper.SweepInBackground();
-        // Maps have no session to close, so this is their only sweep: no client has loaded yet,
-        // which is the one moment nothing can undo a delete back into a reference.
-        app.Services.GetRequiredService<Mindmap.MindmapAssets>().Sweeper.SweepInBackground();
+        app.Services.GetRequiredService<Assets.StartupAssetSweep>().RunInBackground();
         // Reconciles the trash against what the modules actually hold, then keeps expiry and the
         // file cleanup queue moving. Backgrounded because the routes gate themselves on it, so
         // nothing needs the window to wait.

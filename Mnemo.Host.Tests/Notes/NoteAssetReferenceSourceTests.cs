@@ -1,6 +1,8 @@
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
+using Mnemo.Host.Assets;
 using Mnemo.Host.Notes;
+using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Notes.Persistence;
 using Xunit;
 
@@ -196,6 +198,56 @@ public sealed class NoteAssetReferenceSourceTests
     /// Keeps the provider's read contract: an absent key fails with no exception, an unreadable
     /// one fails with the exception attached. The source tells the two apart on exactly that.
     /// </summary>
+    [Fact]
+    public async Task AnImageSharedByTwoNotesSurvivesTheFirstDeleteAndGoesAfterTheSecondOnceNoSessionIsOpen()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "mnemo-shared-sweep", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "shared.png");
+            File.WriteAllBytes(path, [1, 2, 3]);
+            File.SetCreationTimeUtc(path, DateTime.UtcNow - TimeSpan.FromDays(2));
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow - TimeSpan.FromDays(2));
+            AddNote("n1", ImageBlock("shared.png"));
+            AddNote("n2", ImageBlock("shared.png"));
+            var sessions = new AssetSessionRegistry();
+            var sweeper = new AssetSweeper(
+                new ManagedAssetStore(() => directory, ManagedAssetStore.ImageExtensions),
+                [Source()], sessions, new ImageFileLocks(), new NullLogger());
+
+            RemoveNote("n1");
+            await sweeper.SweepAsync();
+            Assert.True(File.Exists(path));
+
+            RemoveNote("n2");
+            var session = sessions.Open();
+            await sweeper.SweepAsync();
+            Assert.True(File.Exists(path));
+
+            sessions.Close(session);
+            await sweeper.SweepAsync();
+            Assert.False(File.Exists(path));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private void RemoveNote(string id)
+    {
+        _storage.Rows.Remove(NoteCommitStore.NoteKey(id));
+        ((List<string>)_storage.Rows[NoteCommitStore.IndexKey]!).Remove(id);
+    }
+
+    private sealed class NullLogger : ILoggerService
+    {
+        public void Log(Mnemo.Core.Enums.LogLevel level, string category, string message, Exception? exception = null)
+        {
+        }
+    }
+
     private sealed class FakeStorage : IStorageProvider
     {
         public Dictionary<string, object?> Rows { get; } = [];

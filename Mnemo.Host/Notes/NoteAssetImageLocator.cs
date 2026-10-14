@@ -1,6 +1,7 @@
 using Mnemo.Core.Services;
 using Mnemo.Host.Assets;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services;
 
 namespace Mnemo.Host.Notes;
 
@@ -8,29 +9,25 @@ namespace Mnemo.Host.Notes;
 /// Resolves a note image block's stored reference to a file on disk for the PDF exporter, using the
 /// same rules the asset-serving endpoint does so an export embeds exactly what the editor shows.
 /// </summary>
-/// <remarks>
-/// A reference is one of three shapes (see <see cref="NoteAssetReferenceSource"/>): a managed asset
-/// id (<c>{guid}.png</c>), an <c>attachment:{guid}:{name}</c> form resolved by bare guid, or a
-/// desktop-era absolute path. Absolute paths are only honored when they resolve under the shared
-/// images or note-assets directories, the same containment check the legacy asset route applies, so
-/// a stored path cannot turn export into an arbitrary-file read.
-/// </remarks>
+/// <remarks>Absolute paths are honored only under the legacy images or note-assets directories.</remarks>
 public sealed class NoteAssetImageLocator : INotePdfImageLocator
 {
     private const string AttachmentPrefix = "attachment:";
 
+    private readonly SharedImageStore _shared;
     private readonly ManagedAssetStore _noteAssetsStore;
     private readonly string _noteAssetsDirectory;
     private readonly string _imagesDirectory;
 
-    public NoteAssetImageLocator(NoteAssets assets)
-        : this(assets.Store, MnemoAppPaths.GetNoteAssetsDirectory(), MnemoAppPaths.GetImagesDirectory())
+    public NoteAssetImageLocator(NoteAssets assets, SharedImageStore images)
+        : this(images, assets.Store, MnemoAppPaths.GetNoteAssetsDirectory(), MnemoAppPaths.GetImagesDirectory())
     {
     }
 
     /// <summary>Explicit-directory constructor for tests; production uses the <see cref="NoteAssets"/> overload.</summary>
-    public NoteAssetImageLocator(ManagedAssetStore noteAssetsStore, string noteAssetsDirectory, string imagesDirectory)
+    public NoteAssetImageLocator(SharedImageStore shared, ManagedAssetStore noteAssetsStore, string noteAssetsDirectory, string imagesDirectory)
     {
+        _shared = shared;
         _noteAssetsStore = noteAssetsStore;
         _noteAssetsDirectory = noteAssetsDirectory;
         _imagesDirectory = imagesDirectory;
@@ -63,6 +60,8 @@ public sealed class NoteAssetImageLocator : INotePdfImageLocator
 
         // Managed asset id: exact match first, then the bare-guid lookup for ids that arrive
         // without their extension.
+        if (_shared.Locate(reference) is { } shared)
+            return shared;
         var exact = _noteAssetsStore.ResolvePath(reference);
         if (exact is not null && File.Exists(exact))
             return exact;

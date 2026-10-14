@@ -134,7 +134,9 @@ public static class HostComposition
         // unbound. Nothing in the host consumes them; the browser owns rendering,
         // highlighting and clipboard handling.
         services.AddSingleton<INoteClipboardPayloadCodec, NoteClipboardPayloadCodec>();
+        services.AddSingleton<SharedImageStore>();
         services.AddSingleton<IImageAssetService, ImageAssetService>();
+        services.AddSingleton<ImageFileLocks>();
         services.AddSingleton<ISpellDictionaryCatalogService, SpellDictionaryCatalogService>();
         services.AddSingleton<IUserSpellbookService, UserSpellbookService>();
         services.AddSingleton<ISpellcheckService, HunspellSpellcheckService>();
@@ -215,6 +217,7 @@ public static class HostComposition
             services.AddSingleton(instanceLock);
         services.AddSingleton<Notes.NoteAssets>();
         services.AddSingleton<Mindmap.MindmapAssets>();
+        services.AddSingleton<Assets.StartupAssetSweep>();
 
         // Relational flashcard store: owned store, repositories, and blob-to-relational migrator.
         services.AddSingleton<IFlashcardStore, FlashcardStore>();

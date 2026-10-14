@@ -92,7 +92,7 @@ public sealed class MindmapImportIntoFolderTests
     }
 
     private static MindmapsMnemoPayloadHandler Handler(MindmapTestHarness h) =>
-        new(h.Service, h.Store, h.Store, new TestLogger());
+        new(h.Service, h.Store, h.Store, new TestLogger(), TestImages.Store());
 
     private static MnemoPayloadExportContext Selection(string[] mapIds, string[] folderIds)
     {

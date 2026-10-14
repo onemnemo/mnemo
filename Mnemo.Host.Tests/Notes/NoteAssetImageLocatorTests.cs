@@ -7,13 +7,16 @@ namespace Mnemo.Host.Tests.Notes;
 public sealed class NoteAssetImageLocatorTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "mnemo-locator-tests", Guid.NewGuid().ToString("N"));
+    private readonly string _sharedDir;
     private readonly string _noteAssetsDir;
     private readonly string _imagesDir;
 
     public NoteAssetImageLocatorTests()
     {
+        _sharedDir = Path.Combine(_root, "image-assets");
         _noteAssetsDir = Path.Combine(_root, "note-assets");
         _imagesDir = Path.Combine(_root, "images");
+        Directory.CreateDirectory(_sharedDir);
         Directory.CreateDirectory(_noteAssetsDir);
         Directory.CreateDirectory(_imagesDir);
     }
@@ -26,8 +29,9 @@ public sealed class NoteAssetImageLocatorTests : IDisposable
 
     private NoteAssetImageLocator Locator()
     {
+        var shared = TestImages.Store(_sharedDir);
         var store = new ManagedAssetStore(() => _noteAssetsDir, ManagedAssetStore.ImageExtensions);
-        return new NoteAssetImageLocator(store, _noteAssetsDir, _imagesDir);
+        return new NoteAssetImageLocator(shared, store, _noteAssetsDir, _imagesDir);
     }
 
     private string WriteFile(string dir, string name)
@@ -42,6 +46,15 @@ public sealed class NoteAssetImageLocatorTests : IDisposable
     {
         var expected = WriteFile(_noteAssetsDir, "a1b2c3d4.png");
         Assert.Equal(expected, Locator().LocateImageFilePath("a1b2c3d4.png"));
+    }
+
+    [Fact]
+    public void ResolvesASharedIdBeforeTheNoteStore()
+    {
+        var shared = WriteFile(_sharedDir, "shared.png");
+        WriteFile(_noteAssetsDir, "shared.png");
+
+        Assert.Equal(shared, Locator().LocateImageFilePath("shared.png"));
     }
 
     [Fact]

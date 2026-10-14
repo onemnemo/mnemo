@@ -237,7 +237,7 @@ public sealed class NotesMnemoPayloadHandlerFolderTests
                 await folderService.SaveFolderAsync(folder);
             foreach (var note in notes)
                 await noteService.SaveNoteAsync(note);
-            return new Profile(new NotesMnemoPayloadHandler(noteService, folderService, trash), noteService, folderService);
+            return new Profile(new NotesMnemoPayloadHandler(noteService, folderService, TestImages.Store(), trash), noteService, folderService);
         }
 
         public async Task<Dictionary<string, NoteFolder>> FolderMap() =>

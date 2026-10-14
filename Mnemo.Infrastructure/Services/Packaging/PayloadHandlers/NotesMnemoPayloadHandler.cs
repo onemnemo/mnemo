@@ -18,15 +18,17 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPaylo
     private readonly INoteService _noteService;
     private readonly INoteFolderService _folderService;
     private readonly INoteTrashStore? _trash;
+    private readonly SharedImageStore _images;
 
     /// <summary>
     /// Builds the handler. <paramref name="trash"/> answers which note and folder ids the trash is
     /// holding; null means nothing can be held, as with services that keep no trash.
     /// </summary>
-    public NotesMnemoPayloadHandler(INoteService noteService, INoteFolderService folderService, INoteTrashStore? trash = null)
+    public NotesMnemoPayloadHandler(INoteService noteService, INoteFolderService folderService, SharedImageStore images, INoteTrashStore? trash = null)
     {
         _noteService = noteService;
         _folderService = folderService;
+        _images = images;
         _trash = trash;
     }
 
@@ -47,7 +49,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPaylo
         }
         var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         files["notes.db"] = BuildNotesSqlite(notes, folders);
-        AddImageAssets(files, notes);
+        AddImageAssets(files, notes, _images.Directory);
 
         return new MnemoPayloadExportData
         {
@@ -193,7 +195,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPaylo
             result.ImportedCount++;
         }
 
-        RestoreImageAssets(context.Files);
+        await RestoreImageAssetsAsync(context.Files, cancellationToken).ConfigureAwait(false);
         return result;
     }
 
@@ -372,18 +374,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPaylo
 
     private const string LegacyImagesArchivePrefix = "assets/images/";
 
-    /// <summary>
-    /// Bundles only the images the exported notes actually reference, from both the web host's
-    /// note-owned <c>note-assets/</c> store and the legacy shared <c>images/</c> directory.
-    /// <para>
-    /// The old behaviour dumped every file in <c>images/</c> regardless of selection, which both
-    /// leaked unrelated flashcard and mindmap images into a notes package and missed the newer
-    /// managed store entirely, so any web-uploaded note image was silently lost on the round trip.
-    /// Walking references fixes both: nothing unrelated is carried, and every era of reference is
-    /// resolved to its real file.
-    /// </para>
-    /// </summary>
-    private static void AddImageAssets(IDictionary<string, byte[]> files, IReadOnlyList<Note> notes)
+    private static void AddImageAssets(IDictionary<string, byte[]> files, IReadOnlyList<Note> notes, string sharedDir)
     {
         var references = new HashSet<string>(StringComparer.Ordinal);
         foreach (var note in notes)
@@ -391,12 +382,11 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPaylo
         if (references.Count == 0)
             return;
 
-        var noteAssetsDir = MnemoAppPaths.GetNoteAssetsDirectory();
-        var imagesDir = MnemoAppPaths.GetImagesDirectory();
+        var dirs = new AssetDirectories(sharedDir, MnemoAppPaths.GetNoteAssetsDirectory(), MnemoAppPaths.GetImagesDirectory());
 
         foreach (var reference in references)
         {
-            if (ResolveAssetFile(reference, noteAssetsDir, imagesDir) is not { } asset)
+            if (ResolveAssetFile(reference, dirs) is not { } asset)
                 continue;
             // Two references can resolve to one file (a managed id and an attachment: form of the
             // same guid); the first write wins and the rest are the same bytes anyway.
@@ -444,7 +434,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPaylo
     /// bundled under so import can send it back to the directory it came from. Null when the
     /// reference points at no managed file (a remote URL, or a file that is no longer on disk).
     /// </summary>
-    private static ResolvedAsset? ResolveAssetFile(string reference, string noteAssetsDir, string imagesDir)
+    private static ResolvedAsset? ResolveAssetFile(string reference, AssetDirectories dirs)
     {
         var path = reference.Trim();
         if (path.Length == 0)
@@ -457,8 +447,8 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPaylo
             var end = rest.IndexOf(':');
             var guid = end >= 0 ? rest[..end] : rest;
             var name = end >= 0 ? rest[(end + 1)..] : string.Empty;
-            return FindByFileName(name, noteAssetsDir, imagesDir)
-                ?? FindByGuidStem(guid, noteAssetsDir, imagesDir);
+            return FindByFileName(name, dirs)
+                ?? FindByGuidStem(guid, dirs);
         }
 
         // A desktop-era absolute path, bundled only when it lands inside a managed directory.
@@ -475,11 +465,10 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPaylo
         if (path.Contains('/') || path.Contains('\\') || path.Contains(':'))
             return null;
 
-        // A bare managed asset id, in the note store first, then the legacy shared directory.
-        return FindByFileName(path, noteAssetsDir, imagesDir);
+        return FindByFileName(path, dirs);
     }
 
-    private static ResolvedAsset? FindByFileName(string? name, string noteAssetsDir, string imagesDir)
+    private static ResolvedAsset? FindByFileName(string? name, AssetDirectories dirs)
     {
         if (string.IsNullOrWhiteSpace(name))
             return null;
@@ -488,27 +477,31 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPaylo
         if (string.IsNullOrWhiteSpace(fileName))
             return null;
 
-        var managed = Path.Combine(noteAssetsDir, fileName);
+        var shared = Path.Combine(dirs.Shared, fileName);
+        if (File.Exists(shared))
+            return new ResolvedAsset(shared, NoteAssetsArchivePrefix + fileName);
+
+        var managed = Path.Combine(dirs.NoteAssets, fileName);
         if (File.Exists(managed))
             return new ResolvedAsset(managed, NoteAssetsArchivePrefix + fileName);
 
-        var legacy = Path.Combine(imagesDir, fileName);
+        var legacy = Path.Combine(dirs.Images, fileName);
         if (File.Exists(legacy))
             return new ResolvedAsset(legacy, LegacyImagesArchivePrefix + fileName);
 
         return null;
     }
 
-    private static ResolvedAsset? FindByGuidStem(string guid, string noteAssetsDir, string imagesDir)
+    private static ResolvedAsset? FindByGuidStem(string guid, AssetDirectories dirs)
     {
         if (string.IsNullOrWhiteSpace(guid))
             return null;
 
-        var managed = FindFileByStem(noteAssetsDir, guid);
+        var managed = FindFileByStem(dirs.NoteAssets, guid);
         if (managed != null)
             return new ResolvedAsset(managed, NoteAssetsArchivePrefix + Path.GetFileName(managed));
 
-        var legacy = FindFileByStem(imagesDir, guid);
+        var legacy = FindFileByStem(dirs.Images, guid);
         if (legacy != null)
             return new ResolvedAsset(legacy, LegacyImagesArchivePrefix + Path.GetFileName(legacy));
 
@@ -534,31 +527,32 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPaylo
         return null;
     }
 
-    private static void RestoreImageAssets(IReadOnlyDictionary<string, byte[]> files)
+    private async Task RestoreImageAssetsAsync(IReadOnlyDictionary<string, byte[]> files, CancellationToken cancellationToken)
     {
-        // Each set goes back to the directory it was collected from. Legacy packages only ever
-        // carry the images/ prefix, so nothing new is required to keep reading them.
-        RestoreArchivePrefix(files, NoteAssetsArchivePrefix, MnemoAppPaths.GetNoteAssetsDirectory());
-        RestoreArchivePrefix(files, LegacyImagesArchivePrefix, MnemoAppPaths.GetImagesDirectory());
+        await RestoreArchivePrefixAsync(files, NoteAssetsArchivePrefix, MnemoAppPaths.GetNoteAssetsDirectory(), cancellationToken).ConfigureAwait(false);
+        await RestoreArchivePrefixAsync(files, LegacyImagesArchivePrefix, MnemoAppPaths.GetImagesDirectory(), cancellationToken).ConfigureAwait(false);
     }
 
-    private static void RestoreArchivePrefix(IReadOnlyDictionary<string, byte[]> files, string prefix, string targetDir)
+    private async Task RestoreArchivePrefixAsync(IReadOnlyDictionary<string, byte[]> files, string prefix, string targetDir, CancellationToken cancellationToken)
     {
-        var matches = files.Where(p => p.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
-        if (matches.Count == 0)
-            return;
-
-        Directory.CreateDirectory(targetDir);
-        foreach (var pair in matches)
+        foreach (var pair in files.Where(p => p.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
         {
             var fileName = Path.GetFileName(pair.Key.Replace('\\', '/'));
             if (string.IsNullOrWhiteSpace(fileName))
                 continue;
-            File.WriteAllBytes(Path.Combine(targetDir, fileName), pair.Value);
+            if (await _images.RestoreAsync(fileName, pair.Value, cancellationToken).ConfigureAwait(false))
+                continue;
+            // A restore never overwrites a file this machine's notes already point at.
+            Directory.CreateDirectory(targetDir);
+            var target = Path.Combine(targetDir, fileName);
+            if (!File.Exists(target))
+                File.WriteAllBytes(target, pair.Value);
         }
     }
 
     private readonly record struct ResolvedAsset(string SourcePath, string ArchivePath);
+
+    private readonly record struct AssetDirectories(string Shared, string NoteAssets, string Images);
 
     private sealed class NoteSnapshot
     {

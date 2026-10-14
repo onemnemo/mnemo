@@ -1,6 +1,7 @@
 using Mnemo.Core.Enums;
 using Mnemo.Core.Services;
 using Mnemo.Host.Assets;
+using Mnemo.Infrastructure.Services;
 using Xunit;
 
 namespace Mnemo.Host.Tests.Assets;
@@ -26,7 +27,7 @@ public sealed class AssetSweeperTests : IDisposable
     }
 
     private AssetSweeper Sweeper(TimeSpan? grace = null, Func<string?>? standDown = null) =>
-        new(_store, [_references], _sessions, new NullLogger(), grace ?? TimeSpan.FromMinutes(30), standDown: standDown);
+        new(_store, [_references], _sessions, new ImageFileLocks(), new NullLogger(), grace ?? TimeSpan.FromMinutes(30), standDown: standDown);
 
     /// <summary>A file old enough to be outside any grace window.</summary>
     private string WriteOldFile(string name)
@@ -111,7 +112,7 @@ public sealed class AssetSweeperTests : IDisposable
     [Fact]
     public async Task DeletesAnAbandonedPendingUpload()
     {
-        var pending = WriteOldFile("cccc.png" + ManagedAssetStore.PendingUploadSuffix);
+        var pending = WriteOldFile("cccc.png" + SharedImageStore.PendingSuffix);
 
         var result = await Sweeper().SweepAsync();
 
@@ -228,13 +229,26 @@ public sealed class AssetSweeperTests : IDisposable
         var other = new FakeReferenceSource();
         _references.Ids.Add("1111.png");
         other.Ids.Add("2222.png");
-        var sweeper = new AssetSweeper(_store, [_references, other], _sessions, new NullLogger(), TimeSpan.FromMinutes(30));
+        var sweeper = new AssetSweeper(_store, [_references, other], _sessions, new ImageFileLocks(), new NullLogger(), TimeSpan.FromMinutes(30));
 
         var result = await sweeper.SweepAsync();
 
         Assert.Equal(0, result.Deleted);
         Assert.True(File.Exists(first));
         Assert.True(File.Exists(second));
+    }
+
+    [Fact]
+    public async Task AnEmptyDirectoryIsSweptWithoutReadingAnySource()
+    {
+        Directory.CreateDirectory(_directory);
+        var read = false;
+        _references.OnCollect = () => read = true;
+
+        var result = await Sweeper().SweepAsync();
+
+        Assert.True(result.Swept);
+        Assert.False(read);
     }
 
     private sealed class FakeReferenceSource : IAssetReferenceSource

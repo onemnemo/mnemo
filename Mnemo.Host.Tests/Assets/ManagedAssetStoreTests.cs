@@ -1,4 +1,5 @@
 using Mnemo.Host.Assets;
+using Mnemo.Infrastructure.Services;
 using Xunit;
 
 namespace Mnemo.Host.Tests.Assets;
@@ -99,7 +100,7 @@ public sealed class ManagedAssetStoreTests : IDisposable
 
         Assert.True(File.Exists(path));
         Assert.Equal(PngBytes(), await File.ReadAllBytesAsync(path));
-        Assert.Empty(Directory.GetFiles(_directory, "*" + ManagedAssetStore.PendingUploadSuffix));
+        Assert.Empty(Directory.GetFiles(_directory, "*" + SharedImageStore.PendingSuffix));
     }
 
     [Fact]

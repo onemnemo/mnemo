@@ -21,13 +21,6 @@ public sealed class ManagedAssetStore
     /// <summary>Upper bound on an uploaded file (20 MB). Rejected above this.</summary>
     public const long MaxFileBytes = 20L * 1024 * 1024;
 
-    /// <summary>
-    /// Suffix of a half-written upload. <see cref="SaveAsync"/> writes to this name and
-    /// renames on success, so a crash mid-upload leaves a recognizable temp file for the
-    /// sweeper rather than a plausible-looking asset with truncated bytes.
-    /// </summary>
-    public const string PendingUploadSuffix = ".uploading";
-
     /// <summary>The image types the desktop pickers offer and browsers can render.</summary>
     public static readonly IReadOnlySet<string> ImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -82,7 +75,7 @@ public sealed class ManagedAssetStore
             return false;
         if (!string.Equals(assetId, Path.GetFileName(assetId), StringComparison.Ordinal))
             return false;
-        if (assetId.EndsWith(PendingUploadSuffix, StringComparison.OrdinalIgnoreCase))
+        if (assetId.EndsWith(SharedImageStore.PendingSuffix, StringComparison.OrdinalIgnoreCase))
             return false;
         return IsAllowedExtension(Path.GetExtension(assetId));
     }
@@ -155,21 +148,13 @@ public sealed class ManagedAssetStore
         return null;
     }
 
-    /// <summary>
-    /// Writes an upload to its final name atomically: the bytes land under a
-    /// <see cref="PendingUploadSuffix"/> temp name, image content is verified against the
-    /// extension it claims, and only then does the file take its servable name. Any failure
-    /// removes the temp file, so a bad upload leaves nothing behind.
-    /// </summary>
-    /// <returns>The absolute path of the stored file.</returns>
-    /// <exception cref="InvalidDataException">The bytes do not match the claimed image type.</exception>
     public async Task<string> SaveAsync(Stream content, string assetId, CancellationToken cancellationToken = default)
     {
         var finalPath = ResolvePath(assetId)
             ?? throw new ArgumentException($"Malformed asset id '{assetId}'.", nameof(assetId));
 
         System.IO.Directory.CreateDirectory(Directory);
-        var tempPath = finalPath + PendingUploadSuffix;
+        var tempPath = finalPath + SharedImageStore.PendingSuffix;
         try
         {
             await using (var file = File.Create(tempPath))

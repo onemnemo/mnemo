@@ -36,13 +36,15 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPa
     private readonly IMindmapStore _store;
     private readonly IMindmapTrashStore _trash;
     private readonly ILoggerService _logger;
+    private readonly SharedImageStore _images;
 
-    public MindmapsMnemoPayloadHandler(IMindmapService mindmaps, IMindmapStore store, IMindmapTrashStore trash, ILoggerService logger)
+    public MindmapsMnemoPayloadHandler(IMindmapService mindmaps, IMindmapStore store, IMindmapTrashStore trash, ILoggerService logger, SharedImageStore images)
     {
         _mindmaps = mindmaps;
         _store = store;
         _trash = trash;
         _logger = logger;
+        _images = images;
     }
 
     public string PayloadType => "mindmaps";
@@ -154,7 +156,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPa
         var heldMapIds = await _trash.HeldMapIdsAsync(cancellationToken).ConfigureAwait(false);
 
         // Assets and templates come first so a restored map's asset/template references resolve immediately.
-        RestoreImageAssets(context.Files);
+        await RestoreImageAssetsAsync(context.Files, cancellationToken).ConfigureAwait(false);
         await RestoreTemplatesAsync(snapshot.Templates, cancellationToken).ConfigureAwait(false);
         var target = await LiveTargetAsync(context.Options.PayloadOptions, cancellationToken).ConfigureAwait(false);
         var folderIdMap = await RestoreFoldersAsync(
@@ -380,11 +382,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPa
         }
     }
 
-    /// <summary>
-    /// The file an asset reference names, or null when nothing on disk answers to it. The mindmap
-    /// directory first, then the shared one that holds every image uploaded before it existed.
-    /// </summary>
-    private static string? LocateAsset(string assetId)
+    private string? LocateAsset(string assetId)
     {
         if (Path.IsPathRooted(assetId))
             return File.Exists(assetId) ? assetId : null;
@@ -393,6 +391,10 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPa
         // file outside these directories and have the export pack it.
         if (!string.Equals(assetId, Path.GetFileName(assetId), StringComparison.Ordinal))
             return null;
+
+        var shared = Path.Combine(_images.Directory, assetId);
+        if (File.Exists(shared))
+            return shared;
 
         var owned = Path.Combine(MnemoAppPaths.GetMindmapAssetsDirectory(), assetId);
         if (File.Exists(owned))
@@ -524,7 +526,7 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPa
         return folders.Value?.Any(f => f.Id == target) == true ? target : null;
     }
 
-    private void RestoreImageAssets(IReadOnlyDictionary<string, byte[]> files)
+    private async Task RestoreImageAssetsAsync(IReadOnlyDictionary<string, byte[]> files, CancellationToken cancellationToken)
     {
         string? assetsDirectory = null;
         foreach (var pair in files)
@@ -536,9 +538,10 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPa
             if (string.IsNullOrWhiteSpace(fileName))
                 continue;
 
-            // A file the user already has under this name is the same file: ids are guids, so two
-            // of them colliding means the package came from here. Restoring into the mindmap
-            // directory rather than the shared one puts it where the sweep can reclaim it later.
+            if (await _images.RestoreAsync(fileName, pair.Value, cancellationToken).ConfigureAwait(false))
+                continue;
+
+            // A file already under this name is the same file, so skip it.
             if (LocateAsset(fileName) is not null)
                 continue;
 

@@ -149,7 +149,7 @@ public sealed class NotesMnemoFormatAdapterProofingTests
             Languages = new NoteLanguageService(settings);
             Ignores = new NoteIgnoreService(settings);
 
-            var handlers = new List<IMnemoPayloadHandler> { new NotesMnemoPayloadHandler(Notes, Folders) };
+            var handlers = new List<IMnemoPayloadHandler> { new NotesMnemoPayloadHandler(Notes, Folders, TestImages.Store()) };
             if (carryProofing)
                 handlers.Add(new ProofingMnemoPayloadHandler(Personal, Languages, Ignores));
 

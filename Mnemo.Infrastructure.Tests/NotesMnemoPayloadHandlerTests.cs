@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Enums;
@@ -139,12 +140,62 @@ public sealed class NotesMnemoPayloadHandlerTests
         Assert.Equal(new[] { "notes.db" }, data.Files.Keys.Order(StringComparer.Ordinal).ToArray());
     }
 
+    [Fact]
+    public async Task ExportAsync_BundlesASharedImageWhereBuildsBeforeTheSharedDirectoryLook()
+    {
+        using var profile = new TempDataRoot();
+        var png = Png(1);
+        var name = ContentName(png);
+        profile.WriteAsset(MnemoAppPaths.GetImageAssetsDirectory(), name, png);
+        var handler = CreateHandler(new Note { NoteId = "n1", Title = "Shared", Cover = "asset:" + name });
+
+        var data = await handler.ExportAsync(ExportContext()).ConfigureAwait(false);
+
+        Assert.Equal(["assets/note-assets/" + name, "notes.db"], data.Files.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(png, data.Files["assets/note-assets/" + name]);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PlacesAContentNameInTheSharedDirectoryAndNeverOverwrites()
+    {
+        using var profile = new TempDataRoot();
+        var png = Png(2);
+        var shared = ContentName(png);
+        var forged = ContentName(Png(3));
+        profile.WriteAsset(MnemoAppPaths.GetNoteAssetsDirectory(), "old.png", [1]);
+        var context = new MnemoPayloadImportContext
+        {
+            Entry = new MnemoPackageEntry { PayloadType = "notes", Path = "payloads/notes" },
+            Options = new MnemoPackageImportOptions { ConflictPolicy = ImportConflictPolicy.KeepBoth },
+            Files = new Dictionary<string, byte[]>
+            {
+                ["notes.db"] = BuildNotesDb([], []),
+                ["assets/note-assets/" + shared] = png,
+                ["assets/note-assets/" + forged] = Png(4),
+                ["assets/note-assets/old.png"] = [2],
+                ["assets/note-assets/new.png"] = [3],
+            },
+        };
+
+        await CreateHandler().ImportAsync(context).ConfigureAwait(false);
+
+        Assert.Equal(png, File.ReadAllBytes(Path.Combine(MnemoAppPaths.GetImageAssetsDirectory(), shared)));
+        Assert.False(File.Exists(Path.Combine(MnemoAppPaths.GetNoteAssetsDirectory(), shared)));
+        Assert.Equal(Png(4), File.ReadAllBytes(Path.Combine(MnemoAppPaths.GetNoteAssetsDirectory(), forged)));
+        Assert.Equal(new byte[] { 1 }, File.ReadAllBytes(Path.Combine(MnemoAppPaths.GetNoteAssetsDirectory(), "old.png")));
+        Assert.Equal(new byte[] { 3 }, File.ReadAllBytes(Path.Combine(MnemoAppPaths.GetNoteAssetsDirectory(), "new.png")));
+    }
+
+    private static byte[] Png(byte marker) => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, marker];
+
+    private static string ContentName(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes)) + ".png";
+
     private static NotesMnemoPayloadHandler CreateHandler(params Note[] notes)
     {
         var noteService = new InMemoryNoteService();
         foreach (var note in notes)
             noteService.SaveNoteAsync(note).GetAwaiter().GetResult();
-        return new NotesMnemoPayloadHandler(noteService, new InMemoryFolderService());
+        return new NotesMnemoPayloadHandler(noteService, new InMemoryFolderService(), TestImages.Store());
     }
 
     private static MnemoPayloadExportContext ExportContext() => new() { Options = new MnemoPackageExportOptions() };
@@ -167,9 +218,11 @@ public sealed class NotesMnemoPayloadHandlerTests
             Environment.SetEnvironmentVariable(MnemoAppPaths.DataDirEnvironmentVariable, _root);
         }
 
-        public void WriteNoteAsset(string fileName, byte[] bytes)
+        public void WriteNoteAsset(string fileName, byte[] bytes) =>
+            WriteAsset(MnemoAppPaths.GetNoteAssetsDirectory(), fileName, bytes);
+
+        public void WriteAsset(string dir, string fileName, byte[] bytes)
         {
-            var dir = MnemoAppPaths.GetNoteAssetsDirectory();
             Directory.CreateDirectory(dir);
             File.WriteAllBytes(Path.Combine(dir, fileName), bytes);
         }
@@ -187,7 +240,7 @@ public sealed class NotesMnemoPayloadHandlerTests
         var folderService = new InMemoryFolderService();
         await noteService.SaveNoteAsync(new Note { NoteId = "n1", Title = "Existing" }).ConfigureAwait(false);
         await folderService.SaveFolderAsync(new NoteFolder { FolderId = "f1", Name = "Existing" }).ConfigureAwait(false);
-        return (new NotesMnemoPayloadHandler(noteService, folderService), noteService, folderService);
+        return (new NotesMnemoPayloadHandler(noteService, folderService, TestImages.Store()), noteService, folderService);
     }
 
     private static MnemoPayloadImportContext BuildContext(byte[] bytes, ImportConflictPolicy policy) => new()

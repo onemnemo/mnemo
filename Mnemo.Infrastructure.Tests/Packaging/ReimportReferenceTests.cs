@@ -151,9 +151,9 @@ public sealed class ReimportReferenceTests
             Service = new MnemoPackageService(
                 new IMnemoPayloadHandler[]
                 {
-                    new NotesMnemoPayloadHandler(Notes.Notes, Notes.Folders, Notes.Store),
+                    new NotesMnemoPayloadHandler(Notes.Notes, Notes.Folders, TestImages.Store(), Notes.Store),
                     FlashcardPackageFixture.Handler(Cards),
-                    new MindmapsMnemoPayloadHandler(Maps.Service, Maps.Store, Maps.Store, new TestLogger()),
+                    new MindmapsMnemoPayloadHandler(Maps.Service, Maps.Store, Maps.Store, new TestLogger(), TestImages.Store()),
                 },
                 new MemorySettings(),
                 new TestLogger());

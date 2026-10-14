@@ -16,6 +16,7 @@ public sealed class ProfileBackupServiceTests
         using var profile = await TestProfile.CreateAsync();
         await profile.WriteAssetAsync("note-assets", "note.png", "note image");
         await profile.WriteAssetAsync("images", "card.png", "card image");
+        await profile.WriteAssetAsync("image-assets", "shared.png", "shared image");
         await profile.WriteAssetAsync("mindmap-assets", "map.png", "map image");
         await profile.WriteAssetAsync("chat-attachments", "paper.pdf", "chat file");
         await profile.WriteAssetAsync("avatar", "me.png", "avatar");
@@ -37,7 +38,7 @@ public sealed class ProfileBackupServiceTests
         Assert.Equal(1, manifest.Contents.Mindmaps);
         Assert.Equal(1, manifest.Contents.MindmapFolders);
         Assert.Equal(1, manifest.Contents.TrashEntries);
-        Assert.Equal(5, manifest.Contents.ManagedFiles);
+        Assert.Equal(6, manifest.Contents.ManagedFiles);
         Assert.True(inspection.FromThisCollection);
 
         var extracted = Path.Combine(profile.Parent, "extracted");
@@ -437,6 +438,7 @@ public sealed class ProfileBackupServiceTests
         await source.SetStorageAsync("User.DisplayName", "\"Source\"");
         await source.WriteAssetAsync("note-assets", "note.png", "source asset");
         await source.WriteAssetAsync("images", "card.png", "source card asset");
+        await source.WriteAssetAsync("image-assets", "shared.png", "source shared asset");
         await source.WriteAssetAsync("mindmap-assets", "map.png", "source map asset");
         await source.WriteAssetAsync("chat-attachments", "paper.pdf", "source chat attachment");
         await source.WriteAssetAsync("avatar", "me.png", "source avatar");
@@ -457,6 +459,7 @@ public sealed class ProfileBackupServiceTests
         Assert.Equal("\"Source\"", await target.StoredValueAsync("User.DisplayName"));
         Assert.Equal("source asset", await File.ReadAllTextAsync(Path.Combine(target.Root, "note-assets", "note.png")));
         Assert.Equal("source card asset", await File.ReadAllTextAsync(Path.Combine(target.Root, "images", "card.png")));
+        Assert.Equal("source shared asset", await File.ReadAllTextAsync(Path.Combine(target.Root, "image-assets", "shared.png")));
         Assert.Equal("source map asset", await File.ReadAllTextAsync(Path.Combine(target.Root, "mindmap-assets", "map.png")));
         Assert.Equal("source chat attachment", await File.ReadAllTextAsync(Path.Combine(target.Root, "chat-attachments", "paper.pdf")));
         Assert.Equal("source avatar", await File.ReadAllTextAsync(Path.Combine(target.Root, "avatar", "me.png")));

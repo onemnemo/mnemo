@@ -73,7 +73,7 @@ public sealed class ReimportAfterDeleteTests
         {
             new MindmapNodeSpec { Text = "R", Children = new[] { new MindmapNodeSpec { Text = "C" } } },
         })).Value!;
-        var handler = new MindmapsMnemoPayloadHandler(h.Service, h.Store, h.Store, new TestLogger());
+        var handler = new MindmapsMnemoPayloadHandler(h.Service, h.Store, h.Store, new TestLogger(), TestImages.Store());
         var exported = await handler.ExportAsync(new MnemoPayloadExportContext { Options = new MnemoPackageExportOptions() });
 
         await h.Store.CaptureMapAsync(map.Id, "e1");
@@ -109,7 +109,7 @@ public sealed class ReimportAfterDeleteTests
         await h.Store.CaptureNoteAsync(note.NoteId, "e1");
         Assert.Empty(await h.Notes.GetAllNotesAsync());
 
-        var result = await new NotesMnemoPayloadHandler(h.Notes, h.Folders, h.Store).ImportAsync(NotesContext(packaged, policy));
+        var result = await new NotesMnemoPayloadHandler(h.Notes, h.Folders, TestImages.Store(), h.Store).ImportAsync(NotesContext(packaged, policy));
 
         var live = Assert.Single(await h.Notes.GetAllNotesAsync());
         Assert.Equal("Rocks", live.Title);
@@ -126,7 +126,7 @@ public sealed class ReimportAfterDeleteTests
         await h.Store.SaveFolderAsync(new MindmapFolder("f1", "Geology", null, 0));
         var map = (await h.Service.CreateAsync("Alpha", new[] { new MindmapNodeSpec { Text = "R" } })).Value!;
         await h.Store.SetFolderAsync(map.Id, "f1");
-        var handler = new MindmapsMnemoPayloadHandler(h.Service, h.Store, h.Store, new TestLogger());
+        var handler = new MindmapsMnemoPayloadHandler(h.Service, h.Store, h.Store, new TestLogger(), TestImages.Store());
         var exported = await handler.ExportAsync(new MnemoPayloadExportContext { Options = new MnemoPackageExportOptions() });
 
         await h.Store.CaptureFolderAsync("f1", "e1");
@@ -159,7 +159,7 @@ public sealed class ReimportAfterDeleteTests
 
         await h.Store.CaptureFolderAsync("f1", "e1");
 
-        var result = await new NotesMnemoPayloadHandler(h.Notes, h.Folders, h.Store)
+        var result = await new NotesMnemoPayloadHandler(h.Notes, h.Folders, TestImages.Store(), h.Store)
             .ImportAsync(NotesContext(packaged, ImportConflictPolicy.KeepBoth));
 
         Assert.Empty(result.Warnings);
@@ -177,7 +177,7 @@ public sealed class ReimportAfterDeleteTests
         var notes = new RefusingNoteService();
         var note = new Note { NoteId = Guid.NewGuid().ToString(), Title = "Rocks" };
 
-        var result = await new NotesMnemoPayloadHandler(notes, h.Folders, h.Store)
+        var result = await new NotesMnemoPayloadHandler(notes, h.Folders, TestImages.Store(), h.Store)
             .ImportAsync(NotesContext(BuildNotesDb(note), ImportConflictPolicy.KeepBoth));
 
         Assert.Equal([note.NoteId], notes.Attempts);

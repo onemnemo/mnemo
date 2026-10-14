@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Routing;
 using Mnemo.Host.Assets;
 using Mnemo.Host.Contracts;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services;
 
 namespace Mnemo.Host.Notes;
 
@@ -19,7 +20,7 @@ public static class NoteAssetEndpoints
     {
         // The multipart body is read directly rather than bound as IFormFile so no antiforgery
         // filter is attached - loopback binding plus the bearer token are the security boundary.
-        endpoints.MapPost("/api/notes/assets", async (HttpRequest request, NoteAssets assets, CancellationToken cancellationToken) =>
+        endpoints.MapPost("/api/notes/assets", async (HttpRequest request, SharedImageStore images, CancellationToken cancellationToken) =>
         {
             if (!request.HasFormContentType)
                 return Results.BadRequest(new ErrorDto("invalid_upload", "Expected a multipart form upload."));
@@ -32,14 +33,14 @@ public static class NoteAssetEndpoints
                 return Results.BadRequest(new ErrorDto("file_too_large", "The image exceeds the 20 MB limit."));
 
             var extension = ManagedAssetStore.SanitizeExtension(file.FileName);
-            if (!assets.Store.IsAllowedExtension(extension))
+            if (!ManagedAssetStore.ImageExtensions.Contains(extension))
                 return Results.BadRequest(new ErrorDto("unsupported_image", "Only PNG, JPEG, GIF, WebP and BMP images can be inserted."));
 
-            var assetId = assets.Store.GenerateAssetId(extension);
+            string assetId;
             try
             {
                 await using var content = file.OpenReadStream();
-                await assets.Store.SaveAsync(content, assetId, cancellationToken).ConfigureAwait(false);
+                assetId = await images.SaveAsync(content, extension, cancellationToken).ConfigureAwait(false);
             }
             catch (InvalidDataException)
             {
@@ -68,11 +69,11 @@ public static class NoteAssetEndpoints
             return Results.File(Path.GetFullPath(path), ManagedAssetStore.ContentTypeForExtension(extension));
         }).RequireNotesMigrated();
 
-        // Serves a managed upload by full id, or resolves a bare guid - the shape an old
-        // `attachment:{guid}:{name}` reference carries - against the note store first and the
-        // shared legacy images directory second.
-        endpoints.MapGet("/api/notes/assets/{assetId}", (string assetId, NoteAssets assets) =>
+        endpoints.MapGet("/api/notes/assets/{assetId}", (string assetId, NoteAssets assets, SharedImageStore images) =>
         {
+            if (images.Locate(assetId) is { } shared)
+                return Results.File(shared, ManagedAssetStore.ContentTypeForExtension(Path.GetExtension(shared)));
+
             var exact = assets.Store.ResolvePath(assetId);
             if (exact is not null)
                 return File.Exists(exact)
