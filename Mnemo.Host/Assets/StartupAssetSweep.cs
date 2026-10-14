@@ -1,21 +1,15 @@
 using Microsoft.AspNetCore.Http;
 using Mnemo.Core.Services;
+using Mnemo.Host.Flashcards;
 using Mnemo.Host.Lifecycle;
 using Mnemo.Host.Mindmap;
 using Mnemo.Host.Notes;
 using Mnemo.Infrastructure.Services;
+using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
 namespace Mnemo.Host.Assets;
 
-/// <summary>The startup sweeps of the mindmap and shared image directories.</summary>
-/// <remarks>
-/// Maps have no session registry, and a note session cannot speak for a map. The hazard is
-/// a reference a client removes before the read and brings back through undo after it: the read
-/// would miss it and the sweep would delete a file the client still shows. With every write held
-/// until the read is done, any file a client can name again was in that read or was touched by an
-/// upload inside the grace window. A read that runs past the timeout opens the gate and skips the
-/// deletes. The map corpus is read once for both sweeps.
-/// </remarks>
+/// <summary>Writes are held until the startup read finishes, so undo cannot bring back a deleted file.</summary>
 public sealed class StartupAssetSweep
 {
     private static readonly string[] UngatedPrefixes = ["/api/app", "/api/proofing", "/api/dev"];
@@ -31,10 +25,11 @@ public sealed class StartupAssetSweep
         ImageFileLocks locks,
         NoteAssets notes,
         MindmapAssets maps,
+        IFlashcardStore flashcards,
         ILoggerService logger,
         HostInstanceLock instanceLock)
         : this(
-            NewSweeps(images, notes, maps),
+            NewSweeps(images, notes, maps, flashcards),
             locks,
             // Another instance has undo history this process cannot see.
             () => instanceLock.AnotherInstanceIsRunning() ? "another app instance is running" : null,
@@ -119,14 +114,14 @@ public sealed class StartupAssetSweep
     }
 
     private static List<(ManagedAssetStore, IAssetReferenceSource[])> NewSweeps(
-        SharedImageStore images, NoteAssets notes, MindmapAssets maps)
+        SharedImageStore images, NoteAssets notes, MindmapAssets maps, IFlashcardStore flashcards)
     {
         var mapReferences = new ReadOnce(maps.References);
         return
         [
             (maps.Store, [mapReferences]),
             (new ManagedAssetStore(() => images.Directory, ManagedAssetStore.ImageExtensions),
-                [new ReadOnce(notes.References), mapReferences]),
+                [new ReadOnce(notes.References), mapReferences, new ReadOnce(new FlashcardAssetReferenceSource(flashcards))]),
         ];
     }
 

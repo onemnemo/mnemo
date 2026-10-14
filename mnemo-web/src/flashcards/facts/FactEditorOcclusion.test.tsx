@@ -102,7 +102,7 @@ let root: Root
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.confirm.mockResolvedValue(false)
-  mocks.upload.mockResolvedValue({ assetId: "new1", attachmentId: "n1", displayName: "new.png", sizeBytes: 5 })
+  mocks.upload.mockResolvedValue({ assetId: "new1", displayName: "new.png", sizeBytes: 5 })
   mocks.fact = undefined
   useEnglish()
   seedKeybinds()
@@ -293,7 +293,7 @@ describe("empty occlusion form", () => {
     pickFile(new File(["x"], "a.png", { type: "image/png" }))
     pickFile(new File(["x"], "b.png", { type: "image/png" }))
     expect(mocks.upload).toHaveBeenCalledTimes(2)
-    await act(async () => finish({ assetId: "a1", attachmentId: "a", displayName: "a.png", sizeBytes: 1 }))
+    await act(async () => finish({ assetId: "a1", displayName: "a.png", sizeBytes: 1 }))
     await settle()
     expect(document.querySelector('[data-testid="occlusion-drop-zone"]')).toBeNull()
   })

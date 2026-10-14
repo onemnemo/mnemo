@@ -6,10 +6,13 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Mnemo.Host.Assets;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Flashcards;
 using Mnemo.Host.Tests.Lifecycle;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services;
 using Xunit;
 
 namespace Mnemo.Host.Tests.Flashcards;
@@ -111,7 +114,8 @@ public sealed class FlashcardAssetUploadHttpTests
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("unsupported_image", await ErrorCode(response));
-        Assert.Empty(Directory.Exists(FlashcardAssetStore.Directory) ? Directory.GetFiles(FlashcardAssetStore.Directory) : []);
+        var shared = MnemoAppPaths.GetImageAssetsDirectory();
+        Assert.Empty(Directory.Exists(shared) ? Directory.GetFiles(shared) : []);
     }
 
     [Fact]
@@ -135,6 +139,7 @@ public sealed class FlashcardAssetUploadHttpTests
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Logging.ClearProviders();
+        builder.Services.AddSingleton(TestImages.Store());
         await using var app = builder.Build();
         app.Use((context, next) =>
         {
@@ -172,6 +177,38 @@ public sealed class FlashcardAssetUploadHttpTests
     }
 
     [Fact]
+    public async Task IdenticalUploadsShareOneFile()
+    {
+        using var root = new TemporaryDataRoot();
+        await using var h = new FlashcardHttpHarness();
+        await h.StartAsync();
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 7, 0, 0, 0];
+
+        var first = await ReadAsset(await Upload(h, "a.png", "image/png", png));
+        var second = await ReadAsset(await Upload(h, "b.png", "image/png", png));
+
+        Assert.Equal(first.AssetId, second.AssetId);
+        Assert.Single(Directory.GetFiles(MnemoAppPaths.GetImageAssetsDirectory()));
+    }
+
+    [Fact]
+    public async Task AnAttachmentInTheLegacyImagesDirectoryIsStillServed()
+    {
+        using var root = new TemporaryDataRoot();
+        await using var h = new FlashcardHttpHarness();
+        await h.StartAsync();
+        var legacy = MnemoAppPaths.GetImagesDirectory();
+        Directory.CreateDirectory(legacy);
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 8];
+        File.WriteAllBytes(Path.Combine(legacy, "0123456789abcdef0123456789abcdef.png"), png);
+
+        var served = await h.Client.GetAsync("/api/flashcards/assets/0123456789abcdef0123456789abcdef.png");
+
+        Assert.Equal(HttpStatusCode.OK, served.StatusCode);
+        Assert.Equal(png, await served.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
     public async Task AnUnknownAssetIdIsA404()
     {
         using var root = new TemporaryDataRoot();
@@ -188,6 +225,12 @@ public sealed class FlashcardAssetUploadHttpTests
         public bool IsReadOnly => false;
 
         public long? MaxRequestBodySize { get; set; } = 30_000_000;
+    }
+
+    private static async Task<CardAssetDto> ReadAsset(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return JsonSerializer.Deserialize<CardAssetDto>(await response.Content.ReadAsStringAsync(), Json)!;
     }
 
     private static async Task<HttpResponseMessage> Upload(FlashcardHttpHarness h, string fileName, string contentType, byte[] bytes)
@@ -207,7 +250,7 @@ public sealed class FlashcardAssetUploadHttpTests
     /// directory for the test's lifetime. Same shape as <c>OpenFolderTests</c>' own helper;
     /// duplicated rather than shared because that one is private to its file.
     /// </summary>
-    private sealed class TemporaryDataRoot : IDisposable
+    internal sealed class TemporaryDataRoot : IDisposable
     {
         private readonly string? _previous;
 

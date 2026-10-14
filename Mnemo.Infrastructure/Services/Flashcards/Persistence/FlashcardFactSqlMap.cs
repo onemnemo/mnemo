@@ -43,6 +43,9 @@ internal static class FlashcardFactSqlMap
     public static IReadOnlyDictionary<string, IReadOnlyList<FlashcardAttachment>> ReadMedia(string? json, ILoggerService? logger = null, string? context = null) =>
         Read<Dictionary<string, IReadOnlyList<FlashcardAttachment>>>(json, logger, context, "MediaJson") ?? [];
 
+    public static IReadOnlyDictionary<string, IReadOnlyList<FlashcardAttachment>> ReadMediaStrict(string? json) =>
+        string.IsNullOrWhiteSpace(json) ? [] : JsonSerializer.Deserialize<Dictionary<string, IReadOnlyList<FlashcardAttachment>>>(json, Json) ?? [];
+
     private static T? Read<T>(string? json, ILoggerService? logger, string? context, string column)
     {
         if (string.IsNullOrWhiteSpace(json))

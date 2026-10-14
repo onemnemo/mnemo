@@ -203,7 +203,6 @@ public static class CardEndpoints
             UpdateCardDto body,
             IFlashcardCardService cards,
             IFlashcardLibraryService library,
-            IImageAssetService images,
             CancellationToken cancellationToken) =>
         {
             var front = body.Front?.Trim();
@@ -251,7 +250,6 @@ public static class CardEndpoints
             };
 
             await cards.UpdateCardAsync(updated, cancellationToken).ConfigureAwait(false);
-            await DeleteDroppedAttachmentsAsync(existing.Attachments, attachments, images, cancellationToken).ConfigureAwait(false);
             return Results.NoContent();
         });
     }
@@ -293,7 +291,7 @@ public static class CardEndpoints
                 var assetId = input.AssetId!;
                 var displayName = string.IsNullOrWhiteSpace(input.DisplayName) ? assetId : input.DisplayName;
                 attachment = new FlashcardAttachment(
-                    FlashcardAssetStore.AttachmentIdForAssetId(assetId),
+                    Guid.NewGuid().ToString("N"),
                     side,
                     path,
                     displayName,
@@ -323,30 +321,6 @@ public static class CardEndpoints
 
         resolved = list;
         return true;
-    }
-
-    /// <summary>
-    /// Removes the stored files of attachments the edit dropped, once the card that referenced
-    /// them has been saved. The desktop deletes on the click instead, which loses the file even
-    /// if the dialog is then cancelled; waiting until the save has landed costs nothing and
-    /// keeps a cancelled edit non-destructive. A failed delete only leaves an orphan file, so it
-    /// must not fail the request.
-    /// </summary>
-    private static async Task DeleteDroppedAttachmentsAsync(
-        IReadOnlyList<FlashcardAttachment> before,
-        IReadOnlyList<FlashcardAttachment> after,
-        IImageAssetService images,
-        CancellationToken cancellationToken)
-    {
-        var kept = after.Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
-        foreach (var dropped in before.Where(a => !kept.Contains(a.Id)))
-        {
-            // Only managed copies are ours to delete - an imported card can point at a file the
-            // user still has elsewhere on disk.
-            if (FlashcardAssetStore.AssetIdForPath(dropped.FilePath) is null)
-                continue;
-            await images.DeleteStoredFileAsync(dropped.FilePath, cancellationToken).ConfigureAwait(false);
-        }
     }
 
     private static void MapBatchOperations(IEndpointRouteBuilder endpoints)

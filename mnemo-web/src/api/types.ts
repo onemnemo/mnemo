@@ -113,7 +113,6 @@ export interface CardAttachmentDto {
 /** Mirrors Mnemo.Host/Contracts/FlashcardCardDto.cs CardAssetDto. */
 export interface CardAssetDto {
   assetId: string
-  attachmentId: string
   displayName: string
   sizeBytes: number
 }

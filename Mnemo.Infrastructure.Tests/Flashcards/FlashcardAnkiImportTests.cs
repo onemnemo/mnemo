@@ -45,7 +45,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
+            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), TestImages.Store(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
 
         var apkg = await BuildApkgAsync(
             deckName: "Biology",
@@ -96,7 +96,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
+            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), TestImages.Store(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
 
         var apkg = await BuildApkgAsync(
             deckName: "Overflow",
@@ -132,6 +132,42 @@ public sealed class FlashcardAnkiImportTests
     }
 
     [Fact]
+    public async Task Import_OneImageUsedTwice_StoresOneFile_AndKeepsBothAttachments()
+    {
+        await using var h = new FlashcardStoreHarness();
+        await h.Store.InitializeAsync();
+        var library = NewLibrary(h);
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+        var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
+        var images = AnkiPackageFixture.NewImagesDirectory();
+        var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
+            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), TestImages.Store(images), ImportTempRoot);
+
+        var apkg = await BuildApkgAsync(
+            deckName: "Shared",
+            frontHtml: "<img src=\"a.png\"><img src=\"b.png\">",
+            backHtml: "back",
+            media: new Dictionary<string, byte[]> { ["a.png"] = PngBytes(), ["b.png"] = PngBytes() });
+
+        try
+        {
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
+
+            Assert.True(result.Success, result.ErrorMessage);
+            var deck = Assert.Single(await library.ListDecksAsync());
+            var card = Assert.Single((await cardSvc.ListCardsAsync(new FlashcardCardQuery(deck.Id))).Items).Card;
+            Assert.Equal(2, card.Attachments.Count);
+            Assert.NotEqual(card.Attachments[0].Id, card.Attachments[1].Id);
+            Assert.Equal(card.Attachments[0].FilePath, card.Attachments[1].FilePath);
+            Assert.Single(Directory.GetFiles(images));
+        }
+        finally
+        {
+            File.Delete(apkg);
+        }
+    }
+
+    [Fact]
     public async Task Import_MissingCollectionDatabase_CleansUpExtractedTempDirectory()
     {
         await using var h = new FlashcardStoreHarness();
@@ -140,7 +176,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
+            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), TestImages.Store(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
 
         // A .apkg with no collection.anki21/anki2 fails after the temp directory is already
         // extracted; both call sites must still remove it rather than leaking it in %TEMP%.
@@ -174,7 +210,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
+            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), TestImages.Store(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
 
         var apkg = await BuildApkgAsync(
             deckName: "Mislabelled",
@@ -209,7 +245,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
+            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), TestImages.Store(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
 
         var apkg = await BuildApkgAsync(
             deckName: "NotAnImage",
@@ -245,7 +281,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
+            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), TestImages.Store(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
 
         // A real image outside the package, so only the containment check can stop it being
         // copied. A non-image would be refused for the wrong reason and prove nothing.
@@ -286,7 +322,7 @@ public sealed class FlashcardAnkiImportTests
         var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
         var presetSvc = new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock);
         var adapter = new FlashcardsAnkiFormatAdapter(library, cardSvc, h.FactService, presetSvc,
-            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
+            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), TestImages.Store(AnkiPackageFixture.NewImagesDirectory()), ImportTempRoot);
 
         var apkg = await BuildApkgAsync("Escape", "front", "back", new Dictionary<string, byte[]>());
         var escapeName = $"mnemo_anki_escape_{Guid.NewGuid():N}.png";

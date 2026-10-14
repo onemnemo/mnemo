@@ -1,5 +1,6 @@
 using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
+using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 using Mnemo.Infrastructure.Tests.Flashcards.Persistence;
@@ -21,7 +22,8 @@ internal static class FlashcardPackageFixture
     /// </summary>
     public static FlashcardsMnemoPayloadHandler Handler(
         FlashcardStoreHarness h,
-        string? imagesDirectory = null) => new(
+        string? imagesDirectory = null,
+        SharedImageStore? images = null) => new(
         new FlashcardLibraryService(
             h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock),
         new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock),
@@ -37,6 +39,7 @@ internal static class FlashcardPackageFixture
         h.Reviews,
         h.DailyStats,
         new TestLogger(),
+        images ?? TestImages.Store(NewImagesDirectory()),
         imagesDirectory ?? NewImagesDirectory());
 
     /// <summary>

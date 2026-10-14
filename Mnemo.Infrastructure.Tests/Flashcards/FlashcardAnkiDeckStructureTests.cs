@@ -432,7 +432,7 @@ public sealed class FlashcardAnkiDeckStructureTests
         new(library, cardSvc, h.FactService,
             new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock),
             h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews),
-            images ?? new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()));
+            images ?? TestImages.Store(AnkiPackageFixture.NewImagesDirectory()));
 
     private static FlashcardLibraryService NewLibrary(FlashcardStoreHarness h) =>
         new(h.Store, h.Folders, h.Decks, h.Cards, h.Facts, h.Schedules, h.Reviews, h.DailyStats, h.Presets, h.Clock);
@@ -443,11 +443,8 @@ public sealed class FlashcardAnkiDeckStructureTests
     /// </summary>
     private sealed class FailingImageAssetService : IImageAssetService
     {
-        public Task<Result<string>> ImportAndCopyAsync(string sourcePath, string blockId, CancellationToken cancellationToken = default) =>
+        public Task<Result<string>> ImportAndCopyAsync(string sourcePath, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("this picture cannot be stored");
-
-        public Task<Result> DeleteStoredFileAsync(string absolutePath, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Result.Success());
     }
 
     /// <summary>

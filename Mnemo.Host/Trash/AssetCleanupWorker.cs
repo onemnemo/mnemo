@@ -55,6 +55,11 @@ public sealed class AssetCleanupWorker
             try
             {
                 var outcome = await owner.DeleteIfUnreferencedAsync(job.Path, cancellationToken).ConfigureAwait(false);
+                if (outcome == AssetCleanupOutcome.Deferred)
+                {
+                    await FailAsync(job, "The file was touched too recently to remove.", cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
 
                 // A file something still points at is not a failure. The premise of the job, that
                 // its last owner was gone, no longer holds, and removing the last real reference

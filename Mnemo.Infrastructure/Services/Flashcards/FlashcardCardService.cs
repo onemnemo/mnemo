@@ -100,7 +100,19 @@ public sealed class FlashcardCardService : IFlashcardCardService
         ArgumentNullException.ThrowIfNull(card);
         ValidateAttachments(card.Attachments);
         var updated = card with { UpdatedAt = _clock.Now };
-        return _store.WriteAsync((conn, tx, ct) => _cards.UpdateAsync(conn, tx, updated, ct), cancellationToken);
+        return _store.WriteAsync(async (conn, tx, ct) =>
+        {
+            var before = await _cards.GetAsync(conn, updated.Id, ct).ConfigureAwait(false);
+            await _cards.UpdateAsync(conn, tx, updated, ct).ConfigureAwait(false);
+            if (before is null)
+                return;
+
+            var kept = updated.Attachments.Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
+            var dropped = before.Attachments.Where(a => !kept.Contains(a.Id)).Select(a => a.FilePath);
+            await AssetCleanupQueue
+                .EnqueueAsync(conn, tx, FlashcardAssetReferences.AssetOwner, dropped, updated.UpdatedAt, ct)
+                .ConfigureAwait(false);
+        }, cancellationToken);
     }
 
     /// <summary>

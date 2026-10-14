@@ -9,6 +9,7 @@ using Microsoft.Data.Sqlite;
 using Mnemo.Core.Enums;
 using Mnemo.Core.Models;
 using Mnemo.Core.Models.Flashcards;
+using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 using Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
@@ -46,6 +47,35 @@ public sealed class FlashcardBackupPackageTests
         Assert.Equal(1, result.ImportedCount);
         var restored = await ReadCollectionAsync(target);
         Assert.Equal(original, restored);
+    }
+
+    [Fact]
+    public async Task A_picture_from_the_shared_directory_comes_back_into_the_shared_directory()
+    {
+        var from = TestImages.Store(FlashcardPackageFixture.NewImagesDirectory());
+        var to = TestImages.Store(FlashcardPackageFixture.NewImagesDirectory());
+        var assetId = await from.SaveAsync(new MemoryStream([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 6]));
+        await using var source = new FlashcardStoreHarness(Now);
+        await source.SeedDeckAsync();
+        var path = Path.Combine(from.Directory, assetId);
+        await source.FactService.SaveFactAsync(new FlashcardFactDraft(
+            null, "deck-1", FlashcardCardType.BasicId,
+            new Dictionary<string, string> { ["front"] = "Q", ["back"] = "A" },
+            new Dictionary<string, IReadOnlyList<FlashcardAttachment>>
+            {
+                ["front"] = [new FlashcardAttachment("a1", FlashcardAttachment.FrontSide, path, "a.png", 9)],
+            },
+            []));
+
+        var package = await FlashcardPackageFixture.Handler(source, images: from).ExportAsync(FlashcardPackageFixture.ExportContext());
+        await using var target = new FlashcardStoreHarness(Now);
+        await target.Store.InitializeAsync();
+        await FlashcardPackageFixture.Handler(target, images: to).ImportAsync(FlashcardPackageFixture.ImportContext(package));
+
+        Assert.Equal(["assets/images/" + assetId], package.Files.Keys.Where(k => k.StartsWith("assets/", StringComparison.Ordinal)));
+        var restored = Path.Combine(to.Directory, assetId);
+        Assert.True(FlashcardAssetReferences.Contains(await FlashcardAssetReferences.CollectReferencedPathsAsync(target.Store), restored));
+        Assert.True(File.Exists(restored));
     }
 
     [Fact]

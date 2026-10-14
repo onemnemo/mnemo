@@ -8,9 +8,11 @@ using Microsoft.Extensions.Logging;
 using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Core.Services.Search;
+using Mnemo.Host.Assets;
 using Mnemo.Host.Flashcards;
 using Mnemo.Host.Tests.Trash;
 using Mnemo.Host.Trash;
+using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Generation;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
@@ -103,7 +105,8 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         builder.Services.AddSingleton<IFlashcardStatsService>(statsService);
         builder.Services.AddSingleton<IStudyDayService>(new StudyDayService(presetService, clock));
         builder.Services.AddSingleton<IStatisticsManager>(StatisticsManager.CreateInMemory(logger));
-        builder.Services.AddSingleton<IImageAssetService>(new NoopImageAssetService());
+        builder.Services.AddSingleton<SharedImageStore>();
+        builder.Services.AddSingleton<ImageFileLocks>();
         builder.Services.AddSingleton<ISearchProvider>(searchProvider);
         builder.Services.AddSingleton<IGlobalSearchService, GlobalSearchService>();
 
@@ -190,15 +193,5 @@ internal sealed class FlashcardHttpHarness : IAsyncDisposable
         public void Log(LogLevel level, string category, string message, Exception? exception = null)
         {
         }
-    }
-
-    /// <summary>Nothing here exercises the note image-block path, so every call is a safe no-op.</summary>
-    private sealed class NoopImageAssetService : IImageAssetService
-    {
-        public Task<Result<string>> ImportAndCopyAsync(string sourcePath, string blockId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Result<string>.Success(sourcePath));
-
-        public Task<Result> DeleteStoredFileAsync(string absolutePath, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Result.Success());
     }
 }

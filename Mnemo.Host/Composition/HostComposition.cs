@@ -135,7 +135,7 @@ public static class HostComposition
         // highlighting and clipboard handling.
         services.AddSingleton<INoteClipboardPayloadCodec, NoteClipboardPayloadCodec>();
         services.AddSingleton<SharedImageStore>();
-        services.AddSingleton<IImageAssetService, ImageAssetService>();
+        services.AddSingleton<IImageAssetService>(sp => sp.GetRequiredService<SharedImageStore>());
         services.AddSingleton<ImageFileLocks>();
         services.AddSingleton<ISpellDictionaryCatalogService, SpellDictionaryCatalogService>();
         services.AddSingleton<IUserSpellbookService, UserSpellbookService>();

@@ -1339,7 +1339,7 @@ public sealed partial class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
                 }
 
                 var attachmentId = Guid.NewGuid().ToString("N");
-                var copied = await _imageAssetService.ImportAndCopyAsync(resolvedMediaPath, attachmentId, cancellationToken).ConfigureAwait(false);
+                var copied = await _imageAssetService.ImportAndCopyAsync(resolvedMediaPath, cancellationToken).ConfigureAwait(false);
                 if (!copied.IsSuccess || string.IsNullOrWhiteSpace(copied.Value))
                 {
                     warnings.Add(copied.ErrorMessage is { } mediaError

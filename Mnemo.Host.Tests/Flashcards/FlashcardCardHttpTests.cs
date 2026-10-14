@@ -107,6 +107,32 @@ public sealed class FlashcardCardHttpTests
         Assert.Equal("suspended", reloaded!.State);
     }
 
+    [Fact]
+    public async Task TheSamePictureAttachedTwiceStaysTwoAttachments()
+    {
+        await using var h = new FlashcardHttpHarness();
+        await h.StartAsync();
+        var deckId = await CreateDeckAsync(h, "Pictures");
+        using var form = new MultipartFormDataContent();
+        form.Add(new ByteArrayContent([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 5]), "file", "a.png");
+        var upload = await h.Client.PostAsync("/api/flashcards/assets", form);
+        var assetId = Parse<CardAssetDto>(await upload.Content.ReadAsStringAsync()).AssetId;
+        var attachment = new { id = (string?)null, assetId, side = "front", displayName = "a.png", caption = (string?)null };
+
+        var response = await h.Client.PostAsync($"/api/decks/{deckId}/cards", JsonBody(new
+        {
+            type = "classic",
+            front = "Q",
+            back = "A",
+            attachments = new[] { attachment, attachment },
+        }));
+
+        var card = Parse<CardDto>(await response.Content.ReadAsStringAsync());
+        Assert.Equal(2, card.Attachments.Count);
+        Assert.NotEqual(card.Attachments[0].Id, card.Attachments[1].Id);
+        Assert.All(card.Attachments, a => Assert.Equal(assetId, a.AssetId));
+    }
+
     private static async Task<string> CreateDeckAsync(FlashcardHttpHarness h, string name)
     {
         var response = await h.Client.PostAsync("/api/decks", JsonBody(new { name, folderId = (string?)null, presetId = (string?)null }));

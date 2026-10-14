@@ -4,12 +4,13 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using Mnemo.Core.Models;
 using Mnemo.Core.Services;
 using Mnemo.Infrastructure.Common;
 
 namespace Mnemo.Infrastructure.Services;
 
-public sealed class SharedImageStore
+public sealed class SharedImageStore : IImageAssetService
 {
     public const string PendingSuffix = ".uploading";
 
@@ -76,6 +77,38 @@ public sealed class SharedImageStore
         {
             TryDelete(temp);
             throw;
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<string>> ImportAndCopyAsync(string sourcePath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath))
+            return Result<string>.Failure("Source path is empty.");
+
+        if (!File.Exists(sourcePath))
+            return Result<string>.Failure($"Source file not found: {sourcePath}");
+
+        try
+        {
+            if (new FileInfo(sourcePath).Length > ImageContentType.MaxImageBytes)
+                return Result<string>.Failure($"Image exceeds the {ImageContentType.MaxImageBytes / (1024 * 1024)} MB limit.");
+
+            await using var source = File.OpenRead(sourcePath);
+            var assetId = await SaveAsync(source, null, cancellationToken).ConfigureAwait(false);
+            return Result<string>.Success(Path.Combine(Directory, assetId));
+        }
+        catch (InvalidDataException)
+        {
+            return Result<string>.Failure("File is not a supported image (PNG, JPEG, GIF, WebP or BMP).");
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<string>.Failure("Image import was cancelled.");
+        }
+        catch (Exception ex)
+        {
+            return Result<string>.Failure($"Failed to copy image: {ex.Message}", ex);
         }
     }
 

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Mnemo.Core.Services;
 using Mnemo.Host.Assets;
 using Mnemo.Host.Composition;
 using Mnemo.Infrastructure.Services;
@@ -9,7 +10,7 @@ namespace Mnemo.Host.Tests.Assets;
 public sealed class ImageAssetCompositionTests
 {
     [Fact]
-    public async Task TheSharedImageServicesCompose()
+    public async Task EveryImageWriterSharesOneStore()
     {
         var modules = HostComposition.DiscoverModules(out var failures);
         Assert.Empty(failures);
@@ -17,7 +18,9 @@ public sealed class ImageAssetCompositionTests
         HostComposition.AddMnemoBackend(services, modules);
         await using var provider = services.BuildServiceProvider();
 
-        Assert.NotNull(provider.GetRequiredService<SharedImageStore>());
+        var files = provider.GetRequiredService<SharedImageStore>();
+
+        Assert.Same(files, provider.GetRequiredService<IImageAssetService>());
         Assert.NotNull(provider.GetRequiredService<StartupAssetSweep>());
     }
 

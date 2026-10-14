@@ -10,7 +10,9 @@ public enum AssetCleanupOutcome
     StillReferenced = 1,
 
     /// <summary>The file was already gone.</summary>
-    Missing = 2
+    Missing = 2,
+
+    Deferred = 3
 }
 
 /// <summary>

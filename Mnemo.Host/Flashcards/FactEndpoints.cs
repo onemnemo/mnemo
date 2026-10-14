@@ -344,7 +344,7 @@ public static class FactEndpoints
 
         var assetId = input.AssetId!;
         return new FlashcardAttachment(
-            Id: FlashcardAssetStore.AttachmentIdForAssetId(assetId),
+            Id: Guid.NewGuid().ToString("N"),
             // A layout decides which side its fields land on, so the stored side is a placeholder
             // the materializer rewrites per card.
             Side: FlashcardAttachment.FrontSide,

@@ -117,7 +117,7 @@ public sealed class FlashcardAnkiOcclusionImportEdgeTests
     }
 
     [Fact]
-    public async Task Import_TwoNotesOverOnePicture_EachKeepsAnImageOfItsOwn()
+    public async Task Import_TwoNotesOverOnePicture_ShareOneStoredFile()
     {
         await using var h = new FlashcardStoreHarness();
         var (_, cards) = await ImportAsync(h, "anki21b-image-occlusion-extras.apkg");
@@ -126,8 +126,8 @@ public sealed class FlashcardAnkiOcclusionImportEdgeTests
         var a = Assert.Single(notes["SharedA"].Fact.MediaOn(FlashcardCardType.OcclusionImageFieldId));
         var b = Assert.Single(notes["SharedB"].Fact.MediaOn(FlashcardCardType.OcclusionImageFieldId));
         Assert.True(File.Exists(a.FilePath));
-        Assert.True(File.Exists(b.FilePath));
-        Assert.NotEqual(a.FilePath, b.FilePath);
+        Assert.Equal(a.FilePath, b.FilePath);
+        Assert.NotEqual(a.Id, b.Id);
         Assert.Equal(2, notes["SharedA"].Cards.Length);
         Assert.Equal(2, notes["SharedB"].Cards.Length);
     }

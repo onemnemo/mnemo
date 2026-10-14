@@ -27,7 +27,7 @@ public sealed class FlashcardAnkiLastStudiedTests
         var adapter = new FlashcardsAnkiFormatAdapter(
             library, cardService, h.FactService,
             new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock),
-            h.Clock, history, new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()));
+            h.Clock, history, TestImages.Store(AnkiPackageFixture.NewImagesDirectory()));
 
         var apkg = Path.Combine(AppContext.BaseDirectory, "Flashcards", "Fixtures", "Anki", "anki21b-basic.apkg");
         var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });

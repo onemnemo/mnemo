@@ -8,6 +8,7 @@ using Mnemo.Core.Models.Flashcards;
 using Mnemo.Core.Services;
 using Mnemo.Host.Contracts;
 using Mnemo.Host.Flashcards;
+using Mnemo.Infrastructure.Common;
 using Xunit;
 
 namespace Mnemo.Host.Tests.Flashcards;
@@ -194,7 +195,7 @@ public sealed class OcclusionHttpTests
     private static Task<FlashcardFactSaved> SaveAsync(IFlashcardFactService facts, string deckId, bool withManagedImage)
     {
         var path = withManagedImage
-            ? Path.Combine(FlashcardAssetStore.Directory, FlashcardAssetStore.Generate(".png"))
+            ? Path.Combine(MnemoAppPaths.GetImageAssetsDirectory(), Guid.NewGuid().ToString("N") + ".png")
             : "C:/elsewhere/diagram.png";
         return facts.SaveFactAsync(new FlashcardFactDraft(
             null,

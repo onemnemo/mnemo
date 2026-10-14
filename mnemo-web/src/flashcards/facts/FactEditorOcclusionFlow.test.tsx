@@ -103,7 +103,7 @@ let root: Root
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.confirm.mockResolvedValue(false)
-  mocks.upload.mockResolvedValue({ assetId: "new1", attachmentId: "n1", displayName: "new.png", sizeBytes: 5 })
+  mocks.upload.mockResolvedValue({ assetId: "new1", displayName: "new.png", sizeBytes: 5 })
   mocks.fact = undefined
   useEnglish()
   seedKeybinds()

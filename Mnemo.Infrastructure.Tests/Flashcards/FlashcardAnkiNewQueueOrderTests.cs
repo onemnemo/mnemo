@@ -38,7 +38,7 @@ public sealed class FlashcardAnkiNewQueueOrderTests
             var adapter = new FlashcardsAnkiFormatAdapter(
                 library, cardService, h.FactService,
                 new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock),
-                h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()));
+                h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), TestImages.Store(AnkiPackageFixture.NewImagesDirectory()));
 
             var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = apkg });
             Assert.True(result.Success, result.ErrorMessage);

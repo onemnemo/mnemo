@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Mnemo.Core.Models.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards;
@@ -246,6 +247,68 @@ public sealed class FlashcardAttachmentCleanupTests
 
         Assert.Null(await factSvc.GetFactAsync(saved.Fact.Id));
         Assert.Contains(path, await QueuedAsync(h));
+    }
+
+    [Fact]
+    public async Task Editing_a_card_to_drop_one_of_two_uses_of_a_picture_queues_it_but_keeps_it_referenced()
+    {
+        await using var h = await OpenAsync();
+        var cardSvc = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+
+        var path = ManagedPath("twice.png");
+        var card = new Flashcard(
+            Id: Guid.NewGuid().ToString("N"), DeckId: "deck-1", Type: FlashcardType.Classic,
+            Front: "Q", Back: "A", Tags: [], State: FlashcardCardState.Active, IsFlagged: false,
+            Attachments: [Attachment("a1", path), Attachment("a2", path)], CreatedAt: Now, UpdatedAt: Now);
+        await h.Store.WriteAsync((conn, tx, ct) => h.Cards.InsertAsync(conn, tx, card, ct));
+
+        await cardSvc.UpdateCardAsync(card with { Attachments = [Attachment("a2", path)] });
+
+        Assert.Contains(path, await QueuedAsync(h));
+        var referenced = await FlashcardAssetReferences.CollectReferencedPathsAsync(h.Store);
+        Assert.True(FlashcardAssetReferences.Contains(referenced, path), "the kept attachment still names the file");
+    }
+
+    [Fact]
+    public async Task A_card_whose_attachments_cannot_be_read_stops_the_reference_read()
+    {
+        await using var h = await OpenAsync();
+        var card = new Flashcard(
+            Id: Guid.NewGuid().ToString("N"), DeckId: "deck-1", Type: FlashcardType.Classic,
+            Front: "Q", Back: "A", Tags: [], State: FlashcardCardState.Active, IsFlagged: false,
+            Attachments: [], CreatedAt: Now, UpdatedAt: Now);
+        await h.Store.WriteAsync((conn, tx, ct) => h.Cards.InsertAsync(conn, tx, card, ct));
+        await h.Store.WriteAsync(async (conn, tx, ct) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "UPDATE FlashcardCards SET AttachmentsJson = '[{broken' WHERE Id = $id;";
+            cmd.Parameters.AddWithValue("$id", card.Id);
+            await cmd.ExecuteNonQueryAsync(ct);
+        });
+
+        await Assert.ThrowsAnyAsync<JsonException>(() => FlashcardAssetReferences.CollectReferencedPathsAsync(h.Store));
+    }
+
+    [Fact]
+    public async Task Material_whose_media_cannot_be_read_stops_the_reference_read()
+    {
+        await using var h = await OpenAsync();
+        var saved = await h.FactService.SaveFactAsync(Draft(FlashcardCardType.BasicId, new()
+        {
+            ["front"] = "Q",
+            ["back"] = "A",
+        }));
+        await h.Store.WriteAsync(async (conn, tx, ct) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "UPDATE FlashcardFacts SET MediaJson = '{broken' WHERE Id = $id;";
+            cmd.Parameters.AddWithValue("$id", saved.Fact.Id);
+            await cmd.ExecuteNonQueryAsync(ct);
+        });
+
+        await Assert.ThrowsAnyAsync<JsonException>(() => FlashcardAssetReferences.CollectReferencedPathsAsync(h.Store));
     }
 
     // ---- Plumbing ----------------------------------------------------------------------------

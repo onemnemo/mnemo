@@ -1,6 +1,7 @@
-using Mnemo.Core.Services;
+using Mnemo.Host.Lifecycle;
 using Mnemo.Host.Trash;
 using Mnemo.Infrastructure.Common;
+using Mnemo.Infrastructure.Services;
 using Mnemo.Infrastructure.Services.Flashcards;
 using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
@@ -19,46 +20,40 @@ namespace Mnemo.Host.Flashcards;
 public sealed class FlashcardAssetCleanupOwner : IAssetCleanupOwner
 {
     private readonly IFlashcardStore _store;
-    private readonly IImageAssetService _images;
-    private readonly ILoggerService? _logger;
+    private readonly ImageFileLocks _locks;
+    private readonly HostInstanceLock _instanceLock;
 
-    public FlashcardAssetCleanupOwner(IFlashcardStore store, IImageAssetService images, ILoggerService? logger = null)
+    public FlashcardAssetCleanupOwner(IFlashcardStore store, ImageFileLocks locks, HostInstanceLock instanceLock)
     {
         _store = store;
-        _images = images;
-        _logger = logger;
+        _locks = locks;
+        _instanceLock = instanceLock;
     }
 
     /// <inheritdoc />
     public string Owner => FlashcardAssetReferences.AssetOwner;
 
     /// <inheritdoc />
-    public bool IsReady => true;
+    public bool IsReady => !_instanceLock.AnotherInstanceIsRunning();
 
     /// <inheritdoc />
     public async Task<AssetCleanupOutcome> DeleteIfUnreferencedAsync(string path, CancellationToken cancellationToken = default)
     {
-        // An imported card can name a picture the user keeps somewhere else on disk. That file is
-        // never ours to remove, so it is reported as nothing to do rather than retried forever.
+        // Files elsewhere on disk are not ours, and shared files are left to the startup sweep.
         if (string.IsNullOrWhiteSpace(path) || !MnemoAppPaths.IsPathUnderImagesDirectory(path))
             return AssetCleanupOutcome.Missing;
 
         // A collection that cannot be read throws rather than reporting nothing referenced, so a
         // failure here keeps the job queued instead of taking a file some card still shows.
         var referenced = await FlashcardAssetReferences
-            .CollectReferencedPathsAsync(_store, _logger, cancellationToken)
+            .CollectReferencedPathsAsync(_store, cancellationToken)
             .ConfigureAwait(false);
 
         if (FlashcardAssetReferences.Contains(referenced, path))
             return AssetCleanupOutcome.StillReferenced;
 
-        if (!File.Exists(path))
-            return AssetCleanupOutcome.Missing;
-
-        var result = await _images.DeleteStoredFileAsync(path, cancellationToken).ConfigureAwait(false);
-        if (!result.IsSuccess)
-            throw new IOException(result.ErrorMessage ?? $"The image at {path} could not be deleted.", result.Exception);
-
-        return AssetCleanupOutcome.Deleted;
+        if (await _locks.DeleteIfStaleAsync(path, ImageFileLocks.DefaultGrace, cancellationToken).ConfigureAwait(false))
+            return AssetCleanupOutcome.Deleted;
+        return File.Exists(path) ? AssetCleanupOutcome.Deferred : AssetCleanupOutcome.Missing;
     }
 }

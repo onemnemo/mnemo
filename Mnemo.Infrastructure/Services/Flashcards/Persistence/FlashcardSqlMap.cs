@@ -101,11 +101,9 @@ internal static class FlashcardSqlMap
 
     public static IReadOnlyList<FlashcardAttachment> ReadAttachments(string? json, ILoggerService? logger = null, string? context = null)
     {
-        if (string.IsNullOrWhiteSpace(json))
-            return Array.Empty<FlashcardAttachment>();
         try
         {
-            return JsonSerializer.Deserialize<FlashcardAttachment[]>(json, Json) ?? Array.Empty<FlashcardAttachment>();
+            return ReadAttachmentsStrict(json);
         }
         catch (Exception ex)
         {
@@ -113,6 +111,9 @@ internal static class FlashcardSqlMap
             return Array.Empty<FlashcardAttachment>();
         }
     }
+
+    public static IReadOnlyList<FlashcardAttachment> ReadAttachmentsStrict(string? json) =>
+        string.IsNullOrWhiteSpace(json) ? [] : JsonSerializer.Deserialize<FlashcardAttachment[]>(json, Json) ?? [];
 
     /// <summary>
     /// Reports a JSON column that could not be read. The caller already fell back to an empty or

@@ -207,6 +207,26 @@ public sealed class SharedImageStoreTests : IDisposable
         Assert.Null(_store.Locate(null));
     }
 
+    [Fact]
+    public async Task ImportingTheSameFileTwiceStoresItOnce()
+    {
+        var source = Path.Combine(Path.GetTempPath(), $"mnemo-import-{Guid.NewGuid():N}");
+        File.WriteAllBytes(source, Png(1));
+        try
+        {
+            var first = await _store.ImportAndCopyAsync(source);
+            var second = await _store.ImportAndCopyAsync(source);
+
+            Assert.True(first.IsSuccess);
+            Assert.Equal(first.Value, second.Value);
+            Assert.Single(Files());
+        }
+        finally
+        {
+            File.Delete(source);
+        }
+    }
+
     [Theory]
     [InlineData("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.png", true)]
     [InlineData("0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef.png", false)]

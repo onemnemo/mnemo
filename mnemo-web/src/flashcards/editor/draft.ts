@@ -33,9 +33,12 @@ export function draftFromStored(attachment: CardAttachmentDto): DraftAttachment 
   }
 }
 
+let uploadKeys = 0
+
+/** The key is minted here because attaching one picture twice returns the same asset id. */
 export function draftFromUpload(asset: CardAssetDto, side: CardSide): DraftAttachment {
   return {
-    key: asset.assetId,
+    key: `upload-${++uploadKeys}`,
     // Only the asset id is sent for a new attachment: naming an id the card does not have yet
     // would make the server look for something to carry over and find nothing.
     id: null,

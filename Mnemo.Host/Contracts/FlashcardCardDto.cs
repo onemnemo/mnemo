@@ -33,12 +33,7 @@ public sealed record CardAttachmentDto(
             FlashcardAssetStore.AssetIdForPath(model.FilePath));
 }
 
-/// <summary>
-/// The result of uploading an attachment image. The attachment id is handed back alongside the
-/// asset id because the two are derived from one another, and the client has to send the
-/// attachment id when it saves the card.
-/// </summary>
-public sealed record CardAssetDto(string AssetId, string AttachmentId, string DisplayName, long SizeBytes);
+public sealed record CardAssetDto(string AssetId, string DisplayName, long SizeBytes);
 
 /// <summary>
 /// A card's content. Hand-mirrored in <c>mnemo-web/src/api/types.ts</c>; the C# side is

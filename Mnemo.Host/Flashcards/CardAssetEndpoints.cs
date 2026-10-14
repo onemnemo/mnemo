@@ -2,13 +2,15 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
+using Mnemo.Host.Assets;
 using Mnemo.Host.Contracts;
+using Mnemo.Infrastructure.Services;
 
 namespace Mnemo.Host.Flashcards;
 
 /// <summary>
 /// Upload and serve for card attachment images. <c>POST /api/flashcards/assets</c> stores an
-/// uploaded image under the app images directory and returns the ids the card editor needs;
+/// uploaded image in the shared image directory and returns the ids the card editor needs;
 /// <c>GET /api/flashcards/assets/{assetId}</c> streams the bytes back. Both sit under
 /// <c>/api</c>, so the per-launch bearer token guards them - the client fetches the bytes with
 /// the auth header and renders them from a blob URL, since a bare &lt;img src&gt; could not
@@ -29,7 +31,7 @@ public static class CardAssetEndpoints
     {
         // The multipart body is read directly rather than bound as IFormFile so no antiforgery
         // filter is attached - loopback binding plus the bearer token are the security boundary.
-        endpoints.MapPost("/api/flashcards/assets", async (HttpRequest request, CancellationToken cancellationToken) =>
+        endpoints.MapPost("/api/flashcards/assets", async (HttpRequest request, SharedImageStore images, CancellationToken cancellationToken) =>
         {
             // Just above the file limit, so an oversized file still arrives whole and is refused below
             // with the limit named, rather than Kestrel resetting the connection mid-stream.
@@ -73,11 +75,11 @@ public static class CardAssetEndpoints
             if (!FlashcardAssetStore.IsImageExtension(extension))
                 return Results.BadRequest(new ErrorDto("unsupported_image", "Only PNG, JPEG, GIF and WebP images can be attached."));
 
-            var assetId = FlashcardAssetStore.Generate(extension);
+            string assetId;
             try
             {
                 await using var content = file.OpenReadStream();
-                await FlashcardAssetStore.SaveAsync(content, assetId, cancellationToken).ConfigureAwait(false);
+                assetId = await images.SaveAsync(content, extension, cancellationToken).ConfigureAwait(false);
             }
             catch (InvalidDataException)
             {
@@ -90,11 +92,7 @@ public static class CardAssetEndpoints
             if (string.IsNullOrWhiteSpace(displayName))
                 displayName = assetId;
 
-            return Results.Ok(new CardAssetDto(
-                assetId,
-                FlashcardAssetStore.AttachmentIdForAssetId(assetId),
-                displayName,
-                file.Length));
+            return Results.Ok(new CardAssetDto(assetId, displayName, file.Length));
         });
 
         endpoints.MapGet("/api/flashcards/assets/{assetId}", (string assetId) =>

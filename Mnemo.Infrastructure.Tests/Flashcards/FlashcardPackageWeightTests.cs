@@ -118,6 +118,7 @@ public sealed class FlashcardPackageWeightTests
         h.Reviews,
         h.DailyStats,
         logger,
+        TestImages.Store(FlashcardPackageFixture.NewImagesDirectory()),
         FlashcardPackageFixture.NewImagesDirectory());
 
     private sealed class RecordingLogger : ILoggerService

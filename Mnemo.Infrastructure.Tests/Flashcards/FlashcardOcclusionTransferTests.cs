@@ -159,5 +159,5 @@ public sealed class FlashcardOcclusionTransferTests
     private static FlashcardsAnkiFormatAdapter NewAnki(FlashcardStoreHarness h) =>
         new(NewLibrary(h), new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock), h.FactService,
             new FlashcardPresetService(h.Store, h.Presets, h.Decks, h.Clock),
-            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), new ImageAssetService(AnkiPackageFixture.NewImagesDirectory()));
+            h.Clock, new FlashcardReviewHistoryService(h.Store, h.Reviews), TestImages.Store(AnkiPackageFixture.NewImagesDirectory()));
 }

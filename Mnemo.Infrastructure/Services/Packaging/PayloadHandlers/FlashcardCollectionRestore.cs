@@ -38,13 +38,8 @@ internal sealed class FlashcardCollectionRestore
     private readonly IReviewRepository _reviews;
     private readonly IDailyStatsRepository _dailyStats;
     private readonly ILoggerService _logger;
-    private readonly string _imagesDirectory;
+    private readonly Func<string, string> _filePath;
 
-    /// <summary>
-    /// Builds the restore. <paramref name="imagesDirectory"/> is where the package's image files
-    /// have already been written, and is the directory the restored attachment paths are made to
-    /// point at, so the rows and the files on disk cannot disagree.
-    /// </summary>
     public FlashcardCollectionRestore(
         IFlashcardStore store,
         IFlashcardPresetService presetService,
@@ -58,7 +53,7 @@ internal sealed class FlashcardCollectionRestore
         IReviewRepository reviews,
         IDailyStatsRepository dailyStats,
         ILoggerService logger,
-        string imagesDirectory)
+        Func<string, string> filePath)
     {
         _store = store;
         _presetService = presetService;
@@ -72,7 +67,7 @@ internal sealed class FlashcardCollectionRestore
         _reviews = reviews;
         _dailyStats = dailyStats;
         _logger = logger;
-        _imagesDirectory = imagesDirectory;
+        _filePath = filePath;
     }
 
     /// <summary>
@@ -90,7 +85,7 @@ internal sealed class FlashcardCollectionRestore
         await _presetService.GetOrCreateStandardAsync(cancellationToken).ConfigureAwait(false);
 
         var result = new MnemoPayloadImportResult();
-        var imagesDirectory = _imagesDirectory;
+        var filePath = _filePath;
         var now = DateTimeOffset.UtcNow;
 
         IReadOnlyDictionary<string, string> decksStored = new Dictionary<string, string>();
@@ -104,8 +99,8 @@ internal sealed class FlashcardCollectionRestore
                 : null;
             var folderMap = await RestoreFoldersAsync(conn, tx, snapshot, policy, target, result, now, ct).ConfigureAwait(false);
             var deckMap = await RestoreDecksAsync(conn, tx, snapshot, policy, target, folderMap, result, now, ct).ConfigureAwait(false);
-            var factMap = await RestoreFactsAsync(conn, tx, snapshot, policy, deckMap, imagesDirectory, ct).ConfigureAwait(false);
-            var cardMap = await RestoreCardsAsync(conn, tx, snapshot, policy, deckMap, factMap, imagesDirectory, now, ct).ConfigureAwait(false);
+            var factMap = await RestoreFactsAsync(conn, tx, snapshot, policy, deckMap, filePath, ct).ConfigureAwait(false);
+            var cardMap = await RestoreCardsAsync(conn, tx, snapshot, policy, deckMap, factMap, filePath, now, ct).ConfigureAwait(false);
             await RestoreHistoryAsync(conn, tx, snapshot, deckMap, cardMap, ct).ConfigureAwait(false);
             decksStored = deckMap;
             cardsStored = cardMap;
@@ -452,7 +447,7 @@ internal sealed class FlashcardCollectionRestore
         FlashcardPayloadSnapshot snapshot,
         ImportConflictPolicy policy,
         IReadOnlyDictionary<string, string> deckMap,
-        string imagesDirectory,
+        Func<string, string> filePath,
         CancellationToken cancellationToken)
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -479,7 +474,7 @@ internal sealed class FlashcardCollectionRestore
                     id = NewId();
             }
 
-            await _facts.UpsertAsync(conn, tx, ToFact(fact, id, homeDeckId, imagesDirectory), cancellationToken).ConfigureAwait(false);
+            await _facts.UpsertAsync(conn, tx, ToFact(fact, id, homeDeckId, filePath), cancellationToken).ConfigureAwait(false);
 
             // A fact id can also collide with material the trash is holding. Nothing above can see
             // that row and the save leaves it alone, so the material is not there afterwards. Its
@@ -488,7 +483,7 @@ internal sealed class FlashcardCollectionRestore
             if (await _facts.GetAsync(conn, id, cancellationToken).ConfigureAwait(false) is null)
             {
                 id = NewId();
-                await _facts.UpsertAsync(conn, tx, ToFact(fact, id, homeDeckId, imagesDirectory), cancellationToken).ConfigureAwait(false);
+                await _facts.UpsertAsync(conn, tx, ToFact(fact, id, homeDeckId, filePath), cancellationToken).ConfigureAwait(false);
             }
 
             map[fact.Id] = id;
@@ -527,7 +522,7 @@ internal sealed class FlashcardCollectionRestore
         ImportConflictPolicy policy,
         IReadOnlyDictionary<string, string> deckMap,
         IReadOnlyDictionary<string, string> factMap,
-        string imagesDirectory,
+        Func<string, string> filePath,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -564,7 +559,7 @@ internal sealed class FlashcardCollectionRestore
                     factId = mappedFact;
                 }
 
-                var restored = ToCard(card, cardId, targetDeckId, factId, imagesDirectory, now);
+                var restored = ToCard(card, cardId, targetDeckId, factId, filePath, now);
                 await _cards.UpsertAsync(conn, tx, restored, cancellationToken).ConfigureAwait(false);
 
                 // A card id can also collide with one the trash is holding. Nothing above can see
@@ -641,7 +636,7 @@ internal sealed class FlashcardCollectionRestore
         string cardId,
         string deckId,
         string? factId,
-        string imagesDirectory,
+        Func<string, string> filePath,
         DateTimeOffset now)
     {
         // Remove legacy image tokens by filename rather than local file existence so imported
@@ -676,7 +671,7 @@ internal sealed class FlashcardCollectionRestore
             State: card.State is { } state ? (FlashcardCardState)state : FlashcardCardState.Active,
             IsFlagged: card.IsFlagged ?? false,
             Attachments: carriesAttachments
-                ? ToAttachments(card.Attachments!, imagesDirectory)
+                ? ToAttachments(card.Attachments!, filePath)
                 : conversion.Attachments,
             SourceInfo: ToSource(card.SourceInfo),
             FrontBlocks: card.FrontBlocks,
@@ -699,12 +694,12 @@ internal sealed class FlashcardCollectionRestore
         LastReviewedAt: card.LastReviewedAt,
         BuriedUntil: card.BuriedUntil);
 
-    private static FlashcardFact ToFact(FactSnapshotDto fact, string id, string deckId, string imagesDirectory)
+    private static FlashcardFact ToFact(FactSnapshotDto fact, string id, string deckId, Func<string, string> filePath)
     {
         var media = new Dictionary<string, IReadOnlyList<FlashcardAttachment>>(StringComparer.Ordinal);
         foreach (var pair in fact.Media ?? new Dictionary<string, List<AttachmentSnapshotDto>>())
         {
-            var attachments = ToAttachments(pair.Value, imagesDirectory);
+            var attachments = ToAttachments(pair.Value, filePath);
             if (attachments.Count > 0)
                 media[pair.Key] = attachments;
         }
@@ -787,14 +782,9 @@ internal sealed class FlashcardCollectionRestore
         return names;
     }
 
-    /// <summary>
-    /// Rebuilds attachment records against this installation's images directory. The packaged file
-    /// name is the only part that travels; the path it had on the machine that wrote the package is
-    /// meaningless anywhere else.
-    /// </summary>
     private static IReadOnlyList<FlashcardAttachment> ToAttachments(
         IReadOnlyList<AttachmentSnapshotDto> snapshots,
-        string imagesDirectory)
+        Func<string, string> filePath)
     {
         var attachments = new List<FlashcardAttachment>(snapshots.Count);
         foreach (var snapshot in snapshots)
@@ -808,7 +798,7 @@ internal sealed class FlashcardCollectionRestore
                 Side: string.Equals(snapshot.Side, FlashcardAttachment.BackSide, StringComparison.OrdinalIgnoreCase)
                     ? FlashcardAttachment.BackSide
                     : FlashcardAttachment.FrontSide,
-                FilePath: Path.Combine(imagesDirectory, fileName),
+                FilePath: filePath(fileName),
                 DisplayName: string.IsNullOrWhiteSpace(snapshot.DisplayName) ? fileName : snapshot.DisplayName,
                 SizeBytes: snapshot.SizeBytes,
                 Caption: snapshot.Caption));
