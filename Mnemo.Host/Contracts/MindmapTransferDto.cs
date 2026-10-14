@@ -17,7 +17,8 @@ public sealed record MindmapTransferUploadDto(
     string FormatName,
     bool CanImport,
     int? MapCount,
-    IReadOnlyList<TransferWarningDto> Warnings);
+    IReadOnlyList<TransferWarningDto> Warnings,
+    PackageEvidenceDto? Evidence = null);
 
 /// <summary>
 /// Import body. Several uploads run as one batch so the client reports a single outcome for what the

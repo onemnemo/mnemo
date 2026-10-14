@@ -18,7 +18,8 @@ public sealed record NoteTransferUploadDto(
     string FormatName,
     bool CanImport,
     int? NoteCount,
-    IReadOnlyList<TransferWarningDto> Warnings);
+    IReadOnlyList<TransferWarningDto> Warnings,
+    PackageEvidenceDto? Evidence = null);
 
 /// <summary>
 /// Import body. Several uploads run as one batch so the client reports a single outcome for what

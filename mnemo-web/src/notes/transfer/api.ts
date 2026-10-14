@@ -26,11 +26,11 @@ export function useNoteTransferFormatsQuery(enabled: boolean) {
 }
 
 /** Stages a file server-side and reports what reading it turned up. */
-export function uploadNoteTransferFile(file: File, signal?: AbortSignal): Promise<NoteTransferUploadDto> {
+export function uploadNoteTransferFile(file: File): Promise<NoteTransferUploadDto> {
   const form = new FormData()
   form.append("file", file)
   // No Content-Type header: the browser has to set the multipart boundary itself.
-  return apiFetch<NoteTransferUploadDto>("/notes/transfer/uploads", { method: "POST", body: form, signal })
+  return apiFetch<NoteTransferUploadDto>("/notes/transfer/uploads", { method: "POST", body: form })
 }
 
 /**

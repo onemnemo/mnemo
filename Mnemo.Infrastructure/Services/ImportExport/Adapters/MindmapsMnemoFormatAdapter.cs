@@ -40,12 +40,14 @@ public sealed class MindmapsMnemoFormatAdapter : IContentFormatAdapter
         }
 
         preview.Value.DiscoveredCounts.TryGetValue("mindmaps", out var count);
+        var evidence = await _packageService.InspectAsync(request.FilePath, cancellationToken).ConfigureAwait(false);
         return new ImportExportPreview
         {
             CanImport = count > 0,
             ContentType = ContentType,
             FormatId = FormatId,
             DiscoveredCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["mindmaps"] = count },
+            Evidence = evidence.IsSuccess ? evidence.Value : null,
             Warnings = preview.Value.Warnings
         };
     }

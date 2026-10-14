@@ -303,8 +303,6 @@
     "TransferImportDestinationFormat": "デッキは{0}に保存されます。",
     "TransferExportTitle": "フラッシュカードをエクスポート",
     "TransferExportDeckTitle": "デッキをエクスポート",
-    "TransferConflictQuestion": "デッキが既に存在する場合",
-    "TransferConflictNotApplicable": "これらのファイルにはカードIDが含まれていないため、すべて新規として取り込まれます。",
     "TransferNounSingular": "カード",
     "TransferNounPlural": "カード",
     "TransferFromFormat": "{0} から",

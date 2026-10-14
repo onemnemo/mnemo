@@ -340,6 +340,31 @@ public sealed class MindmapsMnemoPayloadHandlerTests
     }
 
     [Fact]
+    public async Task Inspect_CountsMapsAlreadyInTheLibrary()
+    {
+        await using var source = new MindmapTestHarness();
+        await using var target = new MindmapTestHarness();
+        await source.Service.CreateAsync("Alpha");
+        await source.Service.CreateAsync("Beta");
+        var export = await ExportHandler(source).ExportAsync(Context());
+        await ImportAsync(target, export.Files, schemaVersion: export.SchemaVersion);
+        await target.Service.CreateAsync("Local");
+
+        var evidence = await new MindmapsMnemoPayloadHandler(target.Service, target.Store, target.Store, new TestLogger())
+            .InspectAsync(new MnemoPayloadImportContext
+            {
+                Entry = new MnemoPackageEntry { PayloadType = "mindmaps", Path = "payloads/mindmaps", SchemaVersion = export.SchemaVersion },
+                Options = new MnemoPackageImportOptions(),
+                Files = export.Files,
+            });
+
+        Assert.Equal(2, evidence.InPackage);
+        Assert.Equal(2, evidence.AlreadyHere);
+        Assert.Equal(1, evidence.MissingFromPackage);
+        Assert.Equal(3, (await target.Service.ListAsync()).Value!.Count);
+    }
+
+    [Fact]
     public async Task Export_AdvancesThePayloadVersionForLineGeometry()
     {
         await using var source = new MindmapTestHarness();

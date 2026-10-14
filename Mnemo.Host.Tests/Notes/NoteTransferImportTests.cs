@@ -93,6 +93,21 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task FiftyFilesFitOneRequestAndFiftyOneDoNot()
+    {
+        var client = await ClientAsync();
+        var ids = Enumerable.Range(0, 51).Select(i => $"never-staged-{i}").ToArray();
+
+        var fits = await client.PostAsJsonAsync("/api/notes/transfer/import", new { uploadIds = ids[..50] });
+        Assert.Equal(HttpStatusCode.OK, fits.StatusCode);
+
+        var over = await client.PostAsJsonAsync("/api/notes/transfer/import", new { uploadIds = ids });
+        Assert.Equal(HttpStatusCode.BadRequest, over.StatusCode);
+        using var body = JsonDocument.Parse(await over.Content.ReadAsStringAsync());
+        Assert.Equal("too_many_files", body.RootElement.GetProperty("error").GetString());
+    }
+
+    [Fact]
     public async Task AKnownFolderReachesTheAdapterAsTheImportsDestination()
     {
         var client = await ClientAsync();

@@ -34,11 +34,8 @@ public static class NoteTransferEndpoints
 
     private const string MarkdownFormatId = "notes.markdown";
 
-    /// <summary>
-    /// Files in one import batch, matching the flashcard limit for the same reason: the cap keeps a
-    /// single synchronous import bounded, and the client is not the thing that should hold that line.
-    /// </summary>
-    private const int MaxBatchFiles = 5;
+    // Keeps one synchronous import bounded.
+    private const int MaxBatchFiles = 50;
 
     public static void MapNoteTransfer(this IEndpointRouteBuilder endpoints)
     {
@@ -134,7 +131,8 @@ public static class NoteTransferEndpoints
                         : null;
 
                     return Results.Ok(Described(uploadId, path, file.Length, format,
-                        preview.Value.CanImport, noteCount, preview.Value.Warnings.Select(TransferWarningDto.FromModel).ToList()));
+                        preview.Value.CanImport, noteCount, preview.Value.Warnings.Select(TransferWarningDto.FromModel).ToList(),
+                        preview.Value.Evidence is { } evidence ? PackageEvidenceDto.FromModel(evidence) : null));
                 }
                 catch (Exception)
                 {
@@ -416,8 +414,9 @@ public static class NoteTransferEndpoints
         ImportExportCapability format,
         bool canImport,
         int? noteCount,
-        IReadOnlyList<TransferWarningDto> warnings) =>
-        new(uploadId, Path.GetFileName(path), sizeBytes, format.FormatId, format.DisplayName, canImport, noteCount, warnings);
+        IReadOnlyList<TransferWarningDto> warnings,
+        PackageEvidenceDto? evidence = null) =>
+        new(uploadId, Path.GetFileName(path), sizeBytes, format.FormatId, format.DisplayName, canImport, noteCount, warnings, evidence);
 
     /// <summary>The import format an extension belongs to, or null when nothing claims it.</summary>
     private static ImportExportCapability? ResolveImportFormat(IImportExportCoordinator transfer, string? extension)

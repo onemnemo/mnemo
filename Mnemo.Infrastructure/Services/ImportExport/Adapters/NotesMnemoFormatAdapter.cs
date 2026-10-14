@@ -48,12 +48,14 @@ public sealed class NotesMnemoFormatAdapter : IContentFormatAdapter
 
         if (preview.Value.DiscoveredCounts.TryGetValue("notes", out var noteCount))
         {
+            var evidence = await _packageService.InspectAsync(request.FilePath, cancellationToken).ConfigureAwait(false);
             return new ImportExportPreview
             {
                 CanImport = true,
                 ContentType = ContentType,
                 FormatId = FormatId,
                 DiscoveredCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase) { ["notes"] = noteCount },
+                Evidence = evidence.IsSuccess ? evidence.Value : null,
                 Warnings = preview.Value.Warnings
             };
         }

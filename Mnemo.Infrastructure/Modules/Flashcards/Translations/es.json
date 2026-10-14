@@ -303,8 +303,6 @@
     "TransferImportDestinationFormat": "Los mazos se guardan en {0}.",
     "TransferExportTitle": "Exportar tarjetas",
     "TransferExportDeckTitle": "Exportar mazo",
-    "TransferConflictQuestion": "Si un mazo ya existe",
-    "TransferConflictNotApplicable": "Estos archivos no llevan identificadores de tarjeta, así que todo su contenido se importa como nuevo.",
     "TransferNounSingular": "tarjeta",
     "TransferNounPlural": "tarjetas",
     "TransferFromFormat": "Desde {0}",

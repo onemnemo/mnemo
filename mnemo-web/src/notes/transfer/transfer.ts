@@ -1,13 +1,9 @@
-import type { ConflictPolicy, NoteTransferUploadDto, TransferFormatDto, TransferWarningDto } from "@/api/types"
-import type { TranslateFn } from "@/i18n/types"
-import { transferWarningText } from "@/lib/transfer-warnings"
+import type { NoteSummaryDto, NoteTransferUploadDto, TransferFormatDto } from "@/api/types"
+import type { QueuedImport } from "@/components/transfer/import-queue"
 
 // Pure rules behind the note transfer dialog: what a file is allowed to be, which formats an export
 // can offer, and how the queue reads. Kept clear of React so the parts that are easy to get subtly
 // wrong, the queue's counts and the format filter, can be reasoned about on their own.
-
-/** Files one import batch may hold, matching the server's own cap. */
-export const MAX_FILES = 5
 
 /** The `.mnemo` format id, the only one that can carry more than one note plus its folders. */
 export const PACKAGE_FORMAT = "notes.mnemo"
@@ -15,38 +11,10 @@ export const PACKAGE_FORMAT = "notes.mnemo"
 /** The markdown format id, which exports one note at a time. */
 export const MARKDOWN_FORMAT = "notes.markdown"
 
-export type QueueStatus = "uploading" | "ready" | "rejected"
-
-/**
- * One row of the import queue. A file that failed keeps its row with the reason attached rather
- * than vanishing, since being told which file was unreadable, next to the file, is the difference
- * between an explanation and a shrug.
- */
-export interface QueuedFile {
-  key: string
-  name: string
-  sizeBytes: number
-  status: QueueStatus
-  /** The server's handle for the staged bytes; absent until the upload lands. */
-  uploadId?: string
+export interface QueuedFile extends QueuedImport {
   formatName?: string
   /** Notes the file will yield, or null if a preview could not read it. */
   noteCount?: number | null
-  /** Why the file was rejected, or what the server warned about after reading it. */
-  notes?: FileNote[]
-}
-
-/**
- * A file row's note: either a server warning key to resolve through `useT()`, or text already
- * settled on the client (a network failure has no translation key of its own). Rendered with
- * {@link fileNoteText} rather than displayed as `key` or read directly, so both shapes end up as
- * words the reader's locale actually uses.
- */
-export type FileNote = TransferWarningDto | { text: string }
-
-/** Resolves one {@link FileNote} to display text, translating a server warning through `t`. */
-export function fileNoteText(t: TranslateFn, note: FileNote): string {
-  return "text" in note ? note.text : transferWarningText(t, note)
 }
 
 export function queuedFromUpload(key: string, upload: NoteTransferUploadDto): QueuedFile {
@@ -56,21 +24,12 @@ export function queuedFromUpload(key: string, upload: NoteTransferUploadDto): Qu
     sizeBytes: upload.sizeBytes,
     status: upload.canImport ? "ready" : "rejected",
     uploadId: upload.uploadId,
+    formatId: upload.formatId,
     formatName: upload.formatName,
     noteCount: upload.noteCount,
     notes: upload.warnings.length > 0 ? upload.warnings : undefined,
+    evidence: upload.evidence ?? undefined,
   }
-}
-
-/** Every extension that can be imported, for the file input's `accept` and the dropzone's chips. */
-export function importExtensions(formats: readonly TransferFormatDto[]): string[] {
-  return formats.filter((format) => format.supportsImport).flatMap((format) => format.extensions)
-}
-
-/** True when the name ends in an extension some import adapter claims. */
-export function isImportable(fileName: string, formats: readonly TransferFormatDto[]): boolean {
-  const lower = fileName.toLowerCase()
-  return importExtensions(formats).some((extension) => lower.endsWith(extension.toLowerCase()))
 }
 
 /**
@@ -89,11 +48,6 @@ export function exportFormats(
     : exportable.filter((format) => format.formatId === PACKAGE_FORMAT)
 }
 
-/** Uploads to send when the user confirms: the ones that read cleanly, in queue order. */
-export function readyUploadIds(queue: readonly QueuedFile[]): string[] {
-  return queue.flatMap((file) => (file.status === "ready" && file.uploadId ? [file.uploadId] : []))
-}
-
 /**
  * Notes the queue will import, or null unless EVERY file in it can say. One file that cannot makes
  * the whole total unknowable, and a partial sum is worse than no figure.
@@ -104,25 +58,31 @@ export function readyNoteCount(queue: readonly QueuedFile[]): number | null {
   return ready.reduce((sum, file) => sum + (file.noteCount ?? 0), 0)
 }
 
-/** Whether the dialog can commit: something to import, and nothing still being read. */
-export function canImport(queue: readonly QueuedFile[]): boolean {
-  return queue.some((file) => file.status === "ready") && !queue.some((file) => file.status === "uploading")
+function markdownTitle(fileName: string): string {
+  const dot = fileName.lastIndexOf(".")
+  const stem = dot >= 0 ? fileName.slice(0, dot) : fileName
+  return stem.trim() ? stem : "Imported Note"
 }
 
 /**
- * Requires consent for Replace with any ready file. Neither format reports collisions in its
- * preview.
+ * Keys of markdown files whose title is already taken where they land, earlier files in the batch
+ * included.
+ * The host compares titles case-insensitively among the folder's top-level notes.
  */
-export function replaceNeedsConfirmation(queue: readonly QueuedFile[], policy: ConflictPolicy): boolean {
-  if (policy !== "Replace") return false
-  return queue.some((file) => file.status === "ready")
-}
-
-/**
- * A file size for the row's detail line. Kilobytes, stepping up at a megabyte because a package with
- * images is routinely large enough to make "204800 KB" unreadable.
- */
-export function formatFileSize(sizeBytes: number): string {
-  const kb = Math.max(1, Math.round(sizeBytes / 1024))
-  return kb < 1024 ? `${kb} KB` : `${(kb / 1024).toFixed(1)} MB`
+export function markdownCollisions(
+  queue: readonly QueuedFile[],
+  notes: readonly NoteSummaryDto[],
+  folderId: string | null,
+): Set<string> {
+  const taken = new Set(
+    notes.filter((note) => !note.parentNoteId && note.folderId === folderId).map((note) => note.title.toLowerCase()),
+  )
+  const colliding = new Set<string>()
+  for (const file of queue) {
+    if (file.status !== "ready" || file.formatId !== MARKDOWN_FORMAT) continue
+    const title = markdownTitle(file.name).toLowerCase()
+    if (taken.has(title)) colliding.add(file.key)
+    else taken.add(title)
+  }
+  return colliding
 }

@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import type { TransferFormatDto } from "@/api/types"
-import {
-  canImport,
-  exportFormats,
-  isImportable,
-  readyNoteCount,
-  replaceNeedsConfirmation,
-  type QueuedFile,
-} from "./transfer"
+import type { NoteSummaryDto, TransferFormatDto } from "@/api/types"
+import { exportFormats, markdownCollisions, readyNoteCount, type QueuedFile } from "./transfer"
 
 const PACKAGE: TransferFormatDto = {
   formatId: "notes.mnemo",
@@ -59,40 +52,20 @@ describe("readyNoteCount", () => {
   })
 })
 
-describe("isImportable", () => {
-  it("accepts a claimed extension and rejects the rest", () => {
-    expect(isImportable("notes.mnemo", [PACKAGE, MARKDOWN])).toBe(true)
-    expect(isImportable("deck.apkg", [PACKAGE, MARKDOWN])).toBe(false)
-  })
-})
+describe("markdownCollisions", () => {
+  const note = (title: string, folderId: string | null, parentNoteId: string | null = null) =>
+    ({ title, folderId, parentNoteId }) as NoteSummaryDto
+  const md = (name: string): QueuedFile => ({ ...ready(1), name, formatId: "notes.markdown" })
 
-describe("canImport", () => {
-  it("waits for uploads to settle", () => {
-    expect(canImport([ready(1)])).toBe(true)
-    expect(canImport([{ ...ready(1), status: "uploading" }])).toBe(false)
-    expect(canImport([{ ...ready(1), status: "rejected" }])).toBe(false)
-  })
-})
-
-describe("replaceNeedsConfirmation", () => {
-  it("stays quiet under a policy that takes nothing", () => {
-    expect(replaceNeedsConfirmation([ready(1)], "KeepBoth")).toBe(false)
-    expect(replaceNeedsConfirmation([ready(1)], "Skip")).toBe(false)
+  it("matches titles case-insensitively among the folder's top-level notes", () => {
+    const notes = [note("Cells", "bio"), note("Tissue", null), note("Organs", "bio", "parent")]
+    const files = [md("cells.md"), md("Tissue.md"), md("Organs.md")]
+    expect([...markdownCollisions(files, notes, "bio")]).toEqual([files[0].key])
   })
 
-  it("stays quiet while no file in the queue could import", () => {
-    expect(
-      replaceNeedsConfirmation(
-        [
-          { ...ready(1), status: "uploading" },
-          { ...ready(1), status: "rejected" },
-        ],
-        "Replace",
-      ),
-    ).toBe(false)
-  })
-
-  it("asks as soon as one file is ready to replace something", () => {
-    expect(replaceNeedsConfirmation([ready(1)], "Replace")).toBe(true)
+  it("counts a repeat inside the batch and skips packages", () => {
+    const pkg: QueuedFile = { ...ready(3), name: "Cells.mnemo", formatId: "notes.mnemo" }
+    const files = [md("Cells.md"), md("CELLS.md"), pkg]
+    expect([...markdownCollisions(files, [], null)]).toEqual([files[1].key])
   })
 })

@@ -69,6 +69,36 @@ public sealed class NotesMnemoPayloadHandlerTests
     }
 
     [Fact]
+    public async Task InspectAsync_CountsNotesAlreadyInTheLibrary()
+    {
+        var (handler, noteService, _) = await CreateHandlerWithExistingItemsAsync().ConfigureAwait(false);
+        var bytes = BuildNotesDb(
+            [new Note { NoteId = "n1", Title = "Existing" }, new Note { NoteId = "n2", Title = "New" }],
+            []);
+
+        var evidence = await handler.InspectAsync(BuildContext(bytes, ImportConflictPolicy.KeepBoth)).ConfigureAwait(false);
+
+        Assert.Equal(2, evidence.InPackage);
+        Assert.Equal(1, evidence.AlreadyHere);
+        Assert.Equal(1, evidence.NewHere);
+        Assert.Equal(1, evidence.ReplaceWouldDiscard);
+        Assert.Single(await noteService.GetAllNotesAsync().ConfigureAwait(false));
+    }
+
+    [Fact]
+    public async Task InspectAsync_ReportsAPayloadFromANewerBuildAsUnreadable()
+    {
+        var (handler, _, _) = await CreateHandlerWithExistingItemsAsync().ConfigureAwait(false);
+        var context = BuildContext(BuildNotesDb([new Note { NoteId = "n1", Title = "Existing" }], []), ImportConflictPolicy.KeepBoth);
+        context.Entry.SchemaVersion = 2;
+
+        var evidence = await handler.InspectAsync(context).ConfigureAwait(false);
+
+        Assert.False(evidence.CanRead);
+        Assert.Equal(0, evidence.AlreadyHere);
+    }
+
+    [Fact]
     public async Task ExportAsync_BundlesTheImageAnUploadedCoverNames()
     {
         // A cover is the only asset reference a note can carry outside its blocks, so an export

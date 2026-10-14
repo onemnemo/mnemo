@@ -51,7 +51,7 @@ public sealed class NotesMarkdownFormatAdapter : IContentFormatAdapter
         var policy = ImportExportOptionKeys.GetConflictPolicy(request.Options);
         var targetFolderId = ImportExportOptionKeys.GetStringOption(request.Options, ImportExportOptionKeys.TargetFolderId);
 
-        var existingNotes = (await _noteService.GetAllNotesAsync().ConfigureAwait(false)).ToList();
+        var existingNotes = await _noteService.GetAllNoteSummariesAsync().ConfigureAwait(false);
         // Markdown has no note ids. Match titles only among sidebar notes in the destination
         // folder; null denotes the root.
         var candidates = existingNotes

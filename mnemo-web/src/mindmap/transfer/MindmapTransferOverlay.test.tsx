@@ -9,6 +9,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { MindmapTransferImportResultDto, MindmapTransferUploadDto } from "@/api/types"
+import { chooseFiles, confirmButton, conflictTrigger, flush, pickPolicy } from "@/components/transfer/dialog-test-kit"
 
 import { toast } from "@/stores/toast"
 
@@ -28,6 +29,27 @@ const api = vi.hoisted(() => {
       canImport: true,
       mapCount: 1,
       warnings: [],
+      evidence: {
+        kind: "export",
+        collectionId: null,
+        fromThisCollection: true,
+        createdAtUtc: null,
+        createdByAppVersion: null,
+        canRead: true,
+        payloads: [
+          {
+            payloadType: "mindmaps",
+            payloadVersion: 2,
+            supportedPayloadVersion: 2,
+            canRead: true,
+            inPackage: 1,
+            alreadyHere: fileName.startsWith("Fresh") ? 0 : 1,
+            newHere: 0,
+            missingFromPackage: 0,
+            replaceWouldDiscard: 0,
+          },
+        ],
+      },
     }
   }
 
@@ -103,68 +125,29 @@ function openImportDialog(): void {
   mount(<MindmapTransferOverlay />)
 }
 
-async function flush(): Promise<void> {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0))
-  })
-}
-
-/** Picks a file the way the hidden input reports one, since jsdom has no file chooser. */
-async function chooseFile(name: string): Promise<void> {
-  const input = document.querySelector('input[type="file"]') as HTMLInputElement | null
-  expect(input).not.toBeNull()
-  const file = new File([new Uint8Array(1)], name)
-  Object.defineProperty(input, "files", { value: [file], configurable: true })
-  input?.dispatchEvent(new Event("change", { bubbles: true }))
-  await flush()
-}
-
-function radioOption(label: string): HTMLButtonElement {
-  const match = [...document.querySelectorAll('[role="radio"]')].find(
-    (element) => element.textContent?.trim() === label,
-  )
-  expect(match).toBeDefined()
-  return match as HTMLButtonElement
-}
-
-function consentCheckbox(): HTMLInputElement | null {
-  return document.querySelector('input[type="checkbox"]')
-}
-
-/**
- * Find Confirm relative to Cancel because its icon and shortcut contribute text.
- */
-function confirmButton(): HTMLButtonElement {
-  const dialog = document.querySelector('[role="dialog"]')
-  expect(dialog).not.toBeNull()
-  const buttons = [...(dialog as HTMLElement).querySelectorAll("button")]
-  const cancelIndex = buttons.findIndex((button) => button.textContent?.trim() === "Cancel")
-  expect(cancelIndex).toBeGreaterThanOrEqual(0)
-  return buttons[cancelIndex + 1]
-}
-
-// Click the checkbox so React's checked-value tracker observes the native toggle.
-function setConsent(checked: boolean): void {
-  const checkbox = consentCheckbox()
-  expect(checkbox).not.toBeNull()
-  if (!checkbox || checkbox.checked === checked) return
-  act(() => {
-    checkbox.click()
-  })
-}
-
-describe("the mindmap transfer overlay's replace consent", () => {
-  it("keeps confirm disabled until consent is given, then imports with Replace exactly once", async () => {
+describe("the mindmap transfer overlay's conflict choice", () => {
+  it("asks nothing while nothing collides and keeps both", async () => {
     openImportDialog()
+    await chooseFiles("Fresh.mnemo")
 
-    await chooseFile("Study.mnemo")
-    act(() => radioOption("TransferConflictReplace").click())
+    expect(conflictTrigger()).toBeNull()
+    act(() => confirmButton().click())
+    await flush()
 
-    expect(consentCheckbox()?.checked).toBe(false)
-    expect(confirmButton().disabled).toBe(true)
+    expect(api.runMindmapImport).toHaveBeenCalledWith({
+      uploadIds: ["upload-Fresh.mnemo"],
+      conflictPolicy: "KeepBoth",
+      targetFolderId: null,
+    })
+  })
 
-    setConsent(true)
-    expect(confirmButton().disabled).toBe(false)
+  it("names the count on a red button once Replace is picked, and imports once", async () => {
+    openImportDialog()
+    await chooseFiles("Study.mnemo")
+    expect(document.body.textContent).toContain("TransferAlreadyExists")
+
+    pickPolicy("TransferConflictReplace")
+    expect(confirmButton().textContent).toContain("TransferReplaceCount")
 
     act(() => confirmButton().click())
     await flush()
@@ -177,6 +160,19 @@ describe("the mindmap transfer overlay's replace consent", () => {
     })
   })
 
+  it("takes Replace back when the queue changes", async () => {
+    openImportDialog()
+    await chooseFiles("Study.mnemo")
+    pickPolicy("TransferConflictReplace")
+
+    await chooseFiles("Fresh-b.mnemo")
+
+    expect(confirmButton().textContent).not.toContain("TransferReplaceCount")
+    act(() => confirmButton().click())
+    await flush()
+    expect(api.runMindmapImport.mock.calls[0][0]).toMatchObject({ conflictPolicy: "KeepBoth" })
+  })
+
   it("imports into the folder it was opened on and says where the maps go", async () => {
     act(() =>
       useMindmapTransfer.getState().open({
@@ -187,48 +183,17 @@ describe("the mindmap transfer overlay's replace consent", () => {
     )
     mount(<MindmapTransferOverlay />)
 
-    await chooseFile("Study.mnemo")
+    await chooseFiles("Fresh.mnemo")
     expect(document.body.textContent).toContain("TransferImportDestinationFormat")
 
     act(() => confirmButton().click())
     await flush()
 
     expect(api.runMindmapImport).toHaveBeenCalledWith({
-      uploadIds: ["upload-Study.mnemo"],
+      uploadIds: ["upload-Fresh.mnemo"],
       conflictPolicy: "KeepBoth",
       targetFolderId: "f-bio",
     })
-  })
-
-  it("resets consent when the conflict policy changes", async () => {
-    openImportDialog()
-
-    await chooseFile("Study.mnemo")
-    act(() => radioOption("TransferConflictReplace").click())
-    setConsent(true)
-    expect(confirmButton().disabled).toBe(false)
-
-    act(() => radioOption("TransferConflictKeepBoth").click())
-    act(() => radioOption("TransferConflictReplace").click())
-
-    expect(consentCheckbox()?.checked).toBe(false)
-    expect(confirmButton().disabled).toBe(true)
-    expect(api.runMindmapImport).not.toHaveBeenCalled()
-  })
-
-  it("resets consent when the queue changes", async () => {
-    openImportDialog()
-
-    await chooseFile("Study.mnemo")
-    act(() => radioOption("TransferConflictReplace").click())
-    setConsent(true)
-    expect(confirmButton().disabled).toBe(false)
-
-    await chooseFile("Biology.mnemo")
-
-    expect(consentCheckbox()?.checked).toBe(false)
-    expect(confirmButton().disabled).toBe(true)
-    expect(api.runMindmapImport).not.toHaveBeenCalled()
   })
 })
 
@@ -237,7 +202,7 @@ describe("the mindmap transfer overlay's post-import warnings", () => {
   // mocked format list here is already .mnemo-only, matching that.
   it("folds a warning into the completion toast and flips it to a warning tone", async () => {
     openImportDialog()
-    await chooseFile("Study.mnemo")
+    await chooseFiles("Study.mnemo")
     api.runMindmapImport.mockResolvedValueOnce({
       succeededFiles: 1,
       failedFiles: 0,
@@ -258,7 +223,7 @@ describe("the mindmap transfer overlay's post-import warnings", () => {
 
   it("keeps the success tone when every line is information", async () => {
     openImportDialog()
-    await chooseFile("Study.mnemo")
+    await chooseFiles("Study.mnemo")
     api.runMindmapImport.mockResolvedValueOnce({
       succeededFiles: 1,
       failedFiles: 0,
@@ -279,7 +244,7 @@ describe("the mindmap transfer overlay's post-import warnings", () => {
 
   it("still reports plain success when the result carries no warnings", async () => {
     openImportDialog()
-    await chooseFile("Study.mnemo")
+    await chooseFiles("Study.mnemo")
 
     act(() => confirmButton().click())
     await flush()

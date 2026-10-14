@@ -718,6 +718,7 @@ export interface NoteTransferUploadDto {
   /** Notes the file will yield. A package reads its manifest; a markdown file is always one. */
   noteCount: number | null
   warnings: TransferWarningDto[]
+  evidence?: PackageEvidenceDto | null
 }
 
 /** Mirrors Mnemo.Host/Contracts/NoteTransferDto.cs NoteTransferImportDto. */
@@ -756,6 +757,7 @@ export interface MindmapTransferUploadDto {
   /** Maps the file will yield, read from the package manifest. */
   mapCount: number | null
   warnings: TransferWarningDto[]
+  evidence?: PackageEvidenceDto | null
 }
 
 /** Mirrors Mnemo.Host/Contracts/MindmapTransferDto.cs MindmapTransferImportDto. */

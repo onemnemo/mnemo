@@ -1,16 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
-import { ApiError } from "@/api/client"
 import { describeError } from "@/api/error-copy"
 import { announceExport, exportFileName, exportSaveOptions } from "@/api/export-file"
 import type { ConflictPolicy } from "@/api/types"
+import { AppIcon } from "@/components/icon/AppIcon"
+import {
+  canImport,
+  importExtensions,
+  isImportable,
+  packageCollidingKeys,
+  packageCollisions,
+  packageTooNew,
+  replaceDiscards,
+  replaceLabel,
+  replaceWarning,
+  readyOutside,
+  REPLACE_BUTTON_CLASS,
+} from "@/components/transfer/import-queue"
+import { ImportPanel } from "@/components/transfer/ImportPanel"
+import { ImportStatus, ReplaceNote } from "@/components/transfer/ImportStatus"
+import { announceImport, useImportQueue } from "@/components/transfer/useImportQueue"
 import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
 import { Segmented } from "@/flashcards/transfer/components/Segmented"
 import { useT } from "@/i18n/useT"
 import { isMac } from "@/keybinds/chord"
-import { groupedWarningLines, hasWarningLines } from "@/lib/transfer-warnings"
+import { useFileDrop } from "@/lib/useFileDrop"
 import { toast } from "@/stores/toast"
 
 import { mindmapKey } from "../api"
@@ -22,19 +38,8 @@ import {
   useMindmapTransferFormatsQuery,
 } from "./api"
 import { MindmapExportPanel } from "./components/MindmapExportPanel"
-import { MindmapImportPanel } from "./components/MindmapImportPanel"
 import { useMindmapTransfer, type MindmapTransferTarget } from "./store"
-import {
-  canImport as queueCanImport,
-  exportFormats,
-  isImportable,
-  MAX_FILES,
-  queuedFromUpload,
-  readyMapCount,
-  readyUploadIds,
-  replaceNeedsConfirmation,
-  type QueuedFile,
-} from "./transfer"
+import { exportFormats, queuedFromUpload, readyMapCount, type QueuedFile } from "./transfer"
 
 const SHORTCUT_HINT = isMac ? "⌘⏎" : "Ctrl+⏎"
 
@@ -61,18 +66,9 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
   const formatList = useMemo(() => formats.data ?? [], [formats.data])
 
   const [direction, setDirection] = useState<Direction>(target.direction === "export" ? "export" : "import")
-  const [queue, setQueue] = useState<QueuedFile[]>([])
-  const [rejected, setRejected] = useState<string[]>([])
   const [conflict, setConflict] = useState<ConflictPolicy>("KeepBoth")
-  const [replaceConfirmed, setReplaceConfirmed] = useState(false)
   const [exportFormat, setExportFormat] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-
-  // Consent applies only to the current queue and policy.
-  const changeConflict = (policy: ConflictPolicy) => {
-    setConflict(policy)
-    setReplaceConfirmed(false)
-  }
 
   const scope = target.scope
   const available = useMemo(() => exportFormats(formatList), [formatList])
@@ -97,118 +93,27 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formats.isError])
 
-  // The cleanup below runs once, so it reads the queue through a ref rather than the closure it was
-  // created in, which would still be holding the empty first render.
-  const queueRef = useRef(queue)
-  queueRef.current = queue
-
-  /** One controller per upload, so cancelling a row cannot take the other rows down with it. */
-  const uploads = useRef(new Map<string, AbortController>())
-  const unmounted = useRef(false)
-
+  const imports = useImportQueue({
+    upload: uploadMindmapTransferFile,
+    discard: discardMindmapUpload,
+    toRow: queuedFromUpload,
+    accepts: (name) => isImportable(name, formatList),
+    failureNote: (error, name) => describeError(t, error) ?? common("TransferUnreadableFile", { 0: name }),
+    onEdit: () => setConflict((policy) => (policy === "Replace" ? "KeepBoth" : policy)),
+  })
+  const queue = imports.queue
+  const collisions = packageCollisions(queue, "mindmaps")
+  const colliding = packageCollidingKeys(queue, "mindmaps")
+  const policy = collisions > 0 ? conflict : "KeepBoth"
+  // Once nothing collides, a choice made for an earlier queue no longer applies.
   useEffect(() => {
-    // Cleared on the way in, not just set on the way out: an effect that only ever sets this true
-    // stays true through a remount, and every upload after it would resolve straight into the
-    // "nobody wants these bytes" branch and discard itself.
-    unmounted.current = false
-    const inFlight = uploads.current
-    return () => {
-      unmounted.current = true
-      for (const controller of inFlight.values()) {
-        controller.abort()
-      }
-      for (const file of queueRef.current) {
-        if (file.uploadId) {
-          void discardMindmapUpload(file.uploadId)
-        }
-      }
-    }
-  }, [])
-
-  const addFiles = (files: File[]) => {
-    if (busy || !formatsReady) {
-      return
-    }
-
-    const refused: string[] = []
-    const accepted: File[] = []
-    for (const file of files) {
-      if (isImportable(file.name, formatList)) {
-        accepted.push(file)
-      } else {
-        refused.push(file.name)
-      }
-    }
-
-    setRejected(refused)
-    if (accepted.length > 0) {
-      setReplaceConfirmed(false)
-    }
-
-    for (const file of accepted) {
-      if (queueRef.current.length >= MAX_FILES) {
-        break
-      }
-      const duplicate = queueRef.current.some((queued) => queued.name === file.name && queued.sizeBytes === file.size)
-      if (duplicate) {
-        continue
-      }
-
-      const key = crypto.randomUUID()
-      const placeholder: QueuedFile = { key, name: file.name, sizeBytes: file.size, status: "uploading" }
-      queueRef.current = [...queueRef.current, placeholder]
-      setQueue((current) => [...current, placeholder])
-
-      const controller = new AbortController()
-      uploads.current.set(key, controller)
-
-      void uploadMindmapTransferFile(file, controller.signal)
-        .then((upload) => {
-          uploads.current.delete(key)
-          // The row can be gone by now, removed or the whole dialog closed, while its bytes were
-          // still going up. The server has them and nobody will ask again, so they go straight back
-          // instead of waiting on a sweep that only runs when somebody else uploads.
-          if (unmounted.current || !queueRef.current.some((queued) => queued.key === key)) {
-            void discardMindmapUpload(upload.uploadId)
-            return
-          }
-          const settled = queuedFromUpload(key, upload)
-          queueRef.current = queueRef.current.map((queued) => (queued.key === key ? settled : queued))
-          setQueue((current) => current.map((queued) => (queued.key === key ? settled : queued)))
-        })
-        .catch((error: unknown) => {
-          uploads.current.delete(key)
-          if (controller.signal.aborted) {
-            return
-          }
-          const failed: Partial<QueuedFile> = {
-            status: "rejected",
-            notes: [{ text: describeError(t, error) ?? common("TransferUnreadableFile", { 0: file.name }) }],
-          }
-          queueRef.current = queueRef.current.map((queued) => (queued.key === key ? { ...queued, ...failed } : queued))
-          setQueue((current) => current.map((queued) => (queued.key === key ? { ...queued, ...failed } : queued)))
-        })
-    }
-  }
-
-  const removeFile = (key: string) => {
-    // Withheld mid-import: the id is inside a request the server is working through, and handing it
-    // back now would have the import report the file as missing instead of importing it.
-    if (busy) {
-      return
-    }
-
-    const file = queueRef.current.find((queued) => queued.key === key)
-    uploads.current.get(key)?.abort()
-    uploads.current.delete(key)
-    if (file?.uploadId) {
-      void discardMindmapUpload(file.uploadId)
-    }
-
-    queueRef.current = queueRef.current.filter((queued) => queued.key !== key)
-    setQueue((current) => current.filter((queued) => queued.key !== key))
-    setReplaceConfirmed(false)
-  }
+    if (collisions === 0) setConflict("KeepBoth")
+  }, [collisions])
+  const replacing = policy === "Replace"
+  const locked = busy || !formatsReady
+  const over = useFileDrop(direction === "import", locked, (data) =>
+    imports.add(Array.from(data.files, (file) => ({ file, path: "" }))),
+  )
 
   const count = readyMapCount(queue)
   const itemPhrase = (n: number) => {
@@ -218,68 +123,29 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
       : common("TransferManyItemsFormat", { 0: n, 1: noun })
   }
 
+  const describeRow = (file: QueuedFile) =>
+    [
+      file.formatName,
+      typeof file.mapCount === "number" ? itemPhrase(file.mapCount) : null,
+      colliding.has(file.key) ? common("TransferInYourLibrary") : null,
+    ]
+      .filter(Boolean)
+      .join(" · ")
+
   const doImport = async () => {
-    const uploadIds = readyUploadIds(queue)
-    if (uploadIds.length === 0 || busy) {
+    if (busy) {
       return
     }
-
     setBusy(true)
-    try {
-      const result = await runMindmapImport({
-        uploadIds,
-        conflictPolicy: conflict,
-        targetFolderId: target.destination?.folderId ?? null,
-      })
-      queueRef.current = []
-      setQueue([])
-      // An import can restore maps, folders and style templates at once; everything under the
-      // mindmap key is potentially stale, and picking through it would be guesswork.
-      await client.invalidateQueries({ queryKey: mindmapKey })
-
-      // Only a .mnemo package ever attaches a post-import warning today, but every import result
-      // carries the field, so it is folded in here rather than only on the pre-import file rows.
-      const warningLines = groupedWarningLines(t, result.warnings)
-      const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join("\n")
-
-      if (result.succeededFiles === 0) {
-        toast.warning(common("ImportFailedTitle"), { description: join(result.errors.join("\n"), ...warningLines) })
-      } else if (result.failedFiles > 0) {
-        toast.warning(common("ImportCompleteTitle"), {
-          description: join(
-            common("TransferImportPartialFormat", {
-              0: itemPhrase(result.importedMaps),
-              1: result.errors.join("\n"),
-            }),
-            ...warningLines,
-          ),
-        })
-      } else {
-        const description = join(
-          common("TransferImportFinishedFormat", { 0: itemPhrase(result.importedMaps) }),
-          ...warningLines,
-        )
-        if (hasWarningLines(result.warnings)) {
-          toast.warning(common("ImportCompleteTitle"), { description })
-        } else {
-          toast.success(common("ImportCompleteTitle"), { description })
-        }
-      }
+    const targetFolderId = target.destination?.folderId ?? null
+    const outcome = await imports.importReady((rows) =>
+      runMindmapImport({ uploadIds: rows.map((row) => row.uploadId!), conflictPolicy: policy, targetFolderId }),
+    )
+    // An import can restore maps, folders and templates, so the whole key is stale.
+    await client.invalidateQueries({ queryKey: mindmapKey })
+    setBusy(false)
+    if (announceImport(t, outcome, (result) => itemPhrase(result.importedMaps))) {
       onClose()
-    } catch (error) {
-      toast.warning(common("ImportFailedTitle"), {
-        description: describeError(t, error),
-      })
-      // Only a rejected request leaves the staged files untouched; every 400 here is refused before
-      // the server opens anything. Any other failure may have consumed them part-way, so the queue
-      // is dropped rather than left offering a Confirm that would report each file as missing.
-      if (!(error instanceof ApiError && error.status === 400)) {
-        queueRef.current = []
-        setQueue([])
-        await client.invalidateQueries({ queryKey: mindmapKey })
-      }
-    } finally {
-      setBusy(false)
     }
   }
 
@@ -318,10 +184,9 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
 
   const importing = direction === "import"
   const emptyScope = !scope || scope.mapIds.length === 0
-  const awaitingReplaceConsent = replaceNeedsConfirmation(queue, conflict) && !replaceConfirmed
-  const confirmEnabled = importing
-    ? queueCanImport(queue) && !busy && !awaitingReplaceConsent
-    : !emptyScope && exportFormat !== null && !busy
+  const replaceNote =
+    replacing && !imports.progress ? replaceWarning(t, replaceDiscards(queue, "mindmaps") > 0, false) : null
+  const confirmEnabled = importing ? canImport(queue) && !busy : !emptyScope && exportFormat !== null && !busy
 
   const confirm = () => void (importing ? doImport() : doExport())
 
@@ -346,9 +211,11 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
 
   const confirmLabel = !importing
     ? common("TransferExportButtonFormat", { 0: selectedExtension })
-    : count === null
-      ? mm("Import")
-      : common("TransferImportButtonFormat", { 0: itemPhrase(count) })
+    : replacing
+      ? replaceLabel(t, collisions, readyOutside(queue, colliding))
+      : count === null
+        ? mm("Import")
+        : common("TransferImportButtonFormat", { 0: itemPhrase(count) })
 
   const fileSummary =
     queue.length === 1 ? common("TransferOneFile") : common("TransferManyFilesFormat", { 0: queue.length })
@@ -388,45 +255,54 @@ function MindmapTransfer({ target, onClose }: { target: MindmapTransferTarget; o
           />
         ) : undefined
       }
-      // The whole dialog takes drops, not just the dropzone: the dropzone is replaced by the file
-      // list after the first file, and dragging a second one onto that list should still work.
-      surface={{
-        onDragOver: (event) => event.preventDefault(),
-        onDrop: (event) => {
-          event.preventDefault()
-          if (importing && !busy && formatsReady) {
-            addFiles(Array.from(event.dataTransfer.files))
-          }
-        },
-      }}
       footer={
-        <>
-          <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-3">{summary}</span>
+        // A wrapping row, so the replace note gets its own line.
+        <div className="flex w-full flex-wrap items-center gap-3">
+          {importing && replaceNote ? <ReplaceNote text={replaceNote} /> : null}
+          {importing ? (
+            <ImportStatus
+              summary={summary}
+              progress={imports.progress}
+              collisions={collisions}
+              policy={policy}
+              onPolicy={setConflict}
+              disabled={busy}
+            />
+          ) : (
+            <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-3">{summary}</span>
+          )}
           <Button variant="outline" size="sm" disabled={busy} onClick={onClose}>
             {t("Common", "Cancel")}
           </Button>
-          <Button size="sm" className="gap-2" disabled={!confirmEnabled} onClick={confirm}>
+          <Button
+            size="sm"
+            className={importing && replacing ? `gap-2 ${REPLACE_BUTTON_CLASS}` : "gap-2"}
+            disabled={!confirmEnabled}
+            onClick={confirm}
+          >
+            {busy ? <AppIcon name="loader-circle" size={13} className="animate-spin" /> : null}
             {confirmLabel}
             <span className="font-mono text-[10.5px] opacity-60">{SHORTCUT_HINT}</span>
           </Button>
-        </>
+        </div>
       }
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-4">
         {importing ? (
-          <MindmapImportPanel
+          <ImportPanel
             queue={queue}
-            formats={formatList}
-            rejected={rejected}
-            destination={target.destination?.label}
-            conflict={conflict}
-            busy={busy}
-            ready={formatsReady}
-            replaceConfirmed={replaceConfirmed}
-            onAddFiles={addFiles}
-            onRemove={removeFile}
-            onConflictChange={changeConflict}
-            onReplaceConfirmedChange={setReplaceConfirmed}
+            extensions={importExtensions(formatList)}
+            describe={describeRow}
+            warning={(file) => (packageTooNew(file, "mindmaps") ? common("TransferEvidenceTooNew") : null)}
+            refused={imports.refused}
+            overflow={imports.overflow}
+            destination={
+              target.destination ? mm("TransferImportDestinationFormat", { 0: target.destination.label }) : undefined
+            }
+            locked={locked}
+            dropping={over}
+            onAdd={imports.add}
+            onRemove={(key) => !busy && imports.remove(key)}
           />
         ) : emptyScope ? (
           <p className="py-6 text-center text-[12px] text-ink-3">{mm("ExportNoMapsMessage")}</p>

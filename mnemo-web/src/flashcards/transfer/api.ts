@@ -26,11 +26,11 @@ export function useTransferFormatsQuery(enabled: boolean) {
 }
 
 /** Stages a file server-side and reports what reading it turned up. */
-export function uploadTransferFile(file: File, signal?: AbortSignal): Promise<TransferUploadDto> {
+export function uploadTransferFile(file: File): Promise<TransferUploadDto> {
   const form = new FormData()
   form.append("file", file)
   // No Content-Type header: the browser has to set the multipart boundary itself.
-  return apiFetch<TransferUploadDto>("/flashcards/transfer/uploads", { method: "POST", body: form, signal })
+  return apiFetch<TransferUploadDto>("/flashcards/transfer/uploads", { method: "POST", body: form })
 }
 
 /**

@@ -8,7 +8,8 @@ import { act, StrictMode, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { NoteTransferImportResultDto, NoteTransferUploadDto } from "@/api/types"
+import type { NoteSummaryDto, NoteTransferImportResultDto, NoteTransferUploadDto } from "@/api/types"
+import { chooseFiles, confirmButton, conflictTrigger, flush, pickPolicy } from "@/components/transfer/dialog-test-kit"
 
 import { toast } from "@/stores/toast"
 
@@ -42,6 +43,13 @@ const api = vi.hoisted(() => {
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}))
+
+const library = vi.hoisted(() => ({ notes: [] as { title: string; folderId: null; parentNoteId: null }[] }))
+
+vi.mock("@/notes/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/notes/api")>()),
+  useNotesQuery: () => ({ data: library.notes as NoteSummaryDto[] }),
 }))
 
 vi.mock("./api", () => ({
@@ -84,6 +92,7 @@ let root: Root
 
 beforeEach(() => {
   vi.clearAllMocks()
+  library.notes = [{ title: "Cells", folderId: null, parentNoteId: null }]
   api.runNoteImport.mockResolvedValue({
     succeededFiles: 1,
     failedFiles: 0,
@@ -111,109 +120,68 @@ function openImportDialog(): void {
   mount(<NoteTransferOverlay />)
 }
 
-async function flush(): Promise<void> {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0))
-  })
-}
-
-/** Picks a file the way the hidden input reports one, since jsdom has no file chooser. */
-async function chooseFile(name: string): Promise<void> {
-  const input = document.querySelector('input[type="file"]') as HTMLInputElement | null
-  expect(input).not.toBeNull()
-  const file = new File([new Uint8Array(1)], name)
-  Object.defineProperty(input, "files", { value: [file], configurable: true })
-  input?.dispatchEvent(new Event("change", { bubbles: true }))
-  await flush()
-}
-
-function radioOption(label: string): HTMLButtonElement {
-  const match = [...document.querySelectorAll('[role="radio"]')].find(
-    (element) => element.textContent?.trim() === label,
-  )
-  expect(match).toBeDefined()
-  return match as HTMLButtonElement
-}
-
-function consentCheckbox(): HTMLInputElement | null {
-  return document.querySelector('input[type="checkbox"]')
-}
-
-/**
- * Find Confirm relative to Cancel because its icon and shortcut contribute text.
- */
-function confirmButton(): HTMLButtonElement {
-  const dialog = document.querySelector('[role="dialog"]')
-  expect(dialog).not.toBeNull()
-  const buttons = [...(dialog as HTMLElement).querySelectorAll("button")]
-  const cancelIndex = buttons.findIndex((button) => button.textContent?.trim() === "Cancel")
-  expect(cancelIndex).toBeGreaterThanOrEqual(0)
-  return buttons[cancelIndex + 1]
-}
-
-// Click the checkbox so React's checked-value tracker observes the native toggle.
-function setConsent(checked: boolean): void {
-  const checkbox = consentCheckbox()
-  expect(checkbox).not.toBeNull()
-  if (!checkbox || checkbox.checked === checked) return
-  act(() => {
-    checkbox.click()
-  })
-}
-
-describe("the note transfer overlay's replace consent", () => {
-  it("keeps confirm disabled until consent is given, then imports with Replace exactly once", async () => {
+describe("the note transfer overlay's conflict choice", () => {
+  it("asks nothing while nothing collides and keeps both", async () => {
     openImportDialog()
+    await chooseFiles("Tissue.md")
 
-    await chooseFile("Biology.md")
-    act(() => radioOption("TransferConflictReplace").click())
+    expect(conflictTrigger()).toBeNull()
+    act(() => confirmButton().click())
+    await flush()
 
-    expect(consentCheckbox()?.checked).toBe(false)
-    expect(confirmButton().disabled).toBe(true)
+    expect(api.runNoteImport).toHaveBeenCalledWith({
+      uploadIds: ["upload-Tissue.md"],
+      conflictPolicy: "KeepBoth",
+      targetFolderId: null,
+    })
+  })
 
-    setConsent(true)
-    expect(confirmButton().disabled).toBe(false)
+  it("names the count on a red button once Replace is picked, and imports once", async () => {
+    openImportDialog()
+    await chooseFiles("cells.md")
+    expect(document.body.textContent).toContain("TransferAlreadyExists")
+
+    pickPolicy("TransferConflictReplace")
+    expect(confirmButton().textContent).toContain("TransferReplaceCount")
 
     act(() => confirmButton().click())
     await flush()
 
     expect(api.runNoteImport).toHaveBeenCalledTimes(1)
     expect(api.runNoteImport).toHaveBeenCalledWith({
-      uploadIds: ["upload-Biology.md"],
+      uploadIds: ["upload-cells.md"],
       conflictPolicy: "Replace",
       targetFolderId: null,
     })
   })
 
-  it("resets consent when the conflict policy changes", async () => {
+  it("takes Replace back when the queue changes", async () => {
     openImportDialog()
+    await chooseFiles("cells.md")
+    pickPolicy("TransferConflictReplace")
 
-    await chooseFile("Biology.md")
-    act(() => radioOption("TransferConflictReplace").click())
-    setConsent(true)
-    expect(confirmButton().disabled).toBe(false)
+    await chooseFiles("Organs.md")
 
-    act(() => radioOption("TransferConflictKeepBoth").click())
-    act(() => radioOption("TransferConflictReplace").click())
-
-    expect(consentCheckbox()?.checked).toBe(false)
-    expect(confirmButton().disabled).toBe(true)
-    expect(api.runNoteImport).not.toHaveBeenCalled()
+    expect(confirmButton().textContent).not.toContain("TransferReplaceCount")
+    act(() => confirmButton().click())
+    await flush()
+    expect(api.runNoteImport.mock.calls[0][0]).toMatchObject({ conflictPolicy: "KeepBoth" })
   })
+})
 
-  it("resets consent when the queue changes", async () => {
+describe("the note transfer overlay's replace reset", () => {
+  it("goes back to Keep both once nothing collides any more", async () => {
     openImportDialog()
+    await chooseFiles("cells.md")
+    pickPolicy("TransferConflictReplace")
+    expect(confirmButton().textContent).toContain("TransferReplaceCount")
 
-    await chooseFile("Biology.md")
-    act(() => radioOption("TransferConflictReplace").click())
-    setConsent(true)
-    expect(confirmButton().disabled).toBe(false)
+    library.notes = []
+    mount(<NoteTransferOverlay />)
+    library.notes = [{ title: "Cells", folderId: null, parentNoteId: null }]
+    mount(<NoteTransferOverlay />)
 
-    await chooseFile("Chemistry.md")
-
-    expect(consentCheckbox()?.checked).toBe(false)
-    expect(confirmButton().disabled).toBe(true)
-    expect(api.runNoteImport).not.toHaveBeenCalled()
+    expect(confirmButton().textContent).not.toContain("TransferReplaceCount")
   })
 })
 
@@ -228,7 +196,7 @@ describe("the note transfer overlay's import destination", () => {
     )
     mount(<NoteTransferOverlay />)
 
-    await chooseFile("Cells.md")
+    await chooseFiles("Cells.md")
     act(() => confirmButton().click())
     await flush()
 
@@ -242,7 +210,7 @@ describe("the note transfer overlay's import destination", () => {
   it("names no folder when opened from the sidebar header, so the import lands at the root", async () => {
     openImportDialog()
 
-    await chooseFile("Cells.md")
+    await chooseFiles("Cells.md")
     act(() => confirmButton().click())
     await flush()
 
@@ -278,7 +246,7 @@ describe("the note transfer overlay's post-import warnings", () => {
   // reports one, regardless of which file the queue happens to hold.
   it("folds a warning into the completion toast and flips it to a warning tone", async () => {
     openImportDialog()
-    await chooseFile("Notebook.md")
+    await chooseFiles("Notebook.md")
     api.runNoteImport.mockResolvedValueOnce({
       succeededFiles: 1,
       failedFiles: 0,
@@ -299,7 +267,7 @@ describe("the note transfer overlay's post-import warnings", () => {
 
   it("keeps the success tone when every line is information", async () => {
     openImportDialog()
-    await chooseFile("Notebook.md")
+    await chooseFiles("Notebook.md")
     api.runNoteImport.mockResolvedValueOnce({
       succeededFiles: 1,
       failedFiles: 0,
@@ -320,7 +288,7 @@ describe("the note transfer overlay's post-import warnings", () => {
 
   it("still reports plain success when the result carries no warnings", async () => {
     openImportDialog()
-    await chooseFile("Notebook.md")
+    await chooseFiles("Notebook.md")
 
     act(() => confirmButton().click())
     await flush()

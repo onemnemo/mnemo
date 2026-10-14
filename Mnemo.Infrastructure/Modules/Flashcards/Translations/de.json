@@ -303,8 +303,6 @@
     "TransferImportDestinationFormat": "Stapel landen in {0}.",
     "TransferExportTitle": "Karteikarten exportieren",
     "TransferExportDeckTitle": "Stapel exportieren",
-    "TransferConflictQuestion": "Wenn ein Stapel bereits existiert",
-    "TransferConflictNotApplicable": "Diese Dateien enthalten keine Karten-IDs, daher wird alles darin als neu importiert.",
     "TransferNounSingular": "Karte",
     "TransferNounPlural": "Karten",
     "TransferFromFormat": "Aus {0}",

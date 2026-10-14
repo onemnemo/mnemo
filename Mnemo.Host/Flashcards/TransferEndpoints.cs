@@ -23,12 +23,8 @@ public static class TransferEndpoints
     private const string FlashcardsContentType = "flashcards";
     private const string LogCategory = "Flashcards.Transfer";
 
-    /// <summary>
-    /// Files in one import batch, matching the desktop dialog's queue limit. Enforced here too
-    /// because the limit exists to keep a single synchronous import bounded, and the client is not
-    /// the thing that should be trusted to hold that line.
-    /// </summary>
-    private const int MaxBatchFiles = 5;
+    // Keeps one synchronous import bounded.
+    private const int MaxBatchFiles = 50;
 
     /// <summary>
     /// The Mnemo package format - the one whose reported item count is decks where every other

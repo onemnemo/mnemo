@@ -26,11 +26,11 @@ export function useMindmapTransferFormatsQuery(enabled: boolean) {
 }
 
 /** Stages a file server-side and reports what reading it turned up. */
-export function uploadMindmapTransferFile(file: File, signal?: AbortSignal): Promise<MindmapTransferUploadDto> {
+export function uploadMindmapTransferFile(file: File): Promise<MindmapTransferUploadDto> {
   const form = new FormData()
   form.append("file", file)
   // No Content-Type header: the browser has to set the multipart boundary itself.
-  return apiFetch<MindmapTransferUploadDto>("/mindmaps/transfer/uploads", { method: "POST", body: form, signal })
+  return apiFetch<MindmapTransferUploadDto>("/mindmaps/transfer/uploads", { method: "POST", body: form })
 }
 
 /**

@@ -8,9 +8,12 @@ using Mnemo.Infrastructure.Services.Notes.Persistence;
 
 namespace Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 
-public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
+public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPayloadInspector
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    /// <summary>The layout this build writes and the newest one it reads.</summary>
+    private const int PayloadSchemaVersion = 1;
 
     private readonly INoteService _noteService;
     private readonly INoteFolderService _folderService;
@@ -49,7 +52,7 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
         return new MnemoPayloadExportData
         {
             ItemCount = notes.Count,
-            SchemaVersion = 1,
+            SchemaVersion = PayloadSchemaVersion,
             Files = files
         };
     }
@@ -192,6 +195,34 @@ public sealed class NotesMnemoPayloadHandler : IMnemoPayloadHandler
 
         RestoreImageAssets(context.Files);
         return result;
+    }
+
+    /// <summary>Counts package notes the library already has. Reads summaries only.</summary>
+    public async Task<MnemoPayloadEvidence> InspectAsync(MnemoPayloadImportContext context, CancellationToken cancellationToken = default)
+    {
+        var evidence = new MnemoPayloadEvidence
+        {
+            PayloadType = PayloadType,
+            PayloadVersion = context.Entry.SchemaVersion,
+            SupportedPayloadVersion = PayloadSchemaVersion,
+            CanRead = context.Entry.SchemaVersion <= PayloadSchemaVersion,
+        };
+        if (!evidence.CanRead || !context.Files.TryGetValue("notes.db", out var bytes))
+            return evidence;
+
+        var packaged = ReadNotesSqlite(bytes).Notes.Select(n => n.NoteId).ToHashSet(StringComparer.Ordinal);
+        evidence.InPackage = packaged.Count;
+        foreach (var note in await _noteService.GetAllNoteSummariesAsync().ConfigureAwait(false))
+        {
+            if (packaged.Contains(note.NoteId))
+                evidence.AlreadyHere++;
+            else
+                evidence.MissingFromPackage++;
+        }
+
+        evidence.NewHere = evidence.InPackage - evidence.AlreadyHere;
+        evidence.ReplaceWouldDiscard = evidence.AlreadyHere;
+        return evidence;
     }
 
     private async Task<IReadOnlyDictionary<string, string>> HeldIdsAsync(

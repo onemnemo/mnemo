@@ -24,7 +24,7 @@ namespace Mnemo.Infrastructure.Services.Packaging.PayloadHandlers;
 /// exist, and a template whose id already exists locally is left untouched so imported data can never
 /// overwrite the user's own templates.
 /// </remarks>
-public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
+public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler, IMnemoPayloadInspector
 {
     private const string DatabaseFileName = "mindmaps.db";
     private const string AssetPrefix = "assets/images/";
@@ -259,6 +259,35 @@ public sealed class MindmapsMnemoPayloadHandler : IMnemoPayloadHandler
         }
 
         return result;
+    }
+
+    /// <summary>Counts package maps the library already has. Writes nothing.</summary>
+    public async Task<MnemoPayloadEvidence> InspectAsync(MnemoPayloadImportContext context, CancellationToken cancellationToken = default)
+    {
+        var evidence = new MnemoPayloadEvidence
+        {
+            PayloadType = PayloadType,
+            PayloadVersion = context.Entry.SchemaVersion,
+            SupportedPayloadVersion = PayloadSchemaVersion,
+            CanRead = context.Entry.SchemaVersion <= PayloadSchemaVersion,
+        };
+        if (!evidence.CanRead || !context.Files.TryGetValue(DatabaseFileName, out var bytes))
+            return evidence;
+
+        var packaged = ReadSqlite(bytes).Maps.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
+        evidence.InPackage = packaged.Count;
+        var listed = await _mindmaps.ListAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var map in listed.IsSuccess && listed.Value is not null ? listed.Value : [])
+        {
+            if (packaged.Contains(map.Id))
+                evidence.AlreadyHere++;
+            else
+                evidence.MissingFromPackage++;
+        }
+
+        evidence.NewHere = evidence.InPackage - evidence.AlreadyHere;
+        evidence.ReplaceWouldDiscard = evidence.AlreadyHere;
+        return evidence;
     }
 
     // ---- Export helpers -------------------------------------------------------------------------

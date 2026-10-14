@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch"
 import { useT } from "@/i18n/useT"
 import { isMac } from "@/keybinds/chord"
 import { cn } from "@/lib/utils"
-import { formatFileSize } from "@/notes/transfer/transfer"
+import { formatFileSize } from "@/components/transfer/import-queue"
 import { SelectControl } from "@/settings/components/controls/SelectControl"
 import { toast } from "@/stores/toast"
 
