@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Host.Assets;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Common;
 using Mnemo.Infrastructure.Services;
 
@@ -57,7 +58,7 @@ public static class NoteAssetEndpoints
         // Desktop-era image blocks store an absolute path into the shared images directory.
         // Those files stay where they are and are served read-only; the containment check is
         // what keeps this from being an arbitrary-file endpoint.
-        endpoints.MapGet("/api/notes/assets/legacy", (string? path) =>
+        endpoints.MapGet("/api/notes/assets/legacy", (string? path, HttpResponse response) =>
         {
             if (string.IsNullOrWhiteSpace(path) || !MnemoAppPaths.IsPathUnderImagesDirectory(path))
                 return Results.NotFound();
@@ -66,26 +67,25 @@ public static class NoteAssetEndpoints
             if (!ManagedAssetStore.ImageExtensions.Contains(extension) || !File.Exists(path))
                 return Results.NotFound();
 
-            return Results.File(Path.GetFullPath(path), ManagedAssetStore.ContentTypeForExtension(extension));
-        }).RequireNotesMigrated();
+            return ImageFileResults.Revalidated(response, path);
+        }).RequireNotesMigrated().AllowImageCookie();
 
-        endpoints.MapGet("/api/notes/assets/{assetId}", (string assetId, NoteAssets assets, SharedImageStore images) =>
+        // Only a content name is cached for good. Other shapes can change.
+        endpoints.MapGet("/api/notes/assets/{assetId}", (string assetId, HttpResponse response, NoteAssets assets, SharedImageStore images) =>
         {
             if (images.Locate(assetId) is { } shared)
-                return Results.File(shared, ManagedAssetStore.ContentTypeForExtension(Path.GetExtension(shared)));
+                return SharedImageStore.IsContentName(assetId)
+                    ? ImageFileResults.Immutable(response, shared)
+                    : ImageFileResults.Revalidated(response, shared);
 
             var exact = assets.Store.ResolvePath(assetId);
             if (exact is not null)
-                return File.Exists(exact)
-                    ? Results.File(exact, ManagedAssetStore.ContentTypeForExtension(Path.GetExtension(exact)))
-                    : Results.NotFound();
+                return File.Exists(exact) ? ImageFileResults.Revalidated(response, exact) : Results.NotFound();
 
             var byGuid = assets.Store.FindByBareId(assetId)
                 ?? ManagedAssetStore.FindByBareId(MnemoAppPaths.GetImagesDirectory(), assetId, assets.Store);
-            return byGuid is not null
-                ? Results.File(byGuid, ManagedAssetStore.ContentTypeForExtension(Path.GetExtension(byGuid)))
-                : Results.NotFound();
-        }).RequireNotesMigrated();
+            return byGuid is not null ? ImageFileResults.Revalidated(response, byGuid) : Results.NotFound();
+        }).RequireNotesMigrated().AllowImageCookie();
 
         endpoints.MapPost("/api/notes/asset-sessions", (NoteAssets assets) =>
             Results.Ok(new NoteAssetSessionDto(assets.Sessions.Open()))).RequireNotesMigrated();

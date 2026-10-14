@@ -99,7 +99,7 @@ public static class SpaHosting
         "form-action 'none'",
         "frame-ancestors 'none'");
 
-    public static void MapSpa(WebApplication app, string spaRoot, SpaDocument document)
+    public static void MapSpa(WebApplication app, string spaRoot, SpaDocument document, ImageCookie imageCookie)
     {
         // Intercept the page itself (including direct /index.html requests) so the
         // untemplated file on disk is never served.
@@ -108,7 +108,7 @@ public static class SpaHosting
             if (HttpMethods.IsGet(ctx.Request.Method)
                 && (ctx.Request.Path == "/" || ctx.Request.Path == "/index.html"))
             {
-                await WriteIndexAsync(ctx, document).ConfigureAwait(false);
+                await WriteIndexAsync(ctx, document, imageCookie).ConfigureAwait(false);
                 return;
             }
 
@@ -129,11 +129,11 @@ public static class SpaHosting
                 return;
             }
 
-            await WriteIndexAsync(ctx, document).ConfigureAwait(false);
+            await WriteIndexAsync(ctx, document, imageCookie).ConfigureAwait(false);
         });
     }
 
-    private static Task WriteIndexAsync(HttpContext ctx, SpaDocument document)
+    private static Task WriteIndexAsync(HttpContext ctx, SpaDocument document, ImageCookie imageCookie)
     {
         ctx.Response.ContentType = "text/html; charset=utf-8";
         // The token changes every launch; a cached page would carry a dead one.
@@ -141,6 +141,7 @@ public static class SpaHosting
         // On the document and not the assets beside it: a policy is what a page is read
         // under, and it does nothing on the script and stylesheet responses themselves.
         ctx.Response.Headers.ContentSecurityPolicy = document.ContentSecurityPolicy;
+        imageCookie.AppendTo(ctx.Response);
         return ctx.Response.WriteAsync(document.Html);
     }
 }

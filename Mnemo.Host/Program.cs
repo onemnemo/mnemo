@@ -326,6 +326,7 @@ public static class Program
         CrashLog.UseLogger(logger);
 
         var bearerToken = LocalApiSecurity.MintBearerToken();
+        var imageCookie = ImageCookie.Mint(apiPort);
 
         app.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
         {
@@ -339,7 +340,7 @@ public static class Program
             await ctx.Response.WriteAsJsonAsync(new ErrorDto("internal_error", "Unhandled server error.")).ConfigureAwait(false);
         }));
         app.UseLoopbackHostGuard();
-        app.UseApiBearerToken(bearerToken, "/api/health");
+        app.UseApiBearerToken(bearerToken, imageCookie, "/api/health");
         app.Use((context, next) => context.RequestServices.GetRequiredService<Assets.StartupAssetSweep>().GateAsync(context, next));
 
         app.MapGet("/api/health", () => new HealthDto("ok"));
@@ -403,7 +404,7 @@ public static class Program
         {
             var spaRoot = ResolveSpaRoot(options);
             var templatedIndex = SpaHosting.LoadTemplatedIndex(spaRoot, bearerToken);
-            SpaHosting.MapSpa(app, spaRoot, templatedIndex);
+            SpaHosting.MapSpa(app, spaRoot, templatedIndex, imageCookie);
             logger.Info(CrashLog.Category, $"Serving SPA from {spaRoot}");
         }
 
