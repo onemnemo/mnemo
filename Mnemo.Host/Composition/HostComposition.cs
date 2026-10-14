@@ -218,6 +218,7 @@ public static class HostComposition
         services.AddSingleton<Notes.NoteAssets>();
         services.AddSingleton<Mindmap.MindmapAssets>();
         services.AddSingleton<Assets.StartupAssetSweep>();
+        services.AddSingleton<Assets.DuplicateImageFold>();
 
         // Relational flashcard store: owned store, repositories, and blob-to-relational migrator.
         services.AddSingleton<IFlashcardStore, FlashcardStore>();

@@ -22,6 +22,7 @@ public sealed class ImageAssetCompositionTests
 
         Assert.Same(files, provider.GetRequiredService<IImageAssetService>());
         Assert.NotNull(provider.GetRequiredService<StartupAssetSweep>());
+        Assert.NotNull(provider.GetRequiredService<DuplicateImageFold>());
     }
 
     [Theory]

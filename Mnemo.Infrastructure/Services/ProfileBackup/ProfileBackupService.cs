@@ -340,6 +340,8 @@ public sealed class ProfileBackupService : IProfileBackupService
                     _logger.Warning(LogCategory, $"Skipped unexpected directory in managed assets: {path}");
                     continue;
                 }
+                if (Path.GetFileName(path) == MnemoAppPaths.ImagesFoldedMarkerName)
+                    continue;
 
                 await CopyFileAsync(path, Path.Combine(destinationDirectory, Path.GetFileName(path)), cancellationToken)
                     .ConfigureAwait(false);

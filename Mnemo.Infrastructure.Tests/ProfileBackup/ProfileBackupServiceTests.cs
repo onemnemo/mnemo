@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Mnemo.Core.Services;
+using Mnemo.Infrastructure.Common;
 using Mnemo.Infrastructure.Services.ProfileBackup;
 
 namespace Mnemo.Infrastructure.Tests.ProfileBackup;
@@ -71,6 +72,22 @@ public sealed class ProfileBackupServiceTests
         Assert.Equal("2030-02-01T00:00:00Z", await ScalarAsync(database, "SELECT ExpiresAt FROM TrashEntries WHERE Id = 'trash-1'"));
         Assert.Equal("map-folder-1", await ScalarAsync(database, "SELECT FolderId FROM Mindmaps WHERE Id = 'map-1'"));
         Assert.Equal("note image", await File.ReadAllTextAsync(Path.Combine(extracted, "assets", "note-assets", "note.png")));
+    }
+
+    [Fact]
+    public async Task CreateAsync_LeavesTheFoldMarkerOutSoARestoreFoldsAgain()
+    {
+        using var profile = await TestProfile.CreateAsync();
+        await profile.WriteAssetAsync("images", "card.png", "card image");
+        await profile.WriteAssetAsync("images", MnemoAppPaths.ImagesFoldedMarkerName, string.Empty);
+        var archive = Path.Combine(profile.Parent, "profile.mnemo-backup");
+
+        var manifest = await profile.Service().CreateAsync(archive, "0.8.0-beta");
+
+        Assert.Equal(1, manifest.Contents.ManagedFiles);
+        using var zip = ZipFile.OpenRead(archive);
+        Assert.Contains(zip.Entries, entry => entry.FullName == "assets/images/card.png");
+        Assert.DoesNotContain(zip.Entries, entry => entry.FullName.EndsWith(MnemoAppPaths.ImagesFoldedMarkerName, StringComparison.Ordinal));
     }
 
     [Fact]

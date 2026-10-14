@@ -14,6 +14,8 @@ public static class MnemoAppPaths
     public static IReadOnlyList<string> ManagedProfileDirectoryNames { get; } =
         ["avatar", "images", "image-assets", "note-assets", "mindmap-assets", "chat-attachments"];
 
+    public const string ImagesFoldedMarkerName = ".duplicates-folded";
+
     /// <summary>
     /// Environment variable that overrides the data root wholesale, so a second app
     /// instance (e.g. a dev host) can run against its own profile instead of the

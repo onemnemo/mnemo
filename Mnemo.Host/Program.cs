@@ -440,6 +440,7 @@ public static class Program
         // moment an editing session opens.
         app.Services.GetRequiredService<Notes.NoteAssets>().Sweeper.SweepInBackground();
         app.Services.GetRequiredService<Assets.StartupAssetSweep>().RunInBackground();
+        app.Services.GetRequiredService<Assets.DuplicateImageFold>().RunInBackground();
         // Reconciles the trash against what the modules actually hold, then keeps expiry and the
         // file cleanup queue moving. Backgrounded because the routes gate themselves on it, so
         // nothing needs the window to wait.
