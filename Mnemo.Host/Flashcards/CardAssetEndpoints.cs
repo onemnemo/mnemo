@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Mnemo.Host.Assets;
 using Mnemo.Host.Contracts;
+using Mnemo.Host.Web;
 using Mnemo.Infrastructure.Services;
 
 namespace Mnemo.Host.Flashcards;
@@ -12,9 +13,8 @@ namespace Mnemo.Host.Flashcards;
 /// Upload and serve for card attachment images. <c>POST /api/flashcards/assets</c> stores an
 /// uploaded image in the shared image directory and returns the ids the card editor needs;
 /// <c>GET /api/flashcards/assets/{assetId}</c> streams the bytes back. Both sit under
-/// <c>/api</c>, so the per-launch bearer token guards them - the client fetches the bytes with
-/// the auth header and renders them from a blob URL, since a bare &lt;img src&gt; could not
-/// carry the token.
+/// <c>/api</c>, so the per-launch bearer token guards them, and the page's image cookie
+/// stands in for it on the GET so a plain &lt;img src&gt; can load the bytes.
 /// </summary>
 /// <remarks>
 /// Uploading is deliberately separate from saving the card, the way the desktop copies a picked
@@ -95,13 +95,16 @@ public static class CardAssetEndpoints
             return Results.Ok(new CardAssetDto(assetId, displayName, file.Length));
         });
 
-        endpoints.MapGet("/api/flashcards/assets/{assetId}", (string assetId) =>
+        // Only a content name in the shared store is cached for good. Other shapes can change.
+        endpoints.MapGet("/api/flashcards/assets/{assetId}", (string assetId, HttpResponse response, SharedImageStore images) =>
         {
-            var path = FlashcardAssetStore.ResolvePath(assetId);
-            if (path is null || !File.Exists(path))
-                return Results.NotFound();
+            if (images.Locate(assetId) is { } shared)
+                return SharedImageStore.IsContentName(assetId)
+                    ? ImageFileResults.Immutable(response, shared)
+                    : ImageFileResults.Revalidated(response, shared);
 
-            return Results.File(path, FlashcardAssetStore.ContentTypeForExtension(Path.GetExtension(assetId)));
-        });
+            var path = FlashcardAssetStore.ResolvePath(assetId);
+            return path is not null && File.Exists(path) ? ImageFileResults.Revalidated(response, path) : Results.NotFound();
+        }).AllowImageCookie();
     }
 }
