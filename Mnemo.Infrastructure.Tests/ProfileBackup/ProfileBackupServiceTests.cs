@@ -91,6 +91,104 @@ public sealed class ProfileBackupServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_StoresDuplicateFilesOnceAndListsTheOthersAsReferences()
+    {
+        using var profile = await TestProfile.CreateAsync();
+        await profile.WriteAssetAsync("images", "a.png", "the same picture");
+        await profile.WriteAssetAsync("images", "b.png", "the same picture");
+        await profile.WriteAssetAsync("note-assets", "c.png", "the same picture");
+        await profile.WriteAssetAsync("images", "other.png", "another picture");
+        var archive = Path.Combine(profile.Parent, "profile.mnemo-backup");
+
+        var manifest = await profile.Service().CreateAsync(archive, "0.8.0-beta");
+
+        Assert.Equal(ProfileBackupArchive.FormatVersion, manifest.FormatVersion);
+        Assert.Equal(4, manifest.Contents.ManagedFiles);
+        using (var zip = ZipFile.OpenRead(archive))
+        {
+            Assert.Contains(zip.Entries, entry => entry.FullName == "assets/images/a.png");
+            Assert.DoesNotContain(zip.Entries, entry => entry.FullName == "assets/images/b.png");
+            Assert.DoesNotContain(zip.Entries, entry => entry.FullName == "assets/note-assets/c.png");
+            Assert.Contains(zip.Entries, entry => entry.FullName == "assets/images/other.png");
+        }
+        Assert.Equal(["assets/images/a.png", "assets/images/a.png"],
+            manifest.Entries.Where(entry => entry.SameAs is not null).Select(entry => entry.SameAs!));
+        Assert.Equal(4, (await profile.Service().InspectAsync(archive, "0.8.0-beta")).Manifest.Contents.ManagedFiles);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithoutDuplicatesKeepsTheFirstFormat()
+    {
+        using var profile = await TestProfile.CreateAsync();
+        await profile.WriteAssetAsync("images", "a.png", "one picture");
+        await profile.WriteAssetAsync("images", "b.png", "two picture");
+        var archive = Path.Combine(profile.Parent, "profile.mnemo-backup");
+
+        var manifest = await profile.Service().CreateAsync(archive, "0.8.0-beta");
+
+        Assert.Equal(ProfileBackupArchive.LegacyFormatVersion, manifest.FormatVersion);
+        Assert.DoesNotContain(manifest.Entries, entry => entry.SameAs is not null);
+    }
+
+    [Fact]
+    public async Task ApplyPendingAsync_WritesEveryNameOfADeduplicatedFile()
+    {
+        using var source = await TestProfile.CreateAsync("source");
+        await source.WriteAssetAsync("images", "a.png", "the same picture");
+        await source.WriteAssetAsync("images", "b.png", "the same picture");
+        await source.WriteAssetAsync("note-assets", "c.png", "the same picture");
+        var archive = Path.Combine(source.Parent, "source.mnemo-backup");
+        await source.Service().CreateAsync(archive, "0.8.0-beta");
+
+        using var target = await TestProfile.CreateAsync("target");
+        await target.Service().StageRestoreAsync(archive, "0.8.0-beta");
+        await ProfileRestoreStartup.ApplyPendingAsync(target.Root, "0.8.0-beta");
+
+        Assert.Equal("the same picture", await File.ReadAllTextAsync(Path.Combine(target.Root, "images", "a.png")));
+        Assert.Equal("the same picture", await File.ReadAllTextAsync(Path.Combine(target.Root, "images", "b.png")));
+        Assert.Equal("the same picture", await File.ReadAllTextAsync(Path.Combine(target.Root, "note-assets", "c.png")));
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("chain")]
+    [InlineData("self")]
+    [InlineData("other-hash")]
+    [InlineData("first-format")]
+    [InlineData("database")]
+    [InlineData("database-target")]
+    [InlineData("other-case")]
+    public async Task InspectAsync_RejectsAReferenceThatDoesNotHoldUp(string fault)
+    {
+        using var profile = await TestProfile.CreateAsync();
+        await profile.WriteAssetAsync("images", "a.png", "the same picture");
+        await profile.WriteAssetAsync("images", "b.png", "the same picture");
+        await profile.WriteAssetAsync("images", "c.png", "the same picture");
+        var archive = Path.Combine(profile.Parent, "profile.mnemo-backup");
+        var service = profile.Service();
+        await service.CreateAsync(archive, "0.8.0-beta");
+
+        await RewriteManifestAsync(archive, manifest =>
+        {
+            var reference = manifest.Entries.First(entry => entry.Path == "assets/images/b.png");
+            switch (fault)
+            {
+                case "missing": reference.SameAs = "assets/images/gone.png"; break;
+                case "chain": reference.SameAs = "assets/images/c.png"; break;
+                case "self": reference.SameAs = reference.Path; break;
+                case "other-hash": reference.Sha256 = new string('1', 64); break;
+                case "first-format": manifest.FormatVersion = ProfileBackupArchive.LegacyFormatVersion; break;
+                case "database": manifest.Entries.Single(entry => entry.Path == "profile.db").SameAs = "assets/images/a.png"; break;
+                case "database-target": reference.SameAs = "profile.db"; break;
+                case "other-case": reference.SameAs = "assets/images/A.png"; break;
+            }
+        });
+
+        var error = await Assert.ThrowsAsync<ProfileBackupException>(() => service.InspectAsync(archive, "0.8.0-beta"));
+        Assert.Equal("backup_manifest_invalid", error.Code);
+    }
+
+    [Fact]
     public async Task CreateAsync_FailureLeavesNoFinalArchive()
     {
         using var profile = await TestProfile.CreateAsync();
@@ -397,7 +495,7 @@ public sealed class ProfileBackupServiceTests
         var service = profile.Service();
         var newerArchive = Path.Combine(profile.Parent, "newer.mnemo-backup");
         await service.CreateAsync(newerArchive, "0.8.0-beta");
-        await RewriteManifestAsync(newerArchive, manifest => manifest.FormatVersion = 2);
+        await RewriteManifestAsync(newerArchive, manifest => manifest.FormatVersion = ProfileBackupArchive.FormatVersion + 1);
         var newer = await Assert.ThrowsAsync<ProfileBackupException>(() =>
             service.InspectAsync(newerArchive, "0.8.0-beta"));
         Assert.Equal("backup_version_newer", newer.Code);

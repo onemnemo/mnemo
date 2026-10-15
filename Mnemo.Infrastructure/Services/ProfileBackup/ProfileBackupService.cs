@@ -78,7 +78,6 @@ public sealed class ProfileBackupService : IProfileBackupService
 
             var manifest = new ProfileBackupManifest
             {
-                FormatVersion = ProfileBackupArchive.FormatVersion,
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 CreatedByAppVersion = appVersion,
                 CollectionId = collectionId,
