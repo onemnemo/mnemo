@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace Mnemo.Core.Models;
 
@@ -34,6 +35,13 @@ public sealed class ProfileBackupEntry
     public string Path { get; set; } = string.Empty;
     public long Size { get; set; }
     public string Sha256 { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The path of another entry with the same bytes. A referencing entry has no file of its own
+    /// in the archive, and a restore writes the same content at this path.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SameAs { get; set; }
 }
 
 public sealed record ProfileBackupInspection(

@@ -12,7 +12,11 @@ internal static class ProfileBackupArchive
 {
     public const string ManifestPath = "manifest.json";
     public const string DatabasePath = "profile.db";
-    public const int FormatVersion = 1;
+    /// <summary>The first format. Every file is stored in full.</summary>
+    public const int LegacyFormatVersion = 1;
+
+    /// <summary>Adds entries that name another entry with the same bytes instead of storing them again.</summary>
+    public const int FormatVersion = 2;
     private const int MaxPathCharacters = 1024;
     private const int MaxNameCharacters = 255;
 
@@ -31,7 +35,7 @@ internal static class ProfileBackupArchive
         int MaxPathDepth)
     {
         // Room for one entry at the longest path the layout allows, escaped, plus its fields.
-        private const int ManifestBytesPerEntry = 2048;
+        private const int ManifestBytesPerEntry = 4096;
 
         public static readonly ReadLimits Default = new(
             MaxEntryCount: 100_000,
@@ -114,7 +118,7 @@ internal static class ProfileBackupArchive
         }
         if (manifest.FormatVersion > FormatVersion)
             throw Error("backup_version_newer", "This backup uses a newer format that this version of Mnemo cannot restore.");
-        if (manifest.FormatVersion != FormatVersion)
+        if (manifest.FormatVersion < LegacyFormatVersion)
             throw Error("backup_version_unsupported", "This backup format is not supported.");
         if (!IsValidAppVersion(manifest.CreatedByAppVersion))
             throw Error("backup_manifest_invalid", "The backup manifest contains an invalid application version.");
@@ -135,15 +139,20 @@ internal static class ProfileBackupArchive
                 throw Error("backup_manifest_invalid", "The backup manifest contains invalid file metadata.");
         }
 
+        if (declared.Count > limits.MaxEntryCount)
+            throw Error("backup_too_many_files", "The backup contains too many files.");
         if (!declared.ContainsKey(DatabasePath))
             throw Error("backup_database_missing", "The backup does not contain the profile database.");
         if (entries.Keys.Any(path => path != ManifestPath && !declared.ContainsKey(path)))
             throw Error("backup_unknown_file", "The backup contains a file that is not listed in its manifest.");
+        var references = ReadReferences(manifest, declared, entries, limits);
 
         long expandedTotal = 0;
         foreach (var item in declared.Values.OrderBy(entry => entry.Path, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (item.SameAs is not null)
+                continue;
             if (!entries.TryGetValue(item.Path.Normalize(NormalizationForm.FormC), out var entry))
                 throw Error("backup_file_missing", "A file listed in the backup manifest is missing.");
             if (entry.Length != item.Size)
@@ -171,7 +180,58 @@ internal static class ProfileBackupArchive
             }
         }
 
+        foreach (var item in references)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (item.Size > limits.MaxTotalBytes - expandedTotal)
+                throw Error("backup_too_large", "The backup expands beyond the supported size limit.");
+            expandedTotal += item.Size;
+            if (extractionDirectory is not null)
+                await CopyReferenceAsync(extractionDirectory, item, cancellationToken).ConfigureAwait(false);
+        }
+
         return manifest;
+    }
+
+    /// <summary>
+    /// The entries that stand in for another entry's bytes, in path order. A reference must name a
+    /// stored file with the same size and hash, so a chain or a loop cannot hide in the manifest.
+    /// </summary>
+    private static List<ProfileBackupEntry> ReadReferences(
+        ProfileBackupManifest manifest,
+        Dictionary<string, ProfileBackupEntry> declared,
+        Dictionary<string, ZipArchiveEntry> entries,
+        ReadLimits limits)
+    {
+        var references = new List<ProfileBackupEntry>();
+        foreach (var item in declared.Values.Where(item => item.SameAs is not null).OrderBy(item => item.Path, StringComparer.Ordinal))
+        {
+            if (manifest.FormatVersion < FormatVersion)
+                throw Error("backup_manifest_invalid", "The backup manifest contains an invalid entry.");
+            ValidatePath(item.SameAs!, limits.MaxPathDepth);
+            if (item.Path == DatabasePath || entries.ContainsKey(item.Path.Normalize(NormalizationForm.FormC)))
+                throw Error("backup_manifest_invalid", "The backup manifest contains an invalid entry.");
+            if (!declared.TryGetValue(item.SameAs!.Normalize(NormalizationForm.FormC), out var target) ||
+                target.SameAs is not null || target.Size != item.Size ||
+                target.Path != item.SameAs || !target.Path.StartsWith("assets/", StringComparison.Ordinal) ||
+                !string.Equals(target.Sha256, item.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw Error("backup_manifest_invalid", "The backup manifest contains an invalid entry.");
+            }
+
+            references.Add(item);
+        }
+
+        return references;
+    }
+
+    private static async Task CopyReferenceAsync(string root, ProfileBackupEntry item, CancellationToken cancellationToken)
+    {
+        await using var destination = OpenExtractionFile(root, item.Path);
+        await using var source = new FileStream(
+            Path.Combine(root, item.SameAs!.Replace('/', Path.DirectorySeparatorChar)),
+            FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
+        await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
     }
 
     private static FileStream OpenDatabaseExtractionFile(string path)
