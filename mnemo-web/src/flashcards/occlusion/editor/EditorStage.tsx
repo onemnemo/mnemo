@@ -21,8 +21,6 @@ const WHEEL_ZOOM_RATE = 0.0015
 export interface EditorStageProps {
   editor: OcclusionEditor
   imageUrl: string | null
-  /** The image's bytes could not be fetched, which no `<img>` error reports. */
-  imageFailed?: boolean
   /** Room kept around the image at fit, in pixels. */
   margin?: number
 }
@@ -31,12 +29,12 @@ export interface EditorStageProps {
  * The image on paper with its masks, selection, handles and drawing tools. All state lives in the
  * editor controller; this component measures, draws and turns pointer input into store calls.
  */
-export function EditorStage({ editor, imageUrl, imageFailed = false, margin = 32 }: EditorStageProps) {
+export function EditorStage({ editor, imageUrl, margin = 32 }: EditorStageProps) {
   const t = useT()
   const { store, state, document, cards } = editor
   const pane = useRef<HTMLDivElement | null>(null)
   const box = useElementSize(pane)
-  const image = useImageLoad(imageUrl, imageFailed)
+  const image = useImageLoad(imageUrl)
 
   const roomW = Math.max(0, box.w - margin * 2)
   const roomH = Math.max(0, box.h - margin * 2)

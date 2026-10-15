@@ -6,7 +6,7 @@ import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
 import { CardText } from "../../CardText"
-import { useCardAssetUrl } from "../../editor/assets"
+import { cardAssetUrl, useImageFailure } from "../../editor/assets"
 
 /**
  * One card's two sides and its tags, with no chrome of its own.
@@ -69,13 +69,14 @@ function CardSide({
 }
 
 function CardAttachment({ attachment }: { attachment: CardAttachmentDto }) {
-  const url = useCardAssetUrl(attachment.assetId)
+  const url = cardAssetUrl(attachment.assetId)
+  const broken = useImageFailure(url)
 
   // No servable asset id: an imported deck's file living outside the managed images
   // directory today, and the shape any future non-image attachment kind would take
-  // tomorrow. Either way there is nothing to render as a picture, so it reads as a
-  // named, non-interactive pill instead of a broken image or a thrown error.
-  if (!attachment.assetId || !url) {
+  // tomorrow. A file that fails to load lands here too. Either way there is nothing to render
+  // as a picture, so it reads as a named, non-interactive pill instead of a broken image.
+  if (!attachment.assetId || !url || broken.failed) {
     return (
       <span className="flex max-w-[180px] items-center gap-1.5 rounded-full bg-canvas-sunken px-2.5 py-1 text-[11.5px] text-ink-2">
         <AppIcon name="common/image" size={12} className="shrink-0 text-ink-3" />
@@ -95,6 +96,9 @@ function CardAttachment({ attachment }: { attachment: CardAttachmentDto }) {
       <img
         src={url}
         alt={attachment.displayName}
+        loading="lazy"
+        decoding="async"
+        onError={broken.onError}
         title={attachment.caption ?? attachment.displayName}
         className="max-h-full max-w-full object-contain"
       />

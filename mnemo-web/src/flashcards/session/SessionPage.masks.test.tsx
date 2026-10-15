@@ -46,8 +46,7 @@ vi.mock("@/i18n/useT", () => {
 vi.mock("@/settings/store", () => ({ useSettingValue: (_key: string, fallback: string) => fallback }))
 vi.mock("@/components/icon/AppIcon", () => ({ AppIcon: ({ name }: { name: string }) => <span data-icon={name} /> }))
 vi.mock("../editor/assets", () => ({
-  useCardAssetUrl: () => "blob:image",
-  useCardAsset: () => ({ url: "blob:image", failed: false }),
+  cardAssetUrl: () => "blob:image",
 }))
 vi.mock("../deck/api", () => ({ useFlagCards: () => ({ mutateAsync: vi.fn() }) }))
 vi.mock("@/app/router", () => ({ navigate: vi.fn() }))

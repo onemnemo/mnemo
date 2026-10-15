@@ -22,13 +22,11 @@ import type { ActionChords } from "./useActionChords"
 export function ImageArea({
   editor,
   imageUrl,
-  imageFailed = false,
   chords,
   compact,
 }: {
   editor: OcclusionEditor
   imageUrl: string | null
-  imageFailed?: boolean
   chords: ActionChords
   /** A narrow window: the tool bar moves to the left to clear the view controls. */
   compact: boolean
@@ -85,7 +83,7 @@ export function ImageArea({
               if (isMenuKey(event)) event.preventDefault()
             }}
           >
-            <EditorStage editor={editor} imageUrl={imageUrl} imageFailed={imageFailed} />
+            <EditorStage editor={editor} imageUrl={imageUrl} />
           </div>
         </ContextMenuTrigger>
         <MaskMenuContent items={items} keepFocusAfter={picked} onPick={(action) => editor.perform(action)} />

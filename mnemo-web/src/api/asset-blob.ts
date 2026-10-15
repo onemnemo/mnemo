@@ -3,9 +3,9 @@ import { useEffect, useState } from "react"
 import { apiToken } from "./client"
 
 // Asset bytes live behind the /api bearer token, which a bare <img src> cannot carry. So we
-// fetch them with the auth header and hand the element a blob URL instead. Chat attachments and
-// card attachments are different routes over the same problem, so the mechanics live here.
-// Note images skip this and load with the launch cookie.
+// fetch them with the auth header and hand the element a blob URL instead. The surfaces that
+// still need this share the mechanics here. Note and card images skip it and load with the
+// launch cookie.
 
 function authHeaders(): Headers {
   const headers = new Headers()

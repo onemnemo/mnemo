@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 import { useSettingValue } from "@/settings/store"
 
 import { CardText } from "../CardText"
-import { useCardAsset } from "../editor/assets"
+import { cardAssetUrl } from "../editor/assets"
 import type { CardSurfaceProps } from "../session/components/CardSurface"
 import { isCardActionClick } from "../session/components/card-click"
 import { CardCorner } from "../session/components/CardCorner"
@@ -51,9 +51,8 @@ export function OcclusionSurface({
   const chrome = useChrome(cardRef, rowRef)
   const cornerWidth = useElementSize(cornerRef).w
 
-  const asset = useCardAsset(occlusion.imageAssetId)
-  const url = asset.url
-  const image = useImageLoad(url, asset.failed)
+  const url = cardAssetUrl(occlusion.imageAssetId)
+  const image = useImageLoad(url)
 
   const height = boxHeight({ column: room ? room.h : BOX_HEIGHT_CAP + chrome, chrome, compact })
   const { box, fitted } = stageLayout({ natural: image.natural, inner, height, compact })
