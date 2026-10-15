@@ -28,8 +28,7 @@ import {
 
 vi.mock("../../../editor/assets", () => ({
   uploadCardAsset: vi.fn(),
-  useCardAssetUrl: (id: string | null | undefined) => (id ? "blob:test" : null),
-  useCardAsset: (id: string | null | undefined) => ({ url: (id ? "blob:test" : null), failed: false }),
+  cardAssetUrl: (id: string | null | undefined) => (id ? "blob:test" : null),
 }))
 
 beforeEach(() => {

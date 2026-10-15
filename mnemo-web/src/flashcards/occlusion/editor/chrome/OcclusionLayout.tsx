@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useT } from "@/i18n/useT"
 import { isEditableTarget } from "@/keybinds/chord"
 
-import { useCardAsset } from "../../../editor/assets"
+import { cardAssetUrl } from "../../../editor/assets"
 import { EditorFooter } from "../../../editor/components/EditorFooter"
 import { IMAGE_ACCEPT } from "../../../editor/editor-state"
 import { FactEditorHeader, type FactEditorHeaderProps } from "../../../facts/components/FactEditorHeader"
@@ -84,7 +84,7 @@ export function OcclusionLayout(props: OcclusionLayoutProps) {
   const onKeyDown = useOcclusionKeys(editor)
 
   const image = draft.media[OCCLUSION_IMAGE_FIELD]?.[0]
-  const imageAsset = useCardAsset(image?.assetId)
+  const imageUrl = cardAssetUrl(image?.assetId)
   const intake = useImageIntake(props.onImage)
   const count = image ? editor.cards.length : 0
 
@@ -160,8 +160,7 @@ export function OcclusionLayout(props: OcclusionLayoutProps) {
           {image ? (
             <ImageArea
               editor={editor}
-              imageUrl={imageAsset.url}
-              imageFailed={imageAsset.failed}
+              imageUrl={imageUrl}
               chords={chords}
               compact={box.w < SMALL_WIDTH}
             />

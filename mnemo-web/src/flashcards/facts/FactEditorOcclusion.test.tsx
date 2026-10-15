@@ -63,8 +63,7 @@ vi.mock("./api", () => ({
 
 vi.mock("../editor/assets", () => ({
   uploadCardAsset: mocks.upload,
-  useCardAssetUrl: (id: string | null | undefined) => (id ? `blob:${id}` : null),
-  useCardAsset: (id: string | null | undefined) => ({ url: (id ? `blob:${id}` : null), failed: false }),
+  cardAssetUrl: (id: string | null | undefined) => (id ? `blob:${id}` : null),
 }))
 
 vi.mock("@/stores/dialog", () => ({

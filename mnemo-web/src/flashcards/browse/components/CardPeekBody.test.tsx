@@ -19,7 +19,8 @@ vi.mock("@/i18n/useT", () => ({
 }))
 
 vi.mock("../../editor/assets", () => ({
-  useCardAssetUrl: () => null,
+  cardAssetUrl: () => null,
+  useImageFailure: () => ({ failed: false, onError: () => {} }),
 }))
 
 vi.mock("@/components/icon/AppIcon", () => ({

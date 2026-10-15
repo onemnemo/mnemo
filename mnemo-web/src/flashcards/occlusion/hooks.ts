@@ -12,7 +12,7 @@ export interface ImageLoad {
 }
 
 /** Tracks the `<img>` the stage renders, so the image is fetched and decoded once and a failure is visible. */
-export function useImageLoad(url: string | null, fetchFailed = false): ImageLoad {
+export function useImageLoad(url: string | null): ImageLoad {
   const [state, setState] = useState<{ url: string | null; natural: Size | null; failed: boolean }>({
     url,
     natural: null,
@@ -23,7 +23,7 @@ export function useImageLoad(url: string | null, fetchFailed = false): ImageLoad
 
   return {
     natural: current.natural,
-    failed: current.failed || fetchFailed,
+    failed: current.failed,
     onLoad: (event) => {
       const { naturalWidth, naturalHeight } = event.currentTarget
       if (naturalWidth > 0 && naturalHeight > 0) setState({ url, natural: { w: naturalWidth, h: naturalHeight }, failed: false })

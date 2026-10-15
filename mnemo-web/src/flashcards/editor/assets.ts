@@ -1,4 +1,5 @@
-import { useAssetObject, useAssetObjectUrl, type AssetObject } from "@/api/asset-blob"
+import { useState } from "react"
+
 import { apiFetch } from "@/api/client"
 import type { CardAssetDto } from "@/api/types"
 
@@ -14,16 +15,14 @@ export function uploadCardAsset(file: File): Promise<CardAssetDto> {
   return apiFetch<CardAssetDto>("/flashcards/assets", { method: "POST", body: form })
 }
 
-/** A blob URL for a card attachment, or null while it loads, on failure, or when unservable. */
-export function useCardAssetUrl(assetId: string | null | undefined): string | null {
-  return useAssetObjectUrl(assetPath(assetId))
-}
-
-/** {@link useCardAssetUrl}, plus whether the fetch failed. */
-export function useCardAsset(assetId: string | null | undefined): AssetObject {
-  return useAssetObject(assetPath(assetId))
-}
-
-function assetPath(assetId: string | null | undefined): string | null {
+/** The URL an img loads a card attachment from, or null when the card names no servable file. */
+export function cardAssetUrl(assetId: string | null | undefined): string | null {
   return assetId ? `/api/flashcards/assets/${encodeURIComponent(assetId)}` : null
 }
+
+/** Whether the img showing `url` failed to load. A new url starts clean. */
+export function useImageFailure(url: string | null): { failed: boolean; onError: () => void } {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  return { failed: url !== null && failedUrl === url, onError: () => setFailedUrl(url) }
+}
+
