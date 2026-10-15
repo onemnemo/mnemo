@@ -4,12 +4,19 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { useFileDrop } from "./useFileDrop"
+import { useFileDrop, useFileDropCount } from "./useFileDrop"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let over = false
 const onDrop = vi.fn()
+
+let count: number | null = null
+
+function CountHarness() {
+  count = useFileDropCount(true, false, onDrop)
+  return null
+}
 
 function Harness({ locked }: { locked: boolean }) {
   over = useFileDrop(true, locked, onDrop)
@@ -17,9 +24,9 @@ function Harness({ locked }: { locked: boolean }) {
 }
 
 /** jsdom has no DragEvent constructor, so a plain event carries a stand-in transfer. */
-function drag(type: "dragover" | "drop", types = ["Files"]) {
+function drag(type: "dragover" | "drop", types = ["Files"], items: { kind: string }[] = []) {
   const event = new Event(type, { bubbles: true, cancelable: true }) as Event & { dataTransfer: unknown }
-  const dataTransfer = { types, dropEffect: "", files: [] }
+  const dataTransfer = { types, dropEffect: "", files: [], items }
   event.dataTransfer = dataTransfer
   act(() => {
     document.body.dispatchEvent(event)
@@ -66,5 +73,18 @@ describe("useFileDrop", () => {
 
     drag("drop")
     expect(onDrop).not.toHaveBeenCalled()
+  })
+
+  it("counts the files being dragged and reports 0 when the platform hides them", () => {
+    act(() => root.render(<CountHarness />))
+
+    drag("dragover", ["Files"], [{ kind: "file" }, { kind: "file" }, { kind: "string" }])
+    expect(count).toBe(2)
+
+    drag("dragover")
+    expect(count).toBe(0)
+
+    act(() => vi.advanceTimersByTime(450))
+    expect(count).toBeNull()
   })
 })
