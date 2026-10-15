@@ -96,6 +96,19 @@ public sealed class FlashcardAssetCleanupOwnerTests
         Assert.Contains("abc.png", ids);
     }
 
+    [Fact]
+    public async Task TheSweepSourceKeepsAnImageWrittenIntoCardText()
+    {
+        using var root = new TemporaryDataRoot();
+        await using var h = new FlashcardHttpHarness();
+        var name = new string('a', 64) + ".png";
+        await InsertCardAsync(h, Path.Combine("D:", "p", "image-assets", "other.png"), front: $"Q ![x]({Path.Combine("D:", "p", "image-assets", name)})");
+
+        var ids = await new FlashcardAssetReferenceSource(h.Store).CollectReferencedIdsAsync();
+
+        Assert.Contains(name, ids);
+    }
+
     private static FlashcardAssetCleanupOwner Owner(FlashcardHttpHarness h) =>
         new(h.Store, new ImageFileLocks(), HostInstanceLock.Acquire(Path.Combine(MnemoAppPaths.GetLocalUserDataRoot(), "test-locks", Guid.NewGuid().ToString("N"))));
 
@@ -110,7 +123,7 @@ public sealed class FlashcardAssetCleanupOwnerTests
         return path;
     }
 
-    private static async Task InsertCardAsync(FlashcardHttpHarness h, string path)
+    private static async Task InsertCardAsync(FlashcardHttpHarness h, string path, string front = "Q")
     {
         await h.StartAsync();
         var deck = await h.Client.PostAsync("/api/decks", new StringContent(
@@ -119,7 +132,7 @@ public sealed class FlashcardAssetCleanupOwnerTests
         var now = DateTimeOffset.UtcNow;
         var card = new Flashcard(
             Id: Guid.NewGuid().ToString("N"), DeckId: deckId, Type: FlashcardType.Classic,
-            Front: "Q", Back: "A", Tags: [], State: FlashcardCardState.Active, IsFlagged: false,
+            Front: front, Back: "A", Tags: [], State: FlashcardCardState.Active, IsFlagged: false,
             Attachments: [new FlashcardAttachment("a1", FlashcardAttachment.FrontSide, path, "a.png", 3)],
             CreatedAt: now, UpdatedAt: now);
         await h.Store.WriteAsync((conn, tx, ct) => new CardRepository().InsertAsync(conn, tx, card, ct));

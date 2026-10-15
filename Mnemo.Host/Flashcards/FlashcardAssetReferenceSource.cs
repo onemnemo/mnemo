@@ -4,7 +4,7 @@ using Mnemo.Infrastructure.Services.Flashcards.Persistence;
 
 namespace Mnemo.Host.Flashcards;
 
-/// <summary>Reports file names only, since rows store absolute paths.</summary>
+/// <summary>Reports file names only, since rows store absolute paths. Includes images written into card text.</summary>
 public sealed class FlashcardAssetReferenceSource : IAssetReferenceSource
 {
     private readonly IFlashcardStore _store;
@@ -19,6 +19,8 @@ public sealed class FlashcardAssetReferenceSource : IAssetReferenceSource
     public async Task<IReadOnlyCollection<string>> CollectReferencedIdsAsync(CancellationToken cancellationToken = default)
     {
         var paths = await FlashcardAssetReferences.CollectReferencedPathsAsync(_store, cancellationToken).ConfigureAwait(false);
-        return paths.Select(Path.GetFileName).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var names = paths.Select(Path.GetFileName).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        names.UnionWith(await FlashcardAssetReferences.CollectInlineImageNamesAsync(_store, cancellationToken).ConfigureAwait(false));
+        return names;
     }
 }

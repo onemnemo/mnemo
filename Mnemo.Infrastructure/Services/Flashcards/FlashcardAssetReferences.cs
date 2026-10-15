@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -20,6 +22,9 @@ public static class FlashcardAssetReferences
 {
     /// <summary>The cleanup owner key purges write into their asset cleanup jobs.</summary>
     public const string AssetOwner = "flashcards";
+
+    private static readonly Regex InlineImageName = new(
+        @"[0-9a-f]{64}\.(?:png|jpg|gif|webp|bmp)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
     /// Whether a queued path is one of the paths <see cref="CollectReferencedPathsAsync"/> gathered.
@@ -63,5 +68,38 @@ public static class FlashcardAssetReferences
             }
 
             return paths;
+        }, cancellationToken);
+
+    /// <summary>Shared image names written into card or fact text, such as an Anki import's overflow images.</summary>
+    public static Task<HashSet<string>> CollectInlineImageNamesAsync(
+        IFlashcardStore store,
+        CancellationToken cancellationToken = default) =>
+        store.ReadAsync(async (conn, ct) =>
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string[] queries =
+            [
+                "SELECT Front, Back, FrontRich, BackRich FROM FlashcardCards;",
+                "SELECT ValuesJson FROM FlashcardFacts;",
+            ];
+
+            foreach (var query in queries)
+            {
+                await using var command = conn.CreateCommand();
+                command.CommandText = query;
+                await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                while (await reader.ReadAsync(ct).ConfigureAwait(false))
+                {
+                    for (var i = 0; i < reader.FieldCount; i++)
+                    {
+                        if (reader.IsDBNull(i))
+                            continue;
+                        foreach (Match match in InlineImageName.Matches(reader.GetString(i)))
+                            names.Add(match.Value);
+                    }
+                }
+            }
+
+            return names;
         }, cancellationToken);
 }

@@ -104,10 +104,10 @@ public sealed class FlashcardAnkiImportTests
             backHtml: "back",
             media: new Dictionary<string, byte[]>
             {
-                ["a.png"] = PngBytes(),
-                ["b.png"] = PngBytes(),
-                ["c.png"] = PngBytes(),
-                ["d.png"] = PngBytes()
+                ["a.png"] = [.. PngBytes(), 1],
+                ["b.png"] = [.. PngBytes(), 2],
+                ["c.png"] = [.. PngBytes(), 3],
+                ["d.png"] = [.. PngBytes(), 4]
             });
 
         try
@@ -120,6 +120,8 @@ public sealed class FlashcardAnkiImportTests
             var card = Assert.Single(page.Items).Card;
 
             Assert.Equal(3, card.Attachments.Count);
+            var named = await FlashcardAssetReferences.CollectInlineImageNamesAsync(h.Store);
+            Assert.Single(named);
             Assert.All(card.Attachments, a => Assert.Equal(FlashcardAttachment.FrontSide, a.Side));
             // The 4th image is kept visible as an inline markdown token, never dropped.
             Assert.Contains("![d.png](", card.Front, StringComparison.Ordinal);
