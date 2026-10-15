@@ -30,8 +30,8 @@ vi.mock("@/components/icon/AppIcon", () => ({
 }))
 
 vi.mock("../../editor/assets", () => ({
-  useCardAssetUrl: () => "blob:study-image",
-  useCardAsset: () => ({ url: "blob:study-image", failed: false }),
+  cardAssetUrl: () => "blob:study-image",
+  useImageFailure: () => ({ failed: false, onError: () => {} }),
 }))
 
 // jsdom does not load built CSS. This fixture checks use of the utility class, not the production

@@ -23,8 +23,7 @@ vi.mock("@/settings/store", () => ({
 }))
 
 vi.mock("../../editor/assets", () => ({
-  useCardAssetUrl: () => "blob:plant-cell",
-  useCardAsset: () => ({ url: "blob:plant-cell", failed: false }),
+  cardAssetUrl: () => "blob:plant-cell",
 }))
 
 vi.mock("@/components/icon/AppIcon", () => ({

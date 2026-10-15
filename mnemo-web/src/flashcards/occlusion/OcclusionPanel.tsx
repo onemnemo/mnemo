@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react"
 
 import type { CardDto, OcclusionDto } from "@/api/types"
 
-import { useCardAsset } from "../editor/assets"
+import { cardAssetUrl } from "../editor/assets"
 import { FIT_VIEW, type View } from "./geometry"
 import { useChrome, useColumnRoom, useElementSize, useImageLoad } from "./hooks"
 import { boxHeight, stageLayout } from "./layout"
@@ -40,9 +40,8 @@ export function OcclusionPanel({
   const [front, setFront] = useState<{ chrome: number; width: number } | null>(null)
   if (!revealed && (front?.chrome !== measured || front.width !== inner)) setFront({ chrome: measured, width: inner })
   const chrome = revealed && front?.width === inner ? front.chrome : measured
-  const asset = useCardAsset(occlusion.imageAssetId)
-  const url = asset.url
-  const image = useImageLoad(url, asset.failed)
+  const url = cardAssetUrl(occlusion.imageAssetId)
+  const image = useImageLoad(url)
   const [view, setView] = useState<View>(FIT_VIEW)
 
   const height = room ? boxHeight({ column: room.h, chrome, compact: false }) : PANEL_MAX_HEIGHT

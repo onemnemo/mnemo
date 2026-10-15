@@ -30,11 +30,8 @@ vi.mock("@/components/icon/AppIcon", () => ({
   AppIcon: ({ name }: { name: string }) => <span data-icon={name} />,
 }))
 
-const asset = vi.hoisted(() => ({ failed: false }))
-
 vi.mock("../editor/assets", () => ({
-  useCardAssetUrl: () => "blob:plant-cell",
-  useCardAsset: () => (asset.failed ? { url: null, failed: true } : { url: "blob:plant-cell", failed: false }),
+  cardAssetUrl: () => "blob:plant-cell",
 }))
 
 function mask(id: string, order: number, extra: Partial<OcclusionMaskDto> = {}): OcclusionMaskDto {
@@ -109,7 +106,6 @@ afterEach(() => {
   act(() => root.unmount())
   host.remove()
   vi.unstubAllGlobals()
-  asset.failed = false
 })
 
 interface Handlers {
@@ -404,13 +400,6 @@ describe("an image occlusion card in review", () => {
     failImages(host)
     expect(host.textContent).toContain("StudyOcclusionImageFailed")
     expect(host.querySelectorAll("[data-mask]")).toHaveLength(0)
-  })
-
-  it("says the image cannot load when its bytes could not be fetched", () => {
-    asset.failed = true
-    render(occlusionCard(), false, false, {}, false)
-    expect(host.querySelector("img")).toBeNull()
-    expect(host.textContent).toContain("StudyOcclusionImageFailed")
   })
 
   it("styles covered, asked and answer masks differently", () => {

@@ -6,7 +6,7 @@ import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 import { cn } from "@/lib/utils"
 
-import { useCardAssetUrl } from "../../editor/assets"
+import { cardAssetUrl, useImageFailure } from "../../editor/assets"
 
 /** Attachments belonging to one side, capped as the editor caps them. */
 const MAX_PER_SIDE = 3
@@ -81,11 +81,12 @@ function Frame({
   onStep: (delta: number) => void
 }) {
   const t = useT()
-  const url = useCardAssetUrl(attachment.assetId)
+  const url = cardAssetUrl(attachment.assetId)
+  const broken = useImageFailure(url)
   const [zoomed, setZoomed] = useState(false)
 
-  if (!url) {
-    // Imported from outside the managed images directory, so there is no servable file.
+  if (!url || broken.failed) {
+    // Imported from outside the managed images directory, or the file is gone.
     return (
       <div
         className="grid place-items-center overflow-hidden rounded-xl bg-canvas-sunken"
@@ -123,7 +124,15 @@ function Frame({
           setZoomed(true)
         }}
       >
-        <img src={url} alt={attachment.displayName} draggable={false} className="max-h-full max-w-full object-contain" />
+        <img
+          src={url}
+          alt={attachment.displayName}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          onError={broken.onError}
+          className="max-h-full max-w-full object-contain"
+        />
 
         {many && (
           <>

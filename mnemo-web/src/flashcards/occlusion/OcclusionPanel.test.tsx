@@ -13,7 +13,7 @@ import { OcclusionPanel } from "./OcclusionPanel"
 const measure = vi.hoisted(() => ({ chrome: 200, width: 600 }))
 
 vi.mock("@/i18n/useT", () => ({ useT: () => (_ns: string, key: string) => key }))
-vi.mock("../editor/assets", () => ({ useCardAsset: () => ({ url: "blob:cell", failed: false }) }))
+vi.mock("../editor/assets", () => ({ cardAssetUrl: () => "blob:cell" }))
 vi.mock("./hooks", () => ({
   useElementSize: () => ({ w: measure.width, h: 0 }),
   useColumnRoom: () => ({ w: 600, h: 900 }),

@@ -1,7 +1,7 @@
 import { AppIcon } from "@/components/icon/AppIcon"
 import { useT } from "@/i18n/useT"
 
-import { useCardAssetUrl } from "../assets"
+import { cardAssetUrl, useImageFailure } from "../assets"
 import type { DraftAttachment } from "../draft"
 import { MAX_ATTACHMENTS_PER_SIDE } from "../editor-state"
 
@@ -68,12 +68,20 @@ function Thumb({
   removeLabel: string
   onRemove: () => void
 }) {
-  const url = useCardAssetUrl(attachment.assetId)
+  const url = cardAssetUrl(attachment.assetId)
+  const broken = useImageFailure(url)
 
   return (
     <span className="group/thumb relative flex h-14 w-20 items-center justify-center overflow-hidden rounded-lg bg-canvas-sunken shadow-[0_0_0_1px_var(--line-soft)]">
-      {url ? (
-        <img src={url} alt={attachment.displayName} className="max-h-full max-w-full object-contain" />
+      {url && !broken.failed ? (
+        <img
+          src={url}
+          alt={attachment.displayName}
+          loading="lazy"
+          decoding="async"
+          onError={broken.onError}
+          className="max-h-full max-w-full object-contain"
+        />
       ) : (
         // An attachment imported from outside the managed images directory has no servable id, so
         // there is nothing to load and the frame stands in for it.
