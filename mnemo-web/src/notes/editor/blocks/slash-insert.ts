@@ -29,7 +29,7 @@ import {
 } from '../commands/structure';
 import type { SlashContribution } from '../registry/types';
 import { createTable } from '../table/model';
-import { containerBlockNames } from './shared';
+import { containerBlockNames, createTwoColumn } from './shared';
 
 /**
  * Where a block that cannot hold the line's content goes: `replace` rewrites
@@ -127,22 +127,16 @@ export const insertTwoColumn: SlashContribution['insert'] = (state, dispatch) =>
   const { twoColumn, columnGroup, paragraph, line } = state.schema.nodes;
   if (!twoColumn || !columnGroup || !paragraph || !line) return;
 
-  const seededCell = () =>
-    columnGroup.create(null, [line.create(), paragraph.create(null, line.create())]);
-  const split = (identity: Record<string, unknown>, meta: Record<string, unknown>) =>
-    twoColumn.create({ ...identity, meta: { ...meta, nativeTwoColumn: true } }, [
-      line.create(),
-      seededCell(),
-      seededCell(),
-    ]);
-
   const tr = state.tr;
-  const pos = placeBlock(tr, ctx, split({}, {}), () => {
+  const pos = placeBlock(tr, ctx, createTwoColumn(state.schema, {}, {}, { nativeTwoColumn: true }), () => {
     const { id, sid, order, meta } = ctx.block.attrs;
     tr.replaceWith(
       ctx.blockPos,
       ctx.blockPos + ctx.block.nodeSize,
-      split({ id, sid, order }, (meta as Record<string, unknown> | null) ?? {}),
+      createTwoColumn(state.schema, {}, { id, sid, order }, {
+        ...(meta as Record<string, unknown> | null),
+        nativeTwoColumn: true,
+      }),
     );
   });
   // Into the left cell's seeded paragraph: past the container's line, into the

@@ -12,7 +12,7 @@
  * needs: what this block type *is*.
  */
 
-import type { AttributeSpec, Node as PMNode, NodeSpec, NodeType } from 'prosemirror-model';
+import type { AttributeSpec, Node as PMNode, NodeSpec, NodeType, Schema } from 'prosemirror-model';
 import type {
   AiSegment,
   AnyBlockModule,
@@ -172,6 +172,26 @@ export const containerBlockNames: ReadonlySet<string> = new Set([
   'table',
   'tableRow',
 ]);
+
+/**
+ * A two-column with one block per lane. A lane given no block gets an empty paragraph.
+ * `identity` carries the id, sid and order of the block it replaces.
+ */
+export function createTwoColumn(
+  schema: Schema,
+  lanes: { left?: PMNode; right?: PMNode },
+  identity: Record<string, unknown> = {},
+  meta: Record<string, unknown> = {},
+): PMNode {
+  const { twoColumn, columnGroup, paragraph, line } = schema.nodes;
+  const lane = (block?: PMNode) =>
+    columnGroup.create(null, [line.create(), block ?? paragraph.create(null, line.create())]);
+  return twoColumn.create({ ...identity, meta }, [
+    line.create(),
+    lane(lanes.left),
+    lane(lanes.right),
+  ]);
+}
 
 /**
  * Blocks the chrome must treat as a single object, whatever they contain.

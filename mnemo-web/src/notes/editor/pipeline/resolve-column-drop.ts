@@ -16,6 +16,7 @@
 import type { Point } from '@/lib/dnd/usePointerDrag';
 
 import { resolveBlockReorder, type BlockRow, type ReorderTarget } from './resolve-block-reorder';
+import type { SplitTarget } from './resolve-block-split';
 
 /** One column cell of a layout row, in viewport coordinates. */
 export interface Lane {
@@ -61,7 +62,7 @@ export interface CellTarget extends ReorderTarget {
   cellSid: string;
 }
 
-export type BlockDropTarget = GapTarget | CellTarget;
+export type BlockDropTarget = GapTarget | CellTarget | SplitTarget;
 
 /** The slot the indicator showed last: in which lane (null for the page) and at which gap. */
 export interface PreviousSlot {
@@ -90,6 +91,10 @@ export function stickyIndex(previous: PreviousSlot | null, cellPos: number | nul
 
 export function sameBlockDropTarget(a: BlockDropTarget | null, b: BlockDropTarget | null): boolean {
   if (a === null || b === null) return a === b;
+  if (a.kind === 'split') {
+    return b.kind === 'split' && a.pos === b.pos && a.side === b.side && a.line.top === b.line.top;
+  }
+  if (b.kind === 'split') return false;
   if (a.kind !== b.kind || a.insertIndex !== b.insertIndex || a.line.top !== b.line.top) return false;
   return a.kind === 'cell' && b.kind === 'cell' ? a.cellPos === b.cellPos : true;
 }

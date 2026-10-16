@@ -1,7 +1,8 @@
 /**
  * The mutations a block drag makes: move a top-level block from one child index
- * to another, extract a nested block out of its container to a top-level gap, or
- * move a block into a column cell, each as a single transaction.
+ * to another, extract a nested block out of its container to a top-level gap,
+ * move a block into a column cell, or wrap a block and a dragged one into a new
+ * two-column, each as a single transaction.
  *
  * Single is the whole point. A delete and an insert in one transaction is one
  * history step, so a drop undoes in one press and saves once, and the moved
@@ -14,9 +15,10 @@
  */
 
 import { Fragment, type Node as PMNode } from 'prosemirror-model';
-import type { EditorState, Transaction } from 'prosemirror-state';
+import { Selection, type EditorState, type Transaction } from 'prosemirror-state';
 
-import { blockChildrenOf, lineOf } from '../blocks/shared';
+import { blockChildrenOf, containerBlockNames, createTwoColumn, lineOf } from '../blocks/shared';
+import { canBeSplitSource, holdsTwoColumn, insideTable, type SplitSide } from '../pipeline/resolve-block-split';
 
 /**
  * A transaction moving the block at `sourceIndex` to `moveTo`, or null when the
@@ -142,4 +144,52 @@ export function moveBlockIntoCellTransaction(
   tr.insert(insertPos, node);
 
   return tr;
+}
+
+/** The first position a caret can sit in under the block at `pos`, skipping the hidden lines of containers. */
+function caretPosIn(block: PMNode, pos: number): number {
+  let caret = pos + 1;
+  let found = false;
+  block.descendants((node, offset, parent) => {
+    if (found) return false;
+    if (node.type.name === 'line' && parent && !containerBlockNames.has(parent.type.name)) {
+      caret = pos + 1 + offset + 1;
+      found = true;
+    }
+    return !found;
+  });
+  return caret;
+}
+
+/**
+ * Wraps the top-level block at `targetPos` and the block at `pos` into a new two-column.
+ * The dragged block goes on `side`. Null when a sid no longer matches or the pair cannot be split.
+ */
+export function splitBlockIntoColumnsTransaction(
+  state: EditorState,
+  pos: number,
+  sid: string,
+  targetPos: number,
+  targetSid: string,
+  side: SplitSide,
+): Transaction | null {
+  const doc = state.doc;
+  const dragged = draggedBlockAt(doc, pos, sid);
+  const target = draggedBlockAt(doc, targetPos, targetSid);
+  if (!dragged || !target || doc.resolve(targetPos).depth !== 0) return null;
+  if (!canBeSplitSource(dragged.type.name) || insideTable(doc, pos)) return null;
+  if (containerBlockNames.has(target.type.name) || target.type.name === 'divider') return null;
+  if (holdsTwoColumn(dragged) || holdsTwoColumn(target)) return null;
+  if (pos >= targetPos && pos < targetPos + target.nodeSize) return null;
+
+  const tr = state.tr.delete(pos, pos + dragged.nodeSize);
+  const at = tr.mapping.map(targetPos, -1);
+  if (tr.doc.nodeAt(at) !== target) return null;
+  const lanes = side === 'left' ? { left: dragged, right: target } : { left: target, right: dragged };
+  tr.replaceWith(at, at + target.nodeSize, createTwoColumn(state.schema, lanes));
+
+  const layout = tr.doc.nodeAt(at)!;
+  const lineSize = layout.child(0).nodeSize;
+  const draggedPos = at + 1 + lineSize + (side === 'left' ? 0 : layout.child(1).nodeSize) + 1 + lineSize;
+  return tr.setSelection(Selection.near(tr.doc.resolve(caretPosIn(tr.doc.nodeAt(draggedPos)!, draggedPos))));
 }
