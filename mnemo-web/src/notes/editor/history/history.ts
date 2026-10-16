@@ -49,7 +49,7 @@
  */
 
 import { history, redo as pmRedo, undo as pmUndo } from 'prosemirror-history';
-import { PluginKey, type Command, type Plugin, type Transaction } from 'prosemirror-state';
+import { Plugin, PluginKey, type Command, type Transaction } from 'prosemirror-state';
 
 const restoreKey = new PluginKey<boolean>('mnemo-history-restore');
 
@@ -96,5 +96,19 @@ export const TYPING_GROUP_DELAY_MS = 300;
  * `Mod-z` look like it had failed rather than never having applied.
  */
 export function editorHistory(): Plugin {
-  return history({ newGroupDelay: TYPING_GROUP_DELAY_MS });
+  const plugin = history({ newGroupDelay: TYPING_GROUP_DELAY_MS });
+  // Undo and redo from beforeinput go through the tagged commands so they read as restores.
+  return new Plugin({
+    ...plugin.spec,
+    props: {
+      handleDOMEvents: {
+        beforeinput(view, event) {
+          const command = event.inputType === 'historyUndo' ? undo : event.inputType === 'historyRedo' ? redo : null;
+          if (!command || !view.editable) return false;
+          event.preventDefault();
+          return command(view.state, view.dispatch);
+        },
+      },
+    },
+  });
 }

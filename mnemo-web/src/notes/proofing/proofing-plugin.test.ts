@@ -3,9 +3,11 @@
  * note may hold, and never do anything else.
  */
 
-import { EditorState } from 'prosemirror-state';
+import { EditorState, Plugin } from 'prosemirror-state';
 import { describe, expect, it } from 'vitest';
 
+import { editorHistory, isHistoryRestore, redo, undo } from '../editor/history';
+import { asOwnUndoStep } from '../editor/history/boundaries';
 import { blockOf, docOf, liveSegmentIds, locatedIssueFor, registry, schema, text } from './fixtures';
 import { checkableSegments, resolveRange } from './segments';
 import {
@@ -152,6 +154,99 @@ describe('the proofing plugin', () => {
     state = state.apply(withProofingMeta(repair(), { type: 'resolve', issue: repaired.issue }));
     expect(proofingIssues(state).map((entry) => entry.issue)).toEqual([sameSegment.issue, sameWord.issue]);
     expect(getProofingState(state).count).toBe(2);
+  });
+
+  describe('through history', () => {
+    function historyStateOf(value: string): EditorState {
+      return EditorState.create({
+        schema,
+        doc: docOf([blockOf({ sid: 'a', spans: [text(value)] })]),
+        plugins: [editorHistory(), proofingPlugin()],
+      });
+    }
+
+    function run(state: EditorState, command: typeof undo): EditorState {
+      let next = state;
+      command(state, (tr) => {
+        next = state.apply(tr);
+      });
+      return next;
+    }
+
+    it('keeps the mark off a fix that is redone and names the segment it took it from', () => {
+      let state = historyStateOf('teh cat');
+      const located = issueFor(state, 'a', 'teh');
+      state = send(state, answers(state, ['a:0'], [located]));
+
+      state = state.apply(
+        asOwnUndoStep(
+          withProofingMeta(state.tr.replaceWith(located.from, located.to, schema.text('the')), {
+            type: 'resolve',
+            issue: located.issue,
+          }),
+        ),
+      );
+      expect(proofingIssues(state)).toHaveLength(0);
+
+      // The undo brings the word back, and the scheduler draws its mark again.
+      state = run(state, undo);
+      state = send(state, answers(state, ['a:0'], [issueFor(state, 'a', 'teh')]));
+      expect(proofingIssues(state)).toHaveLength(1);
+
+      state = run(state, redo);
+      expect(state.doc.textContent).toBe('the cat');
+      expect(proofingIssues(state)).toHaveLength(0);
+      expect(getProofingState(state).count).toBe(0);
+      expect(getProofingState(state).droppedSegmentIds).toEqual([located.issue.segmentId]);
+
+      // The next transaction is not a history one, so nothing is reported twice.
+      state = state.apply(state.tr.insertText('s', state.doc.content.size - 2));
+      expect(getProofingState(state).droppedSegmentIds).toEqual([]);
+    });
+
+    it('still names the segment when another plugin appends a transaction to the redo', () => {
+      const appender = new Plugin({
+        appendTransaction: (trs, _old, next) =>
+          trs.some(isHistoryRestore) && !trs.some((tr) => tr.getMeta('probe')) ? next.tr.setMeta('probe', true) : null,
+      });
+      let state = EditorState.create({
+        schema,
+        doc: docOf([blockOf({ sid: 'a', spans: [text('teh cat')] })]),
+        plugins: [editorHistory(), proofingPlugin(), appender],
+      });
+      const located = issueFor(state, 'a', 'teh');
+      state = send(state, answers(state, ['a:0'], [located]));
+      state = state.apply(
+        asOwnUndoStep(
+          withProofingMeta(state.tr.replaceWith(located.from, located.to, schema.text('the')), {
+            type: 'resolve',
+            issue: located.issue,
+          }),
+        ),
+      );
+      state = run(state, undo);
+      state = send(state, answers(state, ['a:0'], [issueFor(state, 'a', 'teh')]));
+
+      redo(state, (tr) => {
+        state = state.applyTransaction(tr).state;
+      });
+
+      expect(proofingIssues(state)).toHaveLength(0);
+      expect(getProofingState(state).droppedSegmentIds).toEqual([located.issue.segmentId]);
+    });
+
+    it('keeps a mark whose flagged word an undo puts back', () => {
+      let state = historyStateOf('teh cat');
+      const located = issueFor(state, 'a', 'teh');
+      state = send(state, answers(state, ['a:0'], [located]));
+
+      state = state.apply(asOwnUndoStep(state.tr.replaceWith(located.from, located.to, schema.text('x'))));
+      state = run(state, undo);
+
+      expect(state.doc.textContent).toBe('teh cat');
+      expect(proofingIssues(state).map((entry) => entry.issue.text)).toEqual(['teh']);
+      expect(getProofingState(state).droppedSegmentIds).toEqual([]);
+    });
   });
 
   it('finds the issue under a position, which is how the card is opened', () => {

@@ -25,6 +25,7 @@
 import { Plugin, PluginKey, type EditorState, type Transaction } from 'prosemirror-state';
 import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
+import { isHistoryRestore } from '../editor/history';
 import type { ProofingFix, ProofingTone } from './types';
 
 /**
@@ -72,6 +73,8 @@ export interface ProofingPluginState {
   /** The cap was reached: no more marks are added and the note says so. */
   readonly paused: boolean;
   readonly openId: string | null;
+  /** Segments whose marks the last transaction took out because history changed the word under them. */
+  readonly droppedSegmentIds: readonly string[];
 }
 
 export type ProofingMeta =
@@ -102,6 +105,7 @@ const EMPTY: ProofingPluginState = {
   count: 0,
   paused: false,
   openId: null,
+  droppedSegmentIds: [],
 };
 
 export function getProofingState(state: EditorState): ProofingPluginState {
@@ -274,6 +278,8 @@ export function proofingPlugin(): Plugin<ProofingPluginState> {
         let decorations = old.decorations;
         let mappedCount = old.count;
         let mappedPaused = old.paused;
+        // Drops carry over into appended transactions. The listener sees only the last state.
+        let dropped: readonly string[] = tr.getMeta('appendedTransaction') ? old.droppedSegmentIds : [];
         if (tr.docChanged) {
           marks = old.marks.map(tr.mapping, tr.doc);
           // One map in the ordinary case: with no card open the two sets are
@@ -288,6 +294,21 @@ export function proofingPlugin(): Plugin<ProofingPluginState> {
             mappedCount = countIn(marks);
             mappedPaused = mappedPaused && mappedCount >= MAX_ISSUES_PER_NOTE;
           }
+
+          // Mapping would carry a mark onto the word that replaced its own and underline
+          // the corrected text after a redo.
+          if (isHistoryRestore(tr)) {
+            const stale = marks
+              .find()
+              .filter((decoration) => tr.doc.textBetween(decoration.from, decoration.to) !== specOf(decoration)?.issue.text);
+            if (stale.length > 0) {
+              dropped = [...new Set([...dropped, ...stale.flatMap((decoration) => specOf(decoration)?.segmentId ?? [])])];
+              marks = marks.remove(stale);
+              decorations = rendered(tr.doc, marks, old.openId);
+              mappedCount = countIn(marks);
+              mappedPaused = mappedPaused && mappedCount >= MAX_ISSUES_PER_NOTE;
+            }
+          }
         }
         const mapped: ProofingPluginState = {
           ...old,
@@ -295,6 +316,7 @@ export function proofingPlugin(): Plugin<ProofingPluginState> {
           decorations,
           count: mappedCount,
           paused: mappedPaused,
+          droppedSegmentIds: dropped,
         };
 
         if (!meta) return mapped;
@@ -356,6 +378,7 @@ export function proofingPlugin(): Plugin<ProofingPluginState> {
           count,
           paused,
           openId: mapped.openId,
+          droppedSegmentIds: mapped.droppedSegmentIds,
         };
       },
     },

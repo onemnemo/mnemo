@@ -137,7 +137,7 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
 
     const unsubscribe = subscribeProofing(view, (state, docChanged) => {
       setPaused(state.paused);
-      if (docChanged) scheduler.noteEdit();
+      if (docChanged) scheduler.noteEdit(state.droppedSegmentIds);
     });
     scheduler.start();
 

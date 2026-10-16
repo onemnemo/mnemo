@@ -111,8 +111,11 @@ export interface ProofingSchedulerOptions {
 export interface ProofingScheduler {
   /** Begins the pass over the whole note. Safe to call more than once. */
   start(): void;
-  /** The document changed; re-check what changed once it settles. */
-  noteEdit(): void;
+  /**
+   * The document changed. Re-check what changed once it settles. `droppedSegmentIds`
+   * names segments whose marks the edit took out, so the pass draws them again.
+   */
+  noteEdit(droppedSegmentIds?: readonly string[]): void;
   /**
    * A word list changed, so every segment naming one of these words has to be
    * asked about again. Words arrive composed and lowercased, which is how the
@@ -444,8 +447,9 @@ export function createProofingScheduler(options: ProofingSchedulerOptions): Proo
       drawnKey.delete(segmentId);
     },
 
-    noteEdit(): void {
+    noteEdit(droppedSegmentIds = []): void {
       if (destroyed) return;
+      for (const id of droppedSegmentIds) drawnKey.delete(id);
       retriedWhileLoading = false;
       if (debounceTimer !== null) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {

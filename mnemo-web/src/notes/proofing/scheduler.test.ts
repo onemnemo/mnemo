@@ -11,6 +11,8 @@ import { EditorState, type Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { asOwnUndoStep } from '../editor/history/boundaries';
+import { editorHistory, redo, undo } from '../editor/history';
 import { blockOf, docOf, registry, schema, text } from './fixtures';
 import {
   MAX_ISSUES_PER_NOTE,
@@ -33,20 +35,27 @@ function stateOf(values: readonly string[]): EditorState {
 
 function fakeView(initial: EditorState) {
   let state = initial;
+  let changed: ((state: EditorState) => void) | null = null;
+  const apply = (tr: Transaction) => {
+    state = state.apply(tr);
+    if (tr.docChanged) changed?.(state);
+  };
   const view = {
     get state() {
       return state;
     },
-    dispatch(tr: Transaction) {
-      state = state.apply(tr);
-    },
+    dispatch: apply,
     isDestroyed: false,
   };
   return {
     view: view as unknown as EditorView,
     current: () => state,
-    edit: (apply: (tr: Transaction) => Transaction) => {
-      state = state.apply(apply(state.tr));
+    edit: (change: (tr: Transaction) => Transaction) => {
+      apply(change(state.tr));
+    },
+    /** Called after every document change, the way the proofing hook listens. */
+    onChange: (listener: (state: EditorState) => void) => {
+      changed = listener;
     },
   };
 }
@@ -622,6 +631,109 @@ describe('the proofing scheduler', () => {
     expect(proofingIssues(host.current()).map((entry) => entry.issue.text)).toEqual(['teh']);
     expect(requests).toHaveLength(1);
     scheduler.destroy();
+  });
+
+  describe('an accepted fix walked through history', () => {
+    function mount() {
+      const host = fakeView(
+        EditorState.create({
+          schema,
+          doc: docOf([blockOf({ sid: 's0', spans: [text('teh cat')] })]),
+          plugins: [editorHistory(), proofingPlugin()],
+        }),
+      );
+      const clock = manualSchedule();
+      const { client, requests } = stubClient(flagWords(new Set(['teh'])));
+      const scheduler = createProofingScheduler({
+        view: host.view,
+        registry,
+        noteId: 'note',
+        languages: ['en-US'],
+        client,
+        schedule: clock.schedule,
+      });
+      // What useProofing does on every document change.
+      host.onChange((state) => scheduler.noteEdit(getProofingState(state).droppedSegmentIds));
+      const settle = async () => {
+        await vi.advanceTimersByTimeAsync(400);
+        await flush();
+      };
+      const words = () => proofingIssues(host.current()).map((located) => located.issue.text);
+      const step = (command: typeof undo) => command(host.current(), host.view.dispatch);
+      const accept = async () => {
+        scheduler.start();
+        clock.run();
+        await flush();
+        const [located] = proofingIssues(host.current());
+        host.edit((tr) =>
+          asOwnUndoStep(
+            withProofingMeta(tr.replaceWith(located.from, located.to, schema.text('the')), {
+              type: 'resolve',
+              issue: located.issue,
+            }),
+          ),
+        );
+        scheduler.forgetDrawn(located.issue.segmentId);
+        await settle();
+        return located;
+      };
+      return { host, requests, scheduler, settle, words, step, accept };
+    }
+
+    it('keeps the mark off the fixed word when the fix is redone, and back on when it is undone', async () => {
+      const { host, requests, scheduler, settle, words, step, accept } = mount();
+      await accept();
+      expect(words()).toEqual([]);
+
+      step(undo);
+      await settle();
+      expect(words()).toEqual(['teh']);
+
+      // Straight after the redo, before any pass has run.
+      step(redo);
+      expect(host.current().doc.textContent).toBe('the cat');
+      expect(words()).toEqual([]);
+      await settle();
+      expect(words()).toEqual([]);
+      expect(requests).toHaveLength(2);
+      scheduler.destroy();
+    });
+
+    it('draws the mark again when the fix is redone and undone inside one debounce', async () => {
+      const { host, scheduler, settle, words, step, accept } = mount();
+      await accept();
+      step(undo);
+      await settle();
+      expect(words()).toEqual(['teh']);
+
+      step(redo);
+      step(undo);
+      expect(host.current().doc.textContent).toBe('teh cat');
+      await settle();
+      expect(words()).toEqual(['teh']);
+      scheduler.destroy();
+    });
+
+    it('keeps the mark state right when the user types after each step', async () => {
+      const { host, scheduler, settle, words, step, accept } = mount();
+      const located = await accept();
+
+      step(undo);
+      await settle();
+      expect(words()).toEqual(['teh']);
+
+      step(redo);
+      host.edit((tr) => tr.insertText('s', located.from + 7));
+      await settle();
+      expect(host.current().doc.textContent).toBe('the cats');
+      expect(words()).toEqual([]);
+
+      host.edit((tr) => tr.insertText('!', located.from + 8));
+      step(undo);
+      await settle();
+      expect(words()).toEqual([]);
+      scheduler.destroy();
+    });
   });
 
   it('answers a state it has already seen from memory, without the network', async () => {
