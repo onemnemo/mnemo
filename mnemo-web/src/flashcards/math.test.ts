@@ -1,6 +1,32 @@
+import { readFileSync } from "node:fs"
+
 import { describe, expect, it } from "vitest"
 
-import { splitMath, stripMath } from "./math"
+import { flattenMath, splitMath } from "./math"
+
+type Pieces = ["text" | "math" | "display", string][]
+type SplitCase = { name: string; input: string; pieces: Pieces }
+type AnkiCase = { field: string; card: string; pieces: Pieces }
+
+const { cases, anki } = JSON.parse(
+  readFileSync(
+    new URL("../../../Mnemo.Infrastructure.Tests/Flashcards/Fixtures/math-split.json", import.meta.url),
+    "utf8",
+  ),
+) as { cases: SplitCase[]; anki: AnkiCase[] }
+
+const read = (source: string) =>
+  splitMath(source).map((p) => [p.kind === "text" ? "text" : p.display ? "display" : "math", p.value])
+
+describe("splitMath shared vectors", () => {
+  it.each(cases.map((c) => [c.name, c] as const))("%s", (_name, c) => {
+    expect(read(c.input)).toEqual(c.pieces)
+  })
+
+  it.each(anki.map((c) => [c.field, c] as const))("reads what an Anki import stores for %s", (_field, c) => {
+    expect(read(c.card)).toEqual(c.pieces)
+  })
+})
 
 describe("splitMath", () => {
   it("returns the whole string as one text piece when there is no maths", () => {
@@ -56,77 +82,8 @@ describe("splitMath", () => {
   })
 })
 
-describe("stripMath", () => {
-  it("passes plain text through unchanged", () => {
-    expect(stripMath("no formulas here")).toBe("no formulas here")
-  })
-
-  it("flattens a fraction to a slash", () => {
-    expect(stripMath("The ratio is $\\frac{RT}{zF}$.")).toBe("The ratio is RT/zF.")
-  })
-
-  it("reads the arrows that start with left or right as arrows", () => {
-    expect(stripMath("$A \\rightarrow B \\leftarrow C$")).toBe("A → B ← C")
-    expect(stripMath("$p \\Rightarrow q \\leftrightarrow r$")).toBe("p ⇒ q ↔ r")
-  })
-
-  it("drops the sizing commands left and right around a bracket", () => {
-    expect(stripMath("$\\left(x\\right)$")).toBe("(x)")
-    expect(stripMath("$\\left[ x \\right]$")).toBe("[ x ]")
-  })
-
-  it("flattens a fraction nested inside another fraction's argument", () => {
-    expect(stripMath("$\\frac{\\frac{a}{b}}{c}$")).toBe("a/b/c")
-  })
-
-  it("reads greek letters as their symbols", () => {
-    expect(stripMath("$\\alpha \\cdot \\beta$")).toBe("α · β")
-  })
-
-  it("lowers and raises scripts that have a Unicode form", () => {
-    expect(stripMath("Define $K_m$ and $V_{max}$ for $x^2 + y^{n+1}$")).toBe("Define Kₘ and Vₘₐₓ for x² + yⁿ⁺¹")
-  })
-
-  it("marks a script that has no Unicode form plainly rather than gluing it on", () => {
-    expect(stripMath("$k_{cat}$ and $e^{i\\pi}$")).toBe("k_(cat) and e^(iπ)")
-  })
-
-  it("keeps named functions as their word", () => {
-    expect(stripMath("$\\ln x + \\sqrt{2}$")).toBe("ln x + √2")
-  })
-
-  it("flattens the spaced dollars an Anki import writes", () => {
-    expect(stripMath("$ x^2 $")).toBe("x²")
-    expect(stripMath("$ \\frac{RT}{zF} $")).toBe("RT/zF")
-  })
-
-  it("reads a ring as composition and a raised ring as degrees", () => {
-    expect(stripMath("$f \\circ g$ at $90^\\circ$ or $45^{\\circ}$")).toBe("f ∘ g at 90° or 45°")
-  })
-
-  it("renders comparison and arithmetic symbols", () => {
-    expect(stripMath("$x \\leq y \\geq z \\pm 1 \\times 2 \\approx 3$")).toBe("x ≤ y ≥ z ± 1 × 2 ≈ 3")
-  })
-
-  it("drops \\text and similar wrappers down to their content", () => {
-    expect(stripMath("$-90\\,\\text{mV}$")).toBe("-90 mV")
-  })
-
-  it("keeps adjacent literal and maths regions readable", () => {
-    expect(stripMath("resting potential is $-90\\,\\text{mV}$, roughly")).toBe(
-      "resting potential is -90 mV, roughly",
-    )
-  })
-
-  it("flattens display maths the same as inline", () => {
-    expect(stripMath("$$\\frac{a}{b}$$")).toBe("a/b")
-  })
-
-  it("collapses the whitespace a flattened formula can leave behind", () => {
-    expect(stripMath("$\\quad\\quad x$")).toBe("x")
-  })
-
-  it("leaves a malformed, unclosed formula as literal text", () => {
-    expect(stripMath("$\\frac{1}{2 is unclosed")).toBe("$\\frac{1}{2 is unclosed")
+describe("flattenMath", () => {
+  it("reads one formula flat and trims the spaces an import leaves", () => {
+    expect(flattenMath(" \\frac{a}{b} ")).toBe("a/b")
   })
 })

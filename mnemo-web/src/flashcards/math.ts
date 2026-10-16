@@ -1,45 +1,94 @@
-// Splitting and stripping for card text that carries LaTeX. `$…$` inline, `$$…$$` on its own
-// line, nothing else, deliberately: the delimiters are what every student who has met LaTeX
-// already types, and a second dialect would only need explaining.
+// Splitting for card text that carries LaTeX: `$…$` inline and `$$…$$` on its own line.
 //
-// Kept apart from the component that renders this (CardText.tsx) so the deck table, which
-// never renders KaTeX, does not pull it in just to strip a formula down to plain text.
+// Kept apart from CardText.tsx so the deck table, which never renders KaTeX, does not load it.
+//
+// The C# twin is CardMath.cs. Both share the vectors in math-split.json.
 
 import { flattenTex } from "./math-flatten"
 
-/** Alternating literal and maths, so one pass does both forms. */
-const SEGMENT = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/g
-
 export type MathPiece = { kind: "text" | "math"; value: string; display: boolean }
 
-export function splitMath(source: string): MathPiece[] {
-  return source
-    .split(SEGMENT)
-    .filter((s) => s !== "")
-    .map((s) => {
-      if (s.startsWith("$$") && s.endsWith("$$") && s.length > 4) {
-        return { kind: "math" as const, value: s.slice(2, -2), display: true }
-      }
-      if (s.startsWith("$") && s.endsWith("$") && s.length > 2) {
-        return { kind: "math" as const, value: s.slice(1, -1), display: false }
-      }
-      return { kind: "text" as const, value: s, display: false }
-    })
+/** Space, tab, and the no-break and thin spaces some languages put before a currency sign. */
+const SPACE = " \t\u00a0\u202f\u2009"
+const isSpace = (c: string | undefined) => c !== undefined && SPACE.includes(c)
+const isDigit = (c: string | undefined) => c !== undefined && c >= "0" && c <= "9"
+const TEX_SIGNAL = /[\\^{}]/
+
+/** End of a `$$…$$` block opening at `at`, or -1. Blocks may span lines. */
+function displayEnd(source: string, at: number): number {
+  for (let i = at + 3; i < source.length - 1; i += 1) {
+    if (source[i] === "\\") i += 1
+    else if (source[i] === "$" && source[i + 1] === "$") return i + 2
+  }
+  return -1
 }
 
 /**
- * The same text with the maths read out flat, for one-line rows.
- *
- * A deck table row is 13px and truncated with an ellipsis, and a rendered fraction inside one
- * is a two-storey object in a one-storey space that pushes the line height of every row around
- * it. Stripping only the `$` is worse than useless, a row reading `-90\,\text{mV}` is noisier
- * than the formula it stands for. What a row wants is how you would say it out loud:
- * `-90 mV`, `RT/zF`, `Vₘₐₓ`. Approximate on purpose, and never shown anywhere you would work
- * from it.
+ * End of a `$…$` formula opening at `at`, or -1. The pair closes at the next unescaped dollar
+ * on the line. A body with TeX (`\`, `^`, `{`, `}`) is maths. A tight body (`$x^2$`) is maths
+ * unless it starts with a digit and a digit follows, as in `$5-$10`. A body opening with a
+ * space (`$ x $`) is maths unless a digit comes before, as in `5 $ and 7 $`. A body of only
+ * spaces, or one that only ends in a space, is not maths.
  */
-export function stripMath(source: string): string {
-  return source
-    .replace(SEGMENT, (m) => flattenTex(m.replace(/^\$\$?|\$\$?$/g, "")))
-    .replace(/[ \t]{2,}/g, " ")
-    .trim()
+function inlineEnd(source: string, at: number): number {
+  let close = -1
+  for (let i = at + 1; i < source.length; i += 1) {
+    const c = source[i]
+    if (c === "\n") return -1
+    if (c === "\\" && source[i + 1] !== undefined && source[i + 1] !== "\n") i += 1
+    else if (c === "$") {
+      close = i
+      break
+    }
+  }
+  if (close === -1) return -1
+  const body = source.slice(at + 1, close)
+  if ([...body].every(isSpace)) return -1
+  if (TEX_SIGNAL.test(body)) return close + 1
+  if (isSpace(body[0])) {
+    let before = at - 1
+    while (isSpace(source[before])) before -= 1
+    return isDigit(source[before]) ? -1 : close + 1
+  }
+  if (isSpace(body[body.length - 1])) return -1
+  return isDigit(body[0]) && isDigit(source[close + 1]) ? -1 : close + 1
+}
+
+/** Alternating literal and maths runs. A backslash dollar is a literal dollar. */
+export function splitMath(source: string): MathPiece[] {
+  const pieces: MathPiece[] = []
+  let text = ""
+  const flush = () => {
+    if (text !== "") pieces.push({ kind: "text", value: text, display: false })
+    text = ""
+  }
+  let i = 0
+  while (i < source.length) {
+    const c = source[i]
+    if (c === "\\" && i + 1 < source.length) {
+      text += source[i + 1] === "$" ? "$" : c + source[i + 1]
+      i += 2
+      continue
+    }
+    if (c === "$") {
+      const display = source[i + 1] === "$" ? displayEnd(source, i) : -1
+      const end = display === -1 ? inlineEnd(source, i) : display
+      if (end !== -1) {
+        flush()
+        const fence = display === -1 ? 1 : 2
+        pieces.push({ kind: "math", value: source.slice(i + fence, end - fence), display: display !== -1 })
+        i = end
+        continue
+      }
+    }
+    text += c
+    i += 1
+  }
+  flush()
+  return pieces
+}
+
+/** One formula read out flat. */
+export function flattenMath(value: string): string {
+  return flattenTex(value).replace(/[ \t]{2,}/g, " ").trim()
 }

@@ -21,6 +21,7 @@
   <ItemGroup>
     <None Include="Flashcards\Fixtures\Anki\*.apkg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Flashcards\Fixtures\occlusion-generation.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Flashcards\Fixtures\math-split.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

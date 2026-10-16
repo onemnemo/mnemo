@@ -23,6 +23,7 @@ public sealed class FlashcardAnkiMathDelimiterTests
     [Theory]
     // The MathJax spellings Anki writes today.
     [InlineData(@"Solve \(x^2 + 1\) now", "Solve $x^2 + 1$ now")]
+    [InlineData(@"Solve \( x^2 \) now", "Solve $x^2$ now")]
     [InlineData(@"Given \[\int_0^1 x\,dx\] we get", "Given $$\\int_0^1 x\\,dx$$ we get")]
     // The field syntax older collections carry.
     [InlineData(@"Given [$]e^{i\pi}[/$] here", @"Given $e^{i\pi}$ here")]
@@ -99,6 +100,14 @@ public sealed class FlashcardAnkiMathDelimiterTests
     // put half a sentence inside a formula.
     [InlineData("Costs 5 dollars", "Costs 5 dollars")]
     [InlineData("A stray $ with no partner", "A stray $ with no partner")]
+    [InlineData("Pay $5 to user_a and $3 to b", "Pay $5 to user_a and $3 to b")]
+    [InlineData("first $a\nb$ second", "first $a<br>b$ second")]
+    [InlineData("$2{}$3", @"\(2{}\)3")]
+    [InlineData(@"3.0$\times$10$^{8}$ m/s", @"3.0\(\times\)10\(^{8}\) m/s")]
+    [InlineData("Pay $5 and see $x^2$", @"Pay $5 and see \(x^2\)")]
+    [InlineData(@"one atom ($\ce{C}$) to one molecule ($\ce{H2O}$)", @"one atom (\(\ce{C}\)) to one molecule (\(\ce{H2O}\))")]
+    [InlineData("Solve $ x^2 $ now", @"Solve \( x^2 \) now")]
+    [InlineData(@"Costs \$5 flat", "Costs $5 flat")]
     public async Task Export_MathInTheDialectCardsAreWrittenIn_ShipsInTheOneAnkiDraws(string cardText, string expected)
     {
         var apkg = Path.Combine(Path.GetTempPath(), $"mnemo_anki_math_{Guid.NewGuid():N}.apkg");

@@ -2393,7 +2393,8 @@ public sealed partial class FlashcardsAnkiFormatAdapter : IContentFormatAdapter
         {
             // Anki collapses a raw newline to a space, so a multi-line card would arrive as one run-on line.
             fragments.Add(AnkiMathDelimiters.ToAnkiField(
-                WebUtility.HtmlEncode(plain ?? string.Empty).Replace("\n", "<br>", StringComparison.Ordinal)));
+                WebUtility.HtmlEncode(plain ?? string.Empty),
+                literal => literal.Replace("\n", "<br>", StringComparison.Ordinal)));
         }
 
         foreach (var attachment in attachments ?? Array.Empty<FlashcardAttachment>())

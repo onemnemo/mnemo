@@ -184,3 +184,87 @@ describe("markers inside words", () => {
     expect(plainCardText("- one\r\n- two\r")).toBe("one\ntwo")
   })
 })
+
+describe("plainCardText maths", () => {
+  it("leaves prices alone and flattens the real maths beside them", () => {
+    expect(plainCardText("Pay $5 to user_a and $3 to b")).toBe("Pay $5 to user_a and $3 to b")
+    expect(plainCardText("Pay $5 and see $x^2$")).toBe("Pay $5 and see x²")
+  })
+
+  it("shows an escaped dollar as a dollar", () => {
+    expect(plainCardText("costs \\$5")).toBe("costs $5")
+  })
+
+  it("passes plain text through unchanged", () => {
+    expect(plainCardText("no formulas here")).toBe("no formulas here")
+  })
+
+  it("flattens a fraction to a slash", () => {
+    expect(plainCardText("The ratio is $\\frac{RT}{zF}$.")).toBe("The ratio is RT/zF.")
+  })
+
+  it("reads the arrows that start with left or right as arrows", () => {
+    expect(plainCardText("$A \\rightarrow B \\leftarrow C$")).toBe("A → B ← C")
+    expect(plainCardText("$p \\Rightarrow q \\leftrightarrow r$")).toBe("p ⇒ q ↔ r")
+  })
+
+  it("drops the sizing commands left and right around a bracket", () => {
+    expect(plainCardText("$\\left(x\\right)$")).toBe("(x)")
+    expect(plainCardText("$\\left[ x \\right]$")).toBe("[ x ]")
+  })
+
+  it("flattens a fraction nested inside another fraction's argument", () => {
+    expect(plainCardText("$\\frac{\\frac{a}{b}}{c}$")).toBe("a/b/c")
+  })
+
+  it("reads greek letters as their symbols", () => {
+    expect(plainCardText("$\\alpha \\cdot \\beta$")).toBe("α · β")
+  })
+
+  it("lowers and raises scripts that have a Unicode form", () => {
+    expect(plainCardText("Define $K_m$ and $V_{max}$ for $x^2 + y^{n+1}$")).toBe("Define Kₘ and Vₘₐₓ for x² + yⁿ⁺¹")
+  })
+
+  it("marks a script that has no Unicode form plainly rather than gluing it on", () => {
+    expect(plainCardText("$k_{cat}$ and $e^{i\\pi}$")).toBe("k_(cat) and e^(iπ)")
+  })
+
+  it("keeps named functions as their word", () => {
+    expect(plainCardText("$\\ln x + \\sqrt{2}$")).toBe("ln x + √2")
+  })
+
+  it("flattens the spaced dollars older Anki imports stored", () => {
+    expect(plainCardText("$ x^2 $")).toBe("x²")
+    expect(plainCardText("$ \\frac{RT}{zF} $")).toBe("RT/zF")
+  })
+
+  it("reads a ring as composition and a raised ring as degrees", () => {
+    expect(plainCardText("$f \\circ g$ at $90^\\circ$ or $45^{\\circ}$")).toBe("f ∘ g at 90° or 45°")
+  })
+
+  it("renders comparison and arithmetic symbols", () => {
+    expect(plainCardText("$x \\leq y \\geq z \\pm 1 \\times 2 \\approx 3$")).toBe("x ≤ y ≥ z ± 1 × 2 ≈ 3")
+  })
+
+  it("drops \\text and similar wrappers down to their content", () => {
+    expect(plainCardText("$-90\\,\\text{mV}$")).toBe("-90 mV")
+  })
+
+  it("keeps adjacent literal and maths regions readable", () => {
+    expect(plainCardText("resting potential is $-90\\,\\text{mV}$, roughly")).toBe(
+      "resting potential is -90 mV, roughly",
+    )
+  })
+
+  it("flattens display maths the same as inline", () => {
+    expect(plainCardText("$$\\frac{a}{b}$$")).toBe("a/b")
+  })
+
+  it("collapses the whitespace a flattened formula can leave behind", () => {
+    expect(plainCardText("$\\quad\\quad x$")).toBe("x")
+  })
+
+  it("leaves a malformed, unclosed formula as literal text", () => {
+    expect(plainCardText("$\\frac{1}{2 is unclosed")).toBe("$\\frac{1}{2 is unclosed")
+  })
+})

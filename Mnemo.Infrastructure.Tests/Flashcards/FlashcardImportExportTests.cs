@@ -162,6 +162,29 @@ public sealed class FlashcardImportExportTests
     }
 
     [Fact]
+    public async Task MnemoRoundTrip_CardTextWithMathsAndPrices_ComesBackByteForByte()
+    {
+        const string Front = "Pay $5 to user_a and $3 to b, see $x^2$ and $ y $";
+        const string Back = "Costs \\$5\n$$\\frac{a}{b}$$";
+        await using var source = new FlashcardStoreHarness();
+        var sourceLibrary = NewLibrary(source);
+        var sourceCards = new FlashcardCardService(source.Store, source.Cards, source.Schedules, source.Facts, source.Clock);
+        var deck = await sourceLibrary.CreateDeckAsync("Maths");
+        await sourceCards.CreateCardsAsync(deck.Id, new[] { Draft(deck.Id, Front, Back) });
+        var export = await NewHandler(source).ExportAsync(new MnemoPayloadExportContext { Options = new MnemoPackageExportOptions() });
+
+        await using var target = new FlashcardStoreHarness();
+        await target.Store.InitializeAsync();
+        await NewHandler(target).ImportAsync(BuildImportContext(export.Files, ImportConflictPolicy.KeepBoth));
+
+        var targetCards = new FlashcardCardService(target.Store, target.Cards, target.Schedules, target.Facts, target.Clock);
+        var importedDeck = Assert.Single(await NewLibrary(target).ListDecksAsync());
+        var view = Assert.Single((await targetCards.ListCardsAsync(new FlashcardCardQuery(importedDeck.Id))).Items);
+        Assert.Equal(Front, view.Card.Front);
+        Assert.Equal(Back, view.Card.Back);
+    }
+
+    [Fact]
     public async Task MnemoExport_ReembedsAttachments_AsInlineTokens()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"mnemo_export_img_{Guid.NewGuid():N}");

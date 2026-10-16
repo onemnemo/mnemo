@@ -1,4 +1,4 @@
-import { splitMath, stripMath } from "./math"
+import { flattenMath, splitMath } from "./math"
 
 // The grammar the card editor's format bar writes, and nothing else: `**bold**`, `*italic*`,
 // `__underline__`, `` `code` ``, `==highlight==`, and a line opening with `- ` as a bullet.
@@ -276,7 +276,7 @@ function plainInline(nodes: CardInline[]): string {
   return nodes
     .map((node) => {
       if (node.kind === "text") return node.value
-      if (node.kind === "math") return stripMath(node.display ? `$$${node.value}$$` : `$${node.value}$`)
+      if (node.kind === "math") return flattenMath(node.value)
       return plainInline(node.children)
     })
     .join("")
@@ -284,7 +284,7 @@ function plainInline(nodes: CardInline[]): string {
 
 /**
  * The card's text with the markers read out and dropped, for a table row that shows one line
- * of it and has no room to render anything. A formula reads out flat the way `stripMath`
+ * of it and has no room to render anything. A formula reads out flat the way `flattenMath`
  * flattens it, and a bullet list is its items one per line.
  */
 export function plainCardText(source: string): string {

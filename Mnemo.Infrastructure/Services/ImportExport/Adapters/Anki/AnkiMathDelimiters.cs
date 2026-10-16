@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Mnemo.Infrastructure.Services.ImportExport.Adapters.Anki;
@@ -28,14 +29,6 @@ internal static class AnkiMathDelimiters
     private static readonly Regex BracketInlineMathRegex = new(@"\[\$\](?<body>.+?)\[/\$\]", RegexOptions.Compiled | RegexOptions.Singleline);
     private static readonly Regex BracketDisplayMathRegex = new(@"\[\$\$\](?<body>.+?)\[/\$\$\]", RegexOptions.Compiled | RegexOptions.Singleline);
 
-    // The renderer's own rule, character for character: a displayed block is anything between two
-    // pairs of dollars and may span lines, an inline formula is anything between two single dollars
-    // that holds neither a dollar nor a newline. Deliberately the same rule rather than a stricter
-    // one, so what the other app draws is exactly what was being drawn here, including the cases
-    // where a stray dollar in prose was already being read as maths.
-    private static readonly Regex DollarDisplayRegex = new(@"\$\$(?<body>.+?)\$\$", RegexOptions.Compiled | RegexOptions.Singleline);
-    private static readonly Regex DollarInlineRegex = new(@"\$(?<body>[^$\n]+?)\$", RegexOptions.Compiled);
-
     /// <summary>Rewrites every spelling an Anki field may carry into the dollar dialect.</summary>
     public static string ToCardText(string text)
     {
@@ -44,25 +37,39 @@ internal static class AnkiMathDelimiters
 
         // The bracket forms first: their bodies can contain the backslash forms' characters.
         var normalized = BracketDisplayMathRegex.Replace(text, "$$$$${body}$$$$");
-        normalized = BracketInlineMathRegex.Replace(normalized, "$$${body}$$");
+        normalized = BracketInlineMathRegex.Replace(normalized, StoredInline(normalized));
         normalized = DisplayMathRegex.Replace(normalized, "$$$$${body}$$$$");
-        normalized = InlineMathRegex.Replace(normalized, "$$${body}$$");
+        normalized = InlineMathRegex.Replace(normalized, StoredInline(normalized));
         return normalized;
     }
 
+    // Stored in the tight form the card reader takes as maths.
+    private static MatchEvaluator StoredInline(string input) => match =>
+    {
+        var body = CardMath.ForStorage(match.Groups["body"].Value, input.AsSpan(match.Index + match.Length));
+        return body.Length == 0 ? match.Value : "$" + body + "$";
+    };
+
     /// <summary>
-    /// Rewrites the dollar dialect back into the MathJax delimiters an Anki card renders.
+    /// Rewrites dollar maths back into the MathJax delimiters an Anki card renders.
+    /// <see cref="CardMath"/> decides what counts as a formula, as the card renderer does.
     /// </summary>
-    /// <remarks>
-    /// Displayed blocks go first. Run the other way round, the inline rule would take the first two
-    /// dollars of a displayed block and leave the closing pair stranded.
-    /// </remarks>
-    public static string ToAnkiField(string text)
+    public static string ToAnkiField(string text, Func<string, string>? mapText = null)
     {
         if (string.IsNullOrEmpty(text))
             return text;
 
-        var converted = DollarDisplayRegex.Replace(text, @"\[${body}\]");
-        return DollarInlineRegex.Replace(converted, @"\(${body}\)");
+        var field = new StringBuilder(text.Length + 8);
+        foreach (var piece in CardMath.Split(text))
+        {
+            field.Append(piece.Kind switch
+            {
+                CardMathKind.Inline => $@"\({piece.Value}\)",
+                CardMathKind.Display => $@"\[{piece.Value}\]",
+                _ => mapText is null ? piece.Value : mapText(piece.Value),
+            });
+        }
+
+        return field.ToString();
     }
 }
