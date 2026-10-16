@@ -288,28 +288,54 @@ public sealed class FlashcardCsvTransferTests
         }
     }
 
-    [Fact]
-    public async Task Import_HeaderAndNothingElse_MakesTheDeckTheFileNames()
+    [Theory]
+    [InlineData("front,back\n")]
+    [InlineData("front,back")]
+    [InlineData("front,back\r\n")]
+    [InlineData("\uFEFFfront,back\r\n")]
+    [InlineData("front,back\n\n  \n\n")]
+    [InlineData("front;back\n")]
+    [InlineData("front\tback\n")]
+    [InlineData("deck,front,back\n")]
+    public async Task HeaderWithoutRows_IsRefusedLikeAnEmptyFile(string text)
     {
         await using var h = new FlashcardStoreHarness();
         var library = NewLibrary(h);
         var cards = new FlashcardCardService(h.Store, h.Cards, h.Schedules, h.Facts, h.Clock);
+        var adapter = NewAdapter(h, library, cards);
 
         var csvPath = NewCsvPath();
-        await File.WriteAllTextAsync(csvPath, "front,back\n");
+        await File.WriteAllTextAsync(csvPath, text);
         try
         {
-            var result = await NewAdapter(h, library, cards).ImportAsync(new ImportExportRequest { FilePath = csvPath });
+            var preview = await adapter.PreviewImportAsync(new ImportExportRequest { FilePath = csvPath });
+            var result = await adapter.ImportAsync(new ImportExportRequest { FilePath = csvPath });
 
-            Assert.True(result.Success, result.ErrorMessage);
-            var deck = Assert.Single(await library.ListDecksAsync());
-            Assert.Equal(Path.GetFileNameWithoutExtension(csvPath), deck.Name);
-            Assert.Empty(result.Warnings);
+            Assert.False(preview.CanImport);
+            Assert.Equal("CsvEmpty", Assert.Single(preview.Warnings).Key);
+            Assert.Equal(0, preview.DiscoveredCounts["decks"]);
+            Assert.Equal(0, preview.DiscoveredCounts["flashcards"]);
+            Assert.False(result.Success);
+            Assert.Empty(await library.ListDecksAsync());
         }
         finally
         {
             File.Delete(csvPath);
         }
+    }
+
+    [Theory]
+    [InlineData("front,back\nQ1,A1\n", "Q1", "A1")]
+    [InlineData("\uFEFFfront,back\r\nQ1,A1\r\n", "Q1", "A1")]
+    [InlineData("front;back\nQ1;A1\n", "Q1", "A1")]
+    [InlineData("front\tback\nQ1\tA1\n", "Q1", "A1")]
+    [InlineData("front,back\n\n\nQ1,A1\n", "Q1", "A1")]
+    [InlineData("front,back\n\"Q1\",\"line one\nline two\"\n", "Q1", "line one\nline two")]
+    public async Task HeaderWithARow_ImportsThatOneCard(string text, string front, string back)
+    {
+        var sides = await ImportSidesAsync(text);
+
+        Assert.Equal((front, back), Assert.Single(sides));
     }
 
     [Fact]

@@ -62,32 +62,6 @@ public sealed class FlashcardCsvPreviewTests
     }
 
     [Fact]
-    public async Task PreviewImportAsync_HeaderAndNothingElse_ReportsTheOneDeckTheImportMakes()
-    {
-        await using var h = new FlashcardStoreHarness();
-        var adapter = NewAdapter(h);
-
-        var csvPath = NewCsvPath();
-        await File.WriteAllTextAsync(csvPath, "front,back\n");
-        try
-        {
-            var preview = await adapter.PreviewImportAsync(new ImportExportRequest { FilePath = csvPath });
-            var import = await adapter.ImportAsync(new ImportExportRequest { FilePath = csvPath });
-
-            Assert.True(preview.CanImport);
-            Assert.True(import.Success, import.ErrorMessage);
-            Assert.Equal(0, preview.DiscoveredCounts["flashcards"]);
-            Assert.Equal(1, preview.DiscoveredCounts["decks"]);
-            Assert.Equal(import.ProcessedCounts["decks"], preview.DiscoveredCounts["decks"]);
-            Assert.Empty(preview.Warnings);
-        }
-        finally
-        {
-            File.Delete(csvPath);
-        }
-    }
-
-    [Fact]
     public async Task PreviewImportAsync_DeckColumn_CountsDistinctDecksTheWayTheImportGroupsThem()
     {
         await using var h = new FlashcardStoreHarness();

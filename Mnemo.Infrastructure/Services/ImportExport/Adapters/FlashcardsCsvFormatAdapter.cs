@@ -47,18 +47,17 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
     public bool SupportsConflictPolicy => false;
 
     /// <summary>
-    /// Reads the file the way the import will, so the two agree on what it holds: a file with no
-    /// record in it cannot be imported, and the counts name every deck the import would create,
-    /// including the one deck a header-only file makes.
+    /// Reads the file the way the import will. A file with no record past the header cannot be
+    /// imported. The counts name every deck the import would create.
     /// </summary>
     public async Task<ImportExportPreview> PreviewImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
     {
         var read = await ReadRowsAsync(request.FilePath, cancellationToken).ConfigureAwait(false);
-        var deckCount = read.SawRecord ? DeckNamesOf(read.Rows, FileDeckNameOf(request.FilePath)).Count : 0;
+        var deckCount = read.SawDataRecord ? DeckNamesOf(read.Rows, FileDeckNameOf(request.FilePath)).Count : 0;
 
         var preview = new ImportExportPreview
         {
-            CanImport = read.SawRecord,
+            CanImport = read.SawDataRecord,
             ContentType = ContentType,
             FormatId = FormatId,
             DiscoveredCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
@@ -68,7 +67,7 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
             }
         };
 
-        if (!read.SawRecord)
+        if (!read.SawDataRecord)
             preview.Warnings.Add(TransferWarning.Of("CsvEmpty"));
 
         return preview;
@@ -95,7 +94,7 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
         if (read.EndedInsideQuotedValue)
             warnings.Add(TransferWarning.Of("CsvUnterminatedQuote"));
 
-        if (!read.SawRecord)
+        if (!read.SawDataRecord)
         {
             return new ImportExportResult
             {
@@ -166,7 +165,7 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
     {
         var rows = new List<CsvCardRow>();
         var skippedLines = new List<int>();
-        var sawRecord = false;
+        var sawDataRecord = false;
         var skippedRows = 0;
 
         var delimiter = await SniffDelimiterAsync(filePath, cancellationToken).ConfigureAwait(false);
@@ -182,7 +181,6 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
             if (record.Fields.All(string.IsNullOrWhiteSpace))
                 continue;
 
-            sawRecord = true;
             if (atFirstRecord)
             {
                 atFirstRecord = false;
@@ -193,6 +191,8 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
                 frontColumn = 0;
                 backColumn = 1;
             }
+
+            sawDataRecord = true;
 
             var front = Cell(record.Fields, frontColumn);
             if (string.IsNullOrWhiteSpace(front))
@@ -209,7 +209,7 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
                 Cell(record.Fields, backColumn)));
         }
 
-        return new CsvReadResult(rows, sawRecord, skippedRows, skippedLines, reader.EndedInsideQuotedValue);
+        return new CsvReadResult(rows, sawDataRecord, skippedRows, skippedLines, reader.EndedInsideQuotedValue);
     }
 
     /// <summary>
@@ -239,9 +239,9 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
         string.IsNullOrWhiteSpace(row.Deck) ? fileDeckName : row.Deck;
 
     /// <summary>
-    /// The decks an import creates, in the order the file first names them. Exact spellings from
-    /// the export are kept, so two spellings stay two decks, and a file with a header and no rows
-    /// still makes the one deck the file names.
+    /// The decks an import creates, in the order the file first names them. Exact spellings are
+    /// kept, so two spellings stay two decks. A file whose rows are all skipped still makes the
+    /// one deck it names.
     /// </summary>
     private static List<string> DeckNamesOf(IReadOnlyList<CsvCardRow> rows, string fileDeckName)
     {
@@ -414,7 +414,7 @@ public sealed class FlashcardsCsvFormatAdapter : IContentFormatAdapter
     /// </summary>
     private sealed record CsvReadResult(
         IReadOnlyList<CsvCardRow> Rows,
-        bool SawRecord,
+        bool SawDataRecord,
         int SkippedRows,
         IReadOnlyList<int> SkippedLines,
         bool EndedInsideQuotedValue);
