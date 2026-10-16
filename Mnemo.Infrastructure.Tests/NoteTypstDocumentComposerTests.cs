@@ -143,6 +143,22 @@ public sealed class NoteTypstDocumentComposerTests
     }
 
     [Fact]
+    public void Code_EmitsItsCaptionBelowTheBlockAndEscapesMarkup()
+    {
+        var block = Leaf(BlockType.Code, "unused", new CodePayload("python", "x = 1", Caption: "Step #1 [a]"));
+        var typ = Compose(NoteWith(block));
+        Assert.Contains("Step \\#1 \\[a\\]", typ);
+        Assert.True(typ.IndexOf("#raw(", StringComparison.Ordinal) < typ.IndexOf("Step ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Code_WithoutACaptionEmitsNoCaptionLine()
+    {
+        var typ = Compose(NoteWith(Leaf(BlockType.Code, "unused", new CodePayload("python", "x = 1"))));
+        Assert.DoesNotContain("#v(4pt)", typ);
+    }
+
+    [Fact]
     public void Equation_UsesDisplayStyleMitex()
     {
         var block = Leaf(BlockType.Equation, "ignored", new EquationPayload("\\sum_{i=1}^{n} i"));

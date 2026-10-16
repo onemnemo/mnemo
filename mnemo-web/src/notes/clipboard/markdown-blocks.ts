@@ -19,6 +19,7 @@
  * `[[wikilink]]` stays literal text rather than becoming a broken card.
  */
 
+import { parseCodeFenceInfo } from '../model/code-fence-info';
 import { endsWithBreakMarker } from '../model/hard-break';
 import { oneParagraphSpans, parseInlineMarkdown } from '../model/markdown';
 import { plainSpan } from '../model/spans';
@@ -415,7 +416,8 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
     // An opener with no closer below it is text, or it would take the rest of the paste.
     const fence = fences.openedAt(lines, i);
     if (fence) {
-      const language = fence.info.split(/\s+/)[0] ?? '';
+      const { head, caption } = parseCodeFenceInfo(fence.info);
+      const language = head.split(/\s+/)[0] ?? '';
       const isSketch = fence.info.toLowerCase() === 'sketch' || fence.info.toLowerCase() === 'mnemo-sketch';
       const body: string[] = [];
       i++;
@@ -431,7 +433,7 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
       if (isSketch) {
         emit('Sketch', [plainSpan(source)], { kind: 'sketch', width: 0, align: 'left' });
       } else {
-        emit('Code', [plainSpan(source)], { kind: 'code', language, source });
+        emit('Code', [plainSpan(source)], { kind: 'code', language, source, ...(caption ? { caption } : {}) });
       }
       continue;
     }

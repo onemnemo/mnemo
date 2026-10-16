@@ -367,9 +367,9 @@ public static partial class NoteBlockMarkdownConverter
             var fence = CodeFenceOf(trimmed);
             if (fence is not null)
             {
-                var fenceLang = trimmed[fence.Length..].Trim();
-                var isSketch = string.Equals(fenceLang, "sketch", StringComparison.OrdinalIgnoreCase);
-                var language = fenceLang;
+                var fenceInfo = trimmed[fence.Length..].Trim();
+                var isSketch = string.Equals(fenceInfo, "sketch", StringComparison.OrdinalIgnoreCase);
+                var (language, caption) = CodeFenceInfo.Parse(fenceInfo);
                 var codeContent = new System.Text.StringBuilder();
                 i++;
                 while (i < lines.Length)
@@ -393,7 +393,7 @@ public static partial class NoteBlockMarkdownConverter
                     Type = isSketch ? BlockType.Sketch : BlockType.Code,
                     Order = 0,
                     Spans = new List<InlineSpan> { new TextSpan(source, TextStyle.Default) },
-                    Payload = isSketch ? new EmptyPayload() : new CodePayload(language, source),
+                    Payload = isSketch ? new EmptyPayload() : new CodePayload(language, source, Caption: caption),
                     Meta = new Dictionary<string, object>()
                 };
                 AddTop(codeBlock);
@@ -670,10 +670,12 @@ public static partial class NoteBlockMarkdownConverter
     {
         string source;
         string lang;
+        var caption = string.Empty;
         if (block.Payload is CodePayload cp)
         {
             lang = (cp.Language ?? string.Empty).Trim();
             source = cp.Source ?? string.Empty;
+            caption = cp.Caption ?? string.Empty;
         }
         else
         {
@@ -682,7 +684,7 @@ public static partial class NoteBlockMarkdownConverter
         }
 
         var fence = FenceFor(source);
-        return fence + lang + "\n" + source + "\n" + fence;
+        return fence + CodeFenceInfo.Format(lang, caption) + "\n" + source + "\n" + fence;
     }
 
     /// <summary>A backtick fence longer than any run of backticks in the source, so no line inside closes it.</summary>

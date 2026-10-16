@@ -9,6 +9,7 @@
 
 import type { AiSegment, AnyBlockModule } from '../registry/types';
 import type { Block, BlockType, InlineSpan } from '../../model/types';
+import { formatCodeFenceInfo } from '../../model/code-fence-info';
 import { plainSpan } from '../../model/spans';
 import { defineBlock, lineText, metrics, type BlockDeps } from './shared';
 import { convertHere } from './slash-insert';
@@ -53,10 +54,15 @@ export function codeBlock(deps: BlockDeps): AnyBlockModule {
             preserveWhitespace: 'full',
             getAttrs: (n) => ({
               language: (n as HTMLElement).getAttribute('data-language') ?? 'csharp',
+              caption: (n as HTMLElement).getAttribute('data-caption') ?? '',
             }),
           },
         ],
-        toDOM: (node) => ['pre', { 'data-language': String(node.attrs.language) }, ['code', 0]],
+        toDOM: (node) => [
+          'pre',
+          { 'data-language': String(node.attrs.language), 'data-caption': String(node.attrs.caption ?? '') || null },
+          ['code', 0],
+        ],
       },
       attrsFrom: (block) => ({
         language: block.payload.kind === 'code' ? block.payload.language : 'csharp',
@@ -77,8 +83,10 @@ export function codeBlock(deps: BlockDeps): AnyBlockModule {
           caption: String(node.attrs.caption ?? ''),
         },
       }),
-      toMarkdown: (node) =>
-        `\`\`\`${String(node.attrs.language ?? '')}\n${lineText(node)}\n\`\`\`\n`,
+      toMarkdown: (node) => {
+        const info = formatCodeFenceInfo(String(node.attrs.language ?? ''), String(node.attrs.caption ?? ''));
+        return `\`\`\`${info}\n${lineText(node)}\n\`\`\`\n`;
+      },
       segmentsFor: (_node, text): readonly AiSegment[] =>
         text.length > 0 ? [{ kind: 'code', text, offset: 0 }] : [],
       realizedView: codeBlockView,

@@ -251,6 +251,52 @@ describe('clipboardPlugin paste', () => {
     expect(pasted?.sid).toBeTruthy();
     expect(pasted?.sid).not.toBe('s1');
   });
+
+  describe('a code block caption', () => {
+    const captioned = () =>
+      schema.nodes.codeBlock.create(
+        { sid: 'c1', id: 'c1', language: 'ts', caption: 'Figure one' },
+        schema.nodes.codeLine.create(null, schema.text('let x = 1;')),
+      );
+
+    const pastedCaption = (view: EditorView): string => {
+      const pasted = view.state.doc.child(view.state.doc.childCount - 1);
+      expect(pasted.type.name).toBe('codeBlock');
+      return String(pasted.attrs.caption);
+    };
+
+    it('survives a copy and paste', () => {
+      const view = mountFull(docOf(captioned(), para('two', 's2')));
+      view.dispatch(
+        view.state.tr.setMeta(blockSelectionKey, {
+          type: 'set',
+          selection: { selected: new Set(['c1']), anchorSid: 'c1' },
+        }),
+      );
+      const { data } = fire(view, 'copy');
+      view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+      expect(firePaste(view, data)).toBe(true);
+      expect(pastedCaption(view)).toBe('Figure one');
+    });
+
+    it('survives the paste that has to rebuild from the clipboard HTML', () => {
+      const view = mountFull(docOf(captioned(), para('two', 's2')));
+      view.dispatch(
+        view.state.tr.setMeta(blockSelectionKey, {
+          type: 'set',
+          selection: { selected: new Set(['c1']), anchorSid: 'c1' },
+        }),
+      );
+      const { data } = fire(view, 'copy');
+      clearStashedSlice();
+      data.setData(MNEMO_CLIPBOARD_MIME, '');
+      view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
+
+      expect(firePaste(view, data)).toBe(true);
+      expect(pastedCaption(view)).toBe('Figure one');
+    });
+  });
 });
 
 describe('clipboardPlugin external paste', () => {
