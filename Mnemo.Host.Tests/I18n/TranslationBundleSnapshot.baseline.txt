@@ -3,23 +3,23 @@
 # The hash covers every namespace, key and value, so a changed string moves it too.
 
 culture en
-sha256 52f3bc86f8590237794ea1836980faf2b51f75477a12cb50d564c0e72cb7ea95
+sha256 e2f4858b95f16eef590a21f58e293100086b2633315cafaba083ef4c679d6d8d
 namespaces 39
-keys 2775
+keys 2764
   App 41
   Chat 132
-  Common 116
+  Common 117
   EmojiPicker 14
   Errors 58
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 546
+  Flashcards 542
   GlobalSearch 18
   Hardware 2
   Keybinds 143
-  Mindmap 408
-  Notes 226
+  Mindmap 404
+  Notes 222
   NotesEditor 226
   Onboarding 49
   Overview 31
@@ -47,23 +47,23 @@ keys 2775
   WidgetToday 9
 
 culture de
-sha256 81454907eabd21c10c66782602dec59bd8702ae8fd4dc812b50774e1d2472e70
+sha256 44053fa19f58df0ee3b5deb55c3f433c6612dfec573009d86112d508e635b167
 namespaces 39
-keys 2775
+keys 2764
   App 41
   Chat 132
-  Common 116
+  Common 117
   EmojiPicker 14
   Errors 58
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 546
+  Flashcards 542
   GlobalSearch 18
   Hardware 2
   Keybinds 143
-  Mindmap 408
-  Notes 226
+  Mindmap 404
+  Notes 222
   NotesEditor 226
   Onboarding 49
   Overview 31
@@ -91,23 +91,23 @@ keys 2775
   WidgetToday 9
 
 culture es
-sha256 b144feae6c949b1fdbe04f21e7e9b8f6ac6bc27ec7624cd48ca57205cff30276
+sha256 b8d7aac416a881c9f62e28f16db6b4452515ba59b0ac4304e1f60c9800b2a778
 namespaces 39
-keys 2775
+keys 2764
   App 41
   Chat 132
-  Common 116
+  Common 117
   EmojiPicker 14
   Errors 58
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 546
+  Flashcards 542
   GlobalSearch 18
   Hardware 2
   Keybinds 143
-  Mindmap 408
-  Notes 226
+  Mindmap 404
+  Notes 222
   NotesEditor 226
   Onboarding 49
   Overview 31
@@ -135,23 +135,23 @@ keys 2775
   WidgetToday 9
 
 culture ja
-sha256 b3d45f6830df577290abab41685dbb05cf06a2da0d757f9377d4b85904f3fa1e
+sha256 d6363702a8054746858e9959550ba906f3d472a518d2d6a7c59b2abab32bb5cf
 namespaces 39
-keys 2775
+keys 2764
   App 41
   Chat 132
-  Common 116
+  Common 117
   EmojiPicker 14
   Errors 58
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 546
+  Flashcards 542
   GlobalSearch 18
   Hardware 2
   Keybinds 143
-  Mindmap 408
-  Notes 226
+  Mindmap 404
+  Notes 222
   NotesEditor 226
   Onboarding 49
   Overview 31
@@ -179,23 +179,23 @@ keys 2775
   WidgetToday 9
 
 culture nb
-sha256 166dc0af8afd41aa25874be86e05c49931aebaec3edc9d93b9dad7693f039700
+sha256 513bf402ed28873c99f3a23ed0cba54ea548a23811ede5a3aacb068387f5d6da
 namespaces 39
-keys 2775
+keys 2764
   App 41
   Chat 132
-  Common 116
+  Common 117
   EmojiPicker 14
   Errors 58
   FlashcardMemory 8
   FlashcardStats 8
   FlashcardTests 8
-  Flashcards 546
+  Flashcards 542
   GlobalSearch 18
   Hardware 2
   Keybinds 143
-  Mindmap 408
-  Notes 226
+  Mindmap 404
+  Notes 222
   NotesEditor 226
   Onboarding 49
   Overview 31

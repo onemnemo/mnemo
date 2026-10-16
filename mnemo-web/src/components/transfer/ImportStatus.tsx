@@ -2,7 +2,6 @@ import type { ConflictPolicy } from "@/api/types"
 import { AppIcon } from "@/components/icon/AppIcon"
 import { Menu, MenuCheckItem, MenuContent, MenuTrigger } from "@/components/ui/menu"
 import { MODAL_MENU_CLASS } from "@/components/ui/modal-menu"
-import { tPlural } from "@/i18n/plural"
 import { useT } from "@/i18n/useT"
 
 const POLICIES: { value: ConflictPolicy; label: string; caption: string }[] = [
@@ -11,72 +10,53 @@ const POLICIES: { value: ConflictPolicy; label: string; caption: string }[] = [
   { value: "Replace", label: "TransferConflictReplace", caption: "TransferConflictReplaceCaption" },
 ]
 
-export function ImportStatus({
-  summary,
-  progress,
-  collisions,
+/** The duplicate-name choice. It is a menu rather than a select so each option can show a caption. */
+export function ConflictRow({
   policy,
   onPolicy,
   disabled,
+  note,
 }: {
-  summary: string
-  progress: { done: number; total: number } | null
-  collisions: number
   policy: ConflictPolicy
   onPolicy: (policy: ConflictPolicy) => void
   disabled: boolean
+  /** Shown under the row when the chosen policy deletes something. */
+  note?: string | null
 }) {
   const t = useT()
   const common = (key: string) => t("Common", key)
   const current = POLICIES.find((option) => option.value === policy) ?? POLICIES[0]
 
   return (
-    <div className="min-w-0 flex-1 text-[11.5px] text-ink-3">
-      <div className="flex min-w-0 items-center gap-1">
-        <span aria-live="polite" className="truncate">
-          {progress
-            ? tPlural(t, "Common", IMPORTING, progress.total, { done: progress.done })
-            : collisions > 0
-              ? tPlural(t, "Common", ALREADY_EXIST, collisions)
-              : summary}
-        </span>
-        {!progress && collisions > 0 ? (
-          <>
-            <span aria-hidden>·</span>
-            <Menu>
-              <MenuTrigger asChild disabled={disabled}>
-                <button
-                  type="button"
-                  className="inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 font-medium text-ink-2 hover:bg-frame-hover hover:text-ink disabled:opacity-50"
-                >
-                  {common(current.label)}
-                  <AppIcon name="chevron-down" size={12} />
-                </button>
-              </MenuTrigger>
-              <MenuContent className={MODAL_MENU_CLASS}>
-                {POLICIES.map((option) => (
-                  <MenuCheckItem
-                    key={option.value}
-                    checked={option.value === policy}
-                    description={common(option.caption)}
-                    onSelect={() => onPolicy(option.value)}
-                  >
-                    {common(option.label)}
-                  </MenuCheckItem>
-                ))}
-              </MenuContent>
-            </Menu>
-          </>
-        ) : null}
+    <div className="mx-6 shrink-0 border-t border-divider-subtle pt-2.5 pb-3">
+      <div className="flex items-center gap-3">
+        <span className="flex-1 text-[13px] text-text-secondary">{common("TransferConflictLabel")}</span>
+        <Menu>
+          <MenuTrigger asChild disabled={disabled}>
+            <button
+              type="button"
+              data-transfer-conflict
+              className="inline-flex h-[30px] items-center gap-2 rounded-lg bg-surface px-2 text-[13px] text-text-primary shadow-[0_0_0_1px_var(--line)] hover:bg-frame-hover disabled:opacity-50"
+            >
+              {common(current.label)}
+              <AppIcon name="chevron-down" size={13} />
+            </button>
+          </MenuTrigger>
+          <MenuContent className={MODAL_MENU_CLASS} align="end">
+            {POLICIES.map((option) => (
+              <MenuCheckItem
+                key={option.value}
+                checked={option.value === policy}
+                description={common(option.caption)}
+                onSelect={() => onPolicy(option.value)}
+              >
+                {common(option.label)}
+              </MenuCheckItem>
+            ))}
+          </MenuContent>
+        </Menu>
       </div>
+      {note ? <p className="mt-1.5 text-[12px] leading-snug text-danger">{note}</p> : null}
     </div>
   )
 }
-
-/** On its own line above the buttons so it can wrap. */
-export function ReplaceNote({ text }: { text: string }) {
-  return <p className="basis-full text-[11.5px] leading-snug text-danger">{text}</p>
-}
-
-const ALREADY_EXIST = { one: "TransferAlreadyExistsOne", many: "TransferAlreadyExistsMany" }
-const IMPORTING = { one: "TransferImportingOne", many: "TransferImportingMany" }

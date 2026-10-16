@@ -343,6 +343,17 @@
         background: transparent;
     }
 
+    /* The import queue's scrollbar stays out of sight until the list is hovered or focused. */
+    .queue-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+        transition: scrollbar-color 0.2s;
+    }
+    .queue-scroll:hover,
+    .queue-scroll:focus-within {
+        scrollbar-color: var(--line) transparent;
+    }
+
     /* The bare `.slider` rule is load-bearing: Tailwind only registers a custom utility
        from the name it sees on a plain class selector, and without it the thumb rule
        below is never emitted at all. Same shape as `.scroll-thin` above. */

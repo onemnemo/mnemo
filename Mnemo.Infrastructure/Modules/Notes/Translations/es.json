@@ -156,13 +156,9 @@
     "Export": "Exportar…",
     "Import": "Importar",
     "ImportNotes": "Importar notas",
-    "TransferImportTitle": "Importar notas",
-    "TransferExportTitle": "Exportar notas",
-    "TransferExportNoteTitle": "Exportar nota",
     "TransferNounSingular": "nota",
     "TransferNounPlural": "notas",
     "ImportHere": "Importar notas aquí",
-    "TransferImportDestinationFormat": "Las notas se guardan en {0}.",
     "ExportNoNotesMessage": "No hay notas seleccionadas para exportar.",
     "ExportFormatUnavailableMessage": "No hay ningún formato de exportación disponible.",
     "editor.slashHint": "Escribe ‘/’ para ver comandos"

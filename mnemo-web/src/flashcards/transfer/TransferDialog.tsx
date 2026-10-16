@@ -1,14 +1,12 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Dialog } from "radix-ui"
 
 import { describeError } from "@/api/error-copy"
 import { announceExport, exportFileName, exportSaveOptions } from "@/api/export-file"
-import type { ConflictPolicy } from "@/api/types"
-import { AppIcon } from "@/components/icon/AppIcon"
 import {
   canImport,
   importExtensions,
+  importingLabel,
   isImportable,
   packageCollidingKeys,
   packageCollisions,
@@ -19,25 +17,27 @@ import {
   REPLACE_BUTTON_CLASS,
 } from "@/components/transfer/import-queue"
 import { ImportPanel } from "@/components/transfer/ImportPanel"
-import { ImportStatus, ReplaceNote } from "@/components/transfer/ImportStatus"
+import { ConflictRow } from "@/components/transfer/ImportStatus"
+import { ExportFormatList } from "@/components/transfer/ExportFormatList"
+import { TransferShell, type TransferDirection } from "@/components/transfer/TransferShell"
+import { AddButton } from "@/components/transfer/AddButton"
+import { useImportPicker } from "@/components/transfer/useImportPicker"
 import { announceImport, useImportQueue } from "@/components/transfer/useImportQueue"
-import { Button } from "@/components/ui/button"
-import { IconButton } from "@/components/ui/icon-button"
+import { useConflictChoice, useExportFormat, useFormatsErrorToast, useItemPhrase, useResetConflict } from "@/components/transfer/useTransferDialog"
 import { useT } from "@/i18n/useT"
-import { isMac } from "@/keybinds/chord"
-import { useFileDrop } from "@/lib/useFileDrop"
-import { cn } from "@/lib/utils"
+import { useFileDropCount } from "@/lib/useFileDrop"
 import { toast } from "@/stores/toast"
 
 import { discardUpload, runExport, runImport, uploadTransferFile, useTransferFormatsQuery } from "./api"
-import { ExportPanel } from "./components/ExportPanel"
-import { Segmented } from "./components/Segmented"
 import type { TransferTarget } from "./store"
 import { exportFormats, exportKind, queuedFromUpload, readyCardCount, type QueuedFile } from "./transfer"
 
-const SHORTCUT_HINT = isMac ? "⌘⏎" : "Ctrl+⏎"
-
-type Direction = "import" | "export"
+/** Translation keys for each format's name and caption. */
+const FORMAT_KEYS: Record<string, { label: string; caption: string }> = {
+  "flashcards.mnemo": { label: "TransferFormatArchive", caption: "TransferFormatCaptionMnemo" },
+  "flashcards.csv": { label: "TransferFormatCsv", caption: "TransferFormatCaptionCsv" },
+  "flashcards.anki": { label: "TransferFormatAnki", caption: "TransferFormatCaptionAnki" },
+}
 
 // Named TransferDialog rather than Transfer: this file sits beside transfer.ts, and the two names
 // differ only in case, which Windows checkouts cannot tell apart.
@@ -52,9 +52,8 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
   // dependency below, so the placeholder has to hold still while the fetch is in flight.
   const formatList = useMemo(() => formats.data ?? [], [formats.data])
 
-  const [direction, setDirection] = useState<Direction>(target.direction === "export" ? "export" : "import")
-  const [conflict, setConflict] = useState<ConflictPolicy>("KeepBoth")
-  const [exportFormat, setExportFormat] = useState<string | null>(null)
+  const [direction, setDirection] = useState<TransferDirection>(target.direction === "export" ? "export" : "import")
+  const { conflict, setConflict, onEdit } = useConflictChoice()
   const [busy, setBusy] = useState(false)
 
   const scope = target.scope
@@ -65,26 +64,13 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
   // the default-format effect on every keystroke elsewhere in the dialog.
   const available = useMemo(() => exportFormats(formatList, deckCount, hasFolders), [formatList, deckCount, hasFolders])
 
-  // Default to the first offered format once the list arrives, and correct a selection the format
-  // list no longer contains rather than leaving Confirm pointing at nothing.
-  useEffect(() => {
-    if (available.length === 0) return
-    setExportFormat((current) =>
-      current && available.some((format) => format.formatId === current) ? current : available[0].formatId,
-    )
-  }, [available])
+  const [exportFormat, setExportFormat] = useExportFormat(available)
 
   // Without the format list every file looks unsupported, so the import side stays shut until it
   // lands. A failure is said out loud rather than left as a dialog that silently refuses
   // everything the user drops on it.
   const formatsReady = formats.isSuccess
-  useEffect(() => {
-    if (formats.isError) {
-      toast.warning(common("ImportFailedTitle"), { description: describeError(t, formats.error) })
-    }
-    // Keyed on the error alone: `common` is a new function every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formats.isError])
+  useFormatsErrorToast(formats)
 
   const imports = useImportQueue({
     upload: uploadTransferFile,
@@ -92,30 +78,21 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
     toRow: queuedFromUpload,
     accepts: (name) => isImportable(name, formatList),
     failureNote: (error, name) => describeError(t, error) ?? common("TransferUnreadableFile", { 0: name }),
-    // A replace is consented to for one queue. Any edit asks again.
-    onEdit: () => setConflict((policy) => (policy === "Replace" ? "KeepBoth" : policy)),
+    onEdit,
   })
   const queue = imports.queue
   const collisions = packageCollisions(queue, "flashcards")
   const colliding = packageCollidingKeys(queue, "flashcards")
   const policy = collisions > 0 ? conflict : "KeepBoth"
-  // Once nothing collides, a choice made for an earlier queue no longer applies.
-  useEffect(() => {
-    if (collisions === 0) setConflict("KeepBoth")
-  }, [collisions])
+  useResetConflict(collisions, setConflict)
   const replacing = policy === "Replace"
   const locked = busy || !formatsReady
-  const over = useFileDrop(direction === "import", locked, (data) =>
+  const dropCount = useFileDropCount(direction === "import", locked, (data) =>
     imports.add(Array.from(data.files, (file) => ({ file, path: "" }))),
   )
 
   const cardCount = readyCardCount(queue)
-  const itemPhrase = (count: number) => {
-    const noun = fc(count === 1 ? "TransferNounSingular" : "TransferNounPlural")
-    return count === 1
-      ? common("TransferOneItemFormat", { 0: noun })
-      : common("TransferManyItemsFormat", { 0: count, 1: noun })
-  }
+  const itemPhrase = useItemPhrase("Flashcards")
 
   const describeRow = (file: QueuedFile) =>
     [
@@ -187,137 +164,82 @@ export function TransferDialog({ target, onClose }: { target: TransferTarget; on
   const confirm = () => void (importing ? doImport() : doExport())
 
   const confirmLabel = !importing
-    ? common("TransferExportButtonFormat", { 0: selectedExtension })
-    : replacing
-      ? replaceLabel(t, collisions, readyOutside(queue, colliding))
-      : // A plain "Import" when the card count is unknown.
-        cardCount === null
-        ? fc("Import")
-        : common("TransferImportButtonFormat", { 0: itemPhrase(cardCount) })
+    ? common("TransferExportTab")
+    : imports.progress
+      ? importingLabel(t, imports.progress)
+      : replacing
+        ? replaceLabel(t, collisions, readyOutside(queue, colliding))
+        : // A plain "Import" when the card count is unknown.
+          cardCount === null
+          ? fc("Import")
+          : common("TransferImportButtonFormat", { 0: itemPhrase(cardCount) })
   const discards = replacing && !imports.progress ? replaceDiscards(queue, "flashcards") : 0
   const replaceNote = discards > 0 ? common("TransferEvidenceReplaceDiscardsFormat", { 0: discards }) : null
 
-  const fileSummary =
-    queue.length === 1 ? common("TransferOneFile") : common("TransferManyFilesFormat", { 0: queue.length })
-  const summary = importing
-    ? [fileSummary, cardCount === null ? null : itemPhrase(cardCount)].filter(Boolean).join(" · ")
-    : common("TransferOneFile")
-
-  const title = importing
-    ? fc("TransferImportTitle")
-    : scope && scope.deckIds.length === 1 && !hasFolders
-      ? fc("TransferExportDeckTitle")
-      : fc("TransferExportTitle")
+  const picker = useImportPicker({ extensions: importExtensions(formatList), onAdd: imports.add })
+  const options = available.map((format) => {
+    const keys = FORMAT_KEYS[format.formatId]
+    return {
+      formatId: format.formatId,
+      label: keys ? common(keys.label) : format.displayName,
+      caption: keys ? common(keys.caption) : "",
+      extension: format.extensions[0] ?? "",
+    }
+  })
+  const named = scope ? (hasFolders ? folderIds.length === 1 : scope.deckIds.length === 1) : false
+  const contents = scope ? (named ? scope.label : itemPhrase(scope.deckIds.length)) : ""
 
   return (
-    <Dialog.Root open onOpenChange={(next) => !next && !busy && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
-        <Dialog.Content
-          aria-describedby={undefined}
-          onKeyDown={(event) => {
-            if ((isMac ? event.metaKey : event.ctrlKey) && event.key === "Enter" && confirmEnabled) {
-              event.preventDefault()
-              confirm()
+    <TransferShell
+      direction={direction}
+      both={target.direction === "both"}
+      onDirection={setDirection}
+      subtitle={importing && target.destination ? common("TransferToFormat", { 0: target.destination.label }) : undefined}
+      busy={busy}
+      confirmLabel={confirmLabel}
+      confirmEnabled={confirmEnabled}
+      confirmClassName={importing && replacing ? REPLACE_BUTTON_CLASS : undefined}
+      leading={
+        importing && queue.length > 0 ? (
+          <AddButton disabled={locked} folders={false} onFiles={picker.browse} onFolder={picker.browseFolder} />
+        ) : null
+      }
+      onConfirm={confirm}
+      onClose={onClose}
+    >
+      {importing ? (
+        <>
+          {picker.inputs}
+          <ImportPanel
+            queue={queue}
+            describe={describeRow}
+            warning={(file) => (packageTooNew(file, "flashcards") ? common("TransferEvidenceTooNew") : null)}
+            refused={imports.refused}
+            overflow={imports.overflow}
+            locked={locked}
+            dropCount={dropCount}
+            onBrowse={picker.browse}
+            onRemove={(key) => !busy && imports.remove(key)}
+            conflict={
+              collisions > 0 && !imports.progress ? (
+                <ConflictRow policy={policy} onPolicy={setConflict} disabled={busy} note={replaceNote} />
+              ) : null
             }
-          }}
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] w-[520px] max-w-[calc(100vw-3rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-line bg-[var(--overlay-background)] shadow-[0_16px_40px_0_rgba(0,0,0,0.22)] focus:outline-none"
-        >
-          <div className="flex items-center gap-3 border-b border-divider-subtle px-5 py-3.5">
-            {target.direction === "both" ? null : (
-              <AppIcon
-                name={importing ? "common/download" : "common/upload"}
-                size={16}
-                className="shrink-0 text-ink-icon"
-              />
-            )}
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <Dialog.Title className="text-body-small font-semibold text-text-primary">{title}</Dialog.Title>
-              {!importing && scope ? (
-                <div className="truncate text-body-extra-small text-text-tertiary">{scope.label}</div>
-              ) : null}
-            </div>
-
-            {target.direction === "both" ? (
-              <Segmented
-                className="w-[176px] shrink-0"
-                // Named after both sides, not after the panel that happens to be open.
-                label={`${common("TransferImportTab")} / ${common("TransferExportTab")}`}
-                value={direction}
-                onChange={setDirection}
-                options={[
-                  { value: "import", label: common("TransferImportTab"), icon: "common/download", disabled: busy },
-                  { value: "export", label: common("TransferExportTab"), icon: "common/upload", disabled: busy },
-                ]}
-              />
-            ) : null}
-
-            <Dialog.Close asChild>
-              <IconButton icon="common/x" iconSize={14} label={t("Common", "Close")} disabled={busy} />
-            </Dialog.Close>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-[18px]">
-            {importing ? (
-              <ImportPanel
-                queue={queue}
-                extensions={importExtensions(formatList)}
-                describe={describeRow}
-                warning={(file) => (packageTooNew(file, "flashcards") ? common("TransferEvidenceTooNew") : null)}
-                refused={imports.refused}
-                overflow={imports.overflow}
-                destination={
-                  target.destination ? fc("TransferImportDestinationFormat", { 0: target.destination.label }) : undefined
-                }
-                locked={locked}
-                dropping={over}
-                onAdd={imports.add}
-                onRemove={(key) => !busy && imports.remove(key)}
-              />
-            ) : emptyScope ? (
-              <p className="py-6 text-center text-body-extra-small text-text-tertiary">
-                {fc("ExportFlashcardsNoDecksMessage")}
-              </p>
-            ) : (
-              <ExportPanel
-                formats={available}
-                selected={exportFormat}
-                scope={scope}
-                busy={busy}
-                onSelect={setExportFormat}
-              />
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 border-t border-divider-subtle bg-surface-subtle px-5 py-3.5">
-            {importing && replaceNote ? <ReplaceNote text={replaceNote} /> : null}
-            {importing ? (
-              <ImportStatus
-                summary={summary}
-                progress={imports.progress}
-                collisions={collisions}
-                policy={policy}
-                onPolicy={setConflict}
-                disabled={busy}
-              />
-            ) : (
-              <span className="min-w-0 flex-1 truncate text-caption text-text-tertiary">{summary}</span>
-            )}
-            <Button variant="outline" className="h-[34px] px-4" disabled={busy} onClick={onClose}>
-              {t("Common", "Cancel")}
-            </Button>
-            <Button
-              className={cn("h-[34px] gap-2 px-[18px]", importing && replacing && REPLACE_BUTTON_CLASS)}
-              disabled={!confirmEnabled}
-              onClick={confirm}
-            >
-              {busy ? <AppIcon name="loader-circle" size={13} className="animate-spin" /> : null}
-              {confirmLabel}
-              <span className="font-mono text-caption opacity-60">{SHORTCUT_HINT}</span>
-            </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          />
+        </>
+      ) : emptyScope ? (
+        <p className="py-6 text-center text-body-extra-small text-text-tertiary">{fc("ExportFlashcardsNoDecksMessage")}</p>
+      ) : (
+        <ExportFormatList
+          groupLabel={common("TransferFormatGroupLabel")}
+          contents={contents}
+          formats={options}
+          selected={exportFormat}
+          busy={busy}
+          unavailable={fc("ExportFormatUnavailableMessage")}
+          onSelect={setExportFormat}
+        />
+      )}
+    </TransferShell>
   )
 }

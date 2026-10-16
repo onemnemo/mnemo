@@ -25,18 +25,17 @@ afterEach(() => {
   act(() => root.unmount())
 })
 
-function render(queue: QueuedImport[], dropping: boolean) {
+function render(queue: QueuedImport[], dropCount: number | null) {
   act(() =>
     root.render(
       <ImportPanel
         queue={queue}
-        extensions={[".md"]}
         describe={() => null}
         refused={[]}
         overflow={false}
         locked={false}
-        dropping={dropping}
-        onAdd={vi.fn()}
+        dropCount={dropCount}
+        onBrowse={vi.fn()}
         onRemove={vi.fn()}
       />,
     ),
@@ -44,17 +43,37 @@ function render(queue: QueuedImport[], dropping: boolean) {
 }
 
 describe("ImportPanel while files hover", () => {
-  it("turns the empty dropzone into the drop target", () => {
-    render([], true)
-    expect(container.textContent).toContain("TransferDropToImport")
+  it("covers the body with the drop target and says how many files are coming", () => {
+    render([], 3)
+    expect(container.textContent).toContain("TransferDropChecked")
     expect(container.querySelector(".border-accent")).not.toBeNull()
 
-    render([], false)
-    expect(container.textContent).not.toContain("TransferDropToImport")
+    render([], null)
+    expect(container.textContent).not.toContain("TransferDropChecked")
   })
 
-  it("outlines the file list once files are listed", () => {
-    render([{ key: "a", name: "a.md", sizeBytes: 1, status: "ready" }], true)
-    expect(container.querySelector(".outline-accent")).not.toBeNull()
+  it("counts a dragged folder as one item", () => {
+    act(() =>
+      root.render(
+        <ImportPanel queue={[]} describe={() => null} refused={[]} overflow={false} locked={false} dropCount={1} folders onBrowse={vi.fn()} onRemove={vi.fn()} />,
+      ),
+    )
+    expect(container.textContent).toContain("TransferDropToAddOne")
+  })
+
+  it("falls back to a plain prompt when the platform does not say how many", () => {
+    render([], 0)
+    expect(container.textContent).toContain("TransferDropToImport")
+  })
+
+  it("covers the queue too once files are listed", () => {
+    render([{ key: "a", name: "a.md", sizeBytes: 1, status: "ready" }], 1)
+    expect(container.querySelector(".border-accent")).not.toBeNull()
+  })
+
+  it("shows a skipped row calmly, with its reason", () => {
+    render([{ key: "a", name: "a.mnemo", sizeBytes: 1, status: "rejected", notes: [{ text: "No notes inside" }] }], null)
+    expect(container.textContent).toContain("No notes inside")
+    expect(container.querySelector(".line-through")).toBeNull()
   })
 })

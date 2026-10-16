@@ -140,7 +140,7 @@ describe("the note transfer overlay's conflict choice", () => {
   it("names the count on a red button once Replace is picked, and imports once", async () => {
     openImportDialog()
     await chooseFiles("cells.md")
-    expect(document.body.textContent).toContain("TransferAlreadyExists")
+    expect(document.body.textContent).toContain("TransferConflictLabel")
 
     pickPolicy("TransferConflictReplace")
     expect(confirmButton().textContent).toContain("TransferReplaceCount")

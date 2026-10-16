@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { TransferFormatDto } from "@/api/types"
-import { exportFormats, exportKind, packageCaptionKey } from "./transfer"
+import { exportFormats, exportKind } from "./transfer"
 
 const PACKAGE: TransferFormatDto = {
   formatId: "flashcards.mnemo",
@@ -17,11 +17,6 @@ describe("exporting the whole collection", () => {
     expect(exportKind(true)).toBe("backup")
     expect(exportKind(false)).toBe("export")
     expect(exportKind(undefined)).toBe("export")
-  })
-
-  it("carries its own caption rather than the shared archive one", () => {
-    expect(packageCaptionKey(true)).toBe("TransferFormatCaptionBackup")
-    expect(packageCaptionKey(false)).toBe("TransferFormatCaptionSelection")
   })
 })
 

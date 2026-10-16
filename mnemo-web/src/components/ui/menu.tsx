@@ -24,11 +24,14 @@ export const MenuSub = DropdownMenu.Sub
 export function MenuContent({
   children,
   align = "start",
+  side,
   className,
   opensDialog,
 }: {
   children: ReactNode
   align?: "start" | "center" | "end"
+  /** Which edge of the trigger the menu opens from. */
+  side?: "top" | "right" | "bottom" | "left"
   className?: string
   /** Set on a menu whose items put a caret on screen, a dialog or an inline editor. */
   opensDialog?: OpensDialog
@@ -37,6 +40,7 @@ export function MenuContent({
     <DropdownMenu.Portal>
       <DropdownMenu.Content
         align={align}
+        side={side}
         sideOffset={4}
         className={cn(CONTENT_CLASS, className)}
         onCloseAutoFocus={closeFocusHandler(opensDialog)}
