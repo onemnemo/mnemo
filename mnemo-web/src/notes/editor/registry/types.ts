@@ -311,6 +311,8 @@ export interface RealizedBlockView {
    * caret stops working inside the view's content.
    */
   ignoreMutation?(mutation: ViewMutationRecord): boolean;
+  /** True for an event the block's own controls handle, such as a text field. ProseMirror then ignores it. */
+  stopEvent?(event: Event): boolean;
   destroy?(): void;
 }
 

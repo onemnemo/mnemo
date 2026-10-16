@@ -157,6 +157,19 @@ describe('code block NodeView', () => {
     expect(realized.ignoreMutation!({ type: 'selection', target: gutter } as never)).toBe(false);
   });
 
+  it('keeps the caption field out of the editor but not the source', () => {
+    const { realized } = mount('a', { caption: 'c' });
+    const field = realized.dom.querySelector('.notes-code-caption input') as HTMLInputElement;
+    for (const type of ['mousedown', 'mouseup', 'click', 'dragstart']) {
+      const event = new Event(type, { bubbles: true });
+      field.dispatchEvent(event);
+      expect(realized.stopEvent!(event)).toBe(true);
+    }
+    const inSource = new Event('mousedown', { bubbles: true });
+    realized.contentDOM!.dispatchEvent(inSource);
+    expect(realized.stopEvent!(inSource)).toBe(false);
+  });
+
   it('locks the caption on a read-only note', () => {
     const { realized } = mount('a', { caption: 'c' }, false);
     const field = realized.dom.querySelector('.notes-code-caption input') as HTMLInputElement;

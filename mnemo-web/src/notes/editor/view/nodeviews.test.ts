@@ -71,6 +71,20 @@ describe('toNodeViews', () => {
     expect(seen!.services.registry).toBe(registry);
   });
 
+  it('forwards stopEvent only for a view that defines it', () => {
+    const nodeViews = toNodeViews(
+      registryWith({
+        owns: () => ({ dom: document.createElement('div'), stopEvent: () => true }),
+        plain: () => ({ dom: document.createElement('div') }),
+      }),
+      resolveServices(),
+    );
+    const owns = nodeViews.owns(fakeNode, fakeView, () => 0, [], null as never);
+    const plain = nodeViews.plain(fakeNode, fakeView, () => 0, [], null as never);
+    expect(owns.stopEvent?.(new Event('mousedown'))).toBe(true);
+    expect(plain.stopEvent).toBeUndefined();
+  });
+
   it('passes contentDOM straight through, present for editable blocks, null for atoms', () => {
     const content = document.createElement('div');
     const nodeViews = toNodeViews(

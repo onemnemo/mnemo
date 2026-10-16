@@ -96,6 +96,7 @@ export function toNodeViews(
         ignoreMutation: realized.ignoreMutation
           ? (mutation) => realized.ignoreMutation!(mutation)
           : undefined,
+        stopEvent: realized.stopEvent ? (event) => realized.stopEvent!(event) : undefined,
         destroy: () => {
           realized.destroy?.();
           host.destroy();

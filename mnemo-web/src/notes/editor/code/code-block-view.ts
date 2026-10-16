@@ -289,6 +289,9 @@ export function codeBlockView(
       // and rebuilding any of them must not tear the NodeView down.
       return true;
     },
+    stopEvent(event) {
+      return event.target instanceof Node && captionRow.contains(event.target);
+    },
     destroy(): void {
       chrome?.destroy();
       chrome = null;

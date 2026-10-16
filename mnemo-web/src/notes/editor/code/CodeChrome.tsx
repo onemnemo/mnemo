@@ -47,6 +47,8 @@ export function CodeChrome(props: CodeChromeProps) {
   const t = useT()
   const nt = (key: string) => t('NotesEditor', key)
   const [copied, setCopied] = useState(false)
+  // The menu must not take the caret back from the caption field.
+  const captionOpened = useRef(false)
 
   useEffect(() => {
     if (!copied) return
@@ -72,14 +74,21 @@ export function CodeChrome(props: CodeChromeProps) {
             there is to say. */}
         <AppIcon name={copied ? 'check' : 'copy'} size={14} />
       </button>
-      <Menu>
+      <Menu onOpenChange={(open) => open && (captionOpened.current = false)}>
         <MenuTrigger asChild>
           <button type="button" tabIndex={-1} aria-label={nt('CodeOptions')} className={BUTTON}>
             <AppIcon name="ellipsis" size={15} />
           </button>
         </MenuTrigger>
-        <MenuContent align="end">
-          <MenuCheckItem checked={props.caption} icon="captions" onSelect={props.onCaption}>
+        <MenuContent align="end" opensDialog={() => captionOpened.current}>
+          <MenuCheckItem
+            checked={props.caption}
+            icon="captions"
+            onSelect={() => {
+              captionOpened.current = !props.caption
+              props.onCaption()
+            }}
+          >
             {nt('CodeCaption')}
           </MenuCheckItem>
           <MenuCheckItem checked={props.wrap} icon="wrap-text" onSelect={props.onWrap}>
