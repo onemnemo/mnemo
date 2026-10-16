@@ -107,3 +107,10 @@ export function replaceWarning(t: TranslateFn, overwrites: boolean, trashes: boo
 }
 
 export const REPLACE_BUTTON_CLASS = "bg-danger text-canvas hover:bg-danger hover:opacity-90"
+
+const IMPORTING = { one: "TransferImportingOne", many: "TransferImportingMany" }
+
+/** The primary button's label while an import runs. */
+export function importingLabel(t: TranslateFn, progress: { done: number; total: number }): string {
+  return tPlural(t, "Common", IMPORTING, progress.total, { done: progress.done })
+}

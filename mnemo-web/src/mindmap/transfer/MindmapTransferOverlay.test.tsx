@@ -144,7 +144,7 @@ describe("the mindmap transfer overlay's conflict choice", () => {
   it("names the count on a red button once Replace is picked, and imports once", async () => {
     openImportDialog()
     await chooseFiles("Study.mnemo")
-    expect(document.body.textContent).toContain("TransferAlreadyExists")
+    expect(document.body.textContent).toContain("TransferConflictLabel")
 
     pickPolicy("TransferConflictReplace")
     expect(confirmButton().textContent).toContain("TransferReplaceCount")
@@ -184,7 +184,7 @@ describe("the mindmap transfer overlay's conflict choice", () => {
     mount(<MindmapTransferOverlay />)
 
     await chooseFiles("Fresh.mnemo")
-    expect(document.body.textContent).toContain("TransferImportDestinationFormat")
+    expect(document.body.textContent).toContain("TransferToFormat")
 
     act(() => confirmButton().click())
     await flush()

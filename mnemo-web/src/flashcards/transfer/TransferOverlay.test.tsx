@@ -97,6 +97,6 @@ describe("TransferOverlay gate", () => {
     await settle()
 
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
-    expect(document.body.textContent).toContain("TransferImportTitle")
+    expect(document.body.textContent).toContain("TransferImportTab")
   })
 })

@@ -153,13 +153,9 @@
     "Export": "Export…",
     "Import": "Import",
     "ImportNotes": "Import notes",
-    "TransferImportTitle": "Import notes",
-    "TransferExportTitle": "Export notes",
-    "TransferExportNoteTitle": "Export note",
     "TransferNounSingular": "note",
     "TransferNounPlural": "notes",
     "ImportHere": "Import notes here",
-    "TransferImportDestinationFormat": "Notes land in {0}.",
     "ExportNoNotesMessage": "No notes selected to export.",
     "ExportFormatUnavailableMessage": "No export format is available.",
     "editor.slashHint": "Type ‘/’ for commands"

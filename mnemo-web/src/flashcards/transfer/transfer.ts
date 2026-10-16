@@ -34,11 +34,6 @@ export function exportKind(wholeCollection: boolean | undefined): string {
   return wholeCollection === true ? "backup" : "export"
 }
 
-/** Which caption the package format's tile carries, which depends on what it would contain. */
-export function packageCaptionKey(wholeCollection: boolean | undefined): string {
-  return wholeCollection === true ? "TransferFormatCaptionBackup" : "TransferFormatCaptionSelection"
-}
-
 /**
  * Export formats for a selection of a given size. A selection of one deck can go out as any of
  * them; anything wider is offered only as a Mnemo package, which is the desktop's rule. CSV and

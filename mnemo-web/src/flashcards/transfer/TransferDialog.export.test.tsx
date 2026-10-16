@@ -75,10 +75,10 @@ function mount(node: ReactNode): void {
   act(() => root.render(node))
 }
 
-/** The footer's primary button, which is the one labelled with the format it would write. */
+/** Found by label because the tabs share the word. */
 function confirmButton(): HTMLButtonElement {
   const buttons = Array.from(document.querySelectorAll("button"))
-  const found = buttons.find((button) => button.textContent?.includes("TransferExportButtonFormat"))
+  const found = buttons.find((button) => button.getAttribute("role") !== "tab" && button.textContent?.includes("TransferExportTab"))
   if (!found) throw new Error("The export button is not on screen.")
   return found as HTMLButtonElement
 }

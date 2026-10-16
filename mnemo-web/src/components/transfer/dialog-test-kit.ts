@@ -25,7 +25,7 @@ export function confirmButton(): HTMLButtonElement {
 }
 
 export function conflictTrigger(): HTMLElement | null {
-  return document.querySelector('[role="dialog"] [aria-haspopup="menu"]')
+  return document.querySelector('[role="dialog"] [data-transfer-conflict]')
 }
 
 export function pickPolicy(label: string): void {

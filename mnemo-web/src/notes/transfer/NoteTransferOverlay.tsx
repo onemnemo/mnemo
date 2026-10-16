@@ -1,14 +1,12 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Dialog } from "radix-ui"
 
 import { describeError } from "@/api/error-copy"
 import { announceExport, exportFileName, exportSaveOptions } from "@/api/export-file"
-import type { ConflictPolicy } from "@/api/types"
-import { AppIcon } from "@/components/icon/AppIcon"
 import {
   canImport,
   importExtensions,
+  importingLabel,
   isImportable,
   packageCollidingKeys,
   packageCollisions,
@@ -20,17 +18,17 @@ import {
   REPLACE_BUTTON_CLASS,
 } from "@/components/transfer/import-queue"
 import { ImportPanel } from "@/components/transfer/ImportPanel"
-import { ImportStatus, ReplaceNote } from "@/components/transfer/ImportStatus"
+import { ConflictRow } from "@/components/transfer/ImportStatus"
+import { ExportFormatList } from "@/components/transfer/ExportFormatList"
+import { TransferShell, type TransferDirection } from "@/components/transfer/TransferShell"
+import { AddButton } from "@/components/transfer/AddButton"
+import { useImportPicker } from "@/components/transfer/useImportPicker"
 import { announceImport, useImportQueue } from "@/components/transfer/useImportQueue"
 import { dropRoots, pickedFolder, walkDrop } from "@/components/transfer/folder-walk"
 import type { PickedFile } from "@/components/transfer/import-queue"
-import { Button } from "@/components/ui/button"
-import { IconButton } from "@/components/ui/icon-button"
-import { Segmented } from "@/flashcards/transfer/components/Segmented"
+import { useConflictChoice, useExportFormat, useFormatsErrorToast, useItemPhrase, useResetConflict } from "@/components/transfer/useTransferDialog"
 import { useT } from "@/i18n/useT"
-import { isMac } from "@/keybinds/chord"
-import { useFileDrop } from "@/lib/useFileDrop"
-import { cn } from "@/lib/utils"
+import { useFileDropCount } from "@/lib/useFileDrop"
 import { notesKey, useNoteFoldersQuery, useNotesQuery } from "@/notes/api"
 import { toast } from "@/stores/toast"
 
@@ -41,11 +39,13 @@ import {
   uploadNoteTransferFile,
   useNoteTransferFormatsQuery,
 } from "./api"
-import { NoteExportPanel } from "./components/NoteExportPanel"
 import { useNoteTransfer, type NoteTransferTarget } from "./store"
 import { exportFormats, markdownCollisions, queuedFromUpload, readyNoteCount, type QueuedFile } from "./transfer"
 
-const SHORTCUT_HINT = isMac ? "⌘⏎" : "Ctrl+⏎"
+const NOTE_FORMAT_CAPTIONS: Record<string, string> = {
+  "notes.markdown": "TransferFormatCaptionMarkdown",
+  "notes.mnemo": "TransferFormatCaptionMnemo",
+}
 
 /** Mounted once in the notes workspace; renders only while the store holds a target. */
 export function NoteTransferOverlay() {
@@ -56,8 +56,6 @@ export function NoteTransferOverlay() {
   return <NoteTransfer target={target} onClose={close} />
 }
 
-type Direction = "import" | "export"
-
 function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose: () => void }) {
   const t = useT()
   const nt = (key: string, params?: Record<string, string | number>) => t("Notes", key, params)
@@ -67,9 +65,8 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
   const formats = useNoteTransferFormatsQuery(true)
   const formatList = useMemo(() => formats.data ?? [], [formats.data])
 
-  const [direction, setDirection] = useState<Direction>(target.direction === "export" ? "export" : "import")
-  const [conflict, setConflict] = useState<ConflictPolicy>("KeepBoth")
-  const [exportFormat, setExportFormat] = useState<string | null>(null)
+  const [direction, setDirection] = useState<TransferDirection>(target.direction === "export" ? "export" : "import")
+  const { conflict, setConflict, onEdit } = useConflictChoice()
   const [busy, setBusy] = useState(false)
   const [walking, setWalking] = useState(false)
   const [reading, setReading] = useState(false)
@@ -81,23 +78,10 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
   const destination = target.destination ?? null
   const available = useMemo(() => exportFormats(formatList, noteCount, hasFolders), [formatList, noteCount, hasFolders])
 
-  // Default to the first offered format once the list arrives, and correct a selection the format
-  // list no longer contains rather than leaving Confirm pointing at nothing.
-  useEffect(() => {
-    if (available.length === 0) return
-    setExportFormat((current) =>
-      current && available.some((format) => format.formatId === current) ? current : available[0].formatId,
-    )
-  }, [available])
+  const [exportFormat, setExportFormat] = useExportFormat(available)
 
   const formatsReady = formats.isSuccess
-  useEffect(() => {
-    if (formats.isError) {
-      toast.warning(common("ImportFailedTitle"), { description: describeError(t, formats.error) })
-    }
-    // Keyed on the error alone: `common` is a new function every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formats.isError])
+  useFormatsErrorToast(formats)
 
   const imports = useImportQueue({
     upload: uploadNoteTransferFile,
@@ -105,7 +89,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
     toRow: queuedFromUpload,
     accepts: (name) => isImportable(name, formatList),
     failureNote: (error, name) => describeError(t, error) ?? common("TransferUnreadableFile", { 0: name }),
-    onEdit: () => setConflict((policy) => (policy === "Replace" ? "KeepBoth" : policy)),
+    onEdit,
   })
   const queue = imports.queue
   const notes = useNotesQuery()
@@ -115,10 +99,7 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
   const collisions = packageCollisions(queue, "notes") + titleTaken.size
   const colliding = new Set([...inLibrary, ...titleTaken])
   const policy = collisions > 0 ? conflict : "KeepBoth"
-  // Once nothing collides, a choice made for an earlier queue no longer applies.
-  useEffect(() => {
-    if (collisions === 0) setConflict("KeepBoth")
-  }, [collisions])
+  useResetConflict(collisions, setConflict)
   const replacing = policy === "Replace"
   const locked = busy || walking || !formatsReady
   const accepts = (name: string) => isImportable(name, formatList)
@@ -133,15 +114,12 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
       setReading(false)
     })
   }
-  const over = useFileDrop(direction === "import", locked, (data) => addWalked(walkDrop(dropRoots(data), accepts)))
+  const dropCount = useFileDropCount(direction === "import", locked, (data) =>
+    addWalked(walkDrop(dropRoots(data), accepts)),
+  )
 
   const count = readyNoteCount(queue)
-  const itemPhrase = (n: number) => {
-    const noun = nt(n === 1 ? "TransferNounSingular" : "TransferNounPlural")
-    return n === 1
-      ? common("TransferOneItemFormat", { 0: noun })
-      : common("TransferManyItemsFormat", { 0: n, 1: noun })
-  }
+  const itemPhrase = useItemPhrase("Notes")
 
   const describeRow = (file: QueuedFile) =>
     [
@@ -172,13 +150,13 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
   }
 
   const selectedExtension = available.find((format) => format.formatId === exportFormat)?.extensions[0] ?? ""
+  const named = scope ? (hasFolders ? folderIds.length === 1 : scope.noteIds.length === 1) : false
 
   const doExport = async () => {
     if (!exportFormat || !scope || scope.noteIds.length === 0 || busy) return
 
     setBusy(true)
     try {
-      const named = hasFolders ? folderIds.length === 1 : scope.noteIds.length === 1
       const outcome = await runNoteExport({ formatId: exportFormat, noteIds: scope.noteIds, folderIds }, {
         ...exportSaveOptions(common),
         fileName: exportFileName(named ? (scope.fileName ?? scope.label) : null, "notes", selectedExtension),
@@ -212,134 +190,82 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
   const confirm = () => void (importing ? doImport() : doExport())
 
   const confirmLabel = !importing
-    ? common("TransferExportButtonFormat", { 0: selectedExtension })
-    : replacing
-      ? replaceLabel(t, collisions, readyOutside(queue, colliding))
-      : count === null
-        ? nt("Import")
-        : common("TransferImportButtonFormat", { 0: itemPhrase(count) })
+    ? common("TransferExportTab")
+    : imports.progress
+      ? importingLabel(t, imports.progress)
+      : replacing
+        ? replaceLabel(t, collisions, readyOutside(queue, colliding))
+        : count === null
+          ? nt("Import")
+          : common("TransferImportButtonFormat", { 0: itemPhrase(count) })
 
-  const fileSummary =
-    queue.length === 1 ? common("TransferOneFile") : common("TransferManyFilesFormat", { 0: queue.length })
-  const summary = importing
-    ? [fileSummary, count === null ? null : itemPhrase(count)].filter(Boolean).join(" · ")
-    : common("TransferOneFile")
-
-  const title = importing
-    ? nt("TransferImportTitle")
-    : scope && scope.noteIds.length === 1 && !hasFolders
-      ? nt("TransferExportNoteTitle")
-      : nt("TransferExportTitle")
+  const picker = useImportPicker({
+    extensions: importExtensions(formatList),
+    onAdd: imports.add,
+    onPickFolder: (files) => addWalked(Promise.resolve(pickedFolder(files, accepts))),
+  })
+  const options = available.map((format) => ({
+    formatId: format.formatId,
+    label: format.displayName,
+    caption: NOTE_FORMAT_CAPTIONS[format.formatId] ? common(NOTE_FORMAT_CAPTIONS[format.formatId]) : "",
+    extension: format.extensions[0] ?? "",
+  }))
+  const contents = scope ? (named ? scope.label : itemPhrase(scope.noteIds.length)) : ""
 
   return (
-    <Dialog.Root open onOpenChange={(next) => !next && !busy && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
-        <Dialog.Content
-          aria-describedby={undefined}
-          onKeyDown={(event) => {
-            if ((isMac ? event.metaKey : event.ctrlKey) && event.key === "Enter" && confirmEnabled) {
-              event.preventDefault()
-              confirm()
+    <TransferShell
+      direction={direction}
+      both={target.direction === "both"}
+      onDirection={setDirection}
+      subtitle={importing ? common("TransferToFormat", { 0: destination?.label ?? nt("MyNotes") }) : undefined}
+      busy={busy}
+      confirmLabel={confirmLabel}
+      confirmEnabled={confirmEnabled}
+      confirmClassName={importing && replacing ? REPLACE_BUTTON_CLASS : undefined}
+      leading={
+        importing ? (
+          <AddButton disabled={locked} folders onFiles={picker.browse} onFolder={picker.browseFolder} />
+        ) : null
+      }
+      onConfirm={confirm}
+      onClose={onClose}
+    >
+      {importing ? (
+        <>
+          {picker.inputs}
+          <ImportPanel
+            queue={queue}
+            describe={describeRow}
+            warning={(file) => (packageTooNew(file, "notes") ? common("TransferEvidenceTooNew") : null)}
+            refused={imports.refused}
+            overflow={imports.overflow}
+            empty={imports.empty}
+            locked={locked}
+            dropCount={dropCount}
+            reading={reading}
+            folders
+            onBrowse={picker.browse}
+            onRemove={(key) => !busy && imports.remove(key)}
+            conflict={
+              collisions > 0 && !imports.progress ? (
+                <ConflictRow policy={policy} onPolicy={setConflict} disabled={busy} note={replaceNote} />
+              ) : null
             }
-          }}
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] w-[520px] max-w-[calc(100vw-3rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-line bg-[var(--overlay-background)] shadow-[0_16px_40px_0_rgba(0,0,0,0.22)] focus:outline-none"
-        >
-          <div className="flex items-center gap-3 border-b border-divider-subtle px-5 py-3.5">
-            {target.direction === "both" ? null : (
-              <AppIcon
-                name={importing ? "common/download" : "common/upload"}
-                size={16}
-                className="shrink-0 text-ink-icon"
-              />
-            )}
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <Dialog.Title className="text-body-small font-semibold text-text-primary">{title}</Dialog.Title>
-              {!importing && scope ? (
-                <div className="truncate text-body-extra-small text-text-tertiary">{scope.label}</div>
-              ) : null}
-            </div>
-
-            {target.direction === "both" ? (
-              <Segmented
-                className="w-[176px] shrink-0"
-                label={`${common("TransferImportTab")} / ${common("TransferExportTab")}`}
-                value={direction}
-                onChange={setDirection}
-                options={[
-                  { value: "import", label: common("TransferImportTab"), icon: "common/download", disabled: busy },
-                  { value: "export", label: common("TransferExportTab"), icon: "common/upload", disabled: busy },
-                ]}
-              />
-            ) : null}
-
-            <Dialog.Close asChild>
-              <IconButton icon="common/x" iconSize={14} label={t("Common", "Close")} disabled={busy} />
-            </Dialog.Close>
-          </div>
-
-          <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-5 py-[18px]">
-            {importing ? (
-              <ImportPanel
-                queue={queue}
-                extensions={importExtensions(formatList)}
-                describe={describeRow}
-                warning={(file) => (packageTooNew(file, "notes") ? common("TransferEvidenceTooNew") : null)}
-                refused={imports.refused}
-                overflow={imports.overflow}
-                empty={imports.empty}
-                destination={nt("TransferImportDestinationFormat", { 0: destination?.label ?? nt("MyNotes") })}
-                locked={locked}
-                dropping={over}
-                reading={reading}
-                onAdd={imports.add}
-                onRemove={(key) => !busy && imports.remove(key)}
-                onPickFolder={(files) => addWalked(Promise.resolve(pickedFolder(files, accepts)))}
-              />
-            ) : emptyScope ? (
-              <p className="py-6 text-center text-body-extra-small text-text-tertiary">
-                {nt("ExportNoNotesMessage")}
-              </p>
-            ) : (
-              <NoteExportPanel
-                formats={available}
-                selected={exportFormat}
-                scope={scope}
-                busy={busy}
-                onSelect={setExportFormat}
-              />
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 border-t border-divider-subtle bg-surface-subtle px-5 py-3.5">
-            {importing && replaceNote ? <ReplaceNote text={replaceNote} /> : null}
-            {importing ? (
-              <ImportStatus
-                summary={summary}
-                progress={imports.progress}
-                collisions={collisions}
-                policy={policy}
-                onPolicy={setConflict}
-                disabled={busy}
-              />
-            ) : (
-              <span className="min-w-0 flex-1 truncate text-caption text-text-tertiary">{summary}</span>
-            )}
-            <Button variant="outline" className="h-[34px] px-4" disabled={busy} onClick={onClose}>
-              {t("Common", "Cancel")}
-            </Button>
-            <Button
-              className={cn("h-[34px] gap-2 px-[18px]", importing && replacing && REPLACE_BUTTON_CLASS)}
-              disabled={!confirmEnabled}
-              onClick={confirm}
-            >
-              {busy ? <AppIcon name="loader-circle" size={13} className="animate-spin" /> : null}
-              {confirmLabel}
-              <span className="font-mono text-caption opacity-60">{SHORTCUT_HINT}</span>
-            </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          />
+        </>
+      ) : emptyScope ? (
+        <p className="py-6 text-center text-body-extra-small text-text-tertiary">{nt("ExportNoNotesMessage")}</p>
+      ) : (
+        <ExportFormatList
+          groupLabel={common("TransferFormatGroupLabel")}
+          contents={contents}
+          formats={options}
+          selected={exportFormat}
+          busy={busy}
+          unavailable={nt("ExportFormatUnavailableMessage")}
+          onSelect={setExportFormat}
+        />
+      )}
+    </TransferShell>
   )
 }

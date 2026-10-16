@@ -140,12 +140,12 @@ describe("TransferDialog conflict choice", () => {
   it("names the count on a red button once Replace is picked, and imports once", async () => {
     mount(<TransferDialog target={importTarget()} onClose={vi.fn()} />)
     await chooseFiles("collection.mnemo")
-    expect(document.body.textContent).toContain("TransferAlreadyExists")
+    expect(document.body.textContent).toContain("TransferConflictLabel")
 
     pickPolicy("TransferConflictReplace")
     expect(confirmButton().textContent).toContain("TransferReplaceCount")
     const note = [...document.querySelectorAll("p")].find((p) => p.textContent === "TransferEvidenceReplaceDiscardsFormat")
-    expect(note?.className).toContain("basis-full")
+    expect(note?.className).toContain("leading-snug")
     expect(note?.className).not.toContain("truncate")
 
     act(() => confirmButton().click())
@@ -181,7 +181,7 @@ describe("TransferDialog conflict choice", () => {
     )
 
     await chooseFiles("fresh.mnemo")
-    expect(document.body.textContent).toContain("TransferImportDestinationFormat")
+    expect(document.body.textContent).toContain("TransferToFormat")
 
     act(() => confirmButton().click())
     await flush()
