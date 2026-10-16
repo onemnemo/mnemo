@@ -15,7 +15,8 @@ import { createEditorSchema } from '../schema';
 import { createDocumentMapper } from '../mapper/document';
 import { createMarkdownSerializer } from '../mapper/serialize-markdown';
 import type { Block } from '../../model/types';
-import { plainSpan } from '../../model/spans';
+import { flattenDisplay, plainSpan } from '../../model/spans';
+import { parseMarkdownToBlocks } from '../../clipboard/markdown-blocks';
 import { TextSelection } from 'prosemirror-state';
 
 import { cellCaretPos, tableRows, rowCells } from '../table/model';
@@ -172,6 +173,31 @@ describe('markdown', () => {
     const result = mapper.toDoc([wireTable([['|first', 'a\\|b']])]);
     if (!result.ok) return;
     expect(markdown.document(result.doc)).toContain('| \\|first | a\\\\\\|b |');
+  });
+
+  it('writes a typed line break tag in a cell as text, not as a break', () => {
+    const result = mapper.toDoc([wireTable([['<br>', 'c']])]);
+    if (!result.ok) return;
+    const out = markdown.document(result.doc);
+    expect(out).toContain('| \\<br> | c |');
+
+    const table = parseMarkdownToBlocks(out)[0];
+    expect(flattenDisplay(table.children?.[0]?.children?.[0]?.spans ?? [])).toBe('<br>');
+  });
+
+  it('writes a newline in a cell as a line break tag and reads it back', () => {
+    const result = mapper.toDoc([wireTable([['a\nb', 'c'], ['p|\nq', 'x\\\ny']])]);
+    if (!result.ok) return;
+    const out = markdown.document(result.doc);
+    expect(out).toContain('| a<br>b | c |');
+    expect(out).toContain('| p\\|<br>q | x\\\\<br>y |');
+
+    const table = parseMarkdownToBlocks(out)[0];
+    const cells = (table.children ?? []).map((row) => (row.children ?? []).map((cell) => flattenDisplay(cell.spans)));
+    expect(cells).toEqual([
+      ['a\nb', 'c'],
+      ['p|\nq', 'x\\\ny'],
+    ]);
   });
 });
 

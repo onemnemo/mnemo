@@ -26,9 +26,9 @@ public static class MarkdownHardBreak
         return run % 2 == 1;
     }
 
-    /// <summary>Inline markdown folded onto one line, for a table cell or an image caption.</summary>
-    public static string Collapse(string markdown) =>
-        markdown.Replace(Marker, " ", StringComparison.Ordinal);
+    /// <summary>Inline markdown on one line for a table cell, each break written as <c>&lt;br&gt;</c>.</summary>
+    public static string ToTags(string markdown) =>
+        markdown.Replace(Marker, "<br>", StringComparison.Ordinal);
 
     /// <summary>
     /// Splits off the hard breaks a text ends with, which a CommonMark parser would read as literal

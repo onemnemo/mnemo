@@ -252,7 +252,7 @@ public class NoteBlockMarkdownSoftBreakTests
     }
 
     [Fact]
-    public void Serialize_TableCell_FoldsASoftBreakToASpace()
+    public void Serialize_TableCell_WritesASoftBreakAsALineBreakTag()
     {
         var cell = Block(BlockType.TableCell, "top\nbottom", new TableCellPayload(string.Empty));
         var row = new Block { Type = BlockType.TableRow, Order = 0, Children = new List<Block> { cell } };
@@ -266,6 +266,6 @@ public class NoteBlockMarkdownSoftBreakTests
 
         var md = Normalized(NoteBlockMarkdownConverter.Serialize(new List<Block> { table }));
 
-        Assert.Equal("| top bottom |\n| --- |", md);
+        Assert.Equal("| top<br>bottom |\n| --- |", md);
     }
 }

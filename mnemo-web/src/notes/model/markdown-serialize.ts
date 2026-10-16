@@ -20,7 +20,7 @@ import { isTextSpan, type InlineSpan, type TextSpan } from './types';
 const embeddedImage = /!\[[^\]]*\]\([^)]+\)(?:\{align=(?:left|center|right)\})?/gi;
 
 /** Characters that would otherwise be read as markdown control syntax in literal text. */
-const markdownSpecials = new Set(['\\', '*', '_', '~', '`', '[', ']']);
+const markdownSpecials = new Set(['\\', '*', '_', '~', '`', '[', ']', '<']);
 
 /**
  * Characters that open a block when they start a line: a heading, a bullet, a quote, a
@@ -58,13 +58,17 @@ function serializeTextSpan(span: TextSpan): string {
   const style = span.style;
   if (style.code) return serializeCodeSpan(span.text);
 
-  let out = escapePreservingEmbeddedImages(span.text);
+  // A break at either edge goes outside the styling so it cannot leave an empty or unclosed run.
+  const [, lead, core, trail] = /^([\r\n]*)([\s\S]*?)([\r\n]*)$/.exec(span.text) ?? [];
+  if (!core) return escapePreservingEmbeddedImages(span.text);
+
+  let out = escapePreservingEmbeddedImages(core);
   if (style.bold && style.italic) out = `***${out}***`;
   else if (style.bold) out = `**${out}**`;
   else if (style.italic) out = `*${out}*`;
   if (style.strikethrough) out = `~~${out}~~`;
   if (style.linkUrl) out = `[${out}](${escapeLinkDestination(style.linkUrl)})`;
-  return out;
+  return escapePreservingEmbeddedImages(lead) + out + escapePreservingEmbeddedImages(trail);
 }
 
 /**

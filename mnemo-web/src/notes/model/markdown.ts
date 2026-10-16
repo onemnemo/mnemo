@@ -39,6 +39,9 @@ import { defaultTextStyle, type InlineSpan, type TextStyle } from './types';
  */
 const fractionToken = /\\(\d+)\/(\d+)/g;
 
+/** An inline `<br>`, read like a markdown hard break. */
+const lineBreakTag = /^<br\s*\/?>$/i;
+
 const processor = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 
 /**
@@ -177,9 +180,9 @@ function visitInline(node: MdastNode, style: TextStyle, spans: InlineSpan[]): vo
       if (node.alt) pushTextWithFractions(node.alt, style, spans);
       break;
 
-    // Raw HTML is dropped rather than shown. A note is not a web page, and
-    // echoing the tag text would be noise in every case where it appears.
+    // Raw HTML is dropped, apart from the line break tag. A note is not a web page.
     case 'html':
+      if (lineBreakTag.test(node.value)) spans.push({ kind: 'text', text: '\n', style });
       break;
 
     default:

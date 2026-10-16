@@ -39,8 +39,12 @@ public static class InlineMarkdownSerializer
         if (r.Style.Code)
             return SerializeCodeSpan(r.Text);
 
-        var escaped = EscapeMarkdownTextPreservingEmbeddedImages(r.Text);
-        var o = escaped;
+        // A break at either edge goes outside the styling so it cannot leave an empty or unclosed run.
+        var edges = EdgeBreaksRegex.Match(r.Text);
+        if (edges.Groups[2].Length == 0)
+            return EscapeMarkdownTextPreservingEmbeddedImages(r.Text);
+
+        var o = EscapeMarkdownTextPreservingEmbeddedImages(edges.Groups[2].Value);
         if (r.Style.Bold && r.Style.Italic)
             o = "***" + o + "***";
         else if (r.Style.Bold)
@@ -51,8 +55,10 @@ public static class InlineMarkdownSerializer
             o = "~~" + o + "~~";
         if (!string.IsNullOrEmpty(r.Style.LinkUrl))
             o = "[" + o + "](" + EscapeMarkdownLinkDestination(r.Style.LinkUrl) + ")";
-        return o;
+        return EscapeMarkdownTextPreservingEmbeddedImages(edges.Groups[1].Value) + o + EscapeMarkdownTextPreservingEmbeddedImages(edges.Groups[3].Value);
     }
+
+    private static readonly Regex EdgeBreaksRegex = new(@"\A([\r\n]*)([\s\S]*?)([\r\n]*)\z", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static string EscapeMarkdownLinkDestination(string url)
     {

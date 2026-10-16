@@ -18,6 +18,11 @@ public static class InlineMarkdownParser
         @"\\(\d+)/(\d+)",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
+    /// <summary>An inline <c>&lt;br&gt;</c>, read like a markdown hard break.</summary>
+    private static readonly Regex LineBreakTagRegex = new(
+        @"^<br\s*/?>$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     private static readonly MarkdownPipeline Pipeline = BuildPipeline();
 
     /// <summary>
@@ -197,7 +202,9 @@ public static class InlineMarkdownParser
                 break;
             }
 
-            case HtmlInline:
+            case HtmlInline html:
+                if (LineBreakTagRegex.IsMatch(html.Tag))
+                    spans.Add(new TextSpan("\n", style));
                 break;
 
             case ContainerInline container:

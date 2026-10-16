@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Notes\inline-line-breaks.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Flashcards\Fixtures\Anki\*.apkg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Flashcards\Fixtures\occlusion-generation.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Flashcards\Fixtures\math-split.json" CopyToOutputDirectory="PreserveNewest" />

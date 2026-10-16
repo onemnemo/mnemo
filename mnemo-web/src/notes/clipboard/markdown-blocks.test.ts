@@ -454,6 +454,23 @@ describe('parseMarkdownToBlocks: nested lists', () => {
   });
 });
 
+describe('parseMarkdownToBlocks: line break tags', () => {
+  it('breaks the line inside a paragraph, heading and list item', () => {
+    expect(textOf(one('one<br>two'))).toBe('one\ntwo');
+    expect(textOf(one('# a<br>b'))).toBe('a\nb');
+    expect(textOf(one('- x<br>y'))).toBe('x\ny');
+  });
+
+  it('keeps both words apart in a table cell', () => {
+    const table = one('| a<br>b | c |\n| --- | --- |\n| d | e<br/>f |');
+    const cellTexts = (table.children ?? []).map((row) => (row.children ?? []).map(textOf));
+    expect(cellTexts).toEqual([
+      ['a\nb', 'c'],
+      ['d', 'e\nf'],
+    ]);
+  });
+});
+
 describe('parseMarkdownToBlocks: hard breaks', () => {
   it('folds a line ending in a hard break into the block it continues', () => {
     expect(textOf(one('one\\\ntwo'))).toBe('one\ntwo');

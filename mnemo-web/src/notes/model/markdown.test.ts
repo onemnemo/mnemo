@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { parseInlineMarkdown } from './markdown';
+import { serializeInlineMarkdown } from './markdown-serialize';
+import { flattenDisplay } from './spans';
 import { defaultTextStyle, type InlineSpan, type TextStyle } from './types';
 
 /** A span list flattened to `text|flags` rows, so a test reads as one line per span. */
@@ -226,6 +230,32 @@ describe('block flattening', () => {
 describe('html', () => {
   it('drops inline html rather than showing the tag', () => {
     expect(rows(parseInlineMarkdown('a <span> b'))).toEqual(['a  b']);
+  });
+
+  // The host parser reads the same vectors.
+  const lineBreakVectors = JSON.parse(
+    readFileSync(new URL('../../../../Mnemo.Infrastructure.Tests/Notes/inline-line-breaks.json', import.meta.url), 'utf8'),
+  ) as { name: string; markdown: string; rows: string[]; written?: string }[];
+
+  it.each(lineBreakVectors)('reads a line break tag: $name', ({ markdown, rows: expected }) => {
+    expect(rows(parseInlineMarkdown(markdown))).toEqual(expected);
+  });
+
+  it.each(lineBreakVectors.filter((vector) => vector.written !== undefined))(
+    'writes a break at the edge of styled text outside the styling: $name',
+    ({ markdown, written }) => {
+      const spans = parseInlineMarkdown(markdown);
+      expect(serializeInlineMarkdown(spans)).toBe(written);
+      const again = parseInlineMarkdown(written ?? '');
+      expect(flattenDisplay(again)).toBe(flattenDisplay(spans));
+      expect(serializeInlineMarkdown(again)).toBe(written);
+    },
+  );
+
+  it('writes a tag break back as the hard break it reads as', () => {
+    const spans = parseInlineMarkdown('one<br>two');
+    expect(serializeInlineMarkdown(spans)).toBe('one\\\ntwo');
+    expect(rows(parseInlineMarkdown(serializeInlineMarkdown(spans)))).toEqual(['one\ntwo']);
   });
 });
 

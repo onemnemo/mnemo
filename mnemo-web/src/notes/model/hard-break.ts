@@ -18,9 +18,9 @@ export function endsWithBreakMarker(line: string): boolean {
   return run % 2 === 1;
 }
 
-/** Inline markdown folded onto one line, for a table cell or an image caption. */
-export function collapseHardBreaks(markdown: string): string {
-  return markdown.replaceAll(HARD_BREAK, ' ');
+/** Inline markdown on one line for a table cell, each break written as `<br>`. */
+export function hardBreaksToTags(markdown: string): string {
+  return markdown.replaceAll(HARD_BREAK, '<br>');
 }
 
 /**

@@ -146,7 +146,7 @@ public static partial class NoteBlockMarkdownConverter
             var cell = i < cells.Count ? cells[i] : null;
             var text = cell == null ? string.Empty : InlineMarkdownSerializer.SerializeSpans(cell.Spans);
             // A pipe would end the cell, and a newline would end the table.
-            texts.Add(EscapeCellPipes(MarkdownHardBreak.Collapse(text)).Trim());
+            texts.Add(EscapeCellPipes(MarkdownHardBreak.ToTags(text)).Trim());
         }
 
         return "| " + string.Join(" | ", texts) + " |";
