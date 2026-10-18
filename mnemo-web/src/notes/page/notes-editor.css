@@ -1089,7 +1089,8 @@
   pointer-events: auto;
 }
 .notes-doc .notes-image-caption [data-line] {
-  margin-top: 6px;
+  /* Padding, not margin, so the hint stays on the caret's line. */
+  padding-top: 6px;
   font-size: var(--font-size-body-small);
   color: var(--text-tertiary);
 }

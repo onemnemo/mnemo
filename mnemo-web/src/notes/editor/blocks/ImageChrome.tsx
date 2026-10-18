@@ -175,7 +175,8 @@ export function ImageChrome({ view, registry, services, node, getPos, onAlign }:
             <AppIcon name="ellipsis" size={15} />
           </button>
         </MenuTrigger>
-        <MenuContent align="end">
+        {/* The trigger is not a tab stop, so focus goes to the caption rather than back to it. */}
+        <MenuContent align="end" opensDialog>
           {entries.map((entry) => {
             switch (entry.kind) {
               case 'separator':
