@@ -16,6 +16,7 @@
  * neither is visible in a test that only checks the text.
  */
 
+import { TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -361,6 +362,23 @@ describe('the suggestion card', () => {
     expect(card()).toBeNull();
     // The press has already chosen where focus goes.
     expect(h.focused()).toBe(beforePress);
+    h.destroy();
+  });
+
+  it('stays up on a right press on a marked word, and closes on one with a range selected', () => {
+    const h = harness(text('wrold cat sat'));
+    const mark = document.createElement('span');
+    mark.className = 'proof-mark';
+    document.body.appendChild(mark);
+
+    h.open('wrold');
+    mark.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 2 }));
+    expect(card()).not.toBeNull();
+
+    h.view.dispatch(h.view.state.tr.setSelection(TextSelection.create(h.view.state.doc, 2, 6)));
+    mark.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 2 }));
+    expect(card()).toBeNull();
+    mark.remove();
     h.destroy();
   });
 

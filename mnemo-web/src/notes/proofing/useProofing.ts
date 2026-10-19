@@ -167,6 +167,7 @@ export function useProofing(options: UseProofingOptions): ProofingSurface {
     if (!view || !card) return;
     return installCardTriggers(view, {
       isOpen: () => card.isOpen(),
+      openIssueId: () => card.openIssueId(),
       open: (hit) => card.openFor(hit.located, hit.rect, hit.trigger),
     });
   }, [view, card]);

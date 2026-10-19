@@ -56,11 +56,8 @@ import { canPasteFromMenu, hasClipboardSelection, runClipboardVerb, runPasteVerb
  * out, so the menu keeps one shape over prose and a reader who meant to select
  * first can see what the verbs are waiting for.
  *
- * A marked word is the one press this declines. A right click on a proofing mark
- * with nothing selected opens the card, the same card a left click opens, and
- * this stays shut so the press has one answer rather than two. A selection tips
- * it back: the reader has a range in hand and the verbs for it are what the
- * press is asking about.
+ * A right click on a proofing mark with nothing selected opens the spelling card,
+ * so this menu stays shut. With a selection the menu opens instead.
  *
  * A picture is the one block that answers about itself. Right-clicking one offers the same rows
  * its own pill does, in place of the generic block menu, because "crop this" and "align this" are

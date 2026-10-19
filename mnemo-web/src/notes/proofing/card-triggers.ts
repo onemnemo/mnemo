@@ -1,12 +1,10 @@
 /**
- * The three ways a marked word is asked about.
+ * The two ways a marked word is asked about.
  *
- * A left click on the mark, a right click on it with nothing selected, and
- * Alt+Enter with the caret inside one. The right click is shared with the
- * editor's context menu, which declines exactly where `markForRightClick`
- * answers, so one press produces a card or a menu and never both. A selection
- * is what tips it the other way: the reader has a range in hand and the verbs
- * for it are what the press is asking for.
+ * A right click on the mark with nothing selected, and Alt+Enter with the caret
+ * inside one. A left click is left to the editor. The editor's context menu
+ * declines exactly where `markForRightClick` answers. A right click gives a card
+ * or a menu, never both. With a selection the menu wins.
  *
  * Alt+Enter is bound on the DOM rather than in a keymap so this stays out of
  * the plugin stack's precedence entirely. ProseMirror's own handler is
@@ -19,7 +17,7 @@
 import type { EditorView } from 'prosemirror-view';
 import type { Rect } from '../editor/floating/position';
 import type { ProofingCardTrigger } from './issue-card';
-import { issueAt, type LocatedIssue } from './proofing-plugin';
+import { issueAt, issueIdOf, type LocatedIssue } from './proofing-plugin';
 
 /** The mark under an event target, and the box to hang a card off. */
 export function markUnder(view: EditorView, target: EventTarget | null): { located: LocatedIssue; rect: Rect } | null {
@@ -74,22 +72,18 @@ export interface CardTriggerOptions {
   open(hit: { located: LocatedIssue; rect: Rect; trigger: ProofingCardTrigger }): void;
   /** Whether a card is already up, so a second trigger does not stack one. */
   isOpen(): boolean;
+  /** The issue the open card is for. A right press on that word changes nothing. */
+  openIssueId(): string | null;
 }
 
 /** Wires both triggers to a view and hands back the way to unwire them. */
 export function installCardTriggers(view: EditorView, options: CardTriggerOptions): () => void {
-  const onClick = (event: MouseEvent) => {
-    if (event.button !== 0 || options.isOpen()) return;
-    const hit = markUnder(view, event.target);
-    // A click on a marked word is first of all a click into that word, so the
-    // card that opens must not take the caret out of the document.
-    if (hit) options.open({ ...hit, trigger: 'pointer' });
-  };
-
   const onPointerDown = (event: PointerEvent) => {
-    if (event.button !== 2 || options.isOpen()) return;
+    if (event.button !== 2) return;
     const hit = markForRightClick(view, event.target);
-    if (hit) options.open({ ...hit, trigger: 'pointer' });
+    // The same word keeps the card. Another word swaps it in place.
+    if (!hit || options.openIssueId() === issueIdOf(hit.located.issue)) return;
+    options.open({ ...hit, trigger: 'pointer' });
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -102,11 +96,9 @@ export function installCardTriggers(view: EditorView, options: CardTriggerOption
     options.open({ ...hit, trigger: 'keyboard' });
   };
 
-  view.dom.addEventListener('click', onClick);
   view.dom.addEventListener('pointerdown', onPointerDown);
   view.dom.addEventListener('keydown', onKeyDown);
   return () => {
-    view.dom.removeEventListener('click', onClick);
     view.dom.removeEventListener('pointerdown', onPointerDown);
     view.dom.removeEventListener('keydown', onKeyDown);
   };

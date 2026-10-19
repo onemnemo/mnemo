@@ -13,10 +13,8 @@
  * proofing card already use here: mounted outside ProseMirror's content so its
  * own DOM is never read back as document corruption.
  *
- * It never takes focus. A click on a link is first of all a click into that
- * text, the same reading the proofing card takes of a click on a marked word,
- * so the caret stays where the press put it and the card is something to point
- * at rather than something to be in.
+ * It never takes focus. A click on a link is a click into the text, so the caret
+ * stays where the press put it.
  */
 
 import { getIconMarkup } from '@/components/icon/icon-registry';

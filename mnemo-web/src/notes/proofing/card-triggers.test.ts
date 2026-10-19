@@ -18,7 +18,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildNoteEditState } from '../edit/build-edit-state';
 import { installCardTriggers } from './card-triggers';
 import { blockOf, liveSegmentIds, locatedIssueFor, text } from './fixtures';
-import { proofingKey } from './proofing-plugin';
+import { issueIdOf, proofingKey } from './proofing-plugin';
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -50,9 +50,14 @@ function harness(value: string, word: string) {
   const ancestorSaw: string[] = [];
   wrapper.addEventListener('contextmenu', (event) => ancestorSaw.push(event.type));
 
+  let openId: string | null = null;
   const uninstall = installCardTriggers(view, {
-    isOpen: () => false,
-    open: (hit) => opened.push(hit.located.issue.text),
+    isOpen: () => openId !== null,
+    openIssueId: () => openId,
+    open: (hit) => {
+      openId = issueIdOf(hit.located.issue);
+      opened.push(hit.located.issue.text);
+    },
   });
 
   const mark = view.dom.querySelector('.proof-mark');
@@ -89,9 +94,18 @@ function key(target: EventTarget, init: KeyboardEventInit): KeyboardEvent {
 }
 
 describe('the card triggers', () => {
-  it('opens on a left click on a marked word', () => {
+  it('leaves a left click on a marked word to the editor', () => {
     const h = harness('wrold cat sat', 'wrold');
-    h.mark.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+    h.mark.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, detail: 1 }));
+    h.mark.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, detail: 2 }));
+    expect(h.opened).toHaveLength(0);
+    h.destroy();
+  });
+
+  it('keeps the card as it is on a right press on the word it is up for', () => {
+    const h = harness('wrold cat sat', 'wrold');
+    h.mark.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 2 }));
+    h.mark.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 2 }));
     expect(h.opened).toEqual(['wrold']);
     h.destroy();
   });

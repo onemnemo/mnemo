@@ -126,6 +126,8 @@ export interface ProofingCardHandle {
   openFor(located: LocatedIssue, anchor: Rect, trigger?: ProofingCardTrigger): void;
   contains(node: Node): boolean;
   isOpen(): boolean;
+  /** The id of the issue the card is up for, or null while it is closed. */
+  openIssueId(): string | null;
   /** Closes without touching focus, for a press that has already claimed it. */
   dismiss(): void;
   /** Closes and puts the caret back in the document. */
@@ -195,6 +197,15 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
 
   function onOutsidePointer(event: PointerEvent): void {
     if (event.target instanceof Node && contains(event.target)) return;
+    // The triggers handle a right press on a marked word when nothing is selected.
+    if (
+      event.button === 2 &&
+      view.state.selection.empty &&
+      event.target instanceof Element &&
+      event.target.closest('.proof-mark')
+    ) {
+      return;
+    }
     // The press has already chosen where focus goes; restoring would take it
     // straight back off whatever the writer just clicked.
     dismiss();
@@ -450,6 +461,7 @@ export function createProofingCard(options: ProofingCardOptions): ProofingCardHa
     openFor,
     contains,
     isOpen,
+    openIssueId: () => (openIssue ? issueIdOf(openIssue) : null),
     dismiss,
     cancel,
     destroy(): void {
