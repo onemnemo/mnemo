@@ -71,6 +71,7 @@ export function BrowseRow({
       <ContextMenuTrigger asChild>
         <div
           role="row"
+          data-card-id={card.id}
           onDoubleClick={() => actions.onEdit(card.id)}
           className={cn(
             ROW_GRID,

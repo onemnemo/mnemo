@@ -8,6 +8,7 @@ import { PAGE_SIZE, pageRange, selectAllState } from "../../deck/cards"
 import { useBrowseView } from "../store"
 import { BrowseRow, type BrowseRowActions } from "./BrowseRow"
 import { SelectStrip, STRIP_HOVER } from "./SelectStrip"
+import { useCheckboxDrag } from "./useCheckboxDrag"
 import { BACK_CELL, DECK_CELL, ROW_GRID } from "./rowLayout"
 
 /** The column header, the rows and the count-and-pager footer, for the collection-wide table. */
@@ -31,6 +32,7 @@ export function BrowseTable({
   const selected = useBrowseView((s) => s.selected)
   const toggleCard = useBrowseView((s) => s.toggleCard)
   const setPageSelection = useBrowseView((s) => s.setPageSelection)
+  const setSelection = useBrowseView((s) => s.setSelection)
   const sortDescending = useBrowseView((s) => s.sortDescending)
   const toggleDueSort = useBrowseView((s) => s.toggleDueSort)
   const offset = useBrowseView((s) => s.offset)
@@ -38,6 +40,7 @@ export function BrowseTable({
 
   const pageIds = page.items.map((item) => item.card.id)
   const allState = selectAllState(pageIds, selected)
+  const startCheckDrag = useCheckboxDrag(pageIds, selected, setSelection)
   const { first, last } = pageRange(offset, page.totalCount)
   const pages = Math.max(1, Math.ceil(page.totalCount / PAGE_SIZE))
   const current = Math.floor(offset / PAGE_SIZE) + 1
@@ -67,7 +70,7 @@ export function BrowseTable({
         <span />
       </div>
 
-      <div role="rowgroup">
+      <div role="rowgroup" onPointerDown={startCheckDrag}>
         {page.items.map((view) => (
           <BrowseRow
             key={view.card.id}

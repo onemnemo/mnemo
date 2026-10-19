@@ -40,6 +40,8 @@ interface BrowseViewState {
   toggleDueSort: () => void
   setOffset: (offset: number) => void
   toggleCard: (id: string) => void
+  /** Replaces the whole selection, for a drag or a range in the checkbox column. */
+  setSelection: (selected: ReadonlySet<string>) => void
   setPageSelection: (ids: readonly string[], selected: boolean) => void
   clearSelection: () => void
 }
@@ -86,6 +88,8 @@ export const useBrowseView = create<BrowseViewState>((set) => ({
       if (!selected.delete(id)) selected.add(id)
       return { selected }
     }),
+
+  setSelection: (selected) => set({ selected: new Set(selected) }),
 
   setPageSelection: (ids, selected) => set({ selected: selected ? new Set(ids) : new Set() }),
   clearSelection: () => set({ selected: new Set() }),
