@@ -103,7 +103,7 @@ export function CreateMapDialog({ open, busy, onCancel, onCreate }: CreateMapDia
                     className={cn(
                       "flex flex-col items-center gap-2.5 rounded-lg border-[1.5px] border-transparent bg-secondary/60 p-2.5 transition-colors",
                       template.id === chosen
-                        ? "shadow-[0_0_0_1.5px_var(--solid)]"
+                        ? "border-[var(--solid)]"
                         : "hover:border-line",
                     )}
                   >
