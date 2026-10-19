@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { PAGE_SIZE, pageRange, selectAllState } from "../../deck/cards"
 import { useBrowseView } from "../store"
 import { BrowseRow, type BrowseRowActions } from "./BrowseRow"
+import { SelectStrip, STRIP_HOVER } from "./SelectStrip"
 import { BACK_CELL, DECK_CELL, ROW_GRID } from "./rowLayout"
 
 /** The column header, the rows and the count-and-pager footer, for the collection-wide table. */
@@ -44,11 +45,14 @@ export function BrowseTable({
   return (
     <div className="mt-3">
       <div className={cn(ROW_GRID, "h-8 border-b border-line-soft text-[11.5px] text-ink-3")}>
-        <Checkbox
-          checked={allState}
-          onToggle={() => setPageSelection(pageIds, allState !== true)}
-          label={fc("SelectAllCards")}
-        />
+        <SelectStrip onToggle={() => setPageSelection(pageIds, allState !== true)}>
+          <Checkbox
+            checked={allState}
+            onToggle={() => setPageSelection(pageIds, allState !== true)}
+            label={fc("SelectAllCards")}
+            className={allState === false ? STRIP_HOVER : undefined}
+          />
+        </SelectStrip>
         <span />
         <span>{fc("ColFront")}</span>
         <span className={BACK_CELL}>{fc("ColBack")}</span>

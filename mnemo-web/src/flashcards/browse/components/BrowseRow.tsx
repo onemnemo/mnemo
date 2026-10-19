@@ -17,6 +17,7 @@ import { usePeekStore } from "@/peek/store"
 import { StateTag, cardStateKind } from "../../bits"
 import { backCell, dueLabel, frontPreview, typeMarker } from "../../deck/cards"
 import { ACTIONS_CELL, BACK_CELL, DECK_CELL, ROW_GRID } from "./rowLayout"
+import { SelectStrip, STRIP_HOVER } from "./SelectStrip"
 
 export interface BrowseRowActions {
   onPeek: (id: string) => void
@@ -79,7 +80,14 @@ export function BrowseRow({
           )}
           style={{ transitionDuration: "var(--duration-instant)" }}
         >
-          <Checkbox checked={selected} onToggle={() => onToggleSelect(card.id)} label={front} />
+          <SelectStrip onToggle={() => onToggleSelect(card.id)}>
+            <Checkbox
+              checked={selected}
+              onToggle={() => onToggleSelect(card.id)}
+              label={front}
+              className={selected ? undefined : STRIP_HOVER}
+            />
+          </SelectStrip>
 
           {/* Flagged is a property of the card, so it reads on the row rather than
               only inside a filter. Always rendered: the slot has to hold its width
