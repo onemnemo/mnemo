@@ -103,8 +103,17 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
 
   useEffect(() => {
     if (!noteGone || !noteId) return;
-    rememberLastNoteId(null);
+    // A note deleted elsewhere hands its tab over to a neighbour.
+    // A delete from the note menu has already closed the tab.
+    const ids = useNoteTabs.getState().ids;
+    if (!ids.includes(noteId)) return;
+    const next = survivingNeighbour(ids, [noteId], noteId);
     dropTab(noteId);
+    if (next) {
+      navigate('notes', next);
+      return;
+    }
+    rememberLastNoteId(null);
     navigate('notes');
   }, [noteGone, noteId, dropTab]);
 

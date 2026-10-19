@@ -28,6 +28,7 @@ import { hasCover } from './covers';
 import { NoteLanguageMenu } from './NoteLanguageMenu';
 import { ProofingIgnoresDialog } from './ProofingIgnoresDialog';
 import { CoverPicker } from './NoteHeaderChrome';
+import { survivingNeighbour, useNoteTabs } from './tabs';
 import { EDITOR_WIDTH_KEY, useEditorMeasure, useEditorWidthOptions } from './useEditorMeasure';
 
 /**
@@ -109,10 +110,21 @@ export function PaneActions({
   };
 
   const remove = async () => {
-    const action = await deleteNote.mutateAsync(note.id);
-    // Out of the note before the toast, so undo is offered from the tree rather than from a
-    // page still showing the note it just deleted.
-    navigate('notes');
+    // Leave the note before the request so the page never shows it going missing.
+    // Another open tab takes over.
+    const tabs = useNoteTabs.getState();
+    const next = survivingNeighbour(tabs.ids, [note.id], note.id);
+    tabs.close(note.id);
+    if (next) navigate('notes', next);
+    else navigate('notes');
+    let action: Awaited<ReturnType<typeof deleteNote.mutateAsync>>;
+    try {
+      action = await deleteNote.mutateAsync(note.id);
+    } catch {
+      // Nothing was deleted, so go back to the note. The mutation reports the failure.
+      navigate('notes', note.id);
+      return;
+    }
     undo(action);
   };
 

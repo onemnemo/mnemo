@@ -3,7 +3,8 @@
 /**
  * What the tab menu's verbs do once they are run through the real workspace:
  * where the pane lands and what the store is left holding when a close verb
- * takes a whole row of tabs down, and which note the peek is handed.
+ * takes a whole row of tabs down, which note the peek is handed, and where the
+ * pane goes when the open note is deleted from somewhere else.
  *
  * The strip renders only the open ids the library has named, so these run the
  * verbs through the real workspace rather than the pure rules alone: the note
@@ -43,6 +44,8 @@ let mounted: boolean;
 let client: QueryClient;
 /** The notes the library answers with; anything open but missing here gets no tab. */
 let library: NoteSummaryDto[];
+/** Ids whose note read answers 404, as a note deleted elsewhere does. */
+let gone: Set<string>;
 
 function note(id: string): NoteSummaryDto {
   return {
@@ -116,6 +119,7 @@ beforeEach(() => {
   root = createRoot(container);
   mounted = false;
   library = ['note-1', 'note-2', 'note-3', 'note-4'].map(note);
+  gone = new Set();
   localStorage.clear();
   window.location.hash = '';
   useNoteTabs.setState({ ids: [] });
@@ -127,6 +131,8 @@ beforeEach(() => {
     const url = String(input instanceof Request ? input.url : input);
     if (url.endsWith('/notes')) return json(library);
     if (url.endsWith('/note-folders')) return json([]);
+    const id = /\/notes\/([^/?]+)$/.exec(url)?.[1];
+    if (id && gone.has(id)) return new Response(JSON.stringify({ code: 'not_found', message: 'gone' }), { status: 404 });
     return json({ ...note('note-1'), blocks: [] });
   }) as typeof fetch;
 });
@@ -199,5 +205,25 @@ describe('opening a tab in the side peek', () => {
     // Peeking is a second view, not a navigation: the tab stays where it was.
     expect(window.location.hash).toBe('');
     expect(useNoteTabs.getState().ids).toEqual(['note-1', 'note-2', 'note-3']);
+  });
+});
+
+describe('the open note deleted from the sidebar', () => {
+  it('hands over to the next tab', async () => {
+    gone = new Set(['note-2']);
+    library = ['note-1', 'note-3'].map(note);
+    await open(['note-1', 'note-2', 'note-3'], 'note-2');
+
+    expect(window.location.hash).toBe('#/notes/note-3');
+    expect(useNoteTabs.getState().ids).toEqual(['note-1', 'note-3']);
+  });
+
+  it('goes to the empty page when it was the only tab', async () => {
+    gone = new Set(['note-2']);
+    library = ['note-1'].map(note);
+    await open(['note-2'], 'note-2');
+
+    expect(window.location.hash).toBe('#/notes');
+    expect(useNoteTabs.getState().ids).toEqual([]);
   });
 });

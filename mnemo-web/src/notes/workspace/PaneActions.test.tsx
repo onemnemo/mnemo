@@ -15,7 +15,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import type { NoteSummaryDto } from '@/api/types';
 
+import { navigate } from '@/app/router';
+
 import { PaneActions } from './PaneActions';
+import { useNoteTabs } from './tabs';
 
 vi.mock('@/i18n/useT', () => ({ useT: () => (_ns: string, key: string) => key }));
 vi.mock('@/app/router', () => ({ navigate: vi.fn() }));
@@ -38,8 +41,9 @@ vi.mock('@/settings/store', () => ({
     select({ setValue: () => {} }),
 }));
 vi.mock('@/trash/undo', () => ({ useUndoDelete: () => () => {} }));
+const deleteNote = vi.hoisted(() => vi.fn());
 vi.mock('../api', () => ({
-  useDeleteNote: () => ({ mutateAsync: vi.fn() }),
+  useDeleteNote: () => ({ mutateAsync: deleteNote }),
   useDuplicateNote: () => ({ mutateAsync: vi.fn() }),
   useUpdateNoteMetadata: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -65,6 +69,7 @@ let container: HTMLElement;
 let root: Root;
 
 beforeEach(() => {
+  deleteNote.mockReset();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -109,4 +114,27 @@ it('puts the language submenu with the width, between the same two separators', 
   expect(labelAt(rows, width - 1)).toBe('<separator>');
   expect(labelAt(rows, width + 1)).toBe('SpellingLanguage');
   expect(labelAt(rows, width + 2)).toBe('<separator>');
+});
+
+it('hands a deleted note over to its neighbour tab before the delete is sent', async () => {
+  useNoteTabs.setState({ ids: ['before', NOTE.id, 'after'] });
+  let routeAtRequest: unknown[] | undefined;
+  deleteNote.mockImplementation(async () => {
+    routeAtRequest = vi.mocked(navigate).mock.lastCall;
+    return null;
+  });
+  const rows = openMenu();
+  const row = rows.find((_, index) => labelAt(rows, index) === 'DeleteNote') as HTMLElement;
+  await act(async () => row.click());
+  expect(routeAtRequest).toEqual(['notes', 'after']);
+  expect(useNoteTabs.getState().ids).toEqual(['before', 'after']);
+});
+
+it('returns to the note when the delete fails', async () => {
+  useNoteTabs.setState({ ids: ['before', NOTE.id, 'after'] });
+  deleteNote.mockRejectedValue(new Error('offline'));
+  const rows = openMenu();
+  const row = rows.find((_, index) => labelAt(rows, index) === 'DeleteNote') as HTMLElement;
+  await act(async () => row.click());
+  expect(navigate).toHaveBeenLastCalledWith('notes', NOTE.id);
 });
