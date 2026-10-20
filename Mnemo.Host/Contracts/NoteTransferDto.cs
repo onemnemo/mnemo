@@ -46,14 +46,16 @@ public sealed record NoteTransferImportDto(
 
 /// <summary>
 /// What a batch import did. Per-file errors are collected rather than thrown so one unreadable file
-/// in a batch does not discard the ones that imported.
+/// in a batch does not discard the ones that imported. <c>OpenNoteId</c> is set only when the batch
+/// created exactly one new note.
 /// </summary>
 public sealed record NoteTransferImportResultDto(
     int SucceededFiles,
     int FailedFiles,
     int ImportedNotes,
     IReadOnlyList<TransferWarningDto> Warnings,
-    IReadOnlyList<string> Errors);
+    IReadOnlyList<string> Errors,
+    string? OpenNoteId = null);
 
 /// <summary>
 /// Export body. The selection is always explicit: the package adapter reads an empty one as "export

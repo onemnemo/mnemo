@@ -29,9 +29,10 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
 
     private readonly string _trashDbPath = Path.Combine(Path.GetTempPath(), $"mnemo_host_notes_{Guid.NewGuid():N}.db");
     private readonly WebApplication _app;
-    private readonly RecordingCoordinator _transfer = new();
+    private readonly RecordingCoordinator _transfer;
     private readonly RecordingLogger _logger = new();
     private readonly OneFolder _folders = new(KnownFolder);
+    private readonly LibraryNotes _notes = new();
     private readonly TrashDatabase _trashDatabase;
     private HttpClient? _client;
     private bool _started;
@@ -39,6 +40,7 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
     public NoteTransferImportTests()
     {
         var logger = _logger;
+        _transfer = new RecordingCoordinator(_notes);
         _trashDatabase = new TrashDatabase(logger, _trashDbPath);
 
         var builder = WebApplication.CreateBuilder();
@@ -50,13 +52,10 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
         builder.Services.AddSingleton<INoteFolderService>(_folders);
         builder.Services.AddSingleton<INoteSidMigrator>(new MigratedNotes());
 
-        // The export route is mapped by the same call and its delegate is built with the rest, so
-        // its services have to be registrable. The two cheap ones are real; the note service is
-        // resolved by that route alone, which nothing here reaches.
+        // The same call maps the export route, so its services must register too.
         builder.Services.AddSingleton(new ExportGrants());
         builder.Services.AddSingleton<ISettingsService>(new MemorySettings());
-        builder.Services.AddSingleton<INoteService>(_ =>
-            throw new InvalidOperationException("The export route is not part of these tests."));
+        builder.Services.AddSingleton<INoteService>(_notes);
 
         builder.Services.AddSingleton(_trashDatabase);
         builder.Services.AddSingleton<ITrashStore>(new TrashStore(_trashDatabase));
@@ -106,6 +105,54 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
         Assert.Equal(HttpStatusCode.BadRequest, over.StatusCode);
         using var body = JsonDocument.Parse(await over.Content.ReadAsStringAsync());
         Assert.Equal("too_many_files", body.RootElement.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task AOneNoteImportNamesTheNoteItCreatedSoTheAppCanOpenIt()
+    {
+        var client = await ClientAsync();
+        _notes.Add("already-here");
+
+        var response = await client.PostAsJsonAsync("/api/notes/transfer/import", new
+        {
+            uploadIds = new[] { Stage("One.md") },
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(_notes.Ids[^1], body.RootElement.GetProperty("openNoteId").GetString());
+    }
+
+    [Fact]
+    public async Task AnImportOfSeveralNotesNamesNoneToOpen()
+    {
+        var client = await ClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/notes/transfer/import", new
+        {
+            uploadIds = new[] { Stage("One.md"), Stage("Two.md") },
+        });
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(2, body.RootElement.GetProperty("importedNotes").GetInt32());
+        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("openNoteId").ValueKind);
+    }
+
+    [Fact]
+    public async Task AnImportThatReplacedANoteRatherThanAddingOneNamesNoneToOpen()
+    {
+        var client = await ClientAsync();
+        _transfer.CreatesNotes = false;
+
+        var response = await client.PostAsJsonAsync("/api/notes/transfer/import", new
+        {
+            uploadIds = new[] { Stage("One.md") },
+            conflictPolicy = "Replace",
+        });
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(1, body.RootElement.GetProperty("importedNotes").GetInt32());
+        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("openNoteId").ValueKind);
     }
 
     [Fact]
@@ -236,10 +283,13 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
         }
     }
 
-    /// <summary>Answers every import as one note landed, and keeps the request it was handed.</summary>
-    private sealed class RecordingCoordinator : IImportExportCoordinator
+    /// <summary>Answers every import as one note landed and adds it to the library unless CreatesNotes is false.</summary>
+    private sealed class RecordingCoordinator(LibraryNotes notes) : IImportExportCoordinator
     {
         public List<ImportExportRequest> Imports { get; } = [];
+
+        /// <summary>False for an import that overwrote a note and left no new id.</summary>
+        public bool CreatesNotes { get; set; } = true;
 
         /// <summary>Warnings the next import(s) report back, unset by default.</summary>
         public List<TransferWarning> Warnings { get; set; } = [];
@@ -268,6 +318,8 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
         public Task<Result<ImportExportResult>> ImportAsync(ImportExportRequest request, CancellationToken cancellationToken = default)
         {
             Imports.Add(request);
+            if (CreatesNotes)
+                notes.Add($"imported-{Imports.Count}");
             return Task.FromResult(Result<ImportExportResult>.Success(new ImportExportResult
             {
                 Success = true,
@@ -280,6 +332,24 @@ public sealed class NoteTransferImportTests : IAsyncDisposable
 
         public Task<Result<ImportExportResult>> ExportAsync(ImportExportRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result<ImportExportResult>.Failure("Export is not part of these tests."));
+    }
+
+    /// <summary>The note library, as far as the import route reads it.</summary>
+    private sealed class LibraryNotes : INoteService
+    {
+        public List<string> Ids { get; } = [];
+
+        public void Add(string id) => Ids.Add(id);
+
+        public Task<IReadOnlyList<NoteSummary>> GetAllNoteSummariesAsync() =>
+            Task.FromResult<IReadOnlyList<NoteSummary>>(Ids
+                .Select(id => new NoteSummary(id, id, 1, id, null, null, 0, false, DateTime.UnixEpoch, DateTime.UnixEpoch, null, null, null, []))
+                .ToList());
+
+        public Task<IEnumerable<Note>> GetAllNotesAsync() => throw new NotSupportedException();
+        public Task<Note?> GetNoteAsync(string noteId) => throw new NotSupportedException();
+        public Task<Result> SaveNoteAsync(Note note) => throw new NotSupportedException();
+        public Task<Result> DeleteNoteAsync(string noteId) => throw new NotSupportedException();
     }
 
     private sealed class OneFolder(string folderId) : INoteFolderService

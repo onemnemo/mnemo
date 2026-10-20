@@ -80,6 +80,13 @@ vi.mock("./api", () => ({
   uploadNoteTransferFile: api.uploadNoteTransferFile,
 }))
 
+const router = vi.hoisted(() => ({ navigate: vi.fn() }))
+
+vi.mock("@/app/router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/app/router")>()),
+  navigate: router.navigate,
+}))
+
 vi.mock("@/i18n/useT", () => ({
   useT: () => (_ns: string, key: string) => key,
 }))
@@ -320,5 +327,35 @@ describe("the note transfer overlay's post-import warnings", () => {
 
     expect(toast.success).toHaveBeenCalledWith("ImportCompleteTitle", expect.anything())
     expect(toast.warning).not.toHaveBeenCalled()
+  })
+})
+
+describe("the note transfer overlay after an import", () => {
+  async function importReturning(result: NoteTransferImportResultDto): Promise<void> {
+    openImportDialog()
+    await chooseFiles("Tissue.md")
+    api.runNoteImport.mockResolvedValueOnce(result)
+    act(() => confirmButton().click())
+    await flush()
+  }
+
+  const oneNote = { succeededFiles: 1, failedFiles: 0, importedNotes: 1, warnings: [], errors: [] }
+
+  it("opens the note when the import created exactly one", async () => {
+    await importReturning({ ...oneNote, openNoteId: "note-new" })
+
+    expect(router.navigate).toHaveBeenCalledWith("notes", "note-new")
+  })
+
+  it("stays put when the import created several notes", async () => {
+    await importReturning({ ...oneNote, importedNotes: 3, openNoteId: null })
+
+    expect(router.navigate).not.toHaveBeenCalled()
+  })
+
+  it("stays put when a replace created no new note", async () => {
+    await importReturning({ ...oneNote, openNoteId: null })
+
+    expect(router.navigate).not.toHaveBeenCalled()
   })
 })

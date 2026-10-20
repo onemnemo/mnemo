@@ -162,6 +162,7 @@ public static class NoteTransferEndpoints
                 NoteTransferImportDto body,
                 IImportExportCoordinator transfer,
                 INoteFolderService folders,
+                INoteService noteService,
                 ILoggerService logger,
                 CancellationToken cancellationToken) =>
             {
@@ -197,6 +198,13 @@ public static class NoteTransferEndpoints
                 }
 
                 var paths = new NoteFolderPathResolver(folders, targetFolderId);
+                // The adapters count notes but do not name them. The note a one-file import made is
+                // the id that is new afterwards. A replace leaves no new id.
+                var notesBefore = uploadIds.Count == 1
+                    ? (await noteService.GetAllNoteSummariesAsync().ConfigureAwait(false))
+                        .Select(note => note.NoteId)
+                        .ToHashSet(StringComparer.Ordinal)
+                    : null;
                 var succeeded = 0;
                 var importedNotes = 0;
                 var warnings = new List<TransferWarningDto>();
@@ -300,12 +308,24 @@ public static class NoteTransferEndpoints
                 // The notification groups repeats; the app log keeps the full list.
                 TransferWarningLog.Log(logger, LogCategory, warnings);
 
+                string? openNoteId = null;
+                if (notesBefore is not null && importedNotes == 1)
+                {
+                    var created = (await noteService.GetAllNoteSummariesAsync().ConfigureAwait(false))
+                        .Select(note => note.NoteId)
+                        .Where(id => !notesBefore.Contains(id))
+                        .ToList();
+                    if (created.Count == 1)
+                        openNoteId = created[0];
+                }
+
                 return Results.Ok(new NoteTransferImportResultDto(
                     succeeded,
                     uploadIds.Count - succeeded,
                     Math.Max(0, importedNotes),
                     warnings,
-                    errors));
+                    errors,
+                    openNoteId));
             })
             .RequireNotesMigrated().RequireTrash();
     }

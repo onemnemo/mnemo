@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 
 import { describeError } from "@/api/error-copy"
 import { announceExport, exportFileName, exportSaveOptions } from "@/api/export-file"
+import { navigate } from "@/app/router"
 import {
   canImport,
   importExtensions,
@@ -146,7 +147,12 @@ function NoteTransfer({ target, onClose }: { target: NoteTransferTarget; onClose
     // An import can create folders and notes, so the whole key is stale.
     await client.invalidateQueries({ queryKey: notesKey })
     setBusy(false)
-    if (announceImport(t, outcome, (result) => itemPhrase(result.importedNotes))) onClose()
+    if (!announceImport(t, outcome, (result) => itemPhrase(result.importedNotes))) return
+    onClose()
+    // The batch may go in parts. Only one note across all of them opens.
+    const total = outcome.results.reduce((sum, result) => sum + result.importedNotes, 0)
+    const opened = outcome.results.flatMap((result) => (result.openNoteId ? [result.openNoteId] : []))
+    if (total === 1 && opened.length === 1) navigate("notes", opened[0])
   }
 
   const selectedExtension = available.find((format) => format.formatId === exportFormat)?.extensions[0] ?? ""

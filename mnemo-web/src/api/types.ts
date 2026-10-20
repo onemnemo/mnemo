@@ -737,6 +737,8 @@ export interface NoteTransferImportResultDto {
   importedNotes: number
   warnings: TransferWarningDto[]
   errors: string[]
+  /** Set only when the request created exactly one new note. */
+  openNoteId?: string | null
 }
 
 /** Mirrors Mnemo.Host/Contracts/NoteTransferDto.cs NoteTransferExportDto. */
