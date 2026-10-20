@@ -1261,8 +1261,8 @@
   display: flex;
   align-items: stretch;
   gap: 6px;
-  min-width: 300px;
-  max-width: 440px;
+  min-width: min(340px, calc(100vw - 16px));
+  max-width: min(460px, calc(100vw - 16px));
   padding: 8px;
   border-radius: 12px;
   background: var(--canvas);
@@ -1272,14 +1272,14 @@
 .notes-equation-flyout .notes-equation-editor-source {
   flex: 1;
   min-width: 0;
-  height: 28px;
-  padding: 0 8px;
+  height: 30px;
+  padding: 0 9px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   background: var(--canvas-sunken);
   color: var(--ink);
   font-family: var(--font-mono);
-  font-size: var(--font-size-body-extra-small);
+  font-size: var(--font-size-body-small);
   outline: none;
   transition: border-color var(--duration-fast);
 }
@@ -1290,13 +1290,13 @@
   color: var(--ink-3);
 }
 .notes-equation-flyout-done {
-  height: 28px;
-  padding: 0 8px;
+  height: 30px;
+  padding: 0 10px;
   border: none;
   border-radius: 8px;
   background: var(--solid);
   color: var(--solid-fg);
-  font-size: 12.5px;
+  font-size: var(--font-size-body-small);
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
