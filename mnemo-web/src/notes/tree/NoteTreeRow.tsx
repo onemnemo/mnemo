@@ -1,5 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
-
 import { navigate } from '@/app/router';
 import { AppIcon } from '@/components/icon/AppIcon';
 import {
@@ -27,67 +25,12 @@ import { metadataUpdateOf } from '../note-metadata';
 import { useNoteTransfer } from '../transfer/store';
 import type { NoteFolderRowModel, NoteRowModel } from './tree-model';
 import type { TreeDragHandle } from './reorder';
+import { FavouriteStar } from './FavouriteStar';
+import { GuideLines } from './GuideLines';
+import { RenameInput } from './RenameInput';
+import { DEPTH_INDENT, ROW_BASE } from './row-style';
+import { useNotesT } from './useNotesT';
 import type { TreeDrag } from './useNoteTreeDrag';
-
-/** Left indent per nesting level, in px. */
-export const DEPTH_INDENT = 14;
-
-const ROW_BASE =
-  'group relative flex h-7 items-center gap-1.5 rounded-md pr-1.5 text-[13.5px] leading-none outline-none cursor-pointer ' +
-  'text-ink-2 transition-colors hover:bg-frame-hover hover:text-ink focus-visible:bg-frame-hover';
-
-function useNotesT() {
-  const t = useT();
-  return (key: string, params?: Record<string, string | number>) => t('Notes', key, params);
-}
-
-/**
- * The vertical hairlines that trace a row back to its ancestors, one per level
- * of nesting, so a deep row still reads as belonging to the folder above it.
- */
-function GuideLines({ depth }: { depth: number }) {
-  if (depth === 0) return null;
-  return (
-    <>
-      {Array.from({ length: depth }, (_, i) => (
-        <span
-          key={i}
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 w-px bg-line-soft"
-          style={{ left: 12 + i * DEPTH_INDENT }}
-        />
-      ))}
-    </>
-  );
-}
-
-/**
- * The trailing favourite star, revealed on row hover and filled when the note is
- * a favourite. Never coloured, it is a state and not an alert, so it stays
- * neutral ink whether on or off, and it stays hidden at rest either way: a note's
- * membership of the Favourites section is the standing signal, so a star on every
- * favourited row would only repeat it.
- */
-function FavouriteStar({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
-  return (
-    <span
-      role="button"
-      aria-label={label}
-      title={label}
-      onClick={(event) => {
-        event.stopPropagation();
-        onToggle();
-      }}
-      onPointerDown={(event) => event.stopPropagation()}
-      className={cn(
-        'hidden size-5 shrink-0 place-items-center rounded hover:bg-frame-active group-hover:grid group-focus-within:grid',
-        on ? 'text-ink-2' : 'text-ink-icon',
-      )}
-    >
-      <AppIcon name={on ? 'common/star-filled' : 'common/star'} size={13} preserveColors={false} />
-    </span>
-  );
-}
 
 /** A folder row: chevron, medium-weight name, and its recursive note count. */
 export function FolderRow({
@@ -354,50 +297,5 @@ export function NoteRow({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-  );
-}
-
-/**
- * The inline rename editor. It keeps the draft local so Escape genuinely reverts
- * rather than leaving a half-typed name on screen until the next reload, and it
- * stops its own presses so a rename does not arm a drag.
- */
-function RenameInput({
-  initial,
-  onCommit,
-  onCancel,
-}: {
-  initial: string;
-  onCommit: (value: string) => void;
-  onCancel: () => void;
-}) {
-  const [value, setValue] = useState(initial);
-  const cancelled = useRef(false);
-  const ref = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    ref.current?.select();
-  }, []);
-
-  return (
-    <input
-      ref={ref}
-      value={value}
-      autoFocus
-      onChange={(event) => setValue(event.target.value)}
-      onClick={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
-      onDoubleClick={(event) => event.stopPropagation()}
-      onBlur={() => !cancelled.current && onCommit(value)}
-      onKeyDown={(event) => {
-        event.stopPropagation();
-        if (event.key === 'Enter') onCommit(value);
-        if (event.key === 'Escape') {
-          cancelled.current = true;
-          onCancel();
-        }
-      }}
-      className="min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none"
-    />
   );
 }
