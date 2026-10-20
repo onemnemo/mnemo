@@ -8,7 +8,8 @@
  * Delete aimed at a neighbour with no line to merge into puts that block in the
  * block selection instead of being swallowed, so a second press removes it:
  * until now the keyboard could make a divider, a table or a two-column and never
- * take it away again.
+ * take it away again. An empty line below such a block, or below an image, is the
+ * exception: Backspace removes that line first.
  *
  * The plugin sits below the block selection and above the structural keymap. A
  * live block selection therefore still owns Backspace and Delete, which is what
@@ -16,6 +17,7 @@
  * the structural ladder swallows it.
  */
 
+import { chainCommands } from 'prosemirror-commands';
 import { keydownHandler } from 'prosemirror-keymap';
 import type { Node as PMNode } from 'prosemirror-model';
 import {
@@ -29,7 +31,7 @@ import {
 import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
 
 import { asOwnUndoStep } from '../editor/history';
-import { containerBlockNames, lineIsCaretTarget } from '../editor/blocks/shared';
+import { blockChildrenOf, containerBlockNames, lineIsCaretTarget } from '../editor/blocks/shared';
 import {
   blockContext,
   followingLineBlock,
@@ -114,6 +116,58 @@ function selectNeighbour(registry: BlockRegistry, dir: 1 | -1): Command {
   };
 }
 
+/** Sent from the editor root when the caret leaves the top of the note for the title. */
+export const LEAVE_TOP_EVENT = 'notes-leave-top';
+
+/** A block the caret steps over going up: no line of its own, or an image's caption. */
+function skippedGoingUp(block: PMNode): boolean {
+  return block.type.name === 'image' || !lineIsCaretTarget(block.type);
+}
+
+/** The end of the nearest line above `pos` that is not skipped, no earlier than `floor`. */
+function lineEndAbove(doc: PMNode, pos: number, floor: number): Selection | null {
+  let $pos = doc.resolve(pos);
+  for (;;) {
+    const found = Selection.findFrom($pos, -1, true);
+    if (!found || found.from < floor) return null;
+    const ownerDepth = found.$head.depth - 1;
+    if (!skippedGoingUp(found.$head.node(ownerDepth))) return found;
+    $pos = doc.resolve(found.$head.before(ownerDepth));
+  }
+}
+
+/**
+ * Backspace in an empty line below an image or a lineless block removes the line.
+ * The caret goes to the end of the nearest line above, or to the title.
+ * In a table cell or a column with nothing above, a gap stays where the line was.
+ */
+const removeEmptyLineBelow: Command = (state, dispatch, view) => {
+  const sel = state.selection;
+  if (!(sel instanceof TextSelection) || !sel.empty) return false;
+  const ctx = blockContext(state);
+  if (!ctx || ctx.block.type.name !== 'paragraph') return false;
+  if (ctx.line.content.size > 0) return false;
+  const above = precedingLineBlock(state.doc, ctx.blockPos);
+  if (!above || !skippedGoingUp(above.node)) return false;
+
+  const { block, blockPos } = ctx;
+  if (dispatch) {
+    const tr = state.tr.replaceWith(blockPos, blockPos + block.nodeSize, blockChildrenOf(block));
+    const $at = tr.doc.resolve(blockPos);
+    const lineAbove = lineEndAbove(tr.doc, blockPos, $at.start());
+    if (lineAbove) {
+      dispatch(asOwnUndoStep(tr.setSelection(lineAbove).scrollIntoView()));
+    } else if ($at.depth === 0 && view) {
+      dispatch(asOwnUndoStep(tr));
+      view.dom.dispatchEvent(new CustomEvent(LEAVE_TOP_EVENT, { bubbles: true }));
+    } else {
+      const landing = gapCursorValid($at) ? new GapCursor($at) : Selection.near($at, -1);
+      dispatch(asOwnUndoStep(tr.setSelection(landing).scrollIntoView()));
+    }
+  }
+  return true;
+};
+
 /** The paragraph a gap stands for, carrying `text` if the key brought any. */
 function fillGap(state: EditorState, at: number, text: string): Transaction {
   const { paragraph, line } = state.schema.nodes;
@@ -183,7 +237,7 @@ export function gapCursorPlugin(registry: BlockRegistry): Plugin {
     ArrowUp: gapArrow('vert', -1),
     ArrowDown: gapArrow('vert', 1),
     Enter: enterAtGap,
-    Backspace: selectNeighbour(registry, -1),
+    Backspace: chainCommands(removeEmptyLineBelow, selectNeighbour(registry, -1)),
     Delete: selectNeighbour(registry, 1),
   });
 

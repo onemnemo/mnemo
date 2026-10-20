@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type KeyboardEvent } from 'react';
+import { useLayoutEffect, useRef, type KeyboardEvent, type RefObject } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -21,6 +21,7 @@ export function NoteTitle({
   placeholder,
   onCommit,
   onEnter,
+  elementRef,
   className,
 }: {
   title: string;
@@ -28,15 +29,18 @@ export function NoteTitle({
   onCommit: (title: string) => void;
   /** Called after Enter commits, to move the caret into the document. */
   onEnter?: () => void;
+  /** The heading itself, for a caller that moves the caret into it. */
+  elementRef?: RefObject<HTMLHeadingElement | null>;
   className?: string;
 }) {
-  const ref = useRef<HTMLHeadingElement>(null);
+  const ownRef = useRef<HTMLHeadingElement>(null);
+  const ref = elementRef ?? ownRef;
 
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || document.activeElement === el) return;
     if (el.textContent !== title) el.textContent = title;
-  }, [title]);
+  }, [ref, title]);
 
   const commit = () => {
     const el = ref.current;

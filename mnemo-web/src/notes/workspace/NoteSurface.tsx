@@ -3,7 +3,7 @@ import '../editor/marks/inline-marks.css';
 import '../page/notes-editor.css';
 import '../proofing/proofing.css';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Selection, type EditorState } from 'prosemirror-state';
 
 import { pluralKey } from '@/i18n/plural'
@@ -28,6 +28,7 @@ import { useNoteSession } from '../edit/useNoteSession';
 import { useSpellcheck } from '../edit/useSpellcheck';
 import { useProofing } from '../proofing/useProofing';
 import { useTitleProofing } from '../proofing/useTitleProofing';
+import { LEAVE_TOP_EVENT } from '../selection/gap-cursor-plugin';
 import { BlockGutter } from '../editor/chrome/BlockGutter';
 import { CalloutIconPicker } from '../editor/chrome/CalloutIconPicker';
 import { EditorContextMenu } from '../editor/chrome/EditorContextMenu';
@@ -124,6 +125,25 @@ export function NoteSurface({
     services: viewServices,
   });
 
+  // Backspace past the first block of the note puts the caret at the end of the title.
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (!view) return;
+    const toTitle = () => {
+      const title = titleRef.current;
+      if (!title) return;
+      title.focus();
+      const range = document.createRange();
+      range.selectNodeContents(title);
+      range.collapse(false);
+      const selection = getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    };
+    view.dom.addEventListener(LEAVE_TOP_EVENT, toTitle);
+    return () => view.dom.removeEventListener(LEAVE_TOP_EVENT, toTitle);
+  }, [view]);
+
   // Read reactively, so turning autosave off mid-note starts reporting the save
   // state on the change already sitting unsaved rather than on the next one.
   const autosave = useSettingValue('Editor.AutoSave', true);
@@ -190,6 +210,7 @@ export function NoteSurface({
             title={note.title}
             placeholder={nt('Untitled')}
             onCommit={(next) => patch({ title: next })}
+            elementRef={titleRef}
             onEnter={() => {
               if (!view) return;
               view.dispatch(view.state.tr.setSelection(Selection.atStart(view.state.doc)));

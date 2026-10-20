@@ -4,9 +4,11 @@ import { TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 
 import { buildNoteEditState } from '../edit/build-edit-state';
+import { redo, undo } from '../editor/history';
 import { block, span } from '../editor/mapper/fixtures';
 import { GapCursor } from './gap-cursor';
 import { getBlockSelection } from './block-selection-plugin';
+import { LEAVE_TOP_EVENT } from './gap-cursor-plugin';
 
 type Blocks = Parameters<typeof buildNoteEditState>[0];
 
@@ -32,6 +34,8 @@ const twoColumn = () =>
   block('TwoColumn', [span('')], { kind: 'twoColumn', splitRatio: 0.5 }, {
     children: [cell('left'), cell('right')],
   });
+const image = (caption: string) =>
+  block('Image', [span(caption)], { kind: 'image', path: 'a', alt: '', width: 100, align: 'center', crop: null });
 const tableCell = (body: string) => block('TableCell', [span(body)]);
 const tableRow = (...cells: ReturnType<typeof tableCell>[]) =>
   block('TableRow', [span('')], { kind: 'empty' }, { children: cells });
@@ -306,5 +310,213 @@ describe('removing a block the caret cannot enter', () => {
     press(editor, 'Delete');
     expect(getBlockSelection(editor.state).selected.size).toBe(0);
     expect(topTypes(editor)).toEqual(['paragraph', 'heading']);
+  });
+});
+
+describe('Backspace on an empty line below a block the caret cannot enter', () => {
+  const lineless: [string, () => ReturnType<typeof block>][] = [
+    ['an equation', () => equation()],
+    ['a divider', () => divider()],
+    ['a table', () => table()],
+    ['a two-column', () => twoColumn()],
+  ];
+
+  it.each(lineless)('removes only the empty line below %s', (_name, make) => {
+    const editor = open([make(), text('')]);
+    const before = topTypes(editor);
+    caret(editor, 1);
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toEqual(before.slice(0, 1));
+    expect(getBlockSelection(editor.state).selected.size).toBe(0);
+  });
+
+  it('sends the caret to the title when nothing is above the widget', () => {
+    const editor = open([equation(), text(''), text('after')]);
+    let leftTop = 0;
+    editor.dom.addEventListener(LEAVE_TOP_EVENT, () => leftTop++);
+    caret(editor, 1);
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toEqual(['equationBlock', 'paragraph']);
+    expect(leftTop).toBe(1);
+  });
+
+  it('puts the caret at the end of the line above the widget', () => {
+    const editor = open([text('above'), equation(), text(''), text('after')]);
+    caret(editor, 2);
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toEqual(['paragraph', 'equationBlock', 'paragraph']);
+    const { $head } = editor.state.selection;
+    expect($head.parent.textContent).toBe('above');
+    expect($head.parentOffset).toBe(5);
+  });
+
+  it('steps over several widgets and images going up', () => {
+    const editor = open([text('above'), image('cap'), divider(), equation(), text('')]);
+    caret(editor, 4);
+    press(editor, 'Backspace');
+    expect(editor.state.doc.childCount).toBe(4);
+    const { $head } = editor.state.selection;
+    expect($head.parent.textContent).toBe('above');
+    expect($head.parentOffset).toBe(5);
+  });
+
+  it('removes the line below an image and skips its caption', () => {
+    const editor = open([text('above'), image('cap'), text('')]);
+    caret(editor, 2);
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toEqual(['paragraph', 'image']);
+    expect(editor.state.selection.$head.parent.textContent).toBe('above');
+  });
+
+  it('sends the caret to the title from below an image at the top', () => {
+    const editor = open([image('cap'), text('')]);
+    let leftTop = 0;
+    editor.dom.addEventListener(LEAVE_TOP_EVENT, () => leftTop++);
+    caret(editor, 1);
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toEqual(['image']);
+    expect(leftTop).toBe(1);
+  });
+
+  it('puts the caret at the end of a table above when nothing follows', () => {
+    const editor = open([table(), text('')]);
+    caret(editor, 1);
+    press(editor, 'Backspace');
+    const { $head } = editor.state.selection;
+    expect($head.parent.textContent).toBe('d');
+    expect($head.parentOffset).toBe(1);
+  });
+
+  it('puts the caret at the end of the last column above', () => {
+    const editor = open([twoColumn(), text(''), text('after')]);
+    caret(editor, 1);
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toHaveLength(2);
+    const { $head } = editor.state.selection;
+    expect($head.parent.textContent).toBe('right');
+    expect($head.parentOffset).toBe(5);
+  });
+
+  it('puts the caret at the end of the line above a nested equation when nothing follows', () => {
+    const list = block('BulletList', [span('p')], { kind: 'empty' }, { children: [equation()] });
+    const editor = open([list, text('')]);
+    caret(editor, 1);
+    press(editor, 'Backspace');
+    expect(editor.state.doc.childCount).toBe(1);
+    const { $head } = editor.state.selection;
+    expect($head.parent.textContent).toBe('p');
+    expect($head.parentOffset).toBe(1);
+  });
+
+  it('keeps the widget on the press after, which edits the line above', () => {
+    const editor = open([text('above'), equation(), text('')]);
+    caret(editor, 2);
+    press(editor, 'Backspace');
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toEqual(['paragraph', 'equationBlock']);
+    expect(getBlockSelection(editor.state).selected.size).toBe(0);
+  });
+
+  it('undoes and redoes the removal as one step', () => {
+    const editor = open([equation(), text('')]);
+    caret(editor, 1);
+    press(editor, 'Backspace');
+    undo(editor.state, editor.dispatch);
+    expect(topTypes(editor)).toEqual(['equationBlock', 'paragraph']);
+    redo(editor.state, editor.dispatch);
+    expect(topTypes(editor)).toEqual(['equationBlock']);
+    undo(editor.state, editor.dispatch);
+    expect(topTypes(editor)).toEqual(['equationBlock', 'paragraph']);
+  });
+
+  it('dissolves an empty line that holds a nested list into its children', () => {
+    const child = block('BulletList', [span('kid')]);
+    const editor = open([equation(), block('Text', [span('')], { kind: 'empty' }, { children: [child] })]);
+    caret(editor, 1);
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toEqual(['equationBlock', 'bulletItem']);
+    expect(editor.state.doc.child(1).textContent).toBe('kid');
+  });
+
+  it('still marks the widget from a line with text', () => {
+    const editor = open([equation(), text('x')]);
+    caret(editor, 1);
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toEqual(['equationBlock', 'paragraph']);
+    expect(getBlockSelection(editor.state).selected.size).toBe(1);
+  });
+
+  it('removes the line when it sits below a block whose line takes a caret', () => {
+    const kinds = [
+      block('Code', [span('x')], { kind: 'code', language: 'text', source: 'x' }),
+      block('Callout', [span('x')], { kind: 'callout', emoji: '', tone: 'note' }),
+      block('Quote', [span('x')]),
+      block('BulletList', [span('x')]),
+    ];
+    for (const kind of kinds) {
+      const editor = open([kind, text('')]);
+      caret(editor, 1);
+      press(editor, 'Backspace');
+      expect(editor.state.doc.childCount).toBe(1);
+      expect(editor.state.selection.$head.parent.type.name).toMatch(/line|codeLine/);
+      expect(editor.state.selection.empty).toBe(true);
+      view?.destroy();
+      mount?.remove();
+    }
+  });
+
+  it('removes the line below a nested list', () => {
+    const list = block('BulletList', [span('p')], { kind: 'empty' }, {
+      children: [block('BulletList', [span('c')])],
+    });
+    const editor = open([list, text('')]);
+    caret(editor, 1);
+    press(editor, 'Backspace');
+    expect(editor.state.doc.childCount).toBe(1);
+    expect(editor.state.selection.$head.parent.textContent).toBe('c');
+  });
+
+  it('keeps the only line of a note', () => {
+    const editor = open([text('')]);
+    caret(editor, 0);
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toEqual(['paragraph']);
+  });
+
+  it('removes an empty first line in front of a widget without touching it', () => {
+    const editor = open([text(''), equation()]);
+    caret(editor, 0);
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toEqual(['equationBlock']);
+  });
+
+  it('does nothing for an empty first line in a column cell', () => {
+    const left = block('ColumnGroup', [span('')], { kind: 'empty' }, { children: [text(''), text('keep')] });
+    const right = cell('right');
+    const split = block('TwoColumn', [span('')], { kind: 'twoColumn', splitRatio: 0.5 }, {
+      children: [left, right],
+    });
+    const editor = open([split]);
+    const doc = editor.state.doc;
+    let first = -1;
+    doc.descendants((node, pos) => {
+      if (first < 0 && node.type.name === 'paragraph') first = pos;
+    });
+    editor.dispatch(editor.state.tr.setSelection(TextSelection.create(doc, first + 2)));
+    const shape = (view: EditorView) => view.state.doc.textBetween(0, view.state.doc.content.size, '|');
+    const before = shape(editor);
+    press(editor, 'Backspace');
+    const { $head } = editor.state.selection;
+    expect(shape(editor)).toBe(before);
+    expect($head.parentOffset).toBe(0);
+  });
+
+  it('keeps a line of spaces and marks the widget instead', () => {
+    const editor = open([equation(), text('   ')]);
+    caret(editor, 1);
+    press(editor, 'Backspace');
+    expect(topTypes(editor)).toEqual(['equationBlock', 'paragraph']);
+    expect(editor.state.doc.child(1).textContent).toBe('   ');
+    expect(getBlockSelection(editor.state).selected.size).toBe(1);
   });
 });

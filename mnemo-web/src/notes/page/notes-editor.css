@@ -40,6 +40,10 @@
 .notes-doc .ProseMirror[contenteditable="false"] {
   caret-color: transparent;
 }
+/* A gap cursor draws its own caret. PM's stock rule that hides the browser one is not loaded. */
+.notes-doc .ProseMirror.ProseMirror-hideselection {
+  caret-color: transparent;
+}
 /* Room under the last block, and the reason it is padding on the editable root
  * rather than on the pane around it: a press down here has to reach the view, so
  * that the rule appending a block can claim it. On the pane it looked the same
