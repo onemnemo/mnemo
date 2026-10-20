@@ -23,13 +23,15 @@ import {
 } from '../api';
 import { metadataUpdateOf } from '../note-metadata';
 import { useNoteTransfer } from '../transfer/store';
-import type { NoteFolderRowModel, NoteRowModel } from './tree-model';
+import { isSidebarNote, type NoteFolderRowModel, type NoteRowModel } from './tree-model';
 import type { TreeDragHandle } from './reorder';
+import { ChildToggle } from './ChildToggle';
 import { FavouriteStar } from './FavouriteStar';
 import { GuideLines } from './GuideLines';
 import { RenameInput } from './RenameInput';
 import { DEPTH_INDENT, ROW_BASE } from './row-style';
 import { useNotesT } from './useNotesT';
+import { useTabStop } from './useTabStop';
 import type { TreeDrag } from './useNoteTreeDrag';
 
 /** A folder row: chevron, medium-weight name, and its recursive note count. */
@@ -54,6 +56,7 @@ export function FolderRow({
   const { folder } = row;
 
   const handle: TreeDragHandle = { key: `folder:${folder.id}`, kind: 'folder', id: folder.id, label: folder.name };
+  const tabIndex = useTabStop(handle.key);
 
   const commitRename = async (name: string) => {
     rename.close();
@@ -77,7 +80,9 @@ export function FolderRow({
         <div
           role="treeitem"
           aria-expanded={row.expanded}
-          tabIndex={0}
+          aria-level={row.depth + 1}
+          tabIndex={tabIndex}
+          data-tree-key={handle.key}
           data-row-key={handle.key}
           data-row-kind="folder"
           data-row-id={folder.id}
@@ -158,15 +163,17 @@ export function FolderRow({
   );
 }
 
-/** A note row: a leaf, selectable, with a favourite star only in the favourites list. */
+/** A note row with a fold toggle when it has children and a favourite star on hover. */
 export function NoteRow({
   row,
   selected,
   drag,
+  onToggle,
   favourite = false,
 }: {
   row: NoteRowModel;
   selected: boolean;
+  onToggle?: (id: string) => void;
   /** Favourite rows are a flat pinned list, not part of the reorder surface. */
   drag: TreeDrag | null;
   favourite?: boolean;
@@ -182,6 +189,14 @@ export function NoteRow({
   const { note } = row;
 
   const handle: TreeDragHandle = { key: `note:${note.id}`, kind: 'note', id: note.id, label: note.title.trim() || nt('Untitled') };
+  const treeKey = favourite ? `fav:${note.id}` : handle.key;
+  const tabIndex = useTabStop(treeKey);
+  // A child page is only navigated to, never dragged.
+  const child = !isSidebarNote(note);
+  const draggable = !favourite && !child && drag !== null;
+  const expandable = row.childCount > 0 && row.expandable;
+  const title = note.title.trim() || nt('Untitled');
+  const tooltip = [...row.parentTitles.map((parent) => parent || nt('Untitled')), title].join(' / ');
 
   const open = (event: React.MouseEvent) => {
     if (drag?.suppressClick(handle.key) || rename.editing) return;
@@ -219,13 +234,17 @@ export function NoteRow({
         <div
           role="treeitem"
           aria-selected={selected}
-          tabIndex={0}
+          aria-level={favourite ? 1 : row.depth + 1}
+          aria-expanded={row.childCount > 0 ? row.expanded : undefined}
+          data-row-locked={row.childCount > 0 && !row.expandable ? 'true' : undefined}
+          tabIndex={tabIndex}
+          data-tree-key={treeKey}
           data-row-key={rowKey}
-          data-row-kind="note"
+          data-row-kind={child ? 'child' : 'note'}
           data-row-id={note.id}
           data-row-depth={row.depth}
           data-row-folder={note.folderId ?? ''}
-          onPointerDown={(event) => !favourite && !rename.editing && drag?.press(event, handle)}
+          onPointerDown={(event) => draggable && !rename.editing && drag.press(event, handle)}
           onClick={open}
           onDoubleClick={rename.open}
           onKeyDown={(event) => {
@@ -236,7 +255,7 @@ export function NoteRow({
             else navigate('notes', note.id);
           }}
           style={{
-            opacity: !favourite && drag?.sourceKey === handle.key ? 0.35 : undefined,
+            opacity: draggable && drag.sourceKey === handle.key ? 0.35 : undefined,
             paddingLeft: favourite ? 6 : 6 + row.depth * DEPTH_INDENT,
           }}
           className={cn(
@@ -245,15 +264,22 @@ export function NoteRow({
           )}
         >
           <GuideLines depth={row.depth} />
-          {note.emoji ? (
-            <span aria-hidden className="w-4 shrink-0 text-center text-[13px] leading-none">{note.emoji}</span>
-          ) : (
-            <AppIcon name="common/file-text" size={14} className="shrink-0 text-ink-icon" preserveColors={false} />
-          )}
+          <ChildToggle
+            icon={
+              note.emoji ? (
+                <span aria-hidden className="w-4 text-center text-[13px] leading-none">{note.emoji}</span>
+              ) : (
+                <AppIcon name="common/file-text" size={14} className="text-ink-icon" preserveColors={false} />
+              )
+            }
+            expanded={row.expanded}
+            toggleable={!rename.editing && expandable}
+            onToggle={() => onToggle?.(note.id)}
+          />
           {rename.editing ? (
             <RenameInput initial={note.title} onCommit={commitRename} onCancel={rename.close} />
           ) : (
-            <span className="min-w-0 flex-1 truncate" title={note.title.trim() || nt('Untitled')}>
+            <span className="min-w-0 flex-1 truncate" title={tooltip}>
               {note.title.trim() || nt('Untitled')}
             </span>
           )}

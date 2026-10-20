@@ -43,7 +43,8 @@ export interface TreeDragHandle {
 
 export interface MeasuredRow {
   key: string;
-  kind: RowKind;
+  /** A child page is measured so a pointer over it lands on nothing. */
+  kind: RowKind | 'child';
   id: string;
   depth: number;
   /** A folder row carries its own id here; a note row carries the folder holding it. */
@@ -91,7 +92,7 @@ export function isFolderDescendant(
 }
 
 /**
- * The folder row at `index` plus every visible row nested under it, as one
+ * The row at `index` plus every visible row nested under it, as one
  * rectangle. Rows are in tree order, so the subtree ends at the first row no
  * deeper than its head.
  */
@@ -134,15 +135,14 @@ function insertBeside(
   parentId: string | null,
 ): TreeDropTarget {
   const hit = rows[index];
-  // Below a folder means after it and everything inside it; rows are pre-order,
-  // so the row directly under an expanded folder is its first child.
-  const anchor = mode === 'below' && hit?.kind === 'folder' ? boxBottom(subtreeBox(rows, index)) : hit?.box.top ?? 0;
-  const bottom = mode === 'below' && hit?.kind !== 'folder' ? boxBottom(hit?.box ?? { top: 0, left: 0, width: 0, height: 0 }) : anchor;
+  // Below a row means after everything nested under it. Rows are pre-order, so the
+  // row directly under an expanded one is its first child.
+  const edge = mode === 'below' ? boxBottom(subtreeBox(rows, index)) : hit?.box.top ?? 0;
   return {
     mode,
     parentId,
     refId: hit?.id,
-    line: { top: bottom - 1, left: hit?.box.left ?? 0, width: hit?.box.width ?? 0, height: 2 },
+    line: { top: edge - 1, left: hit?.box.left ?? 0, width: hit?.box.width ?? 0, height: 2 },
   };
 }
 
@@ -173,6 +173,9 @@ export function resolveTreeDrop({ pointer, rows, surface, source, folders }: Res
     if (source.kind !== 'folder' || parentId === null) return false;
     return parentId === source.id || isFolderDescendant(parentId, source.id, folders);
   };
+
+  // Nothing lands on, between or inside child pages.
+  if (hit.kind === 'child') return null;
 
   if (hit.kind === 'note') {
     const owner = hit.folderId && known.has(hit.folderId) ? hit.folderId : null;

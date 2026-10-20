@@ -12,9 +12,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   pruneCollapsedFolders,
+  pruneExpandedNotes,
   readCollapsedFolders,
+  readExpandedNotes,
   readLastNoteId,
   rememberCollapsedFolders,
+  rememberExpandedNotes,
   rememberLastNoteId,
 } from './session';
 
@@ -100,5 +103,47 @@ describe('pruning folders that are gone', () => {
 
   it('empties out when every folder is gone', () => {
     expect(pruneCollapsedFolders(new Set(['a', 'b']), []).size).toBe(0);
+  });
+});
+
+describe('the notes whose children were opened', () => {
+  const EXPANDED_KEY = 'mnemo.notes.expanded-notes';
+
+  it('comes back as it went in, under its own key', () => {
+    rememberExpandedNotes(new Set(['b', 'a']));
+    expect([...readExpandedNotes()].sort()).toEqual(['a', 'b']);
+    expect(localStorage.getItem(EXPANDED_KEY)).toBe('["a","b"]');
+    expect(localStorage.getItem(COLLAPSED_KEY)).toBeNull();
+  });
+
+  it('is cleared when emptied', () => {
+    rememberExpandedNotes(new Set(['a']));
+    rememberExpandedNotes(new Set());
+    expect(localStorage.getItem(EXPANDED_KEY)).toBeNull();
+  });
+
+  it('reads as nothing for a value this module did not write', () => {
+    localStorage.setItem(EXPANDED_KEY, '{"a":1}');
+    expect(readExpandedNotes().size).toBe(0);
+    localStorage.setItem(EXPANDED_KEY, 'not json');
+    expect(readExpandedNotes().size).toBe(0);
+  });
+
+  it('drops ids that no longer name a note and keeps the set when none are stale', () => {
+    const expanded = new Set(['a', 'gone']);
+    expect([...pruneExpandedNotes(expanded, ['a', 'b'])]).toEqual(['a']);
+    expect(pruneExpandedNotes(expanded, ['a', 'gone'])).toBe(expanded);
+  });
+
+  it('survives a store that refuses to answer', () => {
+    const original = Storage.prototype.getItem;
+    Storage.prototype.getItem = () => {
+      throw new Error('blocked');
+    };
+    try {
+      expect(readExpandedNotes().size).toBe(0);
+    } finally {
+      Storage.prototype.getItem = original;
+    }
   });
 });

@@ -1,5 +1,7 @@
 import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
 
+import { buildNoteHierarchy, storedAncestors, type NoteHierarchy } from './note-hierarchy';
+
 /**
  * Pure derivation of the notes sidebar: nest the folders, place every note in
  * the folder that actually holds it, and flatten the result into the flat row
@@ -11,13 +13,11 @@ import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
  * rather than stranded, and nothing here reads expansion or selection from disk,
  * those are handed in by the caller.
  *
- * Notes render as leaves in their folder. A note with a `parentNoteId` is a
- * child page embedded in another note, so it is left out of the sidebar
- * entirely, matching the desktop, and the field is carried through every move
- * untouched. `noteCount` and favourites see the same filtered set.
+ * A child page is drawn under its parent when both sit in the same folder, and
+ * at the top of its own folder otherwise. `noteCount` includes nested notes.
  */
 
-/** A note the sidebar lists: a top-level note, not a page embedded in another. */
+/** A note stored at the top level. A child page is drawn under its parent and never moved. */
 export function isSidebarNote(note: NoteSummaryDto): boolean {
   return !note.parentNoteId;
 }
@@ -29,7 +29,7 @@ export interface NoteFolderRowModel {
   folder: NoteFolderDto;
   /** Full visible path, used where the folder must be distinguished outside the tree. */
   path: string;
-  /** Every note in this folder's subtree, subfolders included. */
+  /** Every note drawn in this folder's subtree, nested notes and subfolders included. */
   noteCount: number;
   expanded: boolean;
 }
@@ -39,9 +39,22 @@ export interface NoteRowModel {
   id: string;
   depth: number;
   note: NoteSummaryDto;
+  /** The titles above a child drawn apart from its parent, topmost first. */
+  parentTitles: readonly string[];
+  /** Children drawn under this note, shown or not. */
+  childCount: number;
+  /** Whether those children are showing. Meaningful only with children. */
+  expanded: boolean;
+  /** False while a search holds every match open. */
+  expandable: boolean;
 }
 
 export type TreeRow = NoteFolderRowModel | NoteRowModel;
+
+/** The key the roving tabindex, the arrow keys and React address a row by. */
+export function treeKeyOf(row: TreeRow): string {
+  return `${row.kind}:${row.id}`;
+}
 
 export interface NoteTree {
   /** Favourited notes, flat, newest-touched first; empty hides the section. */
@@ -53,6 +66,8 @@ interface FolderNode {
   folder: NoteFolderDto;
   children: FolderNode[];
   notes: NoteSummaryDto[];
+  /** Top-level notes of this folder and everything nested under them. */
+  drawn: number;
   noteCount: number;
 }
 
@@ -96,7 +111,7 @@ function buildFolderNodes(folders: NoteFolderDto[], known: ReadonlySet<string>):
   byId: Map<string, FolderNode>;
 } {
   const byId = new Map<string, FolderNode>(
-    folders.map((f) => [f.id, { folder: f, children: [], notes: [], noteCount: 0 }]),
+    folders.map((f) => [f.id, { folder: f, children: [], notes: [], drawn: 0, noteCount: 0 }]),
   );
 
   const roots: FolderNode[] = [];
@@ -122,11 +137,11 @@ function buildFolderNodes(folders: NoteFolderDto[], known: ReadonlySet<string>):
 function applyCounts(nodes: FolderNode[]): void {
   for (const node of nodes) {
     applyCounts(node.children);
-    node.noteCount = node.notes.length + node.children.reduce((sum, c) => sum + c.noteCount, 0);
+    node.noteCount = node.drawn + node.children.reduce((sum, c) => sum + c.noteCount, 0);
   }
 }
 
-/** The listed notes under a folder, subfolders included: the same set its row count reads. */
+/** The notes drawn at the top level of a folder and its subfolders. Nested ones travel with their parent. */
 export function notesInFolderSubtree(
   folderId: string,
   folders: NoteFolderDto[],
@@ -143,63 +158,133 @@ export function notesInFolderSubtree(
       if (effectiveParentId(folder, known) === id) pending.push(folder.id);
     }
   }
-  return notes.filter((note) => {
-    const folder = isSidebarNote(note) ? effectiveFolderId(note, known) : null;
+  return hierarchyOf(notes, folders).tops.filter((note) => {
+    const folder = effectiveFolderId(note, known);
     return folder !== null && subtree.has(folder);
   });
 }
 
-/** Notes a search leaves in scope, by title, collapsed folders included. */
-export function notesInScope(notes: NoteSummaryDto[], search: string): NoteSummaryDto[] {
-  const term = search.trim().toLowerCase();
-  return term.length === 0 ? notes : notes.filter((n) => n.title.toLowerCase().includes(term));
+/** The hierarchy over notes in sibling order, so every caller breaks a loop in the same place. */
+export function hierarchyOf(notes: readonly NoteSummaryDto[], folders: readonly NoteFolderDto[]): NoteHierarchy {
+  const known = new Set(folders.map((f) => f.id));
+  return buildNoteHierarchy([...notes].sort(compareNotes), (note) => effectiveFolderId(note, known));
 }
 
 export interface BuildNoteTreeOptions {
   folders: NoteFolderDto[];
   notes: NoteSummaryDto[];
+  /** From {@link hierarchyOf}. Only a change of notes or folders alters it. */
+  hierarchy: NoteHierarchy;
   search: string;
   /** Folder ids the user has collapsed; folders default to expanded. */
   collapsed: ReadonlySet<string>;
+  /** Note ids whose children are showing. Notes start collapsed. */
+  expandedNotes: ReadonlySet<string>;
 }
 
-export function buildNoteTree({ folders, notes, search, collapsed }: BuildNoteTreeOptions): NoteTree {
-  const term = search.trim().toLowerCase();
-  const searching = term.length > 0;
-  const known = new Set(folders.map((f) => f.id));
-  // Child pages live inside their parent note, never in the sidebar; excluding
-  // them here keeps them out of the rows, the favourites and the folder counts.
-  const listed = notes.filter(isSidebarNote);
+interface NoteRowsOptions {
+  hierarchy: NoteHierarchy;
+  /** Titles above a note whose stored parent is not drawn above it. */
+  parentTitlesOf: (note: NoteSummaryDto) => readonly string[];
+  isOpen: (id: string) => boolean;
+  expandable: boolean;
+  /** Limits which children are drawn. Absent draws all of them. */
+  include?: ReadonlySet<string>;
+}
 
-  const favourites = listed
+/** A note and every note drawn under it, shown or not. */
+function subtreeSize(note: NoteSummaryDto, hierarchy: NoteHierarchy): number {
+  let size = 0;
+  const pending = [note];
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    size++;
+    for (const child of hierarchy.childrenOf.get(current.id) ?? []) pending.push(child);
+  }
+  return size;
+}
+
+/** Appends each note and, while it is open, its descendants, in pre-order and without recursion. */
+function pushNoteRows(rows: TreeRow[], tops: readonly NoteSummaryDto[], depth: number, options: NoteRowsOptions): void {
+  const { hierarchy, parentTitlesOf, isOpen, expandable, include } = options;
+  const stack = tops.map((note) => ({ note, depth })).reverse();
+  while (stack.length > 0) {
+    const { note, depth: level } = stack.pop()!;
+    const all = hierarchy.childrenOf.get(note.id) ?? [];
+    const children = include ? all.filter((child) => include.has(child.id)) : all;
+    const expanded = children.length > 0 && isOpen(note.id);
+    rows.push({
+      kind: 'note',
+      id: note.id,
+      depth: level,
+      note,
+      parentTitles: level === depth && note.parentNoteId ? parentTitlesOf(note) : [],
+      childCount: children.length,
+      expanded,
+      expandable,
+    });
+    if (!expanded) continue;
+    for (let i = children.length - 1; i >= 0; i--) stack.push({ note: children[i], depth: level + 1 });
+  }
+}
+
+export function buildNoteTree({
+  folders,
+  notes,
+  hierarchy,
+  search,
+  collapsed,
+  expandedNotes,
+}: BuildNoteTreeOptions): NoteTree {
+  const term = search.trim().toLowerCase();
+  const known = new Set(folders.map((f) => f.id));
+  let notesById: Map<string, NoteSummaryDto> | undefined;
+  const parentTitlesOf = (note: NoteSummaryDto) => {
+    notesById ??= new Map(notes.map((n) => [n.id, n]));
+    return storedAncestors(note, notesById).map((n) => n.title.trim());
+  };
+
+  const favourites = notes
     .filter((n) => n.isFavorite)
     .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
 
-  // Searching flattens the tree to just the matching notes, as the desktop does:
-  // a folder path is context the sidebar drops while a query is active.
-  if (searching) {
-    const matches = notesInScope(listed, search).sort(compareNotes);
-    return {
-      favourites: [],
-      rows: matches.map((note) => ({ kind: 'note', id: note.id, depth: 0, note })),
-    };
+  // A search flattens the tree to the matching notes and drops folder paths. A match
+  // inside a parent keeps its ancestors open so it shows whose child it is.
+  if (term.length > 0) {
+    const include = new Set<string>();
+    for (const note of notes) {
+      if (!note.title.toLowerCase().includes(term)) continue;
+      for (let id: string | undefined = note.id; id !== undefined && !include.has(id); id = hierarchy.parentOf.get(id)) {
+        include.add(id);
+      }
+    }
+    const rows: TreeRow[] = [];
+    pushNoteRows(rows, hierarchy.tops.filter((note) => include.has(note.id)), 0, {
+      hierarchy,
+      parentTitlesOf,
+      isOpen: () => true,
+      expandable: false,
+      include,
+    });
+    return { favourites: [], rows };
   }
 
   const { roots, byId } = buildFolderNodes(folders, known);
 
   // Place notes in the folder that actually holds them; an orphan lands at root.
   const rootNotes: NoteSummaryDto[] = [];
-  for (const note of listed) {
+  for (const note of hierarchy.tops) {
     const folderId = effectiveFolderId(note, known);
     const node = folderId ? byId.get(folderId) : undefined;
-    if (node) node.notes.push(note);
-    else rootNotes.push(note);
+    if (node) {
+      node.notes.push(note);
+      node.drawn += subtreeSize(note, hierarchy);
+    } else rootNotes.push(note);
   }
   applyCounts(roots);
 
   const rows: TreeRow[] = [];
-  const pushNote = (note: NoteSummaryDto, depth: number) =>
-    rows.push({ kind: 'note', id: note.id, depth, note });
+  const noteOptions: NoteRowsOptions = { hierarchy, parentTitlesOf, isOpen: (id) => expandedNotes.has(id), expandable: true };
 
   // Subfolders before the folder's own notes, at any depth, matching the desktop.
   const pushFolders = (list: FolderNode[], depth: number, parentPath = '') => {
@@ -217,12 +302,12 @@ export function buildNoteTree({ folders, notes, search, collapsed }: BuildNoteTr
       });
       if (!expanded) continue;
       pushFolders(node.children, depth + 1, path);
-      for (const note of [...node.notes].sort(compareNotes)) pushNote(note, depth + 1);
+      pushNoteRows(rows, node.notes, depth + 1, noteOptions);
     }
   };
 
   pushFolders(roots, 0);
-  for (const note of [...rootNotes].sort(compareNotes)) pushNote(note, 0);
+  pushNoteRows(rows, rootNotes, 0, noteOptions);
 
   return { favourites, rows };
 }

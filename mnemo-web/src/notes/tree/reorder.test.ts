@@ -115,7 +115,7 @@ describe('planReorder — folders', () => {
 });
 
 // Geometry: pointer + measured rows → target. Rows are laid out as a vertical stack.
-function row(over: Partial<MeasuredRow> & { id: string; kind: 'folder' | 'note'; top: number }): MeasuredRow {
+function row(over: Partial<MeasuredRow> & { id: string; kind: 'folder' | 'note' | 'child'; top: number }): MeasuredRow {
   return {
     key: `${over.kind}:${over.id}`,
     depth: over.depth ?? 0,
@@ -170,5 +170,52 @@ describe('resolveTreeDrop', () => {
     // Dragging parent onto the middle of kid would strand the subtree.
     const target = resolveTreeDrop({ pointer: { x: 10, y: 30 }, rows, surface, source: folderHandle('parent'), folders: nested });
     expect(target).toBeNull();
+  });
+
+  it('refuses every drop over a child page row', () => {
+    const rows = [
+      row({ id: 'p', kind: 'note', top: 0 }),
+      row({ id: 'c', kind: 'child', top: 20, depth: 1 }),
+    ];
+    for (const source of [noteHandle('n'), folderHandle('f1')]) {
+      for (const y of [22, 30, 38]) {
+        expect(resolveTreeDrop({ pointer: { x: 10, y }, rows, surface, source, folders })).toBeNull();
+      }
+    }
+  });
+
+  it('draws the line below a parent after its open children', () => {
+    const rows = [
+      row({ id: 'p', kind: 'note', top: 0 }),
+      row({ id: 'c1', kind: 'child', top: 20, depth: 1 }),
+      row({ id: 'c2', kind: 'child', top: 40, depth: 1 }),
+      row({ id: 'q', kind: 'note', top: 60 }),
+    ];
+    const target = resolveTreeDrop({ pointer: { x: 10, y: 15 }, rows, surface, source: noteHandle('q'), folders });
+    expect(target).toMatchObject({ mode: 'below', refId: 'p' });
+    expect(target?.line?.top).toBe(59);
+  });
+});
+
+describe('planReorder with child pages', () => {
+  const folders = [folder({ id: 'f1' })];
+
+  it('moves a parent without writing to its children', () => {
+    const notes = [
+      note({ id: 'p', folderId: null, order: 0 }),
+      note({ id: 'c', folderId: null, parentNoteId: 'p', order: 1 }),
+      note({ id: 'g', folderId: null, parentNoteId: 'c', order: 2 }),
+    ];
+    const plan = planReorder(noteHandle('p'), { mode: 'into', parentId: 'f1' }, { notes, folders });
+    expect(plan.noteUpdates.map((u) => u.id)).toEqual(['p']);
+  });
+
+  it('keeps a child that is drawn at the top level out of the sibling list', () => {
+    const notes = [
+      note({ id: 'orphan', folderId: 'f1', parentNoteId: 'gone', order: 0 }),
+      note({ id: 'x', folderId: null, order: 0 }),
+    ];
+    const plan = planReorder(noteHandle('x'), { mode: 'into', parentId: 'f1' }, { notes, folders });
+    expect(plan.noteUpdates.map((u) => u.id)).toEqual(['x']);
   });
 });

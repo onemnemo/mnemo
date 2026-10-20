@@ -15,18 +15,14 @@ import { useCreateNote, useNoteFoldersQuery, useNoteQuery, useNotesQuery } from 
 import { NotePdfExportOverlay } from '../pdf/NotePdfExportOverlay';
 import { NoteTransferOverlay } from '../transfer/NoteTransferOverlay';
 import { NoteTreeSidebar, SIDEBAR_WIDTH } from '../tree/NoteTreeSidebar';
+import { hierarchyOf } from '../tree/tree-model';
 import { NotePane } from './NotePane';
 import { NoteTabs, type NoteTab } from './NoteTabs';
-import {
-  pruneCollapsedFolders,
-  readCollapsedFolders,
-  readLastNoteId,
-  rememberCollapsedFolders,
-  rememberLastNoteId,
-} from './session';
+import { readLastNoteId, rememberLastNoteId } from './session';
 import { survivingNeighbour, tabsToClose, useNoteTabs, type TabCloseScope } from './tabs';
 import { SidebarExpandButton } from './SidebarExpandButton';
 import { notesTrailCrumbs } from './trail';
+import { useTreeExpansion } from './useTreeExpansion';
 
 /**
  * The notes workspace: the tree sidebar beside the editor, one surface rather
@@ -43,12 +39,22 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
   const createNote = useCreateNote();
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(readCollapsedFolders);
   const [search, setSearch] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const notes = notesQuery.data ?? [];
   const folders = foldersQuery.data ?? [];
+  // Rebuilt only for a new library, not on an expand or a search keystroke.
+  const hierarchy = useMemo(
+    () => hierarchyOf(notesQuery.data ?? [], foldersQuery.data ?? []),
+    [notesQuery.data, foldersQuery.data],
+  );
+  const { collapsed, expandedNotes, toggleFolder, toggleNote } = useTreeExpansion({
+    noteId,
+    notes: notesQuery.data,
+    folders: foldersQuery.data,
+    hierarchy,
+  });
   const loading = notesQuery.isPending || foldersQuery.isPending;
   // Tracked separately from `loading`, because a failed read leaves both queries
   // settled with no data and would otherwise paint as a library with nothing in
@@ -176,28 +182,6 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
     [tabs, openTabs, noteId, dropTabs, landOn],
   );
 
-  const toggleFolder = useCallback((id: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    rememberCollapsedFolders(collapsed);
-  }, [collapsed]);
-
-  // A folder that has been deleted keeps no place in the stored set, which would
-  // otherwise grow for the life of the install and could collapse an unrelated
-  // row if an id were ever reused.
-  useEffect(() => {
-    const loaded = foldersQuery.data;
-    if (!loaded) return;
-    setCollapsed((prev) => pruneCollapsedFolders(prev, loaded.map((folder) => folder.id)));
-  }, [foldersQuery.data]);
-
   const newNote = useCallback(async () => {
     const created = await createNote.mutateAsync({});
     if (created && typeof created === 'object' && 'id' in created) navigate('notes', String(created.id));
@@ -251,6 +235,7 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
         <NoteTreeSidebar
           notes={notes}
           folders={folders}
+          hierarchy={hierarchy}
           loading={loading}
           failed={loadFailed}
           onRetry={retryLoad}
@@ -258,7 +243,9 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
           search={search}
           onSearchChange={setSearch}
           collapsed={collapsed}
+          expandedNotes={expandedNotes}
           onToggleFolder={toggleFolder}
+          onToggleNote={toggleNote}
           onCollapseSidebar={() => setSidebarOpen(false)}
           searchInputRef={searchInputRef}
         />

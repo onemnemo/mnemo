@@ -110,6 +110,8 @@
     "MyNotes": "My notes",
     "ShowLess": "Show less",
     "ShowMoreCount": "Show {0} more",
+    "ExpandChildren": "Show subpages",
+    "CollapseChildren": "Hide subpages",
     "TreeEmpty": "No notes yet",
     "FolderActions": "Folder actions",
     "NoteActions": "Note actions",

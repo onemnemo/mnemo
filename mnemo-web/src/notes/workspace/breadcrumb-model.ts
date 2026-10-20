@@ -1,5 +1,7 @@
 import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
 
+import { storedAncestors } from '../tree/note-hierarchy';
+
 /**
  * The note's place in the tree, as a chain of crumbs, and how that chain
  * collapses when it is too deep to show whole.
@@ -72,15 +74,7 @@ export function buildBreadcrumb({ note, folders, notes, untitled }: BuildBreadcr
   }
 
   // Parent-page path, topmost first, not including the current note.
-  const noteChain: BreadcrumbSegment[] = [];
-  const seenNotes = new Set<string>([note.id]);
-  let parentId = note.parentNoteId;
-  while (parentId && notesById.has(parentId) && !seenNotes.has(parentId)) {
-    seenNotes.add(parentId);
-    const parent = notesById.get(parentId)!;
-    noteChain.unshift(segment('note', parent.id, titleOf(parent), false));
-    parentId = parent.parentNoteId;
-  }
+  const noteChain = storedAncestors(note, notesById).map((parent) => segment('note', parent.id, titleOf(parent), false));
 
   return [...folderChain, ...noteChain, segment('note', note.id, titleOf(note), true)];
 }

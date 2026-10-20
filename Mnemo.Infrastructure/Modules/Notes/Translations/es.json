@@ -2,6 +2,8 @@
   "Notes": {
     "ShowLess": "Mostrar menos",
     "ShowMoreCount": "Mostrar {0} más",
+    "ExpandChildren": "Mostrar subpáginas",
+    "CollapseChildren": "Ocultar subpáginas",
     "EditedRelativeFormat": "editado {0}",
     "AddCover": "Añadir portada",
     "ChangeCover": "Cambiar portada",

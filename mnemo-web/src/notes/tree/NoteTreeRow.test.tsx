@@ -70,6 +70,10 @@ const noteRow: NoteRowModel = {
   kind: 'note',
   id: 'n1',
   depth: 0,
+  parentTitles: [],
+  childCount: 0,
+  expanded: false,
+  expandable: true,
   note: {
     id: 'n1',
     title: 'Cranial nerves',

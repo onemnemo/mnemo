@@ -2,6 +2,8 @@
   "Notes": {
     "ShowLess": "Vis mindre",
     "ShowMoreCount": "Vis {0} til",
+    "ExpandChildren": "Vis undersider",
+    "CollapseChildren": "Skjul undersider",
     "TreeEmpty": "Ingen notater ennå",
     "FolderActions": "Mappehandlinger",
     "NoteActions": "Notathandlinger",

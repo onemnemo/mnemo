@@ -42,7 +42,7 @@ function measureRows(surface: HTMLElement): MeasuredRow[] {
     const rect = element.getBoundingClientRect();
     return {
       key: element.dataset.rowKey ?? '',
-      kind: element.dataset.rowKind === 'folder' ? 'folder' : 'note',
+      kind: element.dataset.rowKind === 'folder' || element.dataset.rowKind === 'child' ? element.dataset.rowKind : 'note',
       id: element.dataset.rowId ?? '',
       depth: Number(element.dataset.rowDepth ?? 0),
       folderId: element.dataset.rowFolder || null,

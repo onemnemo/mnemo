@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 
 import { navigate } from '@/app/router';
@@ -14,9 +14,12 @@ import type { NoteFolderDto, NoteSummaryDto } from '@/api/types';
 
 import { useApplyNoteReorder, useCreateNote, useCreateNoteFolder } from '../api';
 import { useNoteTransfer } from '../transfer/store';
-import { buildNoteTree, notesInFolderSubtree, type NoteFolderRowModel } from './tree-model';
+import { buildNoteTree, notesInFolderSubtree, treeKeyOf, type NoteFolderRowModel } from './tree-model';
 import { planReorder, type ReorderPlan, type TreeDragHandle, type TreeDropTarget } from './reorder';
-import { FolderRow, NoteRow } from './NoteTreeRow';
+import type { NoteHierarchy } from './note-hierarchy';
+import { NoteRow } from './NoteTreeRow';
+import { NoteTreeRows } from './NoteTreeRows';
+import { TreeNav } from './TreeNav';
 import { TreeDragLayer } from './TreeDragLayer';
 import { useNoteTreeDrag } from './useNoteTreeDrag';
 
@@ -87,6 +90,7 @@ function Section({
 export function NoteTreeSidebar({
   notes,
   folders,
+  hierarchy,
   loading,
   failed,
   onRetry,
@@ -94,12 +98,15 @@ export function NoteTreeSidebar({
   search,
   onSearchChange,
   collapsed,
+  expandedNotes,
   onToggleFolder,
+  onToggleNote,
   onCollapseSidebar,
   searchInputRef,
 }: {
   notes: NoteSummaryDto[];
   folders: NoteFolderDto[];
+  hierarchy: NoteHierarchy;
   loading: boolean;
   /** The tree could not be read. Distinct from an empty tree, which means the user has no notes. */
   failed: boolean;
@@ -108,7 +115,9 @@ export function NoteTreeSidebar({
   search: string;
   onSearchChange: (value: string) => void;
   collapsed: ReadonlySet<string>;
+  expandedNotes: ReadonlySet<string>;
   onToggleFolder: (id: string) => void;
+  onToggleNote: (id: string) => void;
   onCollapseSidebar: () => void;
   searchInputRef: RefObject<HTMLInputElement | null>;
 }) {
@@ -128,9 +137,22 @@ export function NoteTreeSidebar({
   const [showAllFavs, setShowAllFavs] = useState(false);
 
   const tree = useMemo(
-    () => buildNoteTree({ notes, folders, search, collapsed }),
-    [notes, folders, search, collapsed],
+    () => buildNoteTree({ notes, folders, hierarchy, search, collapsed, expandedNotes }),
+    [notes, folders, hierarchy, search, collapsed, expandedNotes],
   );
+  const rowKeys = useMemo(() => tree.rows.map(treeKeyOf), [tree.rows]);
+  const selectedKey = selectedNoteId ? `note:${selectedNoteId}` : null;
+  const selectedShown = tree.rows.some((row) => row.kind === 'note' && row.id === selectedNoteId);
+  const toggleRow = (kind: string, id: string) => (kind === 'folder' ? onToggleFolder(id) : onToggleNote(id));
+
+  // Scroll a nested note's row into view once its parents unfold.
+  useEffect(() => {
+    if (!selectedNoteId || !selectedShown) return;
+    const row = Array.from(scrollRef.current?.querySelectorAll<HTMLElement>('[data-row-key]') ?? []).find(
+      (element) => element.dataset.rowId === selectedNoteId && element.dataset.rowKind !== 'folder',
+    );
+    row?.scrollIntoView?.({ block: 'nearest' });
+  }, [selectedNoteId, selectedShown]);
 
   const exportFolder = (row: NoteFolderRowModel) =>
     openTransfer({
@@ -145,6 +167,7 @@ export function NoteTreeSidebar({
 
   const shownFavs = showAllFavs ? tree.favourites : tree.favourites.slice(0, FAVOURITES_SHOWN);
   const hiddenFavs = tree.favourites.length - shownFavs.length;
+  const favKeys = shownFavs.map((note) => `fav:${note.id}`);
 
   const plan = (handle: TreeDragHandle, target: TreeDropTarget): ReorderPlan | null => {
     // Planned from the orders in hand: while a move settles there is nothing to
@@ -257,34 +280,44 @@ export function NoteTreeSidebar({
             ))}
           </div>
         ) : searching ? (
-          <div ref={surfaceRef}>
-            {tree.rows.length === 0 ? (
-              <div className="px-2 py-6 text-center text-body-extra-small text-text-faded">
-                {nt('SearchNoResults')}
+          tree.rows.length === 0 ? (
+            <div className="px-2 py-6 text-center text-body-extra-small text-text-faded">
+              {nt('SearchNoResults')}
+            </div>
+          ) : (
+            <TreeNav label={nt('MyNotes')} keys={rowKeys} fallbackKey={rowKeys[0] ?? null} onToggle={toggleRow}>
+              <div ref={surfaceRef}>
+                <NoteTreeRows
+                  rows={tree.rows}
+                  selectedNoteId={selectedNoteId}
+                  drag={drag}
+                  onToggleFolder={onToggleFolder}
+                  onToggleNote={onToggleNote}
+                  onExport={exportFolder}
+                />
               </div>
-            ) : (
-              tree.rows.map((row) =>
-                row.kind === 'folder' ? (
-                  <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} onExport={exportFolder} drag={drag} />
-                ) : (
-                  <NoteRow key={`note:${row.id}`} row={row} selected={row.id === selectedNoteId} drag={drag} />
-                ),
-              )
-            )}
-          </div>
+            </TreeNav>
+          )
         ) : (
           <>
             {tree.favourites.length > 0 ? (
               <Section label={nt('Favourites')} open={favOpen} onToggle={() => setFavOpen((v) => !v)}>
-                {shownFavs.map((note) => (
-                  <NoteRow
-                    key={`fav:${note.id}`}
-                    row={{ kind: 'note', id: note.id, depth: 0, note }}
-                    selected={note.id === selectedNoteId}
-                    drag={null}
-                    favourite
-                  />
-                ))}
+                <TreeNav
+                  label={nt('Favourites')}
+                  keys={favKeys}
+                  fallbackKey={favKeys[0] ?? null}
+                  onToggle={toggleRow}
+                >
+                  {shownFavs.map((note) => (
+                    <NoteRow
+                      key={`fav:${note.id}`}
+                      row={{ kind: 'note', id: note.id, depth: 0, note, parentTitles: [], childCount: 0, expanded: false, expandable: false }}
+                      selected={note.id === selectedNoteId}
+                      drag={null}
+                      favourite
+                    />
+                  ))}
+                </TreeNav>
                 {hiddenFavs > 0 || showAllFavs ? (
                   <button
                     type="button"
@@ -298,21 +331,29 @@ export function NoteTreeSidebar({
             ) : null}
 
             <Section label={nt('MyNotes')} open={notesOpen} onToggle={() => setNotesOpen((v) => !v)}>
-              <div ref={surfaceRef}>
-                {tree.rows.length === 0 ? (
-                  <div className="px-2 py-6 text-center text-body-extra-small text-text-faded">
-                    {nt('TreeEmpty')}
+              {tree.rows.length === 0 ? (
+                <div className="px-2 py-6 text-center text-body-extra-small text-text-faded">
+                  {nt('TreeEmpty')}
+                </div>
+              ) : (
+                <TreeNav
+                  label={nt('MyNotes')}
+                  keys={rowKeys}
+                  fallbackKey={selectedKey && rowKeys.includes(selectedKey) ? selectedKey : (rowKeys[0] ?? null)}
+                  onToggle={toggleRow}
+                >
+                  <div ref={surfaceRef}>
+                    <NoteTreeRows
+                      rows={tree.rows}
+                      selectedNoteId={selectedNoteId}
+                      drag={drag}
+                      onToggleFolder={onToggleFolder}
+                      onToggleNote={onToggleNote}
+                      onExport={exportFolder}
+                    />
                   </div>
-                ) : (
-                  tree.rows.map((row) =>
-                    row.kind === 'folder' ? (
-                      <FolderRow key={`folder:${row.id}`} row={row} onToggle={onToggleFolder} onExport={exportFolder} drag={drag} />
-                    ) : (
-                      <NoteRow key={`note:${row.id}`} row={row} selected={row.id === selectedNoteId} drag={drag} />
-                    ),
-                  )
-                )}
-              </div>
+                </TreeNav>
+              )}
             </Section>
           </>
         )}
