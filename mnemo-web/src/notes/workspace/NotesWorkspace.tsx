@@ -14,6 +14,7 @@ import type { NoteSummaryDto } from '@/api/types';
 import { useCreateNote, useNoteFoldersQuery, useNoteQuery, useNotesQuery } from '../api';
 import { NotePdfExportOverlay } from '../pdf/NotePdfExportOverlay';
 import { NoteTransferOverlay } from '../transfer/NoteTransferOverlay';
+import { storedAncestors } from '../tree/note-hierarchy';
 import { NoteTreeSidebar, SIDEBAR_WIDTH } from '../tree/NoteTreeSidebar';
 import { hierarchyOf } from '../tree/tree-model';
 import { NotePane } from './NotePane';
@@ -135,15 +136,20 @@ export function NotesWorkspace({ noteId }: { noteId?: string }) {
 
   // Rendered tabs: the open ids that still name a real note, titled and iconed
   // from the summaries, so a deleted note drops out rather than showing a stub.
-  const tabs = useMemo<NoteTab[]>(
-    () =>
-      openTabs
-        .map((id) => notes.find((note) => note.id === id))
-        .filter((note): note is NoteSummaryDto => note !== undefined)
-        .map((note) => ({ id: note.id, title: note.title.trim() || nt('Untitled'), emoji: note.emoji })),
+  const tabs = useMemo<NoteTab[]>(() => {
+    const byId = new Map(notes.map((note) => [note.id, note]));
+    const titleOf = (note: NoteSummaryDto) => note.title.trim() || nt('Untitled');
+    return openTabs
+      .map((id) => byId.get(id))
+      .filter((note): note is NoteSummaryDto => note !== undefined)
+      .map((note) => ({
+        id: note.id,
+        title: titleOf(note),
+        emoji: note.emoji,
+        parents: storedAncestors(note, byId).map(titleOf),
+      }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [openTabs, notes],
-  );
+  }, [openTabs, notes]);
 
   // Closing the note you are on falls through to a neighbour rather than
   // leaving the pane empty with tabs still open beside it.
