@@ -856,6 +856,40 @@
   flex-basis: 0;
   min-width: 0;
 }
+/* Padded so the dashed outline never touches the text. It shows while the caret or the
+ * pointer is in the layout, innermost layout only. */
+.notes-doc [data-two-column] > [data-column] {
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  outline: 1px dashed transparent;
+  outline-offset: -1px;
+  transition: outline-color var(--duration-fast);
+}
+.notes-doc [data-two-column]:hover:not(:has([data-two-column]:hover)) > [data-column],
+.notes-doc [data-two-column] > .notes-column-active {
+  outline-color: color-mix(in oklch, var(--text-tertiary) 45%, transparent);
+}
+/* A hint wider than its lane ends in an ellipsis. Absolute, because the zero-height float would clip it. */
+.notes-doc [data-column] [data-line].notes-empty-hint {
+  position: relative;
+}
+.notes-doc [data-column] [data-line].notes-empty-hint::before {
+  position: absolute;
+  inset: 0;
+  float: none;
+  height: auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+@media print {
+  .notes-doc [data-two-column] > [data-column] {
+    outline: none;
+  }
+  .notes-doc [data-column] [data-line].notes-empty-hint::before {
+    content: none;
+  }
+}
 /* A general sibling, not adjacent: the splitter widget sits between the two cells,
  * so the right cell is no longer next to the left one. */
 .notes-doc [data-column] ~ [data-column] {

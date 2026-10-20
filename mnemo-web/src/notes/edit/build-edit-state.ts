@@ -46,6 +46,7 @@ import { imageCaptionCaretPlugin } from '../editor/blocks/image-caption-caret';
 import { codeHighlightPlugin } from '../editor/code/highlight';
 import { codeKeymap } from '../editor/code/code-keymap';
 import { crossBlockRangePlugin } from '../editor/commands/range-delete';
+import { columnLanesPlugin } from '../editor/pipeline/column-lanes';
 import { slashHintPlugin } from '../editor/pipeline/slash-hint';
 import { controlCharGuard, controlCharTextInputGuard } from '../editor/pipeline/control-chars';
 import { findPlugin } from '../find/find-plugin';
@@ -250,6 +251,7 @@ export function editorPlugins(
     // paragraph. It appends no step and claims no key, so it never dirties the
     // note or competes for input.
     slashHintPlugin(),
+    columnLanesPlugin(),
     // A decoration plugin like the two around it: it paints match highlights and
     // claims Ctrl+F (so the browser's own find never opens). View-only, appending
     // no document step, so it never dirties the note or moves its version. Its
