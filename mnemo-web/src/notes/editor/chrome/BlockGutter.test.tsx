@@ -511,6 +511,18 @@ describe('BlockGutter', () => {
     expect(rowBox()).toEqual(STACKED);
   });
 
+  it('hides the row while a splitter drag reflows the lanes, and offers it again after', () => {
+    const { view } = mount(columnNote);
+    const columns = layOutColumns(view);
+    hoverAt(columns.rightBlock, 900, 110);
+    columns.splitter.classList.add('is-dragging');
+    hoverAt(columns.leftBlock, 700, 400);
+    expect(mounted?.chrome.querySelector('[data-block-gutter]')).toBeNull();
+    columns.splitter.classList.remove('is-dragging');
+    hoverAt(columns.leftBlock, 700, 400);
+    expect(rowBox()).toEqual({ left: '503px', top: '0px', width: '42px', height: '28px' });
+  });
+
   it('keeps the row on its block while the pointer crosses to it', () => {
     const { view } = mount(columnNote);
     const columns = layOutColumns(view);

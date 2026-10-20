@@ -856,6 +856,10 @@
   flex-basis: 0;
   min-width: 0;
 }
+/* The row's paint containment would clip the splitter grip, which reaches 10px past it. */
+.notes-doc [data-two-column] {
+  overflow-clip-margin: 12px;
+}
 /* Padded so the dashed outline never touches the text. It shows while the caret or the
  * pointer is in the layout, innermost layout only. */
 .notes-doc [data-two-column] > [data-column] {
@@ -898,7 +902,7 @@
 
 /* The resize handle between the cells (editable view only). A fixed-width lane
  * carries the gap the container no longer adds; its grip line fades in on hover
- * or drag, matching the desktop's 0.42 splitter opacity. */
+ * or drag. */
 .notes-doc .notes-column-splitter {
   flex: 0 0 16px;
   align-self: stretch;
@@ -906,20 +910,27 @@
   cursor: col-resize;
   user-select: none;
 }
+/* The hit area reaches past the 16px gap so the handle wins over the gutter buttons. */
+.notes-doc .notes-column-splitter::after {
+  content: "";
+  position: absolute;
+  inset: -10px -6px;
+  z-index: 1;
+}
 .notes-doc .notes-column-splitter-grip {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 7px;
-  width: 2px;
-  border-radius: 1px;
+  top: -10px;
+  bottom: -10px;
+  left: 6px;
+  width: 4px;
+  border-radius: 2px;
   background: var(--text-tertiary);
   opacity: 0;
   transition: opacity var(--duration-conceal) var(--ease-out);
 }
 .notes-doc .notes-column-splitter:hover .notes-column-splitter-grip,
 .notes-doc .notes-column-splitter.is-dragging .notes-column-splitter-grip {
-  opacity: 0.42;
+  opacity: 0.6;
 }
 
 /* Image. The media row is view-owned DOM (placeholder card, bytes, the resize pill and the

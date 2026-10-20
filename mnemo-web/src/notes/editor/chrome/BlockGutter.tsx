@@ -295,6 +295,8 @@ export function BlockGutter({
   const caretRef = useRef<ActiveBlock | null>(null);
   const overChromeRef = useRef(false);
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** A column splitter is being dragged. The gutter stays hidden as the lanes reflow under it. */
+  const onSplitterRef = useRef(false);
   // A row that unmounts under the pointer (a grip drag starting) never gets its
   // pointer leave, so its going is what clears the flag.
   const setOverlay = useCallback((el: HTMLDivElement | null) => {
@@ -304,6 +306,11 @@ export function BlockGutter({
 
   const refresh = useCallback(() => {
     if (dragging) return;
+    if (onSplitterRef.current) {
+      activeRef.current = null;
+      setActive(null);
+      return;
+    }
     // While a layer of ours is open the handle stays on its block; otherwise hover
     // wins over the caret. Re-read the chosen block's rect so a scroll keeps the
     // handle pinned to it, but keep pos/node without another lookup unless the
@@ -350,6 +357,14 @@ export function BlockGutter({
     };
 
     const onPointerMove = (event: PointerEvent) => {
+      const splitter = root.querySelector(`${COLUMN_SPLITTER}.is-dragging`) !== null;
+      if (splitter !== onSplitterRef.current) {
+        onSplitterRef.current = splitter;
+        hoveredElRef.current = null;
+        hoveredRef.current = null;
+        refresh();
+      }
+      if (splitter) return;
       // The chrome is drawn over the lane (and, beside a nested block, over the
       // neighbouring cell): a pointer on it stays on the block it belongs to
       // rather than retargeting to whatever it happens to cover.
