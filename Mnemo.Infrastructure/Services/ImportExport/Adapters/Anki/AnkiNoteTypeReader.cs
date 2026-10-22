@@ -97,6 +97,10 @@ internal static class AnkiNoteTypeReader
     /// <summary>A marker in an Anki card template, which is a field name, a filtered one, or one of Anki's own.</summary>
     private static readonly Regex TemplateMarkerRegex = new(@"\{\{([^{}]+)\}\}", RegexOptions.Compiled);
 
+    private static readonly Regex UnseenElementRegex = new(
+        @"<[a-z][^>]*(?:\bhidden\b|display\s*:\s*none)[^>]*>",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     /// <summary>
     /// Every note type the collection defines, keyed by id. Empty when neither place holds any,
     /// and a note type whose config cannot be read is skipped rather than failing the import.
@@ -364,6 +368,8 @@ internal static class AnkiNoteTypeReader
             var token = match.Groups[1].Value.Trim();
             if (token.Length == 0 || token[0] is '#' or '^' or '/')
                 continue;
+            if (IsUnseen(template, match.Index))
+                continue;
 
             // Filters stack ahead of the field name, as in "{{text:furigana:Reading}}".
             var colon = token.LastIndexOf(':');
@@ -385,6 +391,24 @@ internal static class AnkiNoteTypeReader
         }
 
         return positions.ToArray();
+    }
+
+    /// <summary>
+    /// Whether a marker is never read by a person: inside a tag's attributes, such as a link
+    /// address built from a deck id, or directly inside an element that is hidden. Templates park
+    /// the data their scripts read in hidden elements, and none of it belongs on a card.
+    /// </summary>
+    private static bool IsUnseen(string template, int index)
+    {
+        var before = template[..index];
+        var open = before.LastIndexOf('<');
+        if (open < 0)
+            return false;
+        if (before.LastIndexOf('>') < open)
+            return true;
+
+        var element = UnseenElementRegex.Matches(before).LastOrDefault();
+        return element is not null && !before.AsSpan(element.Index + element.Length).Contains("</", StringComparison.Ordinal);
     }
 
     /// <summary>The field a template runs the cloze filter over. Null when the template names none.</summary>

@@ -71,6 +71,26 @@ public sealed class FlashcardAnkiNoteTypeTests
     }
 
     [Fact]
+    public async Task Reader_TemplateMarkersNobodySees_AreNotShownFields()
+    {
+        const string models = """
+            {"1":{"id":1,"name":"Overlapping","type":1,"flds":[{"name":"Text"},{"name":"Deck ID"},{"name":"Extra"},{"name":"Config"}],
+            "tmpls":[{"name":"Cloze","ord":0,
+            "qfmt":"<a href=\"https://example.com/{{Deck ID}}\">x</a><div id=\"c\" hidden=\"\">{{Config}}</div>{{cloze:Text}}",
+            "afmt":"{{FrontSide}}<div style=\"display: none\">{{Config}}</div>{{Extra}}"}]}}
+            """;
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        AnkiNoteTypeReader.RegisterCollations(connection);
+
+        var type = Assert.Single((await AnkiNoteTypeReader.ReadAsync(connection, models, default)).Values);
+
+        var template = Assert.Single(type.Templates);
+        Assert.Empty(template.FrontFields.Where(i => i != 0));
+        Assert.Equal(new[] { 2 }, template.BackFields);
+    }
+
+    [Fact]
     public async Task Import_ModernBasic_LandsEachNoteOnItsOwnFields()
     {
         await using var h = new FlashcardStoreHarness();
