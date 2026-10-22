@@ -50,7 +50,7 @@ export function LibraryHeader({
     : mm("RootCountFormat").replace("{0}", String(mapCount)).replace("{1}", String(folderCount))
 
   return (
-    <header className="flex items-center justify-between gap-4">
+    <header className="flex items-start justify-between gap-4">
       <div className="flex min-w-0 items-center gap-3">
         {folder ? (
           <div className="grid size-[38px] shrink-0 place-items-center rounded-lg bg-canvas-sunken text-ink-icon">
@@ -72,8 +72,8 @@ export function LibraryHeader({
           // Root only. An imported package restores the folders its maps were filed in, so there is
           // nothing a folder's own Transfer button would do differently than this one.
           <Button
-            variant="outline"
-            icon={<AppIcon name="common/download" size={15} />}
+            variant="ghost"
+            icon={<AppIcon name="common/download" size={14} />}
             onClick={() =>
               openTransfer({
                 direction: "both",
@@ -87,7 +87,7 @@ export function LibraryHeader({
 
         <Menu>
           <MenuTrigger asChild>
-            <Button icon={<AppIcon name="plus" size={14} strokeWidth={1.9} />} disabled={actions.busy}>
+            <Button variant="outline" icon={<AppIcon name="plus" size={14} strokeWidth={1.9} />} disabled={actions.busy}>
               {mm("New")}
             </Button>
           </MenuTrigger>

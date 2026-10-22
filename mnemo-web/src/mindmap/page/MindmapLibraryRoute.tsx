@@ -143,8 +143,8 @@ export function MindmapLibraryRoute() {
   }
 
   return (
-    <div className="min-h-full bg-canvas-sunken">
-      <div className="mx-auto flex max-w-[1232px] flex-col gap-5 px-8 pb-20 pt-7">
+    <div className="min-h-full">
+      <div className="mx-auto flex max-w-[980px] flex-col gap-5 px-8 pb-20 pt-7">
         {atRoot ? null : (
           <Breadcrumb
             crumbs={shelf.crumbs}
