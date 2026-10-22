@@ -10,6 +10,34 @@ leading `v`. The release workflow copies that section into the release notes. A 
 candidate without its own section uses the matching finished release section, while nightly
 builds without a section receive a short generated fallback.
 
+## 0.8.2
+
+Mnemo 0.8.2 adds folder and multi-file import, a redesigned transfer dialog and a leaner image store, along with a round of fixes to notes, flashcards and mind maps. Close Mnemo and back up your data folder before upgrading, because stored images are reorganized on first launch.
+
+### Added
+
+- **Import and export.** The import and export dialog has been redesigned. Many files can be imported at once, with no limit on how many, and dragging files over the window shows how many are coming.
+- **Notes.** A whole folder of notes can be imported at once, and a note, deck or mind map folder can be exported as a folder. Importing a single note opens it.
+- **Notes.** Nested notes show under their parent in the sidebar, and the note tabs have an overflow menu. Deleting the open note opens the next tab.
+- **Notes.** Dragging a block onto the edge of another block wraps the two into columns, and the lanes of a two column layout show while it is in use.
+- **Flashcards.** The card browser has a wider selection strip. Dragging down the checkbox column selects a run of cards.
+
+### Changed
+
+- **Images.** Each image used by notes, flashcards and mind maps is stored once. Duplicate images from earlier versions are merged on first launch. Backups store duplicate images once, and images load as they come into view.
+- **Mind maps.** The library page now matches the flashcards page in width, background and buttons. Library cards no longer show the layout label.
+
+### Fixed
+
+- **Flashcards.** Importing a shared Anki deck no longer puts a hidden deck id into the extra text of its cloze cards.
+- **Flashcards.** Prices written with a dollar sign are no longer read as maths.
+- **Notes.** A line break tag in Markdown is read as a new line.
+- **Notes.** Redoing a spelling fix no longer brings the mark back, and the spelling card opens on a right click only.
+- **Notes.** The caret stays in a code block caption field, and the caption and equation source fields are easier to use. An image caption can be focused from the options menu, and Backspace removes an empty line below a widget.
+- **Notes.** Code block captions are kept in Markdown and pasted HTML, and the column resize handle is easier to grab.
+- **Import and export.** A CSV file with a header and no rows is refused with a message.
+- **Mind maps.** The outline of a selected template is no longer clipped.
+
 ## 0.8.1
 
 Mnemo 0.8.1 is the first finished release of the rebuild. It lists every change from the 0.8.0 release candidates. The old desktop shell is gone. Mnemo now ships a web interface inside a native window with a local .NET backend on Windows, macOS and Linux. Windows has had months of daily use. The macOS and Linux packages are previews with far less use than Windows, so expect rough edges and keep backups of anything important.
