@@ -9,7 +9,6 @@ import { MindmapThumbnail } from "../../page/MindmapThumbnail"
 import type { MapCardModel } from "../shelf"
 import type { LibraryActions } from "../useLibraryActions"
 import { LibraryContextMenu, LibraryMenuButton } from "./LibraryMenu"
-import { LAYOUT_LABEL_KEYS } from "./labels"
 import { useMapMenuEntries } from "./useLibraryMenuEntries"
 
 /**
@@ -68,9 +67,6 @@ export function MapCard({
                   .replace("{1}", formatSmart(map.modifiedAt, Date.now(), t, language))}
               </p>
             </div>
-            <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-ink-3">
-              {mm(LAYOUT_LABEL_KEYS[map.layout] ?? "LayoutFree")}
-            </span>
           </div>
         </button>
 

@@ -10,7 +10,6 @@ import type { FolderCardModel, MapCardModel } from "../shelf"
 import type { LibraryActions } from "../useLibraryActions"
 import { LibraryContextMenu, LibraryMenuButton } from "./LibraryMenu"
 import { DueBadge } from "./MapCard"
-import { LAYOUT_LABEL_KEYS } from "./labels"
 import { useFolderMenuEntries, useMapMenuEntries } from "./useLibraryMenuEntries"
 
 const ROW_CLASS =
@@ -125,9 +124,6 @@ export function MapRow({
             </span>
           </span>
           {due > 0 ? <DueBadge due={due} className="shrink-0" /> : null}
-          <span className="w-[52px] shrink-0 text-right font-mono text-[10px] uppercase tracking-wide text-ink-3">
-            {mm(LAYOUT_LABEL_KEYS[map.layout] ?? "LayoutFree")}
-          </span>
           <span className="size-7 shrink-0" />
         </button>
 
